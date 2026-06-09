@@ -1,0 +1,832 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>资产管理</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;700;900&family=IBM+Plex+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      fontFamily: {
+        display: ['"Noto Serif SC"', 'serif'],
+        mono: ['"IBM Plex Mono"', 'monospace'],
+      },
+      colors: {
+        ink: { 50: '#f7f5f0', 100: '#ebe7db', 200: '#d4cdb8', 300: '#b5a98a', 400: '#9a8b65', 500: '#7d6f48', 600: '#5e5337', 700: '#473f2b', 800: '#302a1f', 900: '#1a1712', 950: '#0d0b08' },
+        gold: { 400: '#d4a853', 500: '#c49a3c', 600: '#a67f2e' },
+        paper: '#faf8f2',
+      }
+    }
+  }
+}
+</script>
+<style>
+  :root {
+    --bg: #faf8f2;
+    --fg: #1a1712;
+    --muted: #9a8b65;
+    --accent: #c49a3c;
+    --card: #ffffff;
+    --border: #e0d9c8;
+    --shadow: rgba(26, 23, 18, 0.06);
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--fg); font-family: 'IBM Plex Mono', monospace; }
+  body::before {
+    content: ''; position: fixed; inset: 0; z-index: -1; opacity: 0.03;
+    background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23000' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+  }
+  .font-display { font-family: 'Noto Serif SC', serif; }
+  .btn-gold {
+    background: linear-gradient(135deg, #d4a853, #c49a3c);
+    color: #1a1712; border: none; border-radius: 6px; padding: 8px 20px;
+    font-weight: 500; cursor: pointer; transition: all 0.2s;
+    font-family: 'IBM Plex Mono', monospace; font-size: 13px;
+  }
+  .btn-gold:hover { filter: brightness(1.08); box-shadow: 0 2px 12px rgba(196, 154, 60, 0.3); }
+  .btn-ghost {
+    background: transparent; color: var(--muted); border: 1px solid var(--border);
+    border-radius: 6px; padding: 8px 20px; cursor: pointer; transition: all 0.2s;
+    font-family: 'IBM Plex Mono', monospace; font-size: 13px;
+  }
+  .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+  .btn-danger {
+    background: transparent; color: #b85450; border: 1px solid #e0b4b0;
+    border-radius: 6px; padding: 6px 14px; cursor: pointer; transition: all 0.2s;
+    font-family: 'IBM Plex Mono', monospace; font-size: 12px;
+  }
+  .btn-danger:hover { background: #b85450; color: white; border-color: #b85450; }
+  .card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+    box-shadow: 0 1px 4px var(--shadow); padding: 24px; transition: box-shadow 0.2s;
+  }
+  .card:hover { box-shadow: 0 4px 16px var(--shadow); }
+  input, select {
+    font-family: 'IBM Plex Mono', monospace; font-size: 14px;
+    border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px;
+    background: var(--bg); color: var(--fg); transition: border-color 0.2s;
+    outline: none;
+  }
+  input:focus, select:focus { border-color: var(--accent); }
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(13, 11, 8, 0.5);
+    backdrop-filter: blur(4px); z-index: 100; display: flex;
+    align-items: center; justify-content: center;
+    animation: fadeIn 0.2s ease;
+  }
+  .modal-content {
+    background: var(--card); border-radius: 14px; padding: 32px;
+    max-width: 560px; width: 90%; max-height: 85vh; overflow-y: auto;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.15); animation: slideUp 0.25s ease;
+  }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+  .tag-pill {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 3px 10px; border-radius: 20px; font-size: 12px;
+    background: #f0ece0; color: var(--muted); border: 1px solid transparent;
+    transition: all 0.15s;
+  }
+  .tag-pill.active { background: linear-gradient(135deg, #f5ecd7, #ede0c0); color: #7d6f48; border-color: var(--accent); }
+  .tag-pill:hover { border-color: var(--accent); }
+  .asset-row {
+    display: grid; grid-template-columns: 2fr 1fr 1fr 1.5fr 80px;
+    align-items: center; padding: 14px 0; border-bottom: 1px solid #f0ece0;
+    transition: background 0.15s;
+  }
+  .asset-row:hover { background: #fdfcf8; }
+  .asset-row:last-child { border-bottom: none; }
+  .toast {
+    position: fixed; bottom: 24px; right: 24px; z-index: 200;
+    padding: 12px 24px; border-radius: 8px; font-size: 13px;
+    animation: slideUp 0.25s ease; box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+  }
+  .toast-success { background: #2d5a3d; color: #e0f0e4; }
+  .toast-error { background: #8b2e2b; color: #fde0df; }
+  .tab-btn {
+    padding: 8px 20px; font-size: 13px; border: none; background: transparent;
+    color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent;
+    font-family: 'IBM Plex Mono', monospace; transition: all 0.2s;
+  }
+  .tab-btn.active { color: var(--fg); border-bottom-color: var(--accent); }
+  .tab-btn:hover { color: var(--fg); }
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+</style>
+</head>
+<body class="min-h-screen">
+
+<!-- Header -->
+<header class="border-b border-ink-100" style="border-color: var(--border);">
+  <div class="max-w-6xl mx-auto px-6 py-5 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <div class="w-8 h-8 rounded-full flex items-center justify-center" style="background: linear-gradient(135deg, #d4a853, #a67f2e);">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1a1712" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="M12 6v12M6 12h12"/></svg>
+      </div>
+      <h1 class="font-display text-xl font-bold tracking-tight">资产管理</h1>
+    </div>
+    <div class="flex items-center gap-3">
+      <span id="rate-status" class="text-xs" style="color: var(--muted);"></span>
+      <button onclick="showImportExport()" class="btn-ghost text-xs">导入 / 导出</button>
+    </div>
+  </div>
+</header>
+
+<!-- Tabs -->
+<div class="max-w-6xl mx-auto px-6">
+  <div class="flex gap-1 border-b" style="border-color: var(--border);">
+    <button class="tab-btn active" data-tab="assets" onclick="switchTab('assets')">资产</button>
+    <button class="tab-btn" data-tab="categories" onclick="switchTab('categories')">标签分类</button>
+    <button class="tab-btn" data-tab="chart" onclick="switchTab('chart')">旭日图</button>
+  </div>
+</div>
+
+<!-- Main Content -->
+<main class="max-w-6xl mx-auto px-6 py-8">
+
+  <!-- Assets Tab -->
+  <section id="tab-assets">
+    <div class="flex items-center justify-between mb-6">
+      <div>
+        <h2 class="font-display text-lg font-bold">资产列表</h2>
+        <p class="text-sm mt-1" style="color: var(--muted);">
+          总计 <span id="total-cny" class="font-mono font-medium" style="color: var(--accent);">¥0</span> CNY
+        </p>
+      </div>
+      <button onclick="openAssetModal()" class="btn-gold">+ 登记资产</button>
+    </div>
+
+    <div id="assets-empty" class="card text-center py-16" style="display:none;">
+      <div class="text-4xl mb-3 opacity-30">☧</div>
+      <p style="color: var(--muted);">还没有资产记录</p>
+      <p class="text-sm mt-1" style="color: var(--muted);">点击「登记资产」开始</p>
+    </div>
+
+    <div id="assets-list" class="card">
+      <div class="asset-row text-xs font-medium" style="color: var(--muted); border-bottom: 1px solid var(--border);">
+        <div>名称</div><div>金额</div><div>货币</div><div>标签</div><div></div>
+      </div>
+      <div id="assets-rows"></div>
+    </div>
+  </section>
+
+  <!-- Categories Tab -->
+  <section id="tab-categories" style="display:none;">
+    <div class="flex items-center justify-between mb-6">
+      <div>
+        <h2 class="font-display text-lg font-bold">标签分类管理</h2>
+        <p class="text-sm mt-1" style="color: var(--muted);">管理资产的分类维度与标签</p>
+      </div>
+      <button onclick="openCategoryModal()" class="btn-gold">+ 新增分类</button>
+    </div>
+    <div id="categories-list" class="space-y-4"></div>
+  </section>
+
+  <!-- Chart Tab -->
+  <section id="tab-chart" style="display:none;">
+    <div class="flex items-center justify-between mb-6">
+      <div>
+        <h2 class="font-display text-lg font-bold">资产旭日图</h2>
+        <p class="text-sm mt-1" style="color: var(--muted);">选择一个分类维度查看资产分布（已换算为 CNY）</p>
+      </div>
+      <select id="chart-category-select" onchange="renderChart()" class="text-sm" style="min-width:160px;">
+      </select>
+    </div>
+    <div class="card">
+      <div id="sunburst-chart" style="width:100%; height:520px;"></div>
+      <div id="chart-empty" class="text-center py-16" style="display:none;">
+        <p style="color: var(--muted);">暂无数据，请先登记资产</p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<!-- Asset Modal -->
+<div id="asset-modal" class="modal-overlay" style="display:none;">
+  <div class="modal-content">
+    <h3 class="font-display text-lg font-bold mb-6" id="asset-modal-title">登记资产</h3>
+    <form id="asset-form" onsubmit="saveAsset(event)">
+      <input type="hidden" id="asset-edit-id">
+      <div class="space-y-4">
+        <div>
+          <label class="block text-xs font-medium mb-1.5" style="color:var(--muted);">资产名称</label>
+          <input type="text" id="asset-name" required class="w-full" placeholder="如：招商银行活期">
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-medium mb-1.5" style="color:var(--muted);">金额</label>
+            <input type="number" id="asset-amount" required min="0" step="0.01" class="w-full" placeholder="0.00">
+          </div>
+          <div>
+            <label class="block text-xs font-medium mb-1.5" style="color:var(--muted);">货币</label>
+            <select id="asset-currency" class="w-full" onchange="syncCurrencyTag()">
+              <option value="CNY">CNY ¥</option>
+              <option value="HKD">HKD $</option>
+              <option value="USD">USD $</option>
+            </select>
+          </div>
+        </div>
+        <div id="asset-tags-section" class="space-y-3"></div>
+      </div>
+      <div class="flex justify-end gap-3 mt-8">
+        <button type="button" onclick="closeModal('asset-modal')" class="btn-ghost">取消</button>
+        <button type="submit" class="btn-gold">保存</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Category Modal -->
+<div id="category-modal" class="modal-overlay" style="display:none;">
+  <div class="modal-content">
+    <h3 class="font-display text-lg font-bold mb-6" id="category-modal-title">新增分类</h3>
+    <form id="category-form" onsubmit="saveCategory(event)">
+      <input type="hidden" id="cat-edit-id">
+      <div class="space-y-4">
+        <div>
+          <label class="block text-xs font-medium mb-1.5" style="color:var(--muted);">分类名称</label>
+          <input type="text" id="cat-name" required class="w-full" placeholder="如：资产类型">
+        </div>
+        <div>
+          <label class="block text-xs font-medium mb-1.5" style="color:var(--muted);">标签（逗号分隔）</label>
+          <input type="text" id="cat-tags" required class="w-full" placeholder="如：固定资产, 股票, 债券">
+        </div>
+      </div>
+      <div class="flex justify-end gap-3 mt-8">
+        <button type="button" onclick="closeModal('category-modal')" class="btn-ghost">取消</button>
+        <button type="submit" class="btn-gold">保存</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Import/Export Modal -->
+<div id="io-modal" class="modal-overlay" style="display:none;">
+  <div class="modal-content">
+    <h3 class="font-display text-lg font-bold mb-6">导入 / 导出</h3>
+    <div class="space-y-5">
+      <div>
+        <p class="text-sm mb-3" style="color:var(--muted);">导出当前所有数据为 JSON 文件</p>
+        <button onclick="exportData()" class="btn-gold">导出数据</button>
+      </div>
+      <hr style="border-color: var(--border);">
+      <div>
+        <p class="text-sm mb-3" style="color:var(--muted);">从 JSON 文件导入数据（将覆盖当前数据）</p>
+        <input type="file" id="import-file" accept=".json" onchange="importData(event)" class="text-sm">
+      </div>
+    </div>
+    <div class="flex justify-end mt-8">
+      <button type="button" onclick="closeModal('io-modal')" class="btn-ghost">关闭</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ========== STATE ==========
+const LS_KEY = 'wealth-manager-data';
+const CURRENCIES = ['CNY', 'HKD', 'USD'];
+let state = { categories: [], assets: [], rates: { CNY: 1, HKD: 1, USD: 1, fetchedAt: null } };
+let chart = null;
+
+// ========== INIT ==========
+document.addEventListener('DOMContentLoaded', () => {
+  loadState();
+  fetchRates();
+  renderAll();
+});
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (raw) {
+      const saved = JSON.parse(raw);
+      state = { ...state, ...saved };
+      // ensure currency category exists
+      if (!state.categories.find(c => c.id === 'currency')) {
+        state.categories.unshift({ id: 'currency', name: '货币类型', builtin: true, tags: ['CNY', 'HKD', 'USD'] });
+      }
+    } else {
+      state.categories = [{ id: 'currency', name: '货币类型', builtin: true, tags: ['CNY', 'HKD', 'USD'] }];
+    }
+  } catch(e) {
+    state.categories = [{ id: 'currency', name: '货币类型', builtin: true, tags: ['CNY', 'HKD', 'USD'] }];
+  }
+}
+
+function saveState() {
+  localStorage.setItem(LS_KEY, JSON.stringify(state));
+}
+
+// ========== RATES ==========
+async function fetchRates() {
+  const statusEl = document.getElementById('rate-status');
+  try {
+    const resp = await fetch('https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/cny.json');
+    const data = await resp.json();
+    const cny = data.cny;
+    // API gives: 1 CNY = X foreign currency
+    // We want: 1 foreign = X CNY
+    // So CNY to CNY = 1, HKD to CNY = 1/cny.hkd, USD to CNY = 1/cny.usd
+    state.rates = {
+      CNY: 1,
+      HKD: 1 / cny.hkd,
+      USD: 1 / cny.usd,
+      fetchedAt: new Date().toISOString()
+    };
+    saveState();
+    statusEl.textContent = '汇率已更新';
+    statusEl.style.color = '#2d5a3d';
+    setTimeout(() => { statusEl.textContent = ''; }, 3000);
+    renderAssets();
+  } catch(e) {
+    // use saved rates if available
+    if (state.rates.fetchedAt) {
+      statusEl.textContent = '使用缓存汇率';
+    } else {
+      statusEl.textContent = '汇率获取失败';
+      statusEl.style.color = '#8b2e2b';
+    }
+  }
+}
+
+function toCNY(amount, currency) {
+  return amount * (state.rates[currency] || 1);
+}
+
+function formatCNY(val) {
+  if (val >= 1e8) return '¥' + (val / 1e8).toFixed(2) + '亿';
+  if (val >= 1e4) return '¥' + (val / 1e4).toFixed(2) + '万';
+  return '¥' + val.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+// ========== TABS ==========
+function switchTab(tab) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+  document.getElementById('tab-assets').style.display = tab === 'assets' ? '' : 'none';
+  document.getElementById('tab-categories').style.display = tab === 'categories' ? '' : 'none';
+  document.getElementById('tab-chart').style.display = tab === 'chart' ? '' : 'none';
+  if (tab === 'chart') {
+    populateChartSelect();
+    setTimeout(() => renderChart(), 100);
+  }
+}
+
+// ========== RENDER ==========
+function renderAll() {
+  renderAssets();
+  renderCategories();
+}
+
+function renderAssets() {
+  const rows = document.getElementById('assets-rows');
+  const empty = document.getElementById('assets-empty');
+  const list = document.getElementById('assets-list');
+
+  if (state.assets.length === 0) {
+    empty.style.display = '';
+    list.style.display = 'none';
+  } else {
+    empty.style.display = 'none';
+    list.style.display = '';
+    rows.innerHTML = state.assets.map(a => {
+      const tagHtml = state.categories.map(cat => {
+        const tagVal = a.tags[cat.id];
+        if (!tagVal) return '';
+        return `<span class="tag-pill active">${cat.name}: ${tagVal}</span>`;
+      }).join(' ');
+      const cnyVal = toCNY(a.amount, a.currency);
+      const currSymbol = a.currency === 'CNY' ? '¥' : '$';
+      return `<div class="asset-row">
+        <div class="font-medium text-sm">${esc(a.name)}</div>
+        <div class="font-mono text-sm">${currSymbol}${a.amount.toLocaleString('zh-CN', {minimumFractionDigits:2, maximumFractionDigits:2})}</div>
+        <div class="text-sm" style="color:var(--muted)">${a.currency}</div>
+        <div class="flex flex-wrap gap-1">${tagHtml}</div>
+        <div class="flex gap-2 justify-end">
+          <button onclick="editAsset('${a.id}')" class="text-xs" style="color:var(--accent);cursor:pointer;">编辑</button>
+          <button onclick="deleteAsset('${a.id}')" class="btn-danger" style="padding:3px 8px;font-size:11px;">删除</button>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  // total
+  const total = state.assets.reduce((s, a) => s + toCNY(a.amount, a.currency), 0);
+  document.getElementById('total-cny').textContent = formatCNY(total);
+}
+
+function renderCategories() {
+  const container = document.getElementById('categories-list');
+  container.innerHTML = state.categories.map(cat => {
+    const tagPills = cat.tags.map(t =>
+      `<span class="tag-pill active">${esc(t)}${!cat.builtin ? ` <button onclick="removeTag('${cat.id}','${esc(t)}')" style="margin-left:2px;cursor:pointer;font-size:10px;line-height:1;">✕</button>` : ''}</span>`
+    ).join(' ');
+    return `<div class="card">
+      <div class="flex items-center justify-between mb-3">
+        <div class="flex items-center gap-2">
+          <h3 class="font-display font-bold">${esc(cat.name)}</h3>
+          ${cat.builtin ? '<span class="text-xs px-2 py-0.5 rounded" style="background:#f0ece0;color:var(--muted);">内置</span>' : ''}
+        </div>
+        <div class="flex gap-2">
+          ${!cat.builtin ? `<button onclick="editCategory('${cat.id}')" class="text-xs" style="color:var(--accent);cursor:pointer;">编辑</button>
+          <button onclick="deleteCategory('${cat.id}')" class="btn-danger" style="padding:3px 8px;font-size:11px;">删除</button>` : ''}
+        </div>
+      </div>
+      <div class="flex flex-wrap gap-2 mb-3">${tagPills}</div>
+      <div class="flex gap-2">
+        <input type="text" id="new-tag-${cat.id}" placeholder="新增标签" class="text-sm flex-1" style="padding:6px 10px;">
+        <button onclick="addTag('${cat.id}')" class="btn-ghost" style="padding:6px 14px;">添加</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ========== ASSET CRUD ==========
+function openAssetModal(editId) {
+  const modal = document.getElementById('asset-modal');
+  const title = document.getElementById('asset-modal-title');
+  const form = document.getElementById('asset-form');
+  form.reset();
+  document.getElementById('asset-edit-id').value = editId || '';
+
+  if (editId) {
+    title.textContent = '编辑资产';
+    const a = state.assets.find(x => x.id === editId);
+    if (a) {
+      document.getElementById('asset-name').value = a.name;
+      document.getElementById('asset-amount').value = a.amount;
+      document.getElementById('asset-currency').value = a.currency;
+    }
+  } else {
+    title.textContent = '登记资产';
+  }
+
+  // render tag selectors (skip currency - auto-synced from the currency dropdown)
+  const section = document.getElementById('asset-tags-section');
+  section.innerHTML = state.categories.filter(cat => cat.id !== 'currency').map(cat => {
+    const asset = editId ? state.assets.find(x => x.id === editId) : null;
+    const selected = asset ? (asset.tags[cat.id] || '') : '';
+    const options = cat.tags.map(t =>
+      `<option value="${esc(t)}" ${t === selected ? 'selected' : ''}>${esc(t)}</option>`
+    ).join('');
+    return `<div>
+      <label class="block text-xs font-medium mb-1.5" style="color:var(--muted);">${esc(cat.name)}</label>
+      <select id="asset-tag-${cat.id}" class="w-full" required>
+        <option value="">请选择</option>
+        ${options}
+      </select>
+    </div>`;
+  }).join('');
+
+  modal.style.display = '';
+}
+
+function syncCurrencyTag() {
+  // currency tag is auto-managed from the currency dropdown
+}
+
+function saveAsset(e) {
+  e.preventDefault();
+  const editId = document.getElementById('asset-edit-id').value;
+  const name = document.getElementById('asset-name').value.trim();
+  const amount = parseFloat(document.getElementById('asset-amount').value);
+  const currency = document.getElementById('asset-currency').value;
+
+  const tags = {};
+  // auto-assign currency tag from the currency dropdown
+  tags['currency'] = currency;
+  let tagsValid = true;
+  state.categories.filter(cat => cat.id !== 'currency').forEach(cat => {
+    const el = document.getElementById(`asset-tag-${cat.id}`);
+    const val = el ? el.value : '';
+    if (val) tags[cat.id] = val;
+    else tagsValid = false;
+  });
+
+  if (!tagsValid) {
+    toast('请为每个分类选择标签', 'error');
+    return;
+  }
+
+  if (editId) {
+    const idx = state.assets.findIndex(a => a.id === editId);
+    if (idx >= 0) state.assets[idx] = { ...state.assets[idx], name, amount, currency, tags };
+  } else {
+    state.assets.push({ id: genId(), name, amount, currency, tags });
+  }
+
+  saveState();
+  renderAssets();
+  closeModal('asset-modal');
+  toast(editId ? '资产已更新' : '资产已登记', 'success');
+}
+
+function editAsset(id) {
+  openAssetModal(id);
+}
+
+function deleteAsset(id) {
+  if (!confirm('确认删除该资产？')) return;
+  state.assets = state.assets.filter(a => a.id !== id);
+  saveState();
+  renderAssets();
+  toast('已删除', 'success');
+}
+
+// ========== CATEGORY CRUD ==========
+function openCategoryModal(editId) {
+  const modal = document.getElementById('category-modal');
+  const title = document.getElementById('category-modal-title');
+  const form = document.getElementById('category-form');
+  form.reset();
+  document.getElementById('cat-edit-id').value = editId || '';
+
+  if (editId) {
+    title.textContent = '编辑分类';
+    const c = state.categories.find(x => x.id === editId);
+    if (c) {
+      document.getElementById('cat-name').value = c.name;
+      document.getElementById('cat-tags').value = c.tags.join(', ');
+    }
+  } else {
+    title.textContent = '新增分类';
+  }
+  modal.style.display = '';
+}
+
+function saveCategory(e) {
+  e.preventDefault();
+  const editId = document.getElementById('cat-edit-id').value;
+  const name = document.getElementById('cat-name').value.trim();
+  const tagsStr = document.getElementById('cat-tags').value.trim();
+  const tags = tagsStr.split(/[,，]/).map(s => s.trim()).filter(Boolean);
+
+  if (tags.length === 0) {
+    toast('至少需要一个标签', 'error');
+    return;
+  }
+
+  if (editId) {
+    const idx = state.categories.findIndex(c => c.id === editId);
+    if (idx >= 0) {
+      const oldTags = state.categories[idx].tags;
+      state.categories[idx] = { ...state.categories[idx], name, tags };
+      // update assets referencing renamed/removed tags
+      state.assets.forEach(a => {
+        if (a.tags[editId]) {
+          if (!tags.includes(a.tags[editId])) {
+            delete a.tags[editId];
+          }
+        }
+      });
+    }
+  } else {
+    state.categories.push({ id: genId(), name, builtin: false, tags });
+  }
+
+  saveState();
+  renderCategories();
+  renderAssets();
+  closeModal('category-modal');
+  toast(editId ? '分类已更新' : '分类已创建', 'success');
+}
+
+function editCategory(id) {
+  openCategoryModal(id);
+}
+
+function deleteCategory(id) {
+  const cat = state.categories.find(c => c.id === id);
+  if (cat && cat.builtin) return;
+  if (!confirm(`确认删除分类「${cat.name}」？该分类下资产的标签关联也会被移除。`)) return;
+  state.categories = state.categories.filter(c => c.id !== id);
+  state.assets.forEach(a => { delete a.tags[id]; });
+  saveState();
+  renderCategories();
+  renderAssets();
+  toast('分类已删除', 'success');
+}
+
+function addTag(catId) {
+  const input = document.getElementById(`new-tag-${catId}`);
+  const val = input.value.trim();
+  if (!val) return;
+  const cat = state.categories.find(c => c.id === catId);
+  if (cat.tags.includes(val)) { toast('标签已存在', 'error'); return; }
+  cat.tags.push(val);
+  saveState();
+  renderCategories();
+  renderAssets();
+  input.value = '';
+  toast('标签已添加', 'success');
+}
+
+function removeTag(catId, tagName) {
+  const cat = state.categories.find(c => c.id === catId);
+  if (!cat) return;
+  if (cat.tags.length <= 1) { toast('至少保留一个标签', 'error'); return; }
+  cat.tags = cat.tags.filter(t => t !== tagName);
+  // clean up assets
+  state.assets.forEach(a => {
+    if (a.tags[catId] === tagName) delete a.tags[catId];
+  });
+  saveState();
+  renderCategories();
+  renderAssets();
+  toast('标签已移除', 'success');
+}
+
+// ========== CHART ==========
+function populateChartSelect() {
+  const sel = document.getElementById('chart-category-select');
+  const current = sel.value;
+  sel.innerHTML = state.categories.map(c =>
+    `<option value="${c.id}">${esc(c.name)}</option>`
+  ).join('');
+  if (current && sel.querySelector(`option[value="${current}"]`)) sel.value = current;
+}
+
+function renderChart() {
+  const catId = document.getElementById('chart-category-select').value;
+  if (!catId) return;
+
+  const chartEl = document.getElementById('sunburst-chart');
+  const emptyEl = document.getElementById('chart-empty');
+
+  if (state.assets.length === 0) {
+    chartEl.style.display = 'none';
+    emptyEl.style.display = '';
+    return;
+  }
+  chartEl.style.display = '';
+  emptyEl.style.display = 'none';
+
+  const cat = state.categories.find(c => c.id === catId);
+  if (!cat) return;
+
+  // group assets by the selected category's tags
+  const groups = {};
+  cat.tags.forEach(t => { groups[t] = []; });
+  state.assets.forEach(a => {
+    const tagVal = a.tags[catId];
+    if (tagVal && groups[tagVal]) {
+      groups[tagVal].push(a);
+    }
+  });
+
+  // Warm, cozy palette — autumn afternoon vibes
+  const categoryPalette = [
+    { base: '#D4886B', shades: ['#E8A990', '#F0C4B0', '#F8DDD0'] },  // terracotta
+    { base: '#7BA68A', shades: ['#9DC0A6', '#BDD7C3', '#DDEBDF'] },  // sage green
+    { base: '#E8B467', shades: ['#F0CA8E', '#F6DCB2', '#FBF0D8'] },  // amber honey
+    { base: '#C47A8F', shades: ['#D69DAE', '#E5BCC7', '#F2D8DF'] },  // dusty rose
+    { base: '#8B9ECE', shades: ['#AAB8DE', '#C5D1EB', '#DFE6F5'] },  // soft cornflower
+    { base: '#D4A078', shades: ['#E2BC9B', '#EDD4BC', '#F7EAD9'] },  // warm caramel
+    { base: '#6DAEAF', shades: ['#94C5C5', '#B6D8D8', '#D6EAEA'] },  // teal mist
+    { base: '#B886B8', shades: ['#D0A6D0', '#E2C4E2', '#F0DCF0'] },  // soft mauve
+    { base: '#C8A45C', shades: ['#DABE82', '#E6D3A8', '#F2E8CE'] },  // golden wheat
+    { base: '#E07A5F', shades: ['#E99E8A', '#F0BFB0', '#F7DFD5'] },  // coral warmth
+  ];
+
+  // Assign colors: each tag gets a base color, children get shades
+  const data = cat.tags.filter(t => groups[t].length > 0).map((tag, ti) => {
+    const pal = categoryPalette[ti % categoryPalette.length];
+    const children = groups[tag].map((a, ai) => ({
+      name: a.name,
+      value: Math.round(toCNY(a.amount, a.currency) * 100) / 100,
+      itemStyle: { color: pal.shades[ai % pal.shades.length] }
+    }));
+    return { name: tag, itemStyle: { color: pal.base }, children };
+  });
+
+  if (!chart) {
+    chart = echarts.init(chartEl, null, { renderer: 'canvas' });
+    window.addEventListener('resize', () => chart && chart.resize());
+  }
+
+  // compute total for percentage
+  const totalCNY = state.assets.reduce((s, a) => s + toCNY(a.amount, a.currency), 0);
+
+  chart.setOption({
+    backgroundColor: 'transparent',
+    series: [{
+      type: 'sunburst',
+      data: data,
+      radius: ['12%', '90%'],
+      sort: null,
+      emphasis: { focus: 'ancestor' },
+      levels: [
+        {},
+        {
+          r0: '12%', r: '50%',
+          itemStyle: { borderWidth: 2, borderColor: '#faf8f2' },
+          label: { rotate: 'tangential', fontSize: 13, fontWeight: 600, fontFamily: '"IBM Plex Mono", monospace', color: '#fff',
+            formatter: function(p) {
+              const pct = totalCNY > 0 ? ((p.value / totalCNY) * 100).toFixed(1) : '0.0';
+              return p.name + ' ' + pct + '%';
+            }
+          }
+        },
+        {
+          r0: '50%', r: '90%',
+          itemStyle: { borderWidth: 1, borderColor: '#faf8f2' },
+          label: { rotate: 'radial', fontSize: 11, fontFamily: '"IBM Plex Mono", monospace', color: '#1a1712',
+            formatter: function(p) {
+              const pct = totalCNY > 0 ? ((p.value / totalCNY) * 100).toFixed(1) : '0.0';
+              return p.name + '\n' + formatCNY(p.value) + ' (' + pct + '%)';
+            }
+          }
+        }
+      ]
+    }],
+    tooltip: {
+      trigger: 'item',
+      formatter: function(p) {
+        const pct = totalCNY > 0 ? ((p.value / totalCNY) * 100).toFixed(1) : '0.0';
+        const emoji = p.treePathInfo && p.treePathInfo.length <= 2 ? '🏷️' : '💰';
+        const arrow = p.treePathInfo && p.treePathInfo.length > 2
+          ? '🏷️ ' + p.treePathInfo[1].name + ' › '
+          : '';
+        return `${emoji} <b>${arrow}${p.name}</b><br/>💵 ${formatCNY(p.value)}&nbsp;&nbsp;📊 ${pct}%`;
+      }
+    }
+  }, true);
+}
+
+// ========== IMPORT/EXPORT ==========
+function showImportExport() {
+  document.getElementById('io-modal').style.display = '';
+}
+
+function exportData() {
+  const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `wealth-data-${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  toast('数据已导出', 'success');
+}
+
+function importData(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(ev) {
+    try {
+      const data = JSON.parse(ev.target.result);
+      if (data.categories && data.assets) {
+        state = { ...state, ...data };
+        saveState();
+        renderAll();
+        closeModal('io-modal');
+        toast('数据已导入', 'success');
+      } else {
+        toast('文件格式不正确', 'error');
+      }
+    } catch(err) {
+      toast('解析文件失败', 'error');
+    }
+  };
+  reader.readAsText(file);
+}
+
+// ========== UTILS ==========
+function closeModal(id) {
+  document.getElementById(id).style.display = 'none';
+}
+
+// close modal on overlay click
+document.addEventListener('click', e => {
+  if (e.target.classList.contains('modal-overlay')) {
+    e.target.style.display = 'none';
+  }
+});
+
+function genId() {
+  return 'id_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7);
+}
+
+function esc(str) {
+  const d = document.createElement('div');
+  d.textContent = str;
+  return d.innerHTML;
+}
+
+function toast(msg, type) {
+  const t = document.createElement('div');
+  t.className = `toast toast-${type}`;
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => { t.style.opacity = '0'; t.style.transition = 'opacity 0.3s'; setTimeout(() => t.remove(), 300); }, 2500);
+}
+</script>
+
+</body>
+</html>
