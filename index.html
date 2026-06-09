@@ -398,10 +398,11 @@ function renderAssets() {
       const tagHtml = state.categories.map(cat => {
         const tagVal = a.tags[cat.id];
         if (!tagVal) return '';
-        return `<span class="tag-pill active">${cat.name}: ${tagVal}</span>`;
+        const c = catColor(cat.id);
+        return `<span class="tag-pill" style="background:${c.bg};color:${c.fg};border:1px solid ${c.border};">${cat.name}: ${tagVal}</span>`;
       }).join(' ');
       const cnyVal = toCNY(a.amount, a.currency);
-      const currSymbol = a.currency === 'CNY' ? '¥' : '$';
+      const currSymbol = a.currency === 'CNY' ? '¥' : a.currency === 'HKD' ? 'HK$' : 'US$';
       return `<div class="asset-row">
         <div class="font-medium text-sm">${esc(a.name)}</div>
         <div class="font-mono text-sm">${currSymbol}${a.amount.toLocaleString('zh-CN', {minimumFractionDigits:2, maximumFractionDigits:2})}</div>
@@ -423,9 +424,10 @@ function renderAssets() {
 function renderCategories() {
   const container = document.getElementById('categories-list');
   container.innerHTML = state.categories.map(cat => {
-    const tagPills = cat.tags.map(t =>
-      `<span class="tag-pill active">${esc(t)}${!cat.builtin ? ` <button onclick="removeTag('${cat.id}','${esc(t)}')" style="margin-left:2px;cursor:pointer;font-size:10px;line-height:1;">✕</button>` : ''}</span>`
-    ).join(' ');
+    const tagPills = cat.tags.map(t => {
+      const c = catColor(cat.id);
+      return `<span class="tag-pill" style="background:${c.bg};color:${c.fg};border:1px solid ${c.border};">${esc(t)}${!cat.builtin ? ` <button onclick="removeTag('${cat.id}','${esc(t)}')" style="margin-left:2px;cursor:pointer;font-size:10px;line-height:1;color:${c.fg};">✕</button>` : ''}</span>`;
+    }).join(' ');
     return `<div class="card">
       <div class="flex items-center justify-between mb-3">
         <div class="flex items-center gap-2">
@@ -798,6 +800,24 @@ function importData(e) {
 }
 
 // ========== UTILS ==========
+// Warm, distinctive color scheme per category — each has bg, fg, border
+const CATEGORY_COLORS = [
+  { bg: '#FFF1E6', fg: '#A66A2E', border: '#F0D4B0' },  // terracotta
+  { bg: '#E8F5EC', fg: '#3D7A52', border: '#B8DFC4' },  // sage green
+  { bg: '#FFF8E1', fg: '#9A7B2D', border: '#F0E0A8' },  // amber honey
+  { bg: '#FCE8EF', fg: '#A34D68', border: '#F0C0D0' },  // dusty rose
+  { bg: '#E8EEFA', fg: '#4A6099', border: '#B8C8E8' },  // soft cornflower
+  { bg: '#FFF0E0', fg: '#A07040', border: '#F0D8B8' },  // warm caramel
+  { bg: '#E0F4F4', fg: '#3D8A8A', border: '#B0D8D8' },  // teal mist
+  { bg: '#F4E8F4', fg: '#7A5080', border: '#D8C0D8' },  // soft mauve
+  { bg: '#FBF3E0', fg: '#8A7030', border: '#E8D8A8' },  // golden wheat
+  { bg: '#FCE8E0', fg: '#B05540', border: '#F0C8B8' },  // coral warmth
+];
+
+function catColor(catId) {
+  const idx = state.categories.findIndex(c => c.id === catId);
+  return CATEGORY_COLORS[idx % CATEGORY_COLORS.length];
+}
 function closeModal(id) {
   document.getElementById(id).style.display = 'none';
 }
