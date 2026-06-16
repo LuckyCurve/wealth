@@ -403,10 +403,9 @@ function renderAssets() {
         return `<span class="tag-pill" style="background:${c.bg};color:${c.fg};border:1px solid ${c.border};">${cat.name}: ${tagVal}</span>`;
       }).join(' ');
       const cnyVal = toCNY(a.amount, a.currency);
-      const currSymbol = a.currency === 'CNY' ? '¥' : a.currency === 'HKD' ? 'HK$' : 'US$';
       return `<div class="asset-row">
         <div class="font-medium text-sm">${esc(a.name)}</div>
-        <div class="font-mono text-sm">${currSymbol}${a.amount.toLocaleString('zh-CN', {minimumFractionDigits:2, maximumFractionDigits:2})}</div>
+        <div class="font-mono text-sm">${a.amount.toLocaleString('zh-CN', {minimumFractionDigits:2, maximumFractionDigits:2})}</div>
         <div class="text-sm" style="color:var(--muted)">${a.currency}</div>
         <div class="flex flex-wrap gap-1">${tagHtml}</div>
         <div class="flex gap-2 justify-end">
