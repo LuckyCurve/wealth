@@ -180,25 +180,6 @@ tailwind.config = {
       <button onclick="openAssetModal()" class="btn-gold">+ 登记资产</button>
     </div>
 
-    <div id="stats-cards" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-      <div class="card text-center py-4">
-        <div class="text-2xl font-bold" id="stat-count">0</div>
-        <div class="text-xs mt-1" style="color:var(--muted);">资产总数</div>
-      </div>
-      <div class="card text-center py-4">
-        <div class="text-2xl font-bold" id="stat-total" style="color:var(--accent);">¥0</div>
-        <div class="text-xs mt-1" style="color:var(--muted);">总净值 (CNY)</div>
-      </div>
-      <div class="card text-center py-4">
-        <div class="text-2xl font-bold" id="stat-categories">0</div>
-        <div class="text-xs mt-1" style="color:var(--muted);">覆盖分类</div>
-      </div>
-      <div class="card text-center py-4">
-        <div class="text-sm font-bold" id="stat-currencies">-</div>
-        <div class="text-xs mt-1" style="color:var(--muted);">货币分布</div>
-      </div>
-    </div>
-
     <div id="assets-empty" class="card text-center py-16" style="display:none;">
       <div class="text-4xl mb-3 opacity-30">☧</div>
       <p style="color: var(--muted);">还没有资产记录</p>
@@ -276,6 +257,19 @@ tailwind.config = {
     <div id="snapshot-detail-content"></div>
     <div class="flex justify-end mt-6">
       <button type="button" onclick="closeModal('snapshot-modal')" class="btn-ghost">关闭</button>
+    </div>
+  </div>
+</div>
+
+<!-- Snapshot Note Modal -->
+<div id="snapshot-note-modal" class="modal-overlay" style="display:none;">
+  <div class="modal-content" style="max-width:400px;">
+    <h3 class="font-display text-lg font-bold mb-4">记录快照</h3>
+    <p class="text-sm mb-4" style="color:var(--muted);">将保存当前所有资产数据</p>
+    <input type="text" id="snapshot-note-input" class="w-full" placeholder="备注（可选）" autofocus onkeydown="if(event.key==='Enter')confirmSnapshot()">
+    <div class="flex justify-end gap-3 mt-6">
+      <button type="button" onclick="closeModal('snapshot-note-modal')" class="btn-ghost">取消</button>
+      <button type="button" onclick="confirmSnapshot()" class="btn-gold">确认快照</button>
     </div>
   </div>
 </div>
@@ -467,7 +461,6 @@ function switchTab(tab) {
 function renderAll() {
   renderAssets();
   renderCategories();
-  renderStats();
   renderHistoryTab();
 }
 
@@ -872,8 +865,14 @@ function renderChart() {
 
 // ========== HISTORY SNAPSHOTS ==========
 function takeSnapshot() {
-  const note = prompt('快照备注（可选，如"月底盘点"）：');
-  if (note === null) return;
+  document.getElementById('snapshot-note-input').value = '';
+  document.getElementById('snapshot-note-modal').style.display = '';
+  setTimeout(() => document.getElementById('snapshot-note-input').focus(), 100);
+}
+
+function confirmSnapshot() {
+  const note = document.getElementById('snapshot-note-input').value.trim();
+  closeModal('snapshot-note-modal');
   state.snapshots.push({
     id: genId(),
     date: new Date().toISOString(),
@@ -1017,25 +1016,6 @@ function toggleDark() {
   const isDark = document.documentElement.classList.contains('dark');
   localStorage.setItem('dark-mode', isDark ? '1' : '');
   document.getElementById('dark-toggle').textContent = isDark ? '☾' : '☀';
-}
-
-// ========== STATS ==========
-function renderStats() {
-  document.getElementById('stat-count').textContent = state.assets.length;
-  const total = state.assets.reduce((s, a) => s + toCNY(a.amount, a.currency), 0);
-  document.getElementById('stat-total').textContent = formatCNY(total);
-  const coveredCats = new Set();
-  const currencyMap = {};
-  state.assets.forEach(a => {
-    Object.keys(a.tags).forEach(catId => { if (catId !== 'currency') coveredCats.add(catId); });
-    currencyMap[a.currency] = (currencyMap[a.currency] || 0) + a.amount;
-  });
-  document.getElementById('stat-categories').textContent = coveredCats.size;
-  const currStr = Object.entries(currencyMap).map(([c, amt]) => {
-    const sym = c === 'CNY' ? '¥' : c === 'HKD' ? 'HK$' : 'US$';
-    return c + ' ' + sym + (amt >= 1e4 ? (amt/1e4).toFixed(1)+'万' : amt.toFixed(0));
-  }).join(' · ');
-  document.getElementById('stat-currencies').textContent = currStr || '-';
 }
 
 // ========== IMPORT/EXPORT ==========
