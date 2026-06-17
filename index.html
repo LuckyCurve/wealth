@@ -236,14 +236,14 @@ tailwind.config = {
       </div>
       <div class="flex items-center gap-3">
         <select id="history-category-select" onchange="renderHistoryChart()" class="text-sm" style="min-width:160px;"></select>
-        <button onclick="takeSnapshot()" class="btn-gold">📸 记录快照</button>
+        <div id="history-record-area"></div>
       </div>
     </div>
     <div class="card mb-6">
       <div id="history-chart" style="width:100%; height:420px;"></div>
       <div id="history-empty" class="text-center py-16" style="display:none;">
         <p style="color: var(--muted);">暂无快照记录，点击「记录快照」开始</p>
-        <p class="text-sm mt-1" style="color: var(--muted);">至少需要 2 次快照才能显示趋势</p>
+        <p class="text-sm mt-1" style="color: var(--muted);">至少需要 2 个月的数据才能显示趋势</p>
       </div>
     </div>
     <div id="snapshots-list"></div>
@@ -382,6 +382,24 @@ function loadState() {
       const saved = JSON.parse(raw);
       state = { ...state, ...saved };
       if (!state.snapshots) state.snapshots = [];
+      // migrate old snapshot format (with 'id') to new monthly format
+      if (state.snapshots.length > 0 && state.snapshots[0].id) {
+        const grouped = {};
+        state.snapshots.forEach(s => {
+          const m = s.date.slice(0, 7);
+          if (!grouped[m] || new Date(s.date) > new Date(grouped[m].date)) {
+            grouped[m] = s;
+          }
+        });
+        state.snapshots = Object.entries(grouped).map(([month, s]) => ({
+          month,
+          note: s.note || '',
+          totalCNY: s.totalCNY,
+          currencyRates: s.currencyRates,
+          assets: s.assets,
+          updatedAt: s.date,
+        }));
+      }
       // ensure currency category exists
       if (!state.categories.find(c => c.id === 'currency')) {
         state.categories.unshift({ id: 'currency', name: '货币类型', builtin: true, tags: ['CNY', 'HKD', 'USD'] });
@@ -870,36 +888,81 @@ function takeSnapshot() {
   setTimeout(() => document.getElementById('snapshot-note-input').focus(), 100);
 }
 
-function confirmSnapshot() {
+function confirmSnapshot(overwrite) {
   const note = document.getElementById('snapshot-note-input').value.trim();
+  const month = getCurrentMonth();
+  const existing = findMonthSnapshot(month);
+
+  if (existing && !overwrite) {
+    closeModal('snapshot-note-modal');
+    toast('本月已有记录，无需重复记录', 'error');
+    return;
+  }
+
   closeModal('snapshot-note-modal');
-  state.snapshots.push({
-    id: genId(),
-    date: new Date().toISOString(),
+  const snap = {
+    month,
     note: note || '',
     totalCNY: state.assets.reduce((s, a) => s + toCNY(a.amount, a.currency), 0),
     currencyRates: { ...state.rates },
     assets: JSON.parse(JSON.stringify(state.assets)),
-  });
+    updatedAt: new Date().toISOString(),
+  };
+
+  if (existing && overwrite) {
+    const idx = state.snapshots.findIndex(s => s.month === month);
+    state.snapshots[idx] = snap;
+    toast('本月数据已覆盖更新', 'success');
+  } else {
+    state.snapshots.push(snap);
+    toast('快照已记录', 'success');
+  }
+
   saveState();
   renderAll();
-  toast('快照已记录', 'success');
 }
 
-function deleteSnapshot(id) {
-  if (!confirm('确认删除该快照？')) return;
-  state.snapshots = state.snapshots.filter(s => s.id !== id);
+function renderHistoryHeader() {
+  const area = document.getElementById('history-record-area');
+  const month = getCurrentMonth();
+  const existing = findMonthSnapshot(month);
+
+  if (existing) {
+    area.innerHTML = `
+      <div class="flex items-center gap-2">
+        <span class="text-sm" style="color:var(--muted);">
+          📅 ${monthLabel(month)} 已记录 ✓
+        </span>
+        <button onclick="promptOverwrite()" class="btn-ghost text-xs" style="padding:4px 10px;">覆盖更新</button>
+      </div>
+    `;
+  } else {
+    area.innerHTML = `<button onclick="takeSnapshot()" class="btn-gold">📸 记录本月数据</button>`;
+  }
+}
+
+function promptOverwrite() {
+  const existing = findMonthSnapshot(getCurrentMonth());
+  if (!existing) return;
+  if (!confirm('本月已有记录，确定覆盖更新为当前数据？')) return;
+  document.getElementById('snapshot-note-input').value = existing.note;
+  confirmSnapshot(true);
+  renderHistoryHeader();
+}
+
+function deleteSnapshot(month) {
+  if (!confirm('确认删除该月快照？')) return;
+  state.snapshots = state.snapshots.filter(s => s.month !== month);
   saveState();
   renderHistoryTab();
   toast('快照已删除', 'success');
 }
 
-function viewSnapshot(id) {
-  const snap = state.snapshots.find(s => s.id === id);
+function viewSnapshot(month) {
+  const snap = state.snapshots.find(s => s.month === month);
   if (!snap) return;
-  const date = new Date(snap.date).toLocaleString('zh-CN');
   document.getElementById('snapshot-detail-content').innerHTML = `
-    <p class="text-sm mb-4" style="color:var(--muted);">${date}${snap.note ? ' — ' + esc(snap.note) : ''} | 总净值: <strong>${formatCNY(snap.totalCNY)}</strong></p>
+    <p class="text-sm mb-4" style="color:var(--muted);">${monthLabel(snap.month)}${snap.note ? ' — ' + esc(snap.note) : ''} | 总净值: <strong>${formatCNY(snap.totalCNY)}</strong></p>
     <div class="asset-row text-xs font-medium" style="color:var(--muted);border-bottom:1px solid var(--border);">
       <div>名称</div><div>金额</div><div>货币</div><div>标签</div>
     </div>
@@ -944,8 +1007,8 @@ function renderHistoryChart() {
   const cat = state.categories.find(c => c.id === catId);
   if (!cat) return;
 
-  const sorted = [...state.snapshots].sort((a, b) => new Date(a.date) - new Date(b.date));
-  const dates = sorted.map(s => new Date(s.date).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' }));
+  const sorted = [...state.snapshots].sort((a, b) => a.month.localeCompare(b.month));
+  const dates = sorted.map(s => monthLabel(s.month));
 
   const series = cat.tags.map((tag, si) => ({
     name: tag, type: 'bar', stack: 'total',
@@ -985,16 +1048,16 @@ function renderHistoryChart() {
 }
 
 function renderHistoryTab() {
+  renderHistoryHeader();
   const list = document.getElementById('snapshots-list');
   if (state.snapshots.length === 0) { list.innerHTML = ''; return; }
-  list.innerHTML = [...state.snapshots].sort((a, b) => new Date(b.date) - new Date(a.date)).map(s => {
-    const d = new Date(s.date).toLocaleString('zh-CN');
+  list.innerHTML = [...state.snapshots].sort((a, b) => b.month.localeCompare(a.month)).map(s => {
     return `<div class="card flex items-center justify-between">
-      <div class="flex-1 cursor-pointer" onclick="viewSnapshot('${s.id}')">
-        <div class="font-medium text-sm">${d}</div>
+      <div class="flex-1 cursor-pointer" onclick="viewSnapshot('${s.month}')">
+        <div class="font-medium text-sm">${monthLabel(s.month)}</div>
         <div class="text-xs" style="color:var(--muted);">${esc(s.note) || '无备注'} · ${formatCNY(s.totalCNY)} · ${s.assets.length} 项资产</div>
       </div>
-      <button onclick="deleteSnapshot('${s.id}')" class="btn-danger" style="padding:3px 8px;font-size:11px;">删除</button>
+      <button onclick="deleteSnapshot('${s.month}')" class="btn-danger" style="padding:3px 8px;font-size:11px;">删除</button>
     </div>`;
   }).join('');
 }
@@ -1086,6 +1149,19 @@ document.addEventListener('click', e => {
     e.target.style.display = 'none';
   }
 });
+
+function getCurrentMonth() {
+  return new Date().toISOString().slice(0, 7);
+}
+
+function monthLabel(month) {
+  const d = new Date(month + '-01');
+  return d.getFullYear() + '年' + (d.getMonth() + 1) + '月';
+}
+
+function findMonthSnapshot(month) {
+  return state.snapshots.find(s => s.month === month);
+}
 
 function genId() {
   return 'id_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7);
