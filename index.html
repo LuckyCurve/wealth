@@ -158,9 +158,9 @@ tailwind.config = {
 <!-- Tabs -->
 <div class="max-w-6xl mx-auto px-6">
   <div class="flex gap-1 border-b" style="border-color: var(--border);">
-    <button class="tab-btn active" data-tab="assets" onclick="switchTab('assets')">资产</button>
+    <button class="tab-btn active" data-tab="assets" onclick="switchTab('assets')">资产管理</button>
     <button class="tab-btn" data-tab="categories" onclick="switchTab('categories')">标签分类</button>
-    <button class="tab-btn" data-tab="chart" onclick="switchTab('chart')">旭日图</button>
+    <button class="tab-btn" data-tab="chart" onclick="switchTab('chart')">资产分布</button>
     <button class="tab-btn" data-tab="history" onclick="switchTab('history')">历史净值</button>
   </div>
 </div>
@@ -213,7 +213,7 @@ tailwind.config = {
   <section id="tab-chart" style="display:none;">
     <div class="flex items-center justify-between mb-6">
       <div>
-        <h2 class="font-display text-lg font-bold">资产旭日图</h2>
+        <h2 class="font-display text-lg font-bold">资产分布</h2>
         <p class="text-sm mt-1" style="color: var(--muted);">选择一个分类维度查看资产分布（已换算为 CNY）</p>
       </div>
       <select id="chart-category-select" onchange="renderChart()" class="text-sm" style="min-width:160px;">
