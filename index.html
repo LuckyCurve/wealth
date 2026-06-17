@@ -969,7 +969,9 @@ function viewSnapshot(month) {
     ${snap.assets.map(a => {
       const tagHtml = Object.entries(a.tags).map(([catId, val]) => {
         const cat = state.categories.find(c => c.id === catId);
-        return cat ? `<span class="tag-pill" style="font-size:10px;">${esc(cat.name)}:${esc(val)}</span>` : '';
+        if (!cat) return '';
+        const c = catColor(catId);
+        return `<span class="tag-pill" style="font-size:10px;background:${c.bg};color:${c.fg};border:1px solid ${c.border};">${esc(cat.name)}:${esc(val)}</span>`;
       }).join(' ');
       return `<div class="asset-row">
         <div class="font-medium text-sm">${esc(a.name)}</div>
