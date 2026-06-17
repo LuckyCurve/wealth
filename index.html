@@ -849,20 +849,14 @@ function renderChart() {
           r0: '12%', r: '50%',
           itemStyle: { borderWidth: 2, borderColor: '#faf8f2' },
           label: { rotate: 'tangential', fontSize: 13, fontWeight: 600, fontFamily: '"IBM Plex Mono", monospace', color: '#fff',
-            formatter: function(p) {
-              const pct = totalCNY > 0 ? ((p.value / totalCNY) * 100).toFixed(1) : '0.0';
-              return p.name + ' ' + pct + '%';
-            }
+            formatter: function(p) { return p.name; }
           }
         },
         {
           r0: '50%', r: '90%',
           itemStyle: { borderWidth: 1, borderColor: '#faf8f2' },
           label: { rotate: 'radial', fontSize: 11, fontFamily: '"IBM Plex Mono", monospace', color: '#1a1712',
-            formatter: function(p) {
-              const pct = totalCNY > 0 ? ((p.value / totalCNY) * 100).toFixed(1) : '0.0';
-              return p.name + '\n' + formatCNY(p.value) + ' (' + pct + '%)';
-            }
+            formatter: function(p) { return p.name; }
           }
         }
       ]
