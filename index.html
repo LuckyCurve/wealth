@@ -299,6 +299,10 @@ tailwind.config = {
             </select>
           </div>
         </div>
+        <div>
+          <label class="block text-xs font-medium mb-1.5" style="color:var(--muted);">预期年化收益率 (%)</label>
+          <input type="number" id="asset-expected-rate" min="0" step="0.01" class="w-full" placeholder="0.00" value="0">
+        </div>
         <div id="asset-tags-section" class="space-y-3"></div>
       </div>
       <div class="flex justify-end gap-3 mt-8">
@@ -404,6 +408,10 @@ function loadState() {
       if (!state.categories.find(c => c.id === 'currency')) {
         state.categories.unshift({ id: 'currency', name: '货币类型', builtin: true, tags: ['CNY', 'HKD', 'USD'] });
       }
+      // ensure expectedRate exists on all assets
+      state.assets.forEach(a => {
+        if (a.expectedRate == null) a.expectedRate = 0;
+      });
     } else {
       state.categories = [{ id: 'currency', name: '货币类型', builtin: true, tags: ['CNY', 'HKD', 'USD'] }];
     }
@@ -581,6 +589,7 @@ function openAssetModal(editId) {
       document.getElementById('asset-name').value = a.name;
       document.getElementById('asset-amount').value = a.amount;
       document.getElementById('asset-currency').value = a.currency;
+      document.getElementById('asset-expected-rate').value = a.expectedRate ?? 0;
     }
   } else {
     title.textContent = '登记资产';
@@ -617,6 +626,8 @@ function saveAsset(e) {
   const amount = parseFloat(document.getElementById('asset-amount').value);
   const currency = document.getElementById('asset-currency').value;
 
+  const expectedRate = parseFloat(document.getElementById('asset-expected-rate').value) || 0;
+
   const tags = {};
   // auto-assign currency tag from the currency dropdown
   tags['currency'] = currency;
@@ -635,9 +646,9 @@ function saveAsset(e) {
 
   if (editId) {
     const idx = state.assets.findIndex(a => a.id === editId);
-    if (idx >= 0) state.assets[idx] = { ...state.assets[idx], name, amount, currency, tags };
+    if (idx >= 0) state.assets[idx] = { ...state.assets[idx], name, amount, currency, tags, expectedRate };
   } else {
-    state.assets.push({ id: genId(), name, amount, currency, tags });
+    state.assets.push({ id: genId(), name, amount, currency, tags, expectedRate });
   }
 
   saveState();
