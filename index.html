@@ -111,9 +111,12 @@ tailwind.config = {
   .tag-pill.active { background: linear-gradient(135deg, #f5ecd7, #ede0c0); color: #7d6f48; border-color: var(--accent); }
   .tag-pill:hover { border-color: var(--accent); }
   .asset-row {
-    display: grid; grid-template-columns: 2fr 1fr 1fr 1.5fr 80px;
+    display: grid; grid-template-columns: 2fr 1fr 1fr 1.5fr 1.5fr;
     align-items: center; padding: 14px 0; border-bottom: 1px solid #f0ece0;
     transition: background 0.15s;
+  }
+  .asset-row.grid-wide {
+    grid-template-columns: 2fr 1fr 0.7fr 0.7fr 1.5fr 80px;
   }
   .asset-row:hover { background: #fdfcf8; }
   .asset-row:last-child { border-bottom: none; }
@@ -188,11 +191,11 @@ tailwind.config = {
     </div>
 
     <div id="assets-list" class="card">
-      <div class="asset-row text-xs font-medium" style="color: var(--muted); border-bottom: 1px solid var(--border);">
+      <div class="asset-row grid-wide text-xs font-medium" style="color: var(--muted); border-bottom: 1px solid var(--border);">
         <div onclick="toggleSort('name')" style="cursor:pointer;">名称<span class="sort-indicator" id="sort-name"></span></div>
         <div onclick="toggleSort('amount')" style="cursor:pointer;">金额<span class="sort-indicator" id="sort-amount"></span></div>
         <div onclick="toggleSort('currency')" style="cursor:pointer;">货币<span class="sort-indicator" id="sort-currency"></span></div>
-        <div>标签</div><div></div>
+        <div>预期年化</div><div>标签</div><div></div>
       </div>
       <div id="assets-rows"></div>
     </div>
@@ -257,6 +260,10 @@ tailwind.config = {
         <h2 class="font-display text-lg font-bold">收益测算</h2>
         <p class="text-sm mt-1" style="color: var(--muted);">根据资产金额和预期年利率，计算预期收益</p>
       </div>
+    </div>
+    <div id="income-mode-toggle" style="display:none;" class="flex gap-2 mb-4">
+      <button id="income-mode-min" onclick="setIncomeMode('min')" class="btn-gold" style="padding:6px 16px;font-size:12px;">使用最低</button>
+      <button id="income-mode-max" onclick="setIncomeMode('max')" class="btn-ghost" style="padding:6px 16px;font-size:12px;">使用最高</button>
     </div>
     <div id="income-empty" class="card text-center py-16">
       <p style="color: var(--muted);">⚠ 尚未设置预期利率，请先在「资产管理」中编辑资产并填写预期年利率</p>
@@ -342,7 +349,11 @@ tailwind.config = {
         </div>
         <div>
           <label class="block text-xs font-medium mb-1.5" style="color:var(--muted);">预期年化收益率 (%)</label>
-          <input type="number" id="asset-expected-rate" min="0" step="1" class="w-full" placeholder="0" value="0">
+          <div class="flex items-center gap-2">
+            <input type="number" id="asset-rate-min" min="0" step="0.1" class="w-full" placeholder="最低" value="0">
+            <span style="color:var(--muted);">—</span>
+            <input type="number" id="asset-rate-max" min="0" step="0.1" class="w-full" placeholder="最高" value="0">
+          </div>
         </div>
         <div id="asset-tags-section" class="space-y-3"></div>
       </div>
@@ -449,9 +460,14 @@ function loadState() {
       if (!state.categories.find(c => c.id === 'currency')) {
         state.categories.unshift({ id: 'currency', name: '货币类型', builtin: true, tags: ['CNY', 'HKD', 'USD'] });
       }
-      // ensure expectedRate exists on all assets
+      // migrate/mitialize expectedRateMin/Max
       state.assets.forEach(a => {
-        if (a.expectedRate == null) a.expectedRate = 0;
+        if (a.expectedRate != null) {
+          a.expectedRateMin = a.expectedRate;
+          a.expectedRateMax = a.expectedRate;
+        }
+        if (a.expectedRateMin == null) a.expectedRateMin = 0;
+        if (a.expectedRateMax == null) a.expectedRateMax = 0;
       });
     } else {
       state.categories = [{ id: 'currency', name: '货币类型', builtin: true, tags: ['CNY', 'HKD', 'USD'] }];
@@ -573,11 +589,17 @@ function renderAssets() {
         const c = catColor(cat.id, tagVal);
         return `<span class="tag-pill" style="background:${c.bg};color:${c.fg};border:1px solid ${c.border};">${cat.name}: ${tagVal}</span>`;
       }).join(' ');
+      const rateLabel = a.expectedRateMin > 0 || a.expectedRateMax > 0
+        ? (a.expectedRateMin === a.expectedRateMax
+          ? `${a.expectedRateMin}%`
+          : `${a.expectedRateMin}-${a.expectedRateMax}%`)
+        : '<span style="color:var(--muted);font-size:11px;">未设置</span>';
       const cnyVal = toCNY(a.amount, a.currency);
-      return `<div class="asset-row">
+      return `<div class="asset-row grid-wide">
         <div class="font-medium text-sm">${esc(a.name)}</div>
         <div class="font-mono text-sm">${a.amount.toLocaleString('zh-CN', {minimumFractionDigits:2, maximumFractionDigits:2})}</div>
         <div class="text-sm" style="color:var(--muted)">${a.currency}</div>
+        <div class="text-sm">${rateLabel}</div>
         <div class="flex flex-wrap gap-1">${tagHtml}</div>
         <div class="flex gap-2 justify-end">
           <button onclick="editAsset('${a.id}')" class="text-xs" style="color:var(--accent);cursor:pointer;">编辑</button>
@@ -634,7 +656,8 @@ function openAssetModal(editId) {
       document.getElementById('asset-name').value = a.name;
       document.getElementById('asset-amount').value = a.amount;
       document.getElementById('asset-currency').value = a.currency;
-      document.getElementById('asset-expected-rate').value = a.expectedRate ?? 0;
+      document.getElementById('asset-rate-min').value = a.expectedRateMin ?? 0;
+      document.getElementById('asset-rate-max').value = a.expectedRateMax ?? 0;
     }
   } else {
     title.textContent = '登记资产';
@@ -671,7 +694,15 @@ function saveAsset(e) {
   const amount = parseFloat(document.getElementById('asset-amount').value);
   const currency = document.getElementById('asset-currency').value;
 
-  const expectedRate = parseFloat(document.getElementById('asset-expected-rate').value) || 0;
+  const expectedRateMin = parseFloat(document.getElementById('asset-rate-min').value) || 0;
+  const expectedRateMax = parseFloat(document.getElementById('asset-rate-max').value) || 0;
+
+  if (expectedRateMin > expectedRateMax) {
+    toast('最低利率不能高于最高利率', 'error');
+    return;
+  }
+  const finalMin = expectedRateMin || expectedRateMax;
+  const finalMax = expectedRateMax || expectedRateMin;
 
   const tags = {};
   // auto-assign currency tag from the currency dropdown
@@ -691,9 +722,9 @@ function saveAsset(e) {
 
   if (editId) {
     const idx = state.assets.findIndex(a => a.id === editId);
-    if (idx >= 0) state.assets[idx] = { ...state.assets[idx], name, amount, currency, tags, expectedRate };
+    if (idx >= 0) state.assets[idx] = { ...state.assets[idx], name, amount, currency, tags, expectedRateMin: finalMin, expectedRateMax: finalMax };
   } else {
-    state.assets.push({ id: genId(), name, amount, currency, tags, expectedRate });
+    state.assets.push({ id: genId(), name, amount, currency, tags, expectedRateMin: finalMin, expectedRateMax: finalMax });
   }
 
   saveState();
@@ -1015,7 +1046,7 @@ function viewSnapshot(month) {
   document.getElementById('snapshot-detail-content').innerHTML = `
     <p class="text-sm mb-4" style="color:var(--muted);">${monthLabel(snap.month)}${snap.note ? ' — ' + esc(snap.note) : ''} | 总净值: <strong>${formatCNY(snap.totalCNY)}</strong></p>
     <div class="asset-row text-xs font-medium" style="color:var(--muted);border-bottom:1px solid var(--border);">
-      <div>名称</div><div>金额</div><div>货币</div><div>标签</div>
+      <div>名称</div><div>金额</div><div>货币</div><div>预期年化</div><div>标签</div>
     </div>
     ${snap.assets.map(a => {
       const tagHtml = Object.entries(a.tags).map(([catId, val]) => {
@@ -1024,10 +1055,16 @@ function viewSnapshot(month) {
         const c = catColor(catId, val);
         return `<span class="tag-pill" style="font-size:10px;background:${c.bg};color:${c.fg};border:1px solid ${c.border};">${esc(cat.name)}:${esc(val)}</span>`;
       }).join(' ');
+      const snapRateMin = a.expectedRateMin ?? a.expectedRate ?? 0;
+      const snapRateMax = a.expectedRateMax ?? a.expectedRate ?? 0;
+      const snapRateLabel = snapRateMin > 0 || snapRateMax > 0
+        ? (snapRateMin === snapRateMax ? `${snapRateMin}%` : `${snapRateMin}-${snapRateMax}%`)
+        : '<span style="color:var(--muted);font-size:11px;">未设置</span>';
       return `<div class="asset-row">
         <div class="font-medium text-sm">${esc(a.name)}</div>
         <div class="font-mono text-sm">${a.amount.toFixed(2)}</div>
         <div class="text-sm" style="color:var(--muted);">${a.currency}</div>
+        <div class="text-sm">${snapRateLabel}</div>
         <div class="flex flex-wrap gap-1">${tagHtml}</div>
       </div>`;
     }).join('')}
@@ -1116,13 +1153,28 @@ function renderHistoryTab() {
 }
 
 // ========== INCOME CALCULATOR ==========
-function calcAssetIncome(a) {
+function getAssetRate(a, mode) {
+  mode = mode || incomeMode;
+  const min = a.expectedRateMin ?? a.expectedRate ?? 0;
+  const max = a.expectedRateMax ?? a.expectedRate ?? 0;
+  return mode === 'min' ? min : max;
+}
+
+function calcAssetIncome(a, mode) {
+  mode = mode || incomeMode;
+  const rate = getAssetRate(a, mode);
   const cny = toCNY(a.amount, a.currency);
-  const rate = a.expectedRate || 0;
   const annual = cny * rate / 100;
   const monthly = annual / 12;
   const daily = annual / 365;
   return { cny, annual, monthly, daily };
+}
+
+function setIncomeMode(mode) {
+  incomeMode = mode;
+  document.getElementById('income-mode-min').className = mode === 'min' ? 'btn-gold' : 'btn-ghost';
+  document.getElementById('income-mode-max').className = mode === 'max' ? 'btn-gold' : 'btn-ghost';
+  renderIncomeTab();
 }
 
 function renderIncomeTab() {
@@ -1131,7 +1183,10 @@ function renderIncomeTab() {
   const table = document.getElementById('income-table-container');
   const chartContainer = document.getElementById('income-chart-container');
 
-  const assets = state.assets.filter(a => a.expectedRate > 0);
+  const hasAnyRate = state.assets.some(a => (a.expectedRateMin ?? a.expectedRate ?? 0) > 0 || (a.expectedRateMax ?? a.expectedRate ?? 0) > 0);
+  document.getElementById('income-mode-toggle').style.display = hasAnyRate ? '' : 'none';
+
+  const assets = state.assets.filter(a => getAssetRate(a) > 0);
 
   if (assets.length === 0) {
     empty.style.display = '';
@@ -1146,7 +1201,7 @@ function renderIncomeTab() {
   chartContainer.style.display = assets.length > 0 ? '' : 'none';
 
   // --- Summary ---
-  const incomes = state.assets.map(calcAssetIncome);
+  const incomes = state.assets.map(a => calcAssetIncome(a));
   const totalAnnual = incomes.filter(i => i.annual > 0).reduce((s, i) => s + i.annual, 0);
   const totalMonthly = totalAnnual / 12;
   const totalDaily = totalAnnual / 365;
@@ -1159,7 +1214,7 @@ function renderIncomeTab() {
   // Weighted average rate
   const totalWeighted = assets.reduce((s, a) => {
     const cny = toCNY(a.amount, a.currency);
-    return s + cny * a.expectedRate;
+    return s + cny * getAssetRate(a);
   }, 0);
   const totalAssetCNY = assets.reduce((s, a) => s + toCNY(a.amount, a.currency), 0);
   const avgRate = totalAssetCNY > 0 ? (totalWeighted / totalAssetCNY).toFixed(2) : '0.00';
@@ -1177,9 +1232,13 @@ function renderIncomeTab() {
     '</div>',
     ...sorted.map(a => {
       const inc = calcAssetIncome(a);
-      const hasRate = a.expectedRate > 0;
+      const hasRate = getAssetRate(a) > 0;
       const style = hasRate ? '' : ' style="opacity:0.4;"';
-      const rateLabel = hasRate ? a.expectedRate.toFixed(2) + '%' : '<span style="color:var(--muted);">未设置</span>';
+      const rateLabel = (a.expectedRateMin > 0 || a.expectedRateMax > 0)
+        ? (a.expectedRateMin === a.expectedRateMax
+          ? `${a.expectedRateMin.toFixed(1)}%`
+          : `${a.expectedRateMin.toFixed(1)}-${a.expectedRateMax.toFixed(1)}%`)
+        : '<span style="color:var(--muted);">未设置</span>';
       return `<div class="asset-row"${style}>
         <div class="font-medium text-sm">${esc(a.name)}</div>
         <div class="font-mono text-sm">${inc.cny.toLocaleString('zh-CN', {minimumFractionDigits:2, maximumFractionDigits:2})}</div>
@@ -1196,6 +1255,7 @@ function renderIncomeTab() {
 }
 
 let incomeChart = null;
+let incomeMode = 'min';
 
 function populateIncomeChartSelect() {
   const sel = document.getElementById('income-chart-category-select');
@@ -1212,7 +1272,7 @@ function renderIncomeChart() {
 
   const el = document.getElementById('income-chart');
 
-  const rateAssets = state.assets.filter(a => a.expectedRate > 0);
+  const rateAssets = state.assets.filter(a => getAssetRate(a) > 0);
   if (rateAssets.length === 0) {
     el.style.display = 'none';
     return;
@@ -1248,7 +1308,7 @@ function renderIncomeChart() {
         itemStyle: { color: pal.shades[ai % pal.shades.length] },
         _assetId: a.id,
         _annual: inc.annual,
-        _rate: a.expectedRate
+        _rate: getAssetRate(a)
       };
     });
     return { name: tag, itemStyle: { color: pal.base }, children };
@@ -1293,7 +1353,12 @@ function renderIncomeChart() {
           const a = state.assets.find(x => x.id === p._assetId);
           if (a) {
             const inc = calcAssetIncome(a);
-            return `💰 <b>${esc(a.name)}</b><br/>📈 月收益: ${formatCNY(inc.monthly)}<br/>📅 年收益: ${formatCNY(inc.annual)}<br/>🏷️ 利率: ${a.expectedRate.toFixed(2)}%<br/>📊 占比: ${pct}%`;
+            const rateRange = (a.expectedRateMin > 0 || a.expectedRateMax > 0)
+              ? (a.expectedRateMin === a.expectedRateMax
+                ? `${a.expectedRateMin.toFixed(1)}%`
+                : `${a.expectedRateMin.toFixed(1)}-${a.expectedRateMax.toFixed(1)}%`)
+              : '未设置';
+            return `💰 <b>${esc(a.name)}</b><br/>📈 月收益: ${formatCNY(inc.monthly)}<br/>📅 年收益: ${formatCNY(inc.annual)}<br/>🏷️ 利率: ${rateRange}<br/>📊 占比: ${pct}%`;
           }
         }
         const emoji = p.treePathInfo && p.treePathInfo.length <= 2 ? '🏷️' : '💰';
