@@ -519,8 +519,6 @@ function toCNY(amount, currency) {
 }
 
 function formatCNY(val) {
-  if (val >= 1e8) return '¥' + (val / 1e8).toFixed(2) + '亿';
-  if (val >= 1e4) return '¥' + (val / 1e4).toFixed(2) + '万';
   return '¥' + val.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
@@ -1067,7 +1065,7 @@ function viewSnapshot(month) {
         : '<span style="color:var(--muted);font-size:11px;">未设置</span>';
       return `<div class="asset-row">
         <div class="font-medium text-sm">${esc(a.name)}</div>
-        <div class="font-mono text-sm">${a.amount.toFixed(2)}</div>
+        <div class="font-mono text-sm">${a.amount.toLocaleString('zh-CN', {minimumFractionDigits:2, maximumFractionDigits:2})}</div>
         <div class="text-sm" style="color:var(--muted);">${a.currency}</div>
         <div class="text-sm">${snapRateLabel}</div>
         <div class="flex flex-wrap gap-1">${tagHtml}</div>
@@ -1137,7 +1135,7 @@ function renderHistoryChart() {
     legend: { show: true, type: 'scroll', bottom: 0 },
     grid: { left: '3%', right: '4%', bottom: '22%', top: '3%', containLabel: true },
     xAxis: { type: 'category', data: dates, axisLabel: { fontFamily: '"IBM Plex Mono", monospace', fontSize: 11 } },
-    yAxis: { type: 'value', axisLabel: { fontFamily: '"IBM Plex Mono", monospace', fontSize: 11, formatter: v => v >= 1e8 ? (v/1e8).toFixed(1)+'亿' : v >= 1e4 ? (v/1e4).toFixed(1)+'万' : v } },
+    yAxis: { type: 'value', axisLabel: { fontFamily: '"IBM Plex Mono", monospace', fontSize: 11, formatter: v => v.toLocaleString('zh-CN', {minimumFractionDigits:0, maximumFractionDigits:0}) } },
     series
   }, true);
 }
