@@ -282,6 +282,10 @@ tailwind.config = {
       <div id="income-rows"></div>
     </div>
     <div id="income-chart-container" class="card mt-6" style="display:none;">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="font-display text-sm font-bold">收益分布</h3>
+        <select id="income-chart-category-select" onchange="renderIncomeChart()" class="text-sm" style="min-width:160px;"></select>
+      </div>
       <div id="income-chart" style="width:100%; height:320px;"></div>
     </div>
   </section>
@@ -1178,7 +1182,7 @@ function renderIncomeTab() {
       const rateLabel = hasRate ? a.expectedRate.toFixed(2) + '%' : '<span style="color:var(--muted);">未设置</span>';
       return `<div class="asset-row"${style}>
         <div class="font-medium text-sm">${esc(a.name)}</div>
-        <div class="font-mono text-sm">${formatCNY(inc.cny)}</div>
+        <div class="font-mono text-sm">${inc.cny.toLocaleString('zh-CN', {minimumFractionDigits:2, maximumFractionDigits:2})}</div>
         <div class="text-sm">${rateLabel}</div>
         <div class="font-mono text-sm">${hasRate ? formatCNY(inc.annual) : '-'}</div>
         <div class="font-mono text-sm">${hasRate ? formatCNY(inc.monthly) : '-'}</div>
@@ -1187,56 +1191,118 @@ function renderIncomeTab() {
   ].join('');
 
   // --- Chart ---
-  renderIncomeChart(assets);
+  populateIncomeChartSelect();
+  renderIncomeChart();
 }
 
 let incomeChart = null;
 
-function renderIncomeChart(assets) {
+function populateIncomeChartSelect() {
+  const sel = document.getElementById('income-chart-category-select');
+  const current = sel.value;
+  sel.innerHTML = state.categories.map(c =>
+    `<option value="${c.id}">${esc(c.name)}</option>`
+  ).join('');
+  if (current && sel.querySelector(`option[value="${current}"]`)) sel.value = current;
+}
+
+function renderIncomeChart() {
+  const catId = document.getElementById('income-chart-category-select').value;
+  if (!catId) return;
+
   const el = document.getElementById('income-chart');
-  if (assets.length === 0) {
+
+  const rateAssets = state.assets.filter(a => a.expectedRate > 0);
+  if (rateAssets.length === 0) {
     el.style.display = 'none';
     return;
   }
   el.style.display = '';
 
+  const cat = state.categories.find(c => c.id === catId);
+  if (!cat) return;
+
+  // group by selected category's tags
+  const groups = {};
+  cat.tags.forEach(t => { groups[t] = []; });
+  rateAssets.forEach(a => {
+    const tagVal = a.tags[catId];
+    if (tagVal && groups[tagVal]) {
+      groups[tagVal].push(a);
+    }
+  });
+
   if (!incomeChart) {
     incomeChart = echarts.init(el);
   }
 
-  const sorted = [...assets].sort((a, b) => calcAssetIncome(b).monthly - calcAssetIncome(a).monthly);
-  const names = sorted.map(a => a.name);
-  const values = sorted.map(a => calcAssetIncome(a).monthly);
+  const totalIncome = rateAssets.reduce((s, a) => s + calcAssetIncome(a).monthly, 0);
+
+  const data = cat.tags.filter(t => groups[t].length > 0).map((tag, ti) => {
+    const pal = CATEGORY_PALETTE[ti % CATEGORY_PALETTE.length];
+    const children = groups[tag].map((a, ai) => {
+      const inc = calcAssetIncome(a);
+      return {
+        name: a.name,
+        value: Math.round(inc.monthly * 100) / 100,
+        itemStyle: { color: pal.shades[ai % pal.shades.length] },
+        _assetId: a.id,
+        _annual: inc.annual,
+        _rate: a.expectedRate
+      };
+    });
+    return { name: tag, itemStyle: { color: pal.base }, children };
+  });
+
+  if (data.length === 0) {
+    el.style.display = 'none';
+    return;
+  }
 
   incomeChart.setOption({
     backgroundColor: 'transparent',
-    tooltip: {
-      trigger: 'axis',
-      formatter: function(params) {
-        const p = params[0];
-        const a = sorted[p.dataIndex];
-        const inc = calcAssetIncome(a);
-        return `<b>${esc(a.name)}</b><br/>月收益: ${formatCNY(inc.monthly)}<br/>年收益: ${formatCNY(inc.annual)}`;
-      }
-    },
-    grid: { left: '12%', right: '4%', bottom: '12%', top: '6%' },
-    xAxis: {
-      type: 'category', data: names,
-      axisLabel: { fontFamily: '"IBM Plex Mono", monospace', fontSize: 11 }
-    },
-    yAxis: {
-      type: 'value',
-      axisLabel: { fontFamily: '"IBM Plex Mono", monospace', fontSize: 11, formatter: v => formatCNY(v) }
-    },
     series: [{
-      type: 'bar', data: values,
-      itemStyle: {
-        color: function(p) {
-          const pal = CATEGORY_PALETTE[p.dataIndex % CATEGORY_PALETTE.length];
-          return pal.base;
+      type: 'sunburst',
+      data: data,
+      radius: ['12%', '90%'],
+      sort: null,
+      emphasis: { focus: 'ancestor' },
+      levels: [
+        {},
+        {
+          r0: '12%', r: '50%',
+          itemStyle: { borderWidth: 2, borderColor: '#faf8f2' },
+          label: { rotate: 'tangential', fontSize: 13, fontWeight: 600, fontFamily: '"IBM Plex Mono", monospace', color: '#fff',
+            formatter: function(p) { return p.name; }
+          }
+        },
+        {
+          r0: '50%', r: '90%',
+          itemStyle: { borderWidth: 1, borderColor: '#faf8f2' },
+          label: { rotate: 'radial', fontSize: 11, fontFamily: '"IBM Plex Mono", monospace', color: '#1a1712',
+            formatter: function(p) { return p.name; }
+          }
         }
+      ]
+    }],
+    tooltip: {
+      trigger: 'item',
+      formatter: function(p) {
+        const pct = totalIncome > 0 ? ((p.value / totalIncome) * 100).toFixed(1) : '0.0';
+        if (p._assetId) {
+          const a = state.assets.find(x => x.id === p._assetId);
+          if (a) {
+            const inc = calcAssetIncome(a);
+            return `💰 <b>${esc(a.name)}</b><br/>📈 月收益: ${formatCNY(inc.monthly)}<br/>📅 年收益: ${formatCNY(inc.annual)}<br/>🏷️ 利率: ${a.expectedRate.toFixed(2)}%<br/>📊 占比: ${pct}%`;
+          }
+        }
+        const emoji = p.treePathInfo && p.treePathInfo.length <= 2 ? '🏷️' : '💰';
+        const arrow = p.treePathInfo && p.treePathInfo.length > 2
+          ? '🏷️ ' + p.treePathInfo[1].name + ' › '
+          : '';
+        return `${emoji} <b>${arrow}${p.name}</b><br/>💵 月收益: ${formatCNY(p.value)}&nbsp;&nbsp;📊 ${pct}%`;
       }
-    }]
+    }
   }, true);
 }
 
