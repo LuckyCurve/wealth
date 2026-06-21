@@ -460,14 +460,15 @@ function loadState() {
       if (!state.categories.find(c => c.id === 'currency')) {
         state.categories.unshift({ id: 'currency', name: '货币类型', builtin: true, tags: ['CNY', 'HKD', 'USD'] });
       }
-      // migrate/mitialize expectedRateMin/Max
+      // migrate expectedRate -> expectedRateMin/Max (only if new fields not present)
       state.assets.forEach(a => {
-        if (a.expectedRate != null) {
+        if (a.expectedRate != null && a.expectedRateMin == null) {
           a.expectedRateMin = a.expectedRate;
           a.expectedRateMax = a.expectedRate;
         }
         if (a.expectedRateMin == null) a.expectedRateMin = 0;
         if (a.expectedRateMax == null) a.expectedRateMax = 0;
+        delete a.expectedRate;
       });
     } else {
       state.categories = [{ id: 'currency', name: '货币类型', builtin: true, tags: ['CNY', 'HKD', 'USD'] }];
@@ -722,7 +723,11 @@ function saveAsset(e) {
 
   if (editId) {
     const idx = state.assets.findIndex(a => a.id === editId);
-    if (idx >= 0) state.assets[idx] = { ...state.assets[idx], name, amount, currency, tags, expectedRateMin: finalMin, expectedRateMax: finalMax };
+    if (idx >= 0) {
+      const updated = { ...state.assets[idx], name, amount, currency, tags, expectedRateMin: finalMin, expectedRateMax: finalMax };
+      delete updated.expectedRate;
+      state.assets[idx] = updated;
+    }
   } else {
     state.assets.push({ id: genId(), name, amount, currency, tags, expectedRateMin: finalMin, expectedRateMax: finalMax });
   }
