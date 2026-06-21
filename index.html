@@ -881,6 +881,7 @@ function renderChart() {
     window.addEventListener('resize', () => {
       if (chart) chart.resize();
       if (historyChart) historyChart.resize();
+      if (incomeChart) incomeChart.resize();
     });
   }
 
@@ -1108,6 +1109,135 @@ function renderHistoryTab() {
       <button onclick="deleteSnapshot('${s.month}')" class="btn-danger" style="padding:3px 8px;font-size:11px;">删除</button>
     </div>`;
   }).join('');
+}
+
+// ========== INCOME CALCULATOR ==========
+function calcAssetIncome(a) {
+  const cny = toCNY(a.amount, a.currency);
+  const rate = a.expectedRate || 0;
+  const annual = cny * rate / 100;
+  const monthly = annual / 12;
+  const daily = annual / 365;
+  return { cny, annual, monthly, daily };
+}
+
+function renderIncomeTab() {
+  const empty = document.getElementById('income-empty');
+  const summary = document.getElementById('income-summary');
+  const table = document.getElementById('income-table-container');
+  const chartContainer = document.getElementById('income-chart-container');
+
+  const assets = state.assets.filter(a => a.expectedRate > 0);
+
+  if (assets.length === 0) {
+    empty.style.display = '';
+    summary.style.display = 'none';
+    table.style.display = 'none';
+    chartContainer.style.display = 'none';
+    return;
+  }
+  empty.style.display = 'none';
+  summary.style.display = '';
+  table.style.display = '';
+  chartContainer.style.display = assets.length > 0 ? '' : 'none';
+
+  // --- Summary ---
+  const incomes = state.assets.map(calcAssetIncome);
+  const totalAnnual = incomes.filter(i => i.annual > 0).reduce((s, i) => s + i.annual, 0);
+  const totalMonthly = totalAnnual / 12;
+  const totalDaily = totalAnnual / 365;
+  const totalCNY = state.assets.reduce((s, a) => s + toCNY(a.amount, a.currency), 0);
+
+  document.getElementById('income-annual').textContent = formatCNY(totalAnnual);
+  document.getElementById('income-monthly').textContent = formatCNY(totalMonthly);
+  document.getElementById('income-daily').textContent = formatCNY(totalDaily);
+
+  // Weighted average rate
+  const totalWeighted = assets.reduce((s, a) => {
+    const cny = toCNY(a.amount, a.currency);
+    return s + cny * a.expectedRate;
+  }, 0);
+  const totalAssetCNY = assets.reduce((s, a) => s + toCNY(a.amount, a.currency), 0);
+  const avgRate = totalAssetCNY > 0 ? (totalWeighted / totalAssetCNY).toFixed(2) : '0.00';
+  document.getElementById('income-summary-footer').textContent =
+    `加权平均利率 ${avgRate}% · 总资产 ${formatCNY(totalCNY)}`;
+
+  // --- Table ---
+  const sorted = [...state.assets].sort((a, b) => {
+    return calcAssetIncome(b).monthly - calcAssetIncome(a).monthly;
+  });
+  const rows = document.getElementById('income-rows');
+  rows.innerHTML = [
+    '<div class="asset-row text-xs font-medium" style="color:var(--muted);border-bottom:1px solid var(--border);">',
+    '  <div>名称</div><div>金额 (CNY)</div><div>年利率</div><div>年收益</div><div>月收益</div>',
+    '</div>',
+    ...sorted.map(a => {
+      const inc = calcAssetIncome(a);
+      const hasRate = a.expectedRate > 0;
+      const style = hasRate ? '' : ' style="opacity:0.4;"';
+      const rateLabel = hasRate ? a.expectedRate.toFixed(2) + '%' : '<span style="color:var(--muted);">未设置</span>';
+      return `<div class="asset-row"${style}>
+        <div class="font-medium text-sm">${esc(a.name)}</div>
+        <div class="font-mono text-sm">${formatCNY(inc.cny)}</div>
+        <div class="text-sm">${rateLabel}</div>
+        <div class="font-mono text-sm">${hasRate ? formatCNY(inc.annual) : '-'}</div>
+        <div class="font-mono text-sm">${hasRate ? formatCNY(inc.monthly) : '-'}</div>
+      </div>`;
+    }).join('')
+  ].join('');
+
+  // --- Chart ---
+  renderIncomeChart(assets);
+}
+
+let incomeChart = null;
+
+function renderIncomeChart(assets) {
+  const el = document.getElementById('income-chart');
+  if (assets.length === 0) {
+    el.style.display = 'none';
+    return;
+  }
+  el.style.display = '';
+
+  if (!incomeChart) {
+    incomeChart = echarts.init(el);
+  }
+
+  const sorted = [...assets].sort((a, b) => calcAssetIncome(b).monthly - calcAssetIncome(a).monthly);
+  const names = sorted.map(a => a.name);
+  const values = sorted.map(a => calcAssetIncome(a).monthly);
+
+  incomeChart.setOption({
+    backgroundColor: 'transparent',
+    tooltip: {
+      trigger: 'axis',
+      formatter: function(params) {
+        const p = params[0];
+        const a = sorted[p.dataIndex];
+        const inc = calcAssetIncome(a);
+        return `<b>${esc(a.name)}</b><br/>月收益: ${formatCNY(inc.monthly)}<br/>年收益: ${formatCNY(inc.annual)}`;
+      }
+    },
+    grid: { left: '12%', right: '4%', bottom: '12%', top: '6%' },
+    xAxis: {
+      type: 'category', data: names,
+      axisLabel: { fontFamily: '"IBM Plex Mono", monospace', fontSize: 11 }
+    },
+    yAxis: {
+      type: 'value',
+      axisLabel: { fontFamily: '"IBM Plex Mono", monospace', fontSize: 11, formatter: v => formatCNY(v) }
+    },
+    series: [{
+      type: 'bar', data: values,
+      itemStyle: {
+        color: function(p) {
+          const pal = CATEGORY_PALETTE[p.dataIndex % CATEGORY_PALETTE.length];
+          return pal.base;
+        }
+      }
+    }]
+  }, true);
 }
 
 // ========== SORT ==========
