@@ -162,6 +162,7 @@ tailwind.config = {
     <button class="tab-btn" data-tab="categories" onclick="switchTab('categories')">标签分类</button>
     <button class="tab-btn" data-tab="chart" onclick="switchTab('chart')">资产分布</button>
     <button class="tab-btn" data-tab="history" onclick="switchTab('history')">历史净值</button>
+    <button class="tab-btn" data-tab="income" onclick="switchTab('income')">收益测算</button>
   </div>
 </div>
 
@@ -247,6 +248,42 @@ tailwind.config = {
       </div>
     </div>
     <div id="snapshots-list"></div>
+  </section>
+
+  <!-- Income Tab -->
+  <section id="tab-income" style="display:none;">
+    <div class="flex items-center justify-between mb-6">
+      <div>
+        <h2 class="font-display text-lg font-bold">收益测算</h2>
+        <p class="text-sm mt-1" style="color: var(--muted);">根据资产金额和预期年利率，计算预期收益</p>
+      </div>
+    </div>
+    <div id="income-empty" class="card text-center py-16">
+      <p style="color: var(--muted);">⚠ 尚未设置预期利率，请先在「资产管理」中编辑资产并填写预期年利率</p>
+    </div>
+    <div id="income-summary" class="card mb-6" style="display:none;">
+      <div class="grid grid-cols-3 gap-6 text-center">
+        <div>
+          <p class="text-xs font-medium mb-1" style="color:var(--muted);">年收益</p>
+          <p id="income-annual" class="font-display text-2xl font-bold" style="color:var(--accent);">¥0</p>
+        </div>
+        <div>
+          <p class="text-xs font-medium mb-1" style="color:var(--muted);">月收益</p>
+          <p id="income-monthly" class="font-display text-2xl font-bold" style="color:var(--accent);">¥0</p>
+        </div>
+        <div>
+          <p class="text-xs font-medium mb-1" style="color:var(--muted);">日收益</p>
+          <p id="income-daily" class="font-display text-2xl font-bold" style="color:var(--accent);">¥0</p>
+        </div>
+      </div>
+      <p id="income-summary-footer" class="text-xs text-center mt-3" style="color:var(--muted);"></p>
+    </div>
+    <div id="income-table-container" class="card" style="display:none;">
+      <div id="income-rows"></div>
+    </div>
+    <div id="income-chart-container" class="card mt-6" style="display:none;">
+      <div id="income-chart" style="width:100%; height:320px;"></div>
+    </div>
   </section>
 </main>
 
@@ -473,6 +510,7 @@ function switchTab(tab) {
   document.getElementById('tab-categories').style.display = tab === 'categories' ? '' : 'none';
   document.getElementById('tab-chart').style.display = tab === 'chart' ? '' : 'none';
   document.getElementById('tab-history').style.display = tab === 'history' ? '' : 'none';
+  document.getElementById('tab-income').style.display = tab === 'income' ? '' : 'none';
   if (tab === 'chart') {
     populateChartSelect();
     setTimeout(() => renderChart(), 100);
@@ -480,6 +518,9 @@ function switchTab(tab) {
   if (tab === 'history') {
     populateHistorySelect();
     setTimeout(() => renderHistoryChart(), 100);
+  }
+  if (tab === 'income') {
+    setTimeout(() => renderIncomeTab(), 100);
   }
 }
 
