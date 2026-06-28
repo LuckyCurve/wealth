@@ -305,7 +305,7 @@ tailwind.config = {
 
 <!-- Snapshot Detail Modal -->
 <div id="snapshot-modal" class="modal-overlay" style="display:none;">
-  <div class="modal-content">
+  <div class="modal-content" style="max-width:960px;">
     <h3 class="font-display text-lg font-bold mb-4" id="snapshot-modal-title">快照详情</h3>
     <div id="snapshot-detail-content"></div>
     <div class="flex justify-end mt-6">
@@ -1182,6 +1182,7 @@ function renderHistoryChart() {
   const totals = sorted.map(s => s.totalCNY);
 
   const series = cat.tags.map((tag, si) => {
+    const isLast = si === cat.tags.length - 1;
     const raw = sorted.map(snap => snap.assets
       .filter(a => a.tags[catId] === tag)
       .reduce((s, a) => s + a.amount * (snap.currencyRates[a.currency] || 1), 0)
@@ -1189,7 +1190,21 @@ function renderHistoryChart() {
     const data = historyChartMode === 'percent'
       ? raw.map((v, vi) => ({ value: totals[vi] > 0 ? +(v / totals[vi] * 100).toFixed(1) : 0, raw: Math.round(v * 100) / 100 }))
       : raw;
-    return { name: tag, type: 'bar', stack: 'total', data, itemStyle: { color: CATEGORY_PALETTE[si % CATEGORY_PALETTE.length].base } };
+    const pal = CATEGORY_PALETTE[si % CATEGORY_PALETTE.length];
+    return {
+      name: tag, type: 'bar', stack: 'total', data,
+      itemStyle: { color: pal.base },
+      emphasis: { focus: 'self' },
+      blur: { itemStyle: { opacity: 0.2 } },
+      label: isLast && historyChartMode === 'value' ? {
+        show: true,
+        position: 'top',
+        formatter: function(p) { return formatCNY(totals[p.dataIndex]); },
+        fontFamily: '"IBM Plex Mono", monospace',
+        fontSize: 11,
+        color: '#5e5337',
+      } : undefined,
+    };
   });
 
   if (!historyChart) {
@@ -1199,24 +1214,21 @@ function renderHistoryChart() {
   historyChart.setOption({
     backgroundColor: 'transparent',
     tooltip: {
-      trigger: 'axis',
-      formatter: function(params) {
-        const idx = params[0].dataIndex;
-        let h = '<b>' + dates[idx] + '</b><br/>' + '💰 总计: ' + formatCNY(totals[idx]) + '<br/>';
-        params.forEach(p => {
-          if (historyChartMode === 'percent') {
-            const raw = p.data && p.data.raw != null ? p.data.raw : 0;
-            h += p.marker + ' ' + p.seriesName + ': ' + p.value + '% (' + formatCNY(raw) + ')<br/>';
-          } else {
-            const pct = totals[idx] > 0 ? ((p.value / totals[idx]) * 100).toFixed(1) : '0.0';
-            h += p.marker + ' ' + p.seriesName + ': ' + formatCNY(p.value) + ' (' + pct + '%)<br/>';
-          }
-        });
-        return h;
+      trigger: 'item',
+      formatter: function(p) {
+        const idx = p.dataIndex;
+        const d = dates[idx];
+        const total = totals[idx];
+        if (historyChartMode === 'percent') {
+          const raw = p.data && p.data.raw != null ? p.data.raw : 0;
+          return `<b>${d}</b><br/>${p.marker} ${p.seriesName}: ${p.value}% (${formatCNY(raw)})`;
+        }
+        const pct = total > 0 ? ((p.value / total) * 100).toFixed(1) : '0.0';
+        return `<b>${d}</b><br/>${p.marker} ${p.seriesName}: ${formatCNY(p.value)} (${pct}%)`;
       }
     },
     legend: { show: true, type: 'scroll', bottom: 0 },
-    grid: { left: '3%', right: '4%', bottom: '22%', top: '3%', containLabel: true },
+    grid: { left: '3%', right: '4%', bottom: '22%', top: '10%', containLabel: true },
     xAxis: { type: 'category', data: dates, axisLabel: { fontFamily: '"IBM Plex Mono", monospace', fontSize: 11 } },
     yAxis: historyChartMode === 'percent'
       ? { type: 'value', max: 100, axisLabel: { fontFamily: '"IBM Plex Mono", monospace', fontSize: 11, formatter: '{value}%' } }
