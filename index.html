@@ -187,7 +187,8 @@ tailwind.config = {
     <div id="assets-empty" class="card text-center py-16" style="display:none;">
       <div class="text-4xl mb-3 opacity-30">☧</div>
       <p style="color: var(--muted);">还没有资产记录</p>
-      <p class="text-sm mt-1" style="color: var(--muted);">点击「登记资产」开始</p>
+      <p class="text-sm mt-1" style="color: var(--muted);">点击「登记资产」或导入示例数据开始</p>
+      <button onclick="loadDemoData()" class="btn-ghost mt-5" style="padding:8px 20px;">📦 导入示例数据</button>
     </div>
 
     <div id="assets-list" class="card">
@@ -240,6 +241,10 @@ tailwind.config = {
       </div>
       <div class="flex items-center gap-3">
         <select id="history-category-select" onchange="renderHistoryChart()" class="text-sm" style="min-width:160px;"></select>
+        <div class="flex rounded-lg p-0.5 gap-0.5" style="background:var(--border);">
+          <button id="hist-mode-value" onclick="setHistoryChartMode('value')" class="btn-gold px-3 py-1 text-xs rounded-md" style="padding:4px 12px;">金额</button>
+          <button id="hist-mode-percent" onclick="setHistoryChartMode('percent')" class="btn-ghost px-3 py-1 text-xs rounded-md" style="padding:4px 12px;">占比</button>
+        </div>
         <div id="history-record-area"></div>
       </div>
     </div>
@@ -417,6 +422,7 @@ const CURRENCIES = ['CNY', 'HKD', 'USD'];
 let state = { categories: [], assets: [], snapshots: [], rates: { CNY: 1, HKD: 1, USD: 1, fetchedAt: null } };
 let chart = null;
 let historyChart = null;
+let historyChartMode = 'value';
 let sortBy = '';
 let sortDir = 'asc';
 
@@ -1075,6 +1081,69 @@ function viewSnapshot(month) {
   document.getElementById('snapshot-modal').style.display = '';
 }
 
+function loadDemoData() {
+  if (state.assets.length > 0 || state.snapshots.length > 0) {
+    if (!confirm('导入示例数据将覆盖当前所有数据，确认继续？')) return;
+  }
+  if (!state.rates.fetchedAt || state.rates.HKD === 1) {
+    state.rates = { CNY: 1, HKD: 0.92, USD: 7.24, fetchedAt: new Date().toISOString() };
+  }
+  const currencyCat = state.categories.find(c => c.id === 'currency');
+  const catAsset = { id: genId(), name: '资产类型', builtin: false, tags: ['活期现金', '定期存款', '权益基金', '债券基金', '银行理财'] };
+  const catRisk = { id: genId(), name: '风险等级', builtin: false, tags: ['低风险', '中风险', '高风险'] };
+  state.categories = [currencyCat, catAsset, catRisk];
+  const defs = [
+    { name: '招商银行活期', base: 50000, cur: 'CNY', type: '活期现金', risk: '低风险', rMin: 0.25, rMax: 0.35 },
+    { name: '工商银行定期', base: 200000, cur: 'CNY', type: '定期存款', risk: '低风险', rMin: 1.8, rMax: 2.2 },
+    { name: '沪深300指数', base: 80000, cur: 'CNY', type: '权益基金', risk: '高风险', rMin: 0, rMax: 0 },
+    { name: '标普500ETF', base: 10000, cur: 'USD', type: '权益基金', risk: '高风险', rMin: 0, rMax: 0 },
+    { name: '纯债基金A', base: 100000, cur: 'CNY', type: '债券基金', risk: '中风险', rMin: 3, rMax: 4.5 },
+    { name: '招行理财', base: 150000, cur: 'CNY', type: '银行理财', risk: '中风险', rMin: 2.5, rMax: 3.5 },
+    { name: '汇丰香港储蓄', base: 50000, cur: 'HKD', type: '活期现金', risk: '低风险', rMin: 0.1, rMax: 0.2 },
+  ];
+  state.assets = defs.map(d => ({
+    id: genId(), name: d.name, amount: d.base, currency: d.cur,
+    tags: { currency: d.cur, [catAsset.id]: d.type, [catRisk.id]: d.risk },
+    expectedRateMin: d.rMin, expectedRateMax: d.rMax,
+  }));
+  const now = new Date();
+  const months = [];
+  for (let i = 5; i >= 0; i--) {
+    months.push(new Date(now.getFullYear(), now.getMonth() - i, 1).toISOString().slice(0, 7));
+  }
+  const notes = ['初始配置', '小幅加仓', '市场波动', '补仓操作', '分红再投', '季度调整'];
+  const monthlyChanges = [
+    [0, 0, 0, 0, 0, 0, 0],
+    [3000, 0, 5000, 0, 0, 0, 0],
+    [0, 0, -5000, -500, 1000, 0, 0],
+    [2000, 0, 8000, 0, 0, 0, 0],
+    [0, 0, 3000, 200, 0, 0, 0],
+    [3000, 0, -2000, 300, 0, -10000, 0],
+  ];
+  state.snapshots = months.map((month, mi) => {
+    const snapAssets = defs.map((d, ai) => {
+      let amount = d.base;
+      for (let j = 0; j <= mi; j++) amount += monthlyChanges[j][ai];
+      const marketJitter = [0, 0.02, -0.06, 0.03, 0.01, 0.04];
+      if (d.type === '权益基金') amount = Math.round(amount * (1 + marketJitter[mi]));
+      if (d.type === '债券基金') amount = Math.round(amount * (1 + marketJitter[mi] * 0.3));
+      if (d.name === '招行理财') amount = Math.round(amount * (1 + marketJitter[mi] * 0.2));
+      return {
+        id: genId(), name: d.name, amount, currency: d.cur,
+        tags: { currency: d.cur, [catAsset.id]: d.type, [catRisk.id]: d.risk },
+        expectedRateMin: d.rMin, expectedRateMax: d.rMax,
+      };
+    });
+    const totalCNY = snapAssets.reduce((s, a) => s + a.amount * (state.rates[a.currency] || 1), 0);
+    return { month, note: notes[mi], totalCNY, currencyRates: { ...state.rates }, assets: snapAssets, updatedAt: month + '-15T12:00:00.000Z' };
+  });
+  const latest = state.snapshots[state.snapshots.length - 1];
+  state.assets = JSON.parse(JSON.stringify(latest.assets));
+  saveState();
+  renderAll();
+  toast('示例数据已导入（6个月快照）', 'success');
+}
+
 function populateHistorySelect() {
   const sel = document.getElementById('history-category-select');
   const current = sel.value;
@@ -1082,6 +1151,13 @@ function populateHistorySelect() {
     `<option value="${c.id}">${esc(c.name)}</option>`
   ).join('');
   if (current && sel.querySelector(`option[value="${current}"]`)) sel.value = current;
+}
+
+function setHistoryChartMode(mode) {
+  historyChartMode = mode;
+  document.getElementById('hist-mode-value').className = mode === 'value' ? 'btn-gold px-3 py-1 text-xs rounded-md' : 'btn-ghost px-3 py-1 text-xs rounded-md';
+  document.getElementById('hist-mode-percent').className = mode === 'percent' ? 'btn-gold px-3 py-1 text-xs rounded-md' : 'btn-ghost px-3 py-1 text-xs rounded-md';
+  renderHistoryChart();
 }
 
 function renderHistoryChart() {
@@ -1103,16 +1179,18 @@ function renderHistoryChart() {
   const sorted = [...state.snapshots].sort((a, b) => a.month.localeCompare(b.month));
   const dates = sorted.map(s => monthLabel(s.month));
 
-  const series = cat.tags.map((tag, si) => ({
-    name: tag, type: 'bar', stack: 'total',
-    data: sorted.map(snap => snap.assets
+  const totals = sorted.map(s => s.totalCNY);
+
+  const series = cat.tags.map((tag, si) => {
+    const raw = sorted.map(snap => snap.assets
       .filter(a => a.tags[catId] === tag)
       .reduce((s, a) => s + a.amount * (snap.currencyRates[a.currency] || 1), 0)
-    ),
-    itemStyle: { color: CATEGORY_PALETTE[si % CATEGORY_PALETTE.length].base }
-  }));
-
-  const totals = sorted.map(s => s.totalCNY);
+    );
+    const data = historyChartMode === 'percent'
+      ? raw.map((v, vi) => ({ value: totals[vi] > 0 ? +(v / totals[vi] * 100).toFixed(1) : 0, raw: Math.round(v * 100) / 100 }))
+      : raw;
+    return { name: tag, type: 'bar', stack: 'total', data, itemStyle: { color: CATEGORY_PALETTE[si % CATEGORY_PALETTE.length].base } };
+  });
 
   if (!historyChart) {
     historyChart = echarts.init(chartEl);
@@ -1126,8 +1204,13 @@ function renderHistoryChart() {
         const idx = params[0].dataIndex;
         let h = '<b>' + dates[idx] + '</b><br/>' + '💰 总计: ' + formatCNY(totals[idx]) + '<br/>';
         params.forEach(p => {
-          const pct = totals[idx] > 0 ? ((p.value / totals[idx]) * 100).toFixed(1) : '0.0';
-          h += p.marker + ' ' + p.seriesName + ': ' + formatCNY(p.value) + ' (' + pct + '%)<br/>';
+          if (historyChartMode === 'percent') {
+            const raw = p.data && p.data.raw != null ? p.data.raw : 0;
+            h += p.marker + ' ' + p.seriesName + ': ' + p.value + '% (' + formatCNY(raw) + ')<br/>';
+          } else {
+            const pct = totals[idx] > 0 ? ((p.value / totals[idx]) * 100).toFixed(1) : '0.0';
+            h += p.marker + ' ' + p.seriesName + ': ' + formatCNY(p.value) + ' (' + pct + '%)<br/>';
+          }
         });
         return h;
       }
@@ -1135,7 +1218,9 @@ function renderHistoryChart() {
     legend: { show: true, type: 'scroll', bottom: 0 },
     grid: { left: '3%', right: '4%', bottom: '22%', top: '3%', containLabel: true },
     xAxis: { type: 'category', data: dates, axisLabel: { fontFamily: '"IBM Plex Mono", monospace', fontSize: 11 } },
-    yAxis: { type: 'value', axisLabel: { fontFamily: '"IBM Plex Mono", monospace', fontSize: 11, formatter: v => v.toLocaleString('zh-CN', {minimumFractionDigits:0, maximumFractionDigits:0}) } },
+    yAxis: historyChartMode === 'percent'
+      ? { type: 'value', max: 100, axisLabel: { fontFamily: '"IBM Plex Mono", monospace', fontSize: 11, formatter: '{value}%' } }
+      : { type: 'value', axisLabel: { fontFamily: '"IBM Plex Mono", monospace', fontSize: 11, formatter: v => v.toLocaleString('zh-CN', {minimumFractionDigits:0, maximumFractionDigits:0}) } },
     series
   }, true);
 }
