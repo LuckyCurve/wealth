@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='16' cy='16' r='15' fill='url(%23g)'/><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='%23d4a853'/><stop offset='1' stop-color='%23a67f2e'/></linearGradient></defs><line x1='16' y1='7' x2='16' y2='25' stroke='%231a1712' stroke-width='2.5' stroke-linecap='round'/><line x1='7' y1='16' x2='25' y2='16' stroke='%231a1712' stroke-width='2.5' stroke-linecap='round'/></svg>">
-<title>资产管理</title>
+<title>财富管理</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -128,7 +128,7 @@ tailwind.config = {
   .toast-success { background: #2d5a3d; color: #e0f0e4; }
   .toast-error { background: #8b2e2b; color: #fde0df; }
   .tab-btn {
-    padding: 8px 20px; font-size: 13px; border: none; background: transparent;
+    padding: 10px 22px; font-size: 13px; border: none; background: transparent;
     color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent;
     font-family: 'IBM Plex Mono', monospace; transition: all 0.2s;
   }
@@ -142,13 +142,19 @@ tailwind.config = {
 <body class="min-h-screen">
 
 <!-- Header -->
-<header class="border-b border-ink-100" style="border-color: var(--border);">
-  <div class="max-w-6xl mx-auto px-6 py-5 flex items-center justify-between">
-    <div class="flex items-center gap-3">
-      <div class="w-8 h-8 rounded-full flex items-center justify-center" style="background: linear-gradient(135deg, #d4a853, #a67f2e);">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1a1712" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="M12 6v12M6 12h12"/></svg>
+<header style="border-bottom: 1px solid var(--border);">
+  <div class="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
+    <div class="flex items-center gap-6">
+      <div class="flex items-center gap-3">
+        <div class="w-8 h-8 rounded-full flex items-center justify-center" style="background: linear-gradient(135deg, #d4a853, #a67f2e);">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1a1712" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="M12 6v12M6 12h12"/></svg>
+        </div>
+        <h1 class="font-display text-lg font-bold tracking-tight">财富管理</h1>
       </div>
-      <h1 class="font-display text-xl font-bold tracking-tight">资产管理</h1>
+      <div class="flex items-center p-0.5 rounded-lg" style="background: var(--border);">
+        <button id="mode-assets" onclick="switchMode('assets')" class="btn-gold text-xs rounded-md" style="padding:6px 18px;">资产</button>
+        <button id="mode-expenses" onclick="switchMode('expenses')" class="btn-ghost text-xs rounded-md" style="padding:6px 18px;">消费</button>
+      </div>
     </div>
     <div class="flex items-center gap-3">
       <span id="rate-status" class="text-xs" style="color: var(--muted);"></span>
@@ -158,9 +164,9 @@ tailwind.config = {
   </div>
 </header>
 
-<!-- Tabs -->
-<div class="max-w-6xl mx-auto px-6">
-  <div class="flex gap-1 border-b" style="border-color: var(--border);">
+<!-- Tabs: Assets -->
+<div id="tabs-assets" class="max-w-6xl mx-auto px-6">
+  <div class="flex gap-0 border-b" style="border-color: var(--border);">
     <button class="tab-btn active" data-tab="assets" onclick="switchTab('assets')">资产管理</button>
     <button class="tab-btn" data-tab="categories" onclick="switchTab('categories')">标签分类</button>
     <button class="tab-btn" data-tab="chart" onclick="switchTab('chart')">资产分布</button>
@@ -169,8 +175,21 @@ tailwind.config = {
   </div>
 </div>
 
+<!-- Tabs: Expenses -->
+<div id="tabs-expenses" class="max-w-6xl mx-auto px-6" style="display:none;">
+  <div class="flex gap-0 border-b" style="border-color: var(--border);">
+    <button class="tab-btn active" data-tab="expenses" onclick="switchTab('expenses')">消费记录</button>
+    <button class="tab-btn" data-tab="expense-categories" onclick="switchTab('expense-categories')">标签分类</button>
+    <button class="tab-btn" data-tab="expense-chart" onclick="switchTab('expense-chart')">消费分布</button>
+    <button class="tab-btn" data-tab="expense-trend" onclick="switchTab('expense-trend')">消费趋势</button>
+  </div>
+</div>
+
 <!-- Main Content -->
-<main class="max-w-6xl mx-auto px-6 py-8">
+<main class="max-w-6xl mx-auto px-6 py-6">
+
+  <!-- ====== ASSETS CONTENT ====== -->
+  <div id="content-assets">
 
   <!-- Assets Tab -->
   <section id="tab-assets">
@@ -300,7 +319,99 @@ tailwind.config = {
       </div>
       <div id="income-chart" style="width:100%; height:320px;"></div>
     </div>
-  </section>
+    </section>
+  </div><!-- /content-assets -->
+
+  <!-- ====== EXPENSES CONTENT ====== -->
+  <div id="content-expenses" style="display:none;">
+
+    <!-- Expense List Tab -->
+    <section id="tab-expenses">
+      <div class="flex items-center justify-between mb-6">
+        <div>
+          <h2 class="font-display text-lg font-bold">消费记录</h2>
+          <p class="text-sm mt-1" style="color: var(--muted);">
+            总计 <span id="expense-total" class="font-mono font-medium" style="color: var(--accent);">¥0</span>
+          </p>
+        </div>
+        <button onclick="openExpenseModal()" class="btn-gold">+ 记录消费</button>
+      </div>
+
+      <div id="expenses-empty" class="card text-center py-16" style="display:none;">
+        <div class="text-4xl mb-3 opacity-30">📝</div>
+        <p style="color: var(--muted);">还没有消费记录</p>
+        <p class="text-sm mt-1" style="color: var(--muted);">点击「记录消费」或导入示例数据开始</p>
+        <button onclick="loadExpenseDemoData()" class="btn-ghost mt-5" style="padding:8px 20px;">📦 导入示例消费数据</button>
+      </div>
+
+      <div id="expenses-list" class="card">
+        <div class="asset-row text-xs font-medium" style="color: var(--muted); border-bottom: 1px solid var(--border); grid-template-columns: 1fr 1fr 2fr 1.5fr 80px;">
+          <div onclick="toggleExpenseSort('date')" style="cursor:pointer;">日期<span class="sort-indicator" id="expense-sort-date"></span></div>
+          <div onclick="toggleExpenseSort('amount')" style="cursor:pointer;">金额<span class="sort-indicator" id="expense-sort-amount"></span></div>
+          <div>备注</div><div>标签</div><div></div>
+        </div>
+        <div id="expenses-rows"></div>
+      </div>
+    </section>
+
+    <!-- Expense Categories Tab -->
+    <section id="tab-expense-categories" style="display:none;">
+      <div class="flex items-center justify-between mb-6">
+        <div>
+          <h2 class="font-display text-lg font-bold">消费标签分类</h2>
+          <p class="text-sm mt-1" style="color: var(--muted);">管理消费的分类维度与标签</p>
+        </div>
+        <button onclick="openExpenseCategoryModal()" class="btn-gold">+ 新增分类</button>
+      </div>
+      <div id="expense-categories-list" class="space-y-4"></div>
+    </section>
+
+    <!-- Expense Chart Tab -->
+    <section id="tab-expense-chart" style="display:none;">
+      <div class="flex items-center justify-between mb-6">
+        <div>
+          <h2 class="font-display text-lg font-bold">消费分布</h2>
+          <p class="text-sm mt-1" style="color: var(--muted);">选择一个分类维度和月份，查看消费分布</p>
+        </div>
+        <div class="flex items-center gap-3">
+          <select id="expense-chart-month-select" onchange="renderExpenseChart()" class="text-sm" style="min-width:140px;"></select>
+          <select id="expense-chart-category-select" onchange="renderExpenseChart()" class="text-sm" style="min-width:160px;"></select>
+        </div>
+      </div>
+      <div class="card">
+        <div id="expense-sunburst-chart" style="width:100%; height:520px;"></div>
+        <div id="expense-chart-empty" class="text-center py-16" style="display:none;">
+          <p style="color: var(--muted);">暂无消费数据，请先记录消费</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Expense Trend Tab -->
+    <section id="tab-expense-trend" style="display:none;">
+      <div class="flex items-center justify-between mb-6">
+        <div>
+          <h2 class="font-display text-lg font-bold">消费趋势</h2>
+          <p class="text-sm mt-1" style="color: var(--muted);">按月份查看消费变化趋势</p>
+        </div>
+        <div class="flex items-center gap-3">
+          <select id="expense-trend-category-select" onchange="renderExpenseTrendChart()" class="text-sm" style="min-width:160px;"></select>
+          <div class="flex rounded-lg p-0.5 gap-0.5" style="background:var(--border);">
+            <button id="expense-trend-mode-value" onclick="setExpenseTrendMode('value')" class="btn-gold px-3 py-1 text-xs rounded-md" style="padding:4px 12px;">金额</button>
+            <button id="expense-trend-mode-percent" onclick="setExpenseTrendMode('percent')" class="btn-ghost px-3 py-1 text-xs rounded-md" style="padding:4px 12px;">占比</button>
+          </div>
+        </div>
+      </div>
+      <div class="card mb-6">
+        <div id="expense-trend-chart" style="width:100%; height:420px;"></div>
+        <div id="expense-trend-empty" class="text-center py-16" style="display:none;">
+          <p style="color: var(--muted);">暂无消费数据</p>
+        </div>
+      </div>
+      <div id="expense-trend-list"></div>
+    </section>
+
+  </div><!-- /content-expenses -->
+
 </main>
 
 <!-- Snapshot Detail Modal -->
@@ -415,6 +526,59 @@ tailwind.config = {
   </div>
 </div>
 
+<!-- Expense Modal -->
+<div id="expense-modal" class="modal-overlay" style="display:none;">
+  <div class="modal-content">
+    <h3 class="font-display text-lg font-bold mb-6" id="expense-modal-title">记录消费</h3>
+    <form id="expense-form" onsubmit="saveExpense(event)">
+      <input type="hidden" id="expense-edit-id">
+      <div class="space-y-4">
+        <div>
+          <label class="block text-xs font-medium mb-1.5" style="color:var(--muted);">日期</label>
+          <input type="date" id="expense-date" required class="w-full">
+        </div>
+        <div>
+          <label class="block text-xs font-medium mb-1.5" style="color:var(--muted);">金额 (CNY)</label>
+          <input type="number" id="expense-amount" required min="0.01" step="0.01" class="w-full" placeholder="0.00">
+        </div>
+        <div>
+          <label class="block text-xs font-medium mb-1.5" style="color:var(--muted);">备注</label>
+          <input type="text" id="expense-note" class="w-full" placeholder="可选备注">
+        </div>
+        <div id="expense-tags-section" class="space-y-3"></div>
+      </div>
+      <div class="flex justify-end gap-3 mt-8">
+        <button type="button" onclick="closeModal('expense-modal')" class="btn-ghost">取消</button>
+        <button type="submit" class="btn-gold">保存</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Expense Category Modal -->
+<div id="expense-category-modal" class="modal-overlay" style="display:none;">
+  <div class="modal-content">
+    <h3 class="font-display text-lg font-bold mb-6" id="expense-category-modal-title">新增消费分类</h3>
+    <form id="expense-category-form" onsubmit="saveExpenseCategory(event)">
+      <input type="hidden" id="expense-cat-edit-id">
+      <div class="space-y-4">
+        <div>
+          <label class="block text-xs font-medium mb-1.5" style="color:var(--muted);">分类名称</label>
+          <input type="text" id="expense-cat-name" required class="w-full" placeholder="如：支付方式">
+        </div>
+        <div>
+          <label class="block text-xs font-medium mb-1.5" style="color:var(--muted);">标签（逗号分隔）</label>
+          <input type="text" id="expense-cat-tags" required class="w-full" placeholder="如：微信, 支付宝, 现金">
+        </div>
+      </div>
+      <div class="flex justify-end gap-3 mt-8">
+        <button type="button" onclick="closeModal('expense-category-modal')" class="btn-ghost">取消</button>
+        <button type="submit" class="btn-gold">保存</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <script>
 // ========== STATE ==========
 const LS_KEY = 'wealth-manager-data';
@@ -423,6 +587,10 @@ let state = { categories: [], assets: [], snapshots: [], rates: { CNY: 1, HKD: 1
 let chart = null;
 let historyChart = null;
 let historyChartMode = 'value';
+let expenseSortBy = '';
+let expenseSortDir = 'asc';
+let expenseTrendMode = 'value';
+let currentMode = 'assets';
 let sortBy = '';
 let sortDir = 'asc';
 
@@ -479,8 +647,15 @@ function loadState() {
     } else {
       state.categories = [{ id: 'currency', name: '货币类型', builtin: true, tags: ['CNY', 'HKD', 'USD'] }];
     }
+    // init expense data
+    if (!state.expenseCategories) {
+      state.expenseCategories = [{ id: 'expense-type', name: '消费类别', builtin: true, tags: ['餐饮', '交通', '购物', '住房', '娱乐', '医疗', '教育', '其他'] }];
+    }
+    if (!state.expenses) state.expenses = [];
   } catch(e) {
     state.categories = [{ id: 'currency', name: '货币类型', builtin: true, tags: ['CNY', 'HKD', 'USD'] }];
+    state.expenseCategories = [{ id: 'expense-type', name: '消费类别', builtin: true, tags: ['餐饮', '交通', '购物', '住房', '娱乐', '医疗', '教育', '其他'] }];
+    state.expenses = [];
   }
 }
 
@@ -529,8 +704,30 @@ function formatCNY(val) {
 }
 
 // ========== TABS ==========
+function switchMode(mode) {
+  currentMode = mode;
+  document.getElementById('mode-assets').className = mode === 'assets'
+    ? 'btn-gold text-xs rounded-md'
+    : 'btn-ghost text-xs rounded-md';
+  document.getElementById('mode-expenses').className = mode === 'expenses'
+    ? 'btn-gold text-xs rounded-md'
+    : 'btn-ghost text-xs rounded-md';
+
+  document.getElementById('tabs-assets').style.display = mode === 'assets' ? '' : 'none';
+  document.getElementById('tabs-expenses').style.display = mode === 'expenses' ? '' : 'none';
+  document.getElementById('content-assets').style.display = mode === 'assets' ? '' : 'none';
+  document.getElementById('content-expenses').style.display = mode === 'expenses' ? '' : 'none';
+
+  if (mode === 'assets') {
+    switchTab('assets');
+  } else {
+    switchTab('expenses');
+  }
+}
+
 function switchTab(tab) {
-  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+  const tabBar = currentMode === 'assets' ? '#tabs-assets' : '#tabs-expenses';
+  document.querySelectorAll(tabBar + ' .tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
   document.getElementById('tab-assets').style.display = tab === 'assets' ? '' : 'none';
   document.getElementById('tab-categories').style.display = tab === 'categories' ? '' : 'none';
   document.getElementById('tab-chart').style.display = tab === 'chart' ? '' : 'none';
@@ -547,6 +744,22 @@ function switchTab(tab) {
   if (tab === 'income') {
     setTimeout(() => renderIncomeTab(), 100);
   }
+  // expense tabs
+  document.getElementById('tab-expenses').style.display = tab === 'expenses' ? '' : 'none';
+  document.getElementById('tab-expense-categories').style.display = tab === 'expense-categories' ? '' : 'none';
+  document.getElementById('tab-expense-chart').style.display = tab === 'expense-chart' ? '' : 'none';
+  document.getElementById('tab-expense-trend').style.display = tab === 'expense-trend' ? '' : 'none';
+  if (tab === 'expense-categories') {
+    renderExpenseCategories();
+  }
+  if (tab === 'expense-chart') {
+    populateExpenseChartSelects();
+    setTimeout(() => renderExpenseChart(), 100);
+  }
+  if (tab === 'expense-trend') {
+    populateExpenseTrendSelect();
+    setTimeout(() => renderExpenseTrendChart(), 100);
+  }
 }
 
 // ========== RENDER ==========
@@ -554,6 +767,8 @@ function renderAll() {
   renderAssets();
   renderCategories();
   renderHistoryTab();
+  renderExpenses();
+  renderExpenseCategories();
 }
 
 function renderAssets() {
@@ -926,6 +1141,8 @@ function renderChart() {
       if (chart) chart.resize();
       if (historyChart) historyChart.resize();
       if (incomeChart) incomeChart.resize();
+      if (expenseChart) expenseChart.resize();
+      if (expenseTrendChart) expenseTrendChart.resize();
     });
   }
 
@@ -1515,6 +1732,13 @@ function importData(e) {
       const data = JSON.parse(ev.target.result);
       if (data.categories && data.assets) {
         state = { ...state, ...data };
+        // ensure expense data exists for older exports
+        if (!state.expenseCategories || !Array.isArray(state.expenseCategories)) {
+          state.expenseCategories = [{ id: 'expense-type', name: '消费类别', builtin: true, tags: ['餐饮', '交通', '购物', '住房', '娱乐', '医疗', '教育', '其他'] }];
+        }
+        if (!state.expenses || !Array.isArray(state.expenses)) {
+          state.expenses = [];
+        }
         saveState();
         renderAll();
         closeModal('io-modal');
@@ -1637,6 +1861,640 @@ function toast(msg, type) {
   document.body.appendChild(t);
   setTimeout(() => { t.style.opacity = '0'; t.style.transition = 'opacity 0.3s'; setTimeout(() => t.remove(), 300); }, 2500);
 }
+
+// ========== EXPENSE CRUD ==========
+function renderExpenses() {
+  const rows = document.getElementById('expenses-rows');
+  const empty = document.getElementById('expenses-empty');
+  const list = document.getElementById('expenses-list');
+
+  if (state.expenses.length === 0) {
+    empty.style.display = '';
+    list.style.display = 'none';
+  } else {
+    empty.style.display = 'none';
+    list.style.display = '';
+    let sorted = [...state.expenses];
+    if (expenseSortBy) {
+      sorted.sort((a, b) => {
+        let va = a[expenseSortBy], vb = b[expenseSortBy];
+        if (typeof va === 'string') va = va.toLowerCase();
+        if (typeof vb === 'string') vb = vb.toLowerCase();
+        if (va < vb) return expenseSortDir === 'asc' ? -1 : 1;
+        if (va > vb) return expenseSortDir === 'asc' ? 1 : -1;
+        return 0;
+      });
+    }
+    ['date', 'amount'].forEach(f => {
+      const el = document.getElementById('expense-sort-' + f);
+      if (el) {
+        el.textContent = expenseSortBy === f ? (expenseSortDir === 'asc' ? ' ▲' : ' ▼') : '';
+        el.className = 'sort-indicator' + (expenseSortBy === f ? ' active' : '');
+      }
+    });
+    rows.innerHTML = sorted.map(e => {
+      const tagHtml = state.expenseCategories.map(cat => {
+        const tagVal = e.tags[cat.id];
+        if (!tagVal) return '';
+        const c = expenseCatColor(cat.id, tagVal);
+        return `<span class="tag-pill" style="background:${c.bg};color:${c.fg};border:1px solid ${c.border};">${cat.name}: ${tagVal}</span>`;
+      }).join(' ');
+      return `<div class="asset-row" style="grid-template-columns: 1fr 1fr 2fr 1.5fr 80px;">
+        <div class="font-mono text-sm">${e.date}</div>
+        <div class="font-mono text-sm">${e.amount.toLocaleString('zh-CN', {minimumFractionDigits:2, maximumFractionDigits:2})}</div>
+        <div class="text-sm" style="color:var(--muted);">${esc(e.note) || '—'}</div>
+        <div class="flex flex-wrap gap-1">${tagHtml}</div>
+        <div class="flex gap-2 justify-end">
+          <button onclick="editExpense('${e.id}')" class="text-xs" style="color:var(--accent);cursor:pointer;">编辑</button>
+          <button onclick="deleteExpense('${e.id}')" class="btn-danger" style="padding:3px 8px;font-size:11px;">删除</button>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  const total = state.expenses.reduce((s, e) => s + e.amount, 0);
+  document.getElementById('expense-total').textContent = formatCNY(total);
+}
+
+function openExpenseModal(editId) {
+  const modal = document.getElementById('expense-modal');
+  const title = document.getElementById('expense-modal-title');
+  const form = document.getElementById('expense-form');
+  form.reset();
+  document.getElementById('expense-edit-id').value = editId || '';
+  document.getElementById('expense-date').value = new Date().toISOString().slice(0, 10);
+
+  if (editId) {
+    title.textContent = '编辑消费';
+    const e = state.expenses.find(x => x.id === editId);
+    if (e) {
+      document.getElementById('expense-date').value = e.date;
+      document.getElementById('expense-amount').value = e.amount;
+      document.getElementById('expense-note').value = e.note || '';
+    }
+  } else {
+    title.textContent = '记录消费';
+  }
+
+  const section = document.getElementById('expense-tags-section');
+  section.innerHTML = state.expenseCategories.map(cat => {
+    const expense = editId ? state.expenses.find(x => x.id === editId) : null;
+    const selected = expense ? (expense.tags[cat.id] || '') : '';
+    const options = cat.tags.map(t =>
+      `<option value="${esc(t)}" ${t === selected ? 'selected' : ''}>${esc(t)}</option>`
+    ).join('');
+    return `<div>
+      <label class="block text-xs font-medium mb-1.5" style="color:var(--muted);">${esc(cat.name)}</label>
+      <select id="expense-tag-${cat.id}" class="w-full" required>
+        <option value="">请选择</option>
+        ${options}
+      </select>
+    </div>`;
+  }).join('');
+
+  modal.style.display = '';
+}
+
+function saveExpense(e) {
+  e.preventDefault();
+  const editId = document.getElementById('expense-edit-id').value;
+  const date = document.getElementById('expense-date').value;
+  const amount = parseFloat(document.getElementById('expense-amount').value);
+  const note = document.getElementById('expense-note').value.trim();
+
+  if (!date) { toast('请选择日期', 'error'); return; }
+  if (!amount || amount <= 0) { toast('金额必须大于 0', 'error'); return; }
+
+  const tags = {};
+  let tagsValid = true;
+  state.expenseCategories.forEach(cat => {
+    const el = document.getElementById(`expense-tag-${cat.id}`);
+    const val = el ? el.value : '';
+    if (val) tags[cat.id] = val;
+    else tagsValid = false;
+  });
+
+  if (!tagsValid) {
+    toast('请为每个分类选择标签', 'error');
+    return;
+  }
+
+  if (editId) {
+    const idx = state.expenses.findIndex(x => x.id === editId);
+    if (idx >= 0) state.expenses[idx] = { ...state.expenses[idx], date, amount, note, tags };
+  } else {
+    state.expenses.push({ id: genId(), date, amount, note, tags });
+  }
+
+  saveState();
+  renderExpenses();
+  closeModal('expense-modal');
+  toast(editId ? '消费已更新' : '消费已记录', 'success');
+}
+
+function editExpense(id) {
+  openExpenseModal(id);
+}
+
+function deleteExpense(id) {
+  if (!confirm('确认删除该消费记录？')) return;
+  state.expenses = state.expenses.filter(e => e.id !== id);
+  saveState();
+  renderExpenses();
+  toast('已删除', 'success');
+}
+
+function toggleExpenseSort(field) {
+  if (expenseSortBy === field) {
+    expenseSortDir = expenseSortDir === 'asc' ? 'desc' : 'asc';
+  } else {
+    expenseSortBy = field;
+    expenseSortDir = 'asc';
+  }
+  renderExpenses();
+}
+
+// ========== EXPENSE CATEGORY CRUD ==========
+function expenseCatColor(catId, tagName) {
+  const idx = state.expenseCategories.findIndex(c => c.id === catId);
+  const base = CATEGORY_COLORS[idx % CATEGORY_COLORS.length];
+  if (!tagName) return { ...base };
+
+  const cat = state.expenseCategories.find(c => c.id === catId);
+  if (!cat || cat.tags.length <= 1) return { ...base };
+
+  const ti = cat.tags.indexOf(tagName);
+  if (ti < 0) return { ...base };
+
+  const t = ti / (cat.tags.length - 1);
+  const hsl = hexToHsl(base.bg);
+  const h = hsl.h;
+
+  return {
+    bg: hslToHex(h, 35 + t * 20, 90 - t * 20),
+    fg: hslToHex(h, 50, 38),
+    border: hslToHex(h, 30 + t * 18, 78 - t * 26),
+  };
+}
+
+function renderExpenseCategories() {
+  const container = document.getElementById('expense-categories-list');
+  container.innerHTML = state.expenseCategories.map(cat => {
+    const tagPills = cat.tags.map(t => {
+      const c = expenseCatColor(cat.id, t);
+      return `<span class="tag-pill" style="background:${c.bg};color:${c.fg};border:1px solid ${c.border};">${esc(t)}${!cat.builtin ? ` <button onclick="removeExpenseTag('${cat.id}','${esc(t)}')" style="margin-left:2px;cursor:pointer;font-size:10px;line-height:1;color:${c.fg};">✕</button>` : ''}</span>`;
+    }).join(' ');
+    return `<div class="card">
+      <div class="flex items-center justify-between mb-3">
+        <div class="flex items-center gap-2">
+          <h3 class="font-display font-bold">${esc(cat.name)}</h3>
+          ${cat.builtin ? '<span class="text-xs px-2 py-0.5 rounded" style="background:#f0ece0;color:var(--muted);">内置</span>' : ''}
+        </div>
+        <div class="flex gap-2">
+          ${!cat.builtin ? `<button onclick="editExpenseCategory('${cat.id}')" class="text-xs" style="color:var(--accent);cursor:pointer;">编辑</button>
+          <button onclick="deleteExpenseCategory('${cat.id}')" class="btn-danger" style="padding:3px 8px;font-size:11px;">删除</button>` : ''}
+        </div>
+      </div>
+      <div class="flex flex-wrap gap-2 mb-3">${tagPills}</div>
+      <div class="flex gap-2">
+        <input type="text" id="expense-new-tag-${cat.id}" placeholder="新增标签" class="text-sm flex-1" style="padding:6px 10px;">
+        <button onclick="addExpenseTag('${cat.id}')" class="btn-ghost" style="padding:6px 14px;">添加</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function openExpenseCategoryModal(editId) {
+  const modal = document.getElementById('expense-category-modal');
+  const title = document.getElementById('expense-category-modal-title');
+  const form = document.getElementById('expense-category-form');
+  form.reset();
+  document.getElementById('expense-cat-edit-id').value = editId || '';
+
+  if (editId) {
+    title.textContent = '编辑消费分类';
+    const c = state.expenseCategories.find(x => x.id === editId);
+    if (c) {
+      document.getElementById('expense-cat-name').value = c.name;
+      document.getElementById('expense-cat-tags').value = c.tags.join(', ');
+    }
+  } else {
+    title.textContent = '新增消费分类';
+  }
+  modal.style.display = '';
+}
+
+function saveExpenseCategory(e) {
+  e.preventDefault();
+  const editId = document.getElementById('expense-cat-edit-id').value;
+  const name = document.getElementById('expense-cat-name').value.trim();
+  const tagsStr = document.getElementById('expense-cat-tags').value.trim();
+  const tags = tagsStr.split(/[,，]/).map(s => s.trim()).filter(Boolean);
+
+  if (tags.length === 0) {
+    toast('至少需要一个标签', 'error');
+    return;
+  }
+
+  if (editId) {
+    const idx = state.expenseCategories.findIndex(c => c.id === editId);
+    if (idx >= 0) {
+      const oldTags = state.expenseCategories[idx].tags;
+      state.expenseCategories[idx] = { ...state.expenseCategories[idx], name, tags };
+      state.expenses.forEach(e => {
+        if (e.tags[editId] && !tags.includes(e.tags[editId])) {
+          delete e.tags[editId];
+        }
+      });
+    }
+  } else {
+    state.expenseCategories.push({ id: genId(), name, builtin: false, tags });
+  }
+
+  saveState();
+  renderExpenseCategories();
+  renderExpenses();
+  closeModal('expense-category-modal');
+  toast(editId ? '消费分类已更新' : '消费分类已创建', 'success');
+}
+
+function editExpenseCategory(id) {
+  openExpenseCategoryModal(id);
+}
+
+function deleteExpenseCategory(id) {
+  const cat = state.expenseCategories.find(c => c.id === id);
+  if (cat && cat.builtin) return;
+  if (!confirm(`确认删除分类「${cat.name}」？该分类下消费记录的标签关联也会被移除。`)) return;
+  state.expenseCategories = state.expenseCategories.filter(c => c.id !== id);
+  state.expenses.forEach(e => { delete e.tags[id]; });
+  saveState();
+  renderExpenseCategories();
+  renderExpenses();
+  toast('消费分类已删除', 'success');
+}
+
+function addExpenseTag(catId) {
+  const input = document.getElementById(`expense-new-tag-${catId}`);
+  const val = input.value.trim();
+  if (!val) return;
+  const cat = state.expenseCategories.find(c => c.id === catId);
+  if (cat.tags.includes(val)) { toast('标签已存在', 'error'); return; }
+  cat.tags.push(val);
+  saveState();
+  renderExpenseCategories();
+  renderExpenses();
+  input.value = '';
+  toast('标签已添加', 'success');
+}
+
+function removeExpenseTag(catId, tagName) {
+  const cat = state.expenseCategories.find(c => c.id === catId);
+  if (!cat) return;
+  if (cat.tags.length <= 1) { toast('至少保留一个标签', 'error'); return; }
+  cat.tags = cat.tags.filter(t => t !== tagName);
+  state.expenses.forEach(e => {
+    if (e.tags[catId] === tagName) delete e.tags[catId];
+  });
+  saveState();
+  renderExpenseCategories();
+  renderExpenses();
+  toast('标签已移除', 'success');
+}
+
+// ========== EXPENSE CHART ==========
+let expenseChart = null;
+
+function populateExpenseChartSelects() {
+  const catSel = document.getElementById('expense-chart-category-select');
+  const currentCat = catSel.value;
+  catSel.innerHTML = state.expenseCategories.map(c =>
+    `<option value="${c.id}">${esc(c.name)}</option>`
+  ).join('');
+  if (currentCat && catSel.querySelector(`option[value="${currentCat}"]`)) catSel.value = currentCat;
+
+  const monthSel = document.getElementById('expense-chart-month-select');
+  const currentMonth = monthSel.value;
+  const months = [...new Set(state.expenses.map(e => e.date.slice(0, 7)))].sort().reverse();
+  monthSel.innerHTML = '<option value="">全部时间</option>' +
+    months.map(m => `<option value="${m}">${monthLabel(m)}</option>`).join('');
+  if (currentMonth && monthSel.querySelector(`option[value="${currentMonth}"]`)) monthSel.value = currentMonth;
+  else if (months.length > 0) monthSel.value = months[0];
+  else monthSel.value = '';
+}
+
+function renderExpenseChart() {
+  const catId = document.getElementById('expense-chart-category-select').value;
+  const monthFilter = document.getElementById('expense-chart-month-select').value;
+  if (!catId) return;
+
+  const chartEl = document.getElementById('expense-sunburst-chart');
+  const emptyEl = document.getElementById('expense-chart-empty');
+
+  const filtered = monthFilter
+    ? state.expenses.filter(e => e.date.slice(0, 7) === monthFilter)
+    : state.expenses;
+
+  if (filtered.length === 0) {
+    chartEl.style.display = 'none';
+    emptyEl.style.display = '';
+    return;
+  }
+  chartEl.style.display = '';
+  emptyEl.style.display = 'none';
+
+  const cat = state.expenseCategories.find(c => c.id === catId);
+  if (!cat) return;
+
+  const groups = {};
+  cat.tags.forEach(t => { groups[t] = {}; });
+  filtered.forEach(e => {
+    const tagVal = e.tags[catId];
+    if (tagVal && groups[tagVal]) {
+      const key = e.note || e.date;
+      if (!groups[tagVal][key]) groups[tagVal][key] = 0;
+      groups[tagVal][key] += e.amount;
+    }
+  });
+
+  const total = filtered.reduce((s, e) => s + e.amount, 0);
+
+  const data = cat.tags.filter(t => Object.keys(groups[t]).length > 0).map((tag, ti) => {
+    const pal = CATEGORY_PALETTE[ti % CATEGORY_PALETTE.length];
+    const children = Object.entries(groups[tag]).map(([name, val], ai) => ({
+      name: name,
+      value: Math.round(val * 100) / 100,
+      itemStyle: { color: pal.shades[ai % pal.shades.length] }
+    }));
+    return { name: tag, itemStyle: { color: pal.base }, children };
+  });
+
+  if (!expenseChart) {
+    expenseChart = echarts.init(chartEl);
+  }
+
+  expenseChart.setOption({
+    backgroundColor: 'transparent',
+    series: [{
+      type: 'sunburst',
+      data: data,
+      radius: ['12%', '90%'],
+      sort: null,
+      emphasis: { focus: 'ancestor' },
+      levels: [
+        {},
+        {
+          r0: '12%', r: '50%',
+          itemStyle: { borderWidth: 2, borderColor: '#faf8f2' },
+          label: { rotate: 'tangential', fontSize: 13, fontWeight: 600, fontFamily: '"IBM Plex Mono", monospace', color: '#fff',
+            formatter: function(p) { return p.name; }
+          }
+        },
+        {
+          r0: '50%', r: '90%',
+          itemStyle: { borderWidth: 1, borderColor: '#faf8f2' },
+          label: { rotate: 'radial', fontSize: 11, fontFamily: '"IBM Plex Mono", monospace', color: '#1a1712',
+            formatter: function(p) { return p.name; }
+          }
+        }
+      ]
+    }],
+    tooltip: {
+      trigger: 'item',
+      formatter: function(p) {
+        const pct = total > 0 ? ((p.value / total) * 100).toFixed(1) : '0.0';
+        const emoji = p.treePathInfo && p.treePathInfo.length <= 2 ? '🏷️' : '💰';
+        const arrow = p.treePathInfo && p.treePathInfo.length > 2
+          ? '🏷️ ' + p.treePathInfo[1].name + ' › '
+          : '';
+        return `${emoji} <b>${arrow}${p.name}</b><br/>💵 ${formatCNY(p.value)}&nbsp;&nbsp;📊 ${pct}%`;
+      }
+    }
+  }, true);
+}
+
+// ========== EXPENSE TREND ==========
+let expenseTrendChart = null;
+
+function populateExpenseTrendSelect() {
+  const sel = document.getElementById('expense-trend-category-select');
+  const current = sel.value;
+  sel.innerHTML = state.expenseCategories.map(c =>
+    `<option value="${c.id}">${esc(c.name)}</option>`
+  ).join('');
+  if (current && sel.querySelector(`option[value="${current}"]`)) sel.value = current;
+}
+
+function setExpenseTrendMode(mode) {
+  expenseTrendMode = mode;
+  document.getElementById('expense-trend-mode-value').className = mode === 'value'
+    ? 'btn-gold px-3 py-1 text-xs rounded-md' : 'btn-ghost px-3 py-1 text-xs rounded-md';
+  document.getElementById('expense-trend-mode-percent').className = mode === 'percent'
+    ? 'btn-gold px-3 py-1 text-xs rounded-md' : 'btn-ghost px-3 py-1 text-xs rounded-md';
+  renderExpenseTrendChart();
+}
+
+function renderExpenseTrendChart() {
+  const catId = document.getElementById('expense-trend-category-select').value;
+  const chartEl = document.getElementById('expense-trend-chart');
+  const emptyEl = document.getElementById('expense-trend-empty');
+
+  if (state.expenses.length === 0) {
+    chartEl.style.display = 'none';
+    emptyEl.style.display = '';
+    return;
+  }
+  chartEl.style.display = '';
+  emptyEl.style.display = 'none';
+
+  const cat = state.expenseCategories.find(c => c.id === catId);
+  if (!cat) return;
+
+  const monthMap = {};
+  state.expenses.forEach(e => {
+    const m = e.date.slice(0, 7);
+    if (!monthMap[m]) monthMap[m] = {};
+    cat.tags.forEach(tag => {
+      if (!monthMap[m][tag]) monthMap[m][tag] = 0;
+    });
+    const tagVal = e.tags[catId];
+    if (tagVal && monthMap[m][tagVal] != null) {
+      monthMap[m][tagVal] += e.amount;
+    }
+  });
+
+  const sorted = Object.keys(monthMap).sort();
+  const dates = sorted.map(m => monthLabel(m));
+
+  const totals = sorted.map(m => {
+    return cat.tags.reduce((s, tag) => s + (monthMap[m][tag] || 0), 0);
+  });
+
+  const series = cat.tags.map((tag, si) => {
+    const isLast = si === cat.tags.length - 1;
+    const raw = sorted.map(m => monthMap[m][tag] || 0);
+    const data = expenseTrendMode === 'percent'
+      ? raw.map((v, vi) => ({ value: totals[vi] > 0 ? +(v / totals[vi] * 100).toFixed(1) : 0, raw: Math.round(v * 100) / 100 }))
+      : raw;
+    const pal = CATEGORY_PALETTE[si % CATEGORY_PALETTE.length];
+    return {
+      name: tag, type: 'bar', stack: 'total', data,
+      itemStyle: { color: pal.base },
+      emphasis: { focus: 'self' },
+      blur: { itemStyle: { opacity: 0.2 } },
+      label: isLast && expenseTrendMode === 'value' ? {
+        show: true,
+        position: 'top',
+        formatter: function(p) { return formatCNY(totals[p.dataIndex]); },
+        fontFamily: '"IBM Plex Mono", monospace',
+        fontSize: 11,
+        color: '#5e5337',
+      } : undefined,
+    };
+  });
+
+  if (!expenseTrendChart) {
+    expenseTrendChart = echarts.init(chartEl);
+  }
+
+  expenseTrendChart.setOption({
+    backgroundColor: 'transparent',
+    tooltip: {
+      trigger: 'item',
+      formatter: function(p) {
+        const idx = p.dataIndex;
+        const d = dates[idx];
+        const total = totals[idx];
+        if (expenseTrendMode === 'percent') {
+          const raw = p.data && p.data.raw != null ? p.data.raw : 0;
+          return `<b>${d}</b><br/>${p.marker} ${p.seriesName}: ${p.value}% (${formatCNY(raw)})`;
+        }
+        const pct = total > 0 ? ((p.value / total) * 100).toFixed(1) : '0.0';
+        return `<b>${d}</b><br/>${p.marker} ${p.seriesName}: ${formatCNY(p.value)} (${pct}%)`;
+      }
+    },
+    legend: { show: true, type: 'scroll', bottom: 0 },
+    grid: { left: '3%', right: '4%', bottom: '22%', top: '10%', containLabel: true },
+    xAxis: { type: 'category', data: dates, axisLabel: { fontFamily: '"IBM Plex Mono", monospace', fontSize: 11 } },
+    yAxis: expenseTrendMode === 'percent'
+      ? { type: 'value', max: 100, axisLabel: { fontFamily: '"IBM Plex Mono", monospace', fontSize: 11, formatter: '{value}%' } }
+      : { type: 'value', axisLabel: { fontFamily: '"IBM Plex Mono", monospace', fontSize: 11, formatter: v => v.toLocaleString('zh-CN', {minimumFractionDigits:0, maximumFractionDigits:0}) } },
+    series
+  }, true);
+  renderExpenseTrendList();
+}
+
+function renderExpenseTrendList() {
+  const list = document.getElementById('expense-trend-list');
+  // aggregate expenses by month
+  const monthMap = {};
+  state.expenses.forEach(e => {
+    const m = e.date.slice(0, 7);
+    if (!monthMap[m]) monthMap[m] = { total: 0, count: 0 };
+    monthMap[m].total += e.amount;
+    monthMap[m].count++;
+  });
+  const months = Object.keys(monthMap).sort().reverse();
+  if (months.length === 0) { list.innerHTML = ''; return; }
+  list.innerHTML = months.map(m => {
+    return `<div class="card flex items-center justify-between">
+      <div class="flex-1 cursor-pointer" onclick="viewExpenseMonth('${m}')">
+        <div class="font-medium text-sm">${monthLabel(m)}</div>
+        <div class="text-xs" style="color:var(--muted);">${formatCNY(monthMap[m].total)} · ${monthMap[m].count} 条消费记录</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function viewExpenseMonth(month) {
+  const expenses = state.expenses.filter(e => e.date.slice(0, 7) === month).sort((a, b) => b.date.localeCompare(a.date));
+  if (expenses.length === 0) return;
+  const total = expenses.reduce((s, e) => s + e.amount, 0);
+  document.getElementById('snapshot-modal-title').textContent = '月度消费明细';
+  document.getElementById('snapshot-detail-content').innerHTML = `
+    <p class="text-sm mb-4" style="color:var(--muted);">${monthLabel(month)} | 总消费: <strong>${formatCNY(total)}</strong> · ${expenses.length} 笔记录</p>
+    <div class="asset-row text-xs font-medium" style="color:var(--muted);border-bottom:1px solid var(--border);grid-template-columns:1fr 1fr 2fr 1.5fr;">
+      <div>日期</div><div>金额</div><div>备注</div><div>标签</div>
+    </div>
+    ${expenses.map(e => {
+      const tagHtml = state.expenseCategories.map(cat => {
+        const tagVal = e.tags[cat.id];
+        if (!tagVal) return '';
+        const c = expenseCatColor(cat.id, tagVal);
+        return `<span class="tag-pill" style="font-size:10px;background:${c.bg};color:${c.fg};border:1px solid ${c.border};">${esc(cat.name)}:${esc(tagVal)}</span>`;
+      }).join(' ');
+      return `<div class="asset-row" style="grid-template-columns:1fr 1fr 2fr 1.5fr;">
+        <div class="font-mono text-sm">${e.date}</div>
+        <div class="font-mono text-sm">${e.amount.toLocaleString('zh-CN', {minimumFractionDigits:2, maximumFractionDigits:2})}</div>
+        <div class="text-sm" style="color:var(--muted);">${esc(e.note) || '—'}</div>
+        <div class="flex flex-wrap gap-1">${tagHtml}</div>
+      </div>`;
+    }).join('')}
+  `;
+  document.getElementById('snapshot-modal').style.display = '';
+}
+function loadExpenseDemoData() {
+  if (state.expenses.length > 0) {
+    if (!confirm('导入示例数据将覆盖当前所有消费数据，确认继续？')) return;
+  }
+  if (!state.expenseCategories.find(c => c.id === 'expense-type')) {
+    state.expenseCategories.unshift({ id: 'expense-type', name: '消费类别', builtin: true, tags: ['餐饮', '交通', '购物', '住房', '娱乐', '医疗', '教育', '其他'] });
+  }
+  const catPay = { id: genId(), name: '支付方式', builtin: false, tags: ['微信', '支付宝', '现金', '银行卡'] };
+  const catFreq = { id: genId(), name: '消费频率', builtin: false, tags: ['日常', '偶尔', '一次性'] };
+  const expenseTypeCat = state.expenseCategories.find(c => c.id === 'expense-type');
+  state.expenseCategories = [expenseTypeCat, catPay, catFreq];
+
+  const now = new Date();
+  const monthOffsets = [5, 4, 3, 2, 1, 0];
+  const seed = [
+    { note: '午餐外卖', amt: 35, type: '餐饮', pay: '微信', freq: '日常' },
+    { note: '地铁通勤', amt: 12, type: '交通', pay: '支付宝', freq: '日常' },
+    { note: '超市采购', amt: 156, type: '购物', pay: '微信', freq: '偶尔' },
+    { note: '房租', amt: 3500, type: '住房', pay: '银行卡', freq: '一次性' },
+    { note: '电影票', amt: 78, type: '娱乐', pay: '支付宝', freq: '偶尔' },
+    { note: '药房买药', amt: 45, type: '医疗', pay: '现金', freq: '偶尔' },
+    { note: '网课订阅', amt: 299, type: '教育', pay: '微信', freq: '一次性' },
+    { note: '咖啡', amt: 28, type: '餐饮', pay: '微信', freq: '日常' },
+    { note: '打车', amt: 42, type: '交通', pay: '支付宝', freq: '日常' },
+    { note: '衣服', amt: 238, type: '购物', pay: '银行卡', freq: '偶尔' },
+    { note: '水电费', amt: 186, type: '住房', pay: '微信', freq: '一次性' },
+    { note: '游戏充值', amt: 68, type: '娱乐', pay: '支付宝', freq: '偶尔' },
+    { note: '理发', amt: 58, type: '其他', pay: '现金', freq: '偶尔' },
+  ];
+
+  const jitter = [0, 0.05, -0.1, 0.03, 0.08, -0.02];
+
+  state.expenses = [];
+  monthOffsets.forEach((off, mi) => {
+    const year = now.getFullYear();
+    const month = now.getMonth() - off;
+    const d = new Date(year, month, 1);
+    const monthStr = d.toISOString().slice(0, 7);
+    const factor = 1 + jitter[mi];
+    const daysInMonth = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+
+    seed.forEach((s, si) => {
+      const day = Math.min(1 + (si * 3 + mi * 5) % 28, daysInMonth);
+      const dayStr = String(day).padStart(2, '0');
+      if (s.type === '住房' || s.type === '一次性' || si % 3 === mi % 3) {
+        state.expenses.push({
+          id: genId(),
+          date: `${monthStr}-${dayStr}`,
+          amount: Math.round(s.amt * factor * 100) / 100,
+          note: s.note,
+          tags: { [expenseTypeCat.id]: s.type, [catPay.id]: s.pay, [catFreq.id]: s.freq },
+        });
+      }
+    });
+  });
+
+  saveState();
+  renderExpenses();
+  renderExpenseCategories();
+  toast('示例消费数据已导入（' + monthOffsets.length + '个月）', 'success');
+}
+
 </script>
 
 </body>
