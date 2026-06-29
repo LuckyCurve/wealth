@@ -649,12 +649,22 @@ function loadState() {
     }
     // init expense data
     if (!state.expenseCategories) {
-      state.expenseCategories = [{ id: 'expense-type', name: '消费类别', builtin: true, tags: ['餐饮', '交通', '购物', '住房', '娱乐', '医疗', '教育', '其他'] }];
+      state.expenseCategories = [];
+    } else {
+      // migrate: remove old builtin expense categories
+      state.expenseCategories = state.expenseCategories.filter(c => c.id !== 'expense-type' || !c.builtin);
+      // clean up orphaned tag references
+      const validCatIds = new Set(state.expenseCategories.map(c => c.id));
+      state.expenses.forEach(e => {
+        Object.keys(e.tags).forEach(catId => {
+          if (!validCatIds.has(catId)) delete e.tags[catId];
+        });
+      });
     }
     if (!state.expenses) state.expenses = [];
   } catch(e) {
     state.categories = [{ id: 'currency', name: '货币类型', builtin: true, tags: ['CNY', 'HKD', 'USD'] }];
-    state.expenseCategories = [{ id: 'expense-type', name: '消费类别', builtin: true, tags: ['餐饮', '交通', '购物', '住房', '娱乐', '医疗', '教育', '其他'] }];
+    state.expenseCategories = [];
     state.expenses = [];
   }
 }
@@ -1734,7 +1744,7 @@ function importData(e) {
         state = { ...state, ...data };
         // ensure expense data exists for older exports
         if (!state.expenseCategories || !Array.isArray(state.expenseCategories)) {
-          state.expenseCategories = [{ id: 'expense-type', name: '消费类别', builtin: true, tags: ['餐饮', '交通', '购物', '住房', '娱乐', '医疗', '教育', '其他'] }];
+          state.expenseCategories = [];
         }
         if (!state.expenses || !Array.isArray(state.expenses)) {
           state.expenses = [];
@@ -2124,7 +2134,6 @@ function editExpenseCategory(id) {
 
 function deleteExpenseCategory(id) {
   const cat = state.expenseCategories.find(c => c.id === id);
-  if (cat && cat.builtin) return;
   if (!confirm(`确认删除分类「${cat.name}」？该分类下消费记录的标签关联也会被移除。`)) return;
   state.expenseCategories = state.expenseCategories.filter(c => c.id !== id);
   state.expenses.forEach(e => { delete e.tags[id]; });
@@ -2438,7 +2447,7 @@ function loadExpenseDemoData() {
     if (!confirm('导入示例数据将覆盖当前所有消费数据，确认继续？')) return;
   }
   if (!state.expenseCategories.find(c => c.id === 'expense-type')) {
-    state.expenseCategories.unshift({ id: 'expense-type', name: '消费类别', builtin: true, tags: ['餐饮', '交通', '购物', '住房', '娱乐', '医疗', '教育', '其他'] });
+    state.expenseCategories.unshift({ id: 'expense-type', name: '消费类别', builtin: false, tags: ['餐饮', '交通', '购物', '住房', '娱乐', '医疗', '教育', '其他'] });
   }
   const catPay = { id: genId(), name: '支付方式', builtin: false, tags: ['微信', '支付宝', '现金', '银行卡'] };
   const catFreq = { id: genId(), name: '消费频率', builtin: false, tags: ['日常', '偶尔', '一次性'] };
