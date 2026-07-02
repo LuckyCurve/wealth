@@ -47,7 +47,7 @@ tailwind.config = {
   }
   .dark .asset-row { border-bottom-color: #302a1f; }
   .dark .asset-row:hover { background: #1a1712; }
-  .dark .tag-pill { background: #302a1f; }
+  .dark .tag-pill { background: #1a1712; border-color: #302a1f; }
   .dark .card { border-color: var(--border); }
   .sort-indicator { margin-left: 2px; font-size: 10px; color: var(--muted); }
   .sort-indicator.active { color: var(--accent); }
@@ -103,13 +103,20 @@ tailwind.config = {
   @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
   @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
   .tag-pill {
-    display: inline-flex; align-items: center; gap: 4px;
-    padding: 3px 10px; border-radius: 20px; font-size: 12px;
-    background: #f0ece0; color: var(--muted); border: 1px solid transparent;
-    transition: all 0.15s;
+    display: inline-flex; align-items: center; gap: 3px;
+    padding: 4px 10px 4px 7px; border-radius: 5px; font-size: 13px;
+    font-weight: 500; font-family: 'IBM Plex Mono', monospace;
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--border);
+    transition: all 0.15s; white-space: nowrap; line-height: 1.5;
   }
-  .tag-pill.active { background: linear-gradient(135deg, #f5ecd7, #ede0c0); color: #7d6f48; border-color: var(--accent); }
-  .tag-pill:hover { border-color: var(--accent); }
+  .tag-pill .tag-key {
+    font-size: 11px; font-weight: 400; opacity: 0.55;
+    letter-spacing: 0.02em; margin-right: 4px;
+  }
+  .tag-pill .tag-val { font-weight: 600; }
+  .tag-pill.active { border-color: var(--accent); border-left-color: var(--accent); }
+  .tag-pill:hover { filter: brightness(0.94); }
   .asset-row {
     display: grid; grid-template-columns: 2fr 1fr 1fr 1.5fr 1.5fr;
     align-items: center; padding: 14px 0; border-bottom: 1px solid #f0ece0;
@@ -817,7 +824,7 @@ function renderAssets() {
         const tagVal = a.tags[cat.id];
         if (!tagVal) return '';
         const c = catColor(cat.id, tagVal);
-        return `<span class="tag-pill" style="background:${c.bg};color:${c.fg};border:1px solid ${c.border};">${cat.name}: ${tagVal}</span>`;
+        return `<span class="tag-pill" style="background:${c.bg};color:${c.fg};border-left-color:${c.border};"><span class="tag-key">${cat.name}</span><span class="tag-val">${tagVal}</span></span>`;
       }).join(' ');
       const rateLabel = a.expectedRateMin > 0 || a.expectedRateMax > 0
         ? (a.expectedRateMin === a.expectedRateMax
@@ -849,7 +856,7 @@ function renderCategories() {
   container.innerHTML = state.categories.map(cat => {
     const tagPills = cat.tags.map(t => {
       const c = catColor(cat.id, t);
-      return `<span class="tag-pill" style="background:${c.bg};color:${c.fg};border:1px solid ${c.border};">${esc(t)}${!cat.builtin ? ` <button onclick="removeTag('${cat.id}','${esc(t)}')" style="margin-left:2px;cursor:pointer;font-size:10px;line-height:1;color:${c.fg};">✕</button>` : ''}</span>`;
+      return `<span class="tag-pill" style="background:${c.bg};color:${c.fg};border-left-color:${c.border};"><span class="tag-val">${esc(t)}</span>${!cat.builtin ? ` <button onclick="removeTag('${cat.id}','${esc(t)}')" style="margin-left:2px;cursor:pointer;font-size:10px;line-height:1;color:${c.fg};">✕</button>` : ''}</span>`;
     }).join(' ');
     return `<div class="card">
       <div class="flex items-center justify-between mb-3">
@@ -1289,7 +1296,7 @@ function viewSnapshot(month) {
         const cat = state.categories.find(c => c.id === catId);
         if (!cat) return '';
         const c = catColor(catId, val);
-        return `<span class="tag-pill" style="font-size:10px;background:${c.bg};color:${c.fg};border:1px solid ${c.border};">${esc(cat.name)}:${esc(val)}</span>`;
+        return `<span class="tag-pill" style="background:${c.bg};color:${c.fg};border-left-color:${c.border};"><span class="tag-key">${esc(cat.name)}</span><span class="tag-val">${esc(val)}</span></span>`;
       }).join(' ');
       const snapRateMin = a.expectedRateMin ?? a.expectedRate ?? 0;
       const snapRateMax = a.expectedRateMax ?? a.expectedRate ?? 0;
@@ -1907,7 +1914,7 @@ function renderExpenses() {
         const tagVal = e.tags[cat.id];
         if (!tagVal) return '';
         const c = expenseCatColor(cat.id, tagVal);
-        return `<span class="tag-pill" style="background:${c.bg};color:${c.fg};border:1px solid ${c.border};">${cat.name}: ${tagVal}</span>`;
+        return `<span class="tag-pill" style="background:${c.bg};color:${c.fg};border-left-color:${c.border};"><span class="tag-key">${cat.name}</span><span class="tag-val">${tagVal}</span></span>`;
       }).join(' ');
       return `<div class="asset-row" style="grid-template-columns: 1fr 1fr 2fr 1.5fr 80px;">
         <div class="font-mono text-sm">${e.date}</div>
@@ -2052,7 +2059,7 @@ function renderExpenseCategories() {
   container.innerHTML = state.expenseCategories.map(cat => {
     const tagPills = cat.tags.map(t => {
       const c = expenseCatColor(cat.id, t);
-      return `<span class="tag-pill" style="background:${c.bg};color:${c.fg};border:1px solid ${c.border};">${esc(t)}${!cat.builtin ? ` <button onclick="removeExpenseTag('${cat.id}','${esc(t)}')" style="margin-left:2px;cursor:pointer;font-size:10px;line-height:1;color:${c.fg};">✕</button>` : ''}</span>`;
+      return `<span class="tag-pill" style="background:${c.bg};color:${c.fg};border-left-color:${c.border};"><span class="tag-val">${esc(t)}</span>${!cat.builtin ? ` <button onclick="removeExpenseTag('${cat.id}','${esc(t)}')" style="margin-left:2px;cursor:pointer;font-size:10px;line-height:1;color:${c.fg};">✕</button>` : ''}</span>`;
     }).join(' ');
     return `<div class="card">
       <div class="flex items-center justify-between mb-3">
@@ -2430,7 +2437,7 @@ function viewExpenseMonth(month) {
         const tagVal = e.tags[cat.id];
         if (!tagVal) return '';
         const c = expenseCatColor(cat.id, tagVal);
-        return `<span class="tag-pill" style="font-size:10px;background:${c.bg};color:${c.fg};border:1px solid ${c.border};">${esc(cat.name)}:${esc(tagVal)}</span>`;
+        return `<span class="tag-pill" style="background:${c.bg};color:${c.fg};border-left-color:${c.border};"><span class="tag-key">${esc(cat.name)}</span><span class="tag-val">${esc(tagVal)}</span></span>`;
       }).join(' ');
       return `<div class="asset-row" style="grid-template-columns:1fr 1fr 2fr 1.5fr;">
         <div class="font-mono text-sm">${e.date}</div>
