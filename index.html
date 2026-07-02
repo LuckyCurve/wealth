@@ -524,7 +524,9 @@ tailwind.config = {
       <hr style="border-color: var(--border);">
       <div>
         <p class="text-sm mb-3" style="color:var(--muted);">从 JSON 文件导入数据（将覆盖当前数据）</p>
-        <input type="file" id="import-file" accept=".json" onchange="importData(event)" class="text-sm">
+        <label id="import-file-label" for="import-file" class="btn-gold" style="display:inline-block; cursor:pointer;">选择文件</label>
+        <input type="file" id="import-file" accept=".json" onchange="importData(event)" style="display:none;">
+        <span id="import-file-name" class="text-xs ml-3" style="color:var(--muted);"></span>
       </div>
     </div>
     <div class="flex justify-end mt-8">
@@ -1743,6 +1745,7 @@ function exportData() {
 function importData(e) {
   const file = e.target.files[0];
   if (!file) return;
+  document.getElementById('import-file-name').textContent = file.name;
   const reader = new FileReader();
   reader.onload = function(ev) {
     try {
