@@ -3,24 +3,27 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='16' cy='16' r='15' fill='url(%23g)'/><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='%23d4a853'/><stop offset='1' stop-color='%23a67f2e'/></linearGradient></defs><line x1='16' y1='7' x2='16' y2='25' stroke='%231a1712' stroke-width='2.5' stroke-linecap='round'/><line x1='7' y1='16' x2='25' y2='16' stroke='%231a1712' stroke-width='2.5' stroke-linecap='round'/></svg>">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='16' cy='16' r='15' fill='url(%23g)'/><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='%23d9b25e'/><stop offset='1' stop-color='%238f6713'/></linearGradient></defs><line x1='16' y1='7' x2='16' y2='25' stroke='%23211b10' stroke-width='2.5' stroke-linecap='round'/><line x1='7' y1='16' x2='25' y2='16' stroke='%23211b10' stroke-width='2.5' stroke-linecap='round'/></svg>">
 <title>财富管理</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;700;900&family=IBM+Plex+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;700;900&family=IBM+Plex+Mono:wght@300;400;500;600&family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
 <script>
 tailwind.config = {
   theme: {
     extend: {
       fontFamily: {
         display: ['"Noto Serif SC"', 'serif'],
+        masthead: ['"Cormorant Garamond"', '"Noto Serif SC"', 'serif'],
         mono: ['"IBM Plex Mono"', 'monospace'],
       },
       colors: {
-        ink: { 50: '#f7f5f0', 100: '#ebe7db', 200: '#d4cdb8', 300: '#b5a98a', 400: '#9a8b65', 500: '#7d6f48', 600: '#5e5337', 700: '#473f2b', 800: '#302a1f', 900: '#1a1712', 950: '#0d0b08' },
-        gold: { 400: '#d4a853', 500: '#c49a3c', 600: '#a67f2e' },
-        paper: '#faf8f2',
+        // Parchment ledger — warm paper, deep ink, gilded accent, a single verdigris for live/income.
+        ink: { 50: '#f6f1e4', 100: '#ece4d0', 200: '#d8cbab', 300: '#b9a87e', 400: '#9a8758', 500: '#7c6b43', 600: '#5e5034', 700: '#473b28', 800: '#2f281b', 900: '#211b10', 950: '#15110a' },
+        gold: { 300: '#e6c982', 400: '#d9b25e', 500: '#b4841a', 600: '#8f6713' },
+        verdigris: { 400: '#7ba995', 500: '#4f7d6a', 600: '#3a5f50' },
+        paper: '#f6f1e4',
       }
     }
   }
@@ -28,67 +31,93 @@ tailwind.config = {
 </script>
 <style>
   :root {
-    --bg: #faf8f2;
-    --fg: #1a1712;
-    --muted: #9a8b65;
-    --accent: #c49a3c;
-    --card: #ffffff;
-    --border: #e0d9c8;
-    --shadow: rgba(26, 23, 18, 0.06);
+    --bg: #f6f1e4;
+    --bg-2: #efe8d6;
+    --fg: #211b10;
+    --muted: #8a7a52;
+    --accent: #b4841a;
+    --accent-soft: #d9b25e;
+    --verdigris: #4f7d6a;
+    --card: #fffcf3;
+    --card-2: #faf3e2;
+    --border: #e2d8bd;
+    --rule: #d8cbab;
+    --shadow: rgba(33, 27, 16, 0.07);
+    --shadow-lg: rgba(33, 27, 16, 0.12);
   }
   :root.dark {
-    --bg: #0d0b08;
-    --fg: #ebe7db;
-    --muted: #9a8b65;
-    --accent: #d4a853;
-    --card: #1a1712;
-    --border: #302a1f;
-    --shadow: rgba(247, 245, 240, 0.06);
+    --bg: #15110a;
+    --bg-2: #1c1710;
+    --fg: #ece4d0;
+    --muted: #9a8758;
+    --accent: #d9b25e;
+    --accent-soft: #e6c982;
+    --verdigris: #7ba995;
+    --card: #211b10;
+    --card-2: #2a2214;
+    --border: #3a301d;
+    --rule: #473b28;
+    --shadow: rgba(0, 0, 0, 0.4);
+    --shadow-lg: rgba(0, 0, 0, 0.55);
   }
-  .dark .asset-row { border-bottom-color: #302a1f; }
-  .dark .asset-row:hover { background: #1a1712; }
-  .dark .tag-pill { background: #1a1712; border-color: #302a1f; }
+  .dark .asset-row { border-bottom-color: var(--rule); }
+  .dark .asset-row:hover { background: #2a2214; }
+  .dark .tag-pill { background: #211b10; border-color: #3a301d; }
   .dark .card { border-color: var(--border); }
   .sort-indicator { margin-left: 2px; font-size: 10px; color: var(--muted); }
   .sort-indicator.active { color: var(--accent); }
   * { box-sizing: border-box; }
-  body { background: var(--bg); color: var(--fg); font-family: 'IBM Plex Mono', monospace; }
+  html { -webkit-text-size-adjust: 100%; }
+  body { background: var(--bg); color: var(--fg); font-family: 'IBM Plex Mono', monospace; font-feature-settings: 'tnum' 1; }
   body::before {
-    content: ''; position: fixed; inset: 0; z-index: -1; opacity: 0.03;
+    content: ''; position: fixed; inset: 0; z-index: -1; opacity: 0.035; pointer-events: none;
     background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23000' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
   }
   .font-display { font-family: 'Noto Serif SC', serif; }
-  .btn-gold {
-    background: linear-gradient(135deg, #d4a853, #c49a3c);
-    color: #1a1712; border: none; border-radius: 6px; padding: 8px 20px;
-    font-weight: 500; cursor: pointer; transition: all 0.2s;
-    font-family: 'IBM Plex Mono', monospace; font-size: 13px;
+  .font-masthead { font-family: 'Cormorant Garamond', 'Noto Serif SC', serif; font-feature-settings: 'lnum' 1, 'tnum' 1; }
+  .tabular { font-variant-numeric: tabular-nums; font-feature-settings: 'tnum' 1; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+  button:focus-visible, .btn-gold:focus-visible, .btn-ghost:focus-visible, .btn-danger:focus-visible { outline-offset: 2px; }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; scroll-behavior: auto !important; }
   }
-  .btn-gold:hover { filter: brightness(1.08); box-shadow: 0 2px 12px rgba(196, 154, 60, 0.3); }
+  .btn-gold {
+    background: linear-gradient(180deg, #d9b25e, #b4841a);
+    color: #211b10; border: 1px solid #8f6713; border-radius: 6px; padding: 8px 20px;
+    font-weight: 600; cursor: pointer; transition: filter .15s, box-shadow .15s, transform .05s;
+    font-family: 'IBM Plex Mono', monospace; font-size: 13px; letter-spacing: 0.01em;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.25), 0 1px 2px var(--shadow);
+  }
+  .btn-gold:hover { filter: brightness(1.05); box-shadow: inset 0 1px 0 rgba(255,255,255,0.3), 0 3px 12px rgba(180,132,26,0.28); }
+  .btn-gold:active { transform: translateY(1px); }
   .btn-ghost {
     background: transparent; color: var(--muted); border: 1px solid var(--border);
-    border-radius: 6px; padding: 8px 20px; cursor: pointer; transition: all 0.2s;
+    border-radius: 6px; padding: 8px 20px; cursor: pointer; transition: all 0.15s;
     font-family: 'IBM Plex Mono', monospace; font-size: 13px;
   }
   .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
   .btn-danger {
     background: transparent; color: #b85450; border: 1px solid #e0b4b0;
-    border-radius: 6px; padding: 6px 14px; cursor: pointer; transition: all 0.2s;
+    border-radius: 6px; padding: 6px 14px; cursor: pointer; transition: all 0.15s;
     font-family: 'IBM Plex Mono', monospace; font-size: 12px;
   }
   .btn-danger:hover { background: #b85450; color: white; border-color: #b85450; }
+  .dark .btn-danger { color: #d98a86; border-color: #5a3a39; }
+  .dark .btn-danger:hover { color: #fff; }
   .card {
     background: var(--card); border: 1px solid var(--border); border-radius: 10px;
-    box-shadow: 0 1px 4px var(--shadow); padding: 24px; transition: box-shadow 0.2s;
+    box-shadow: 0 1px 3px var(--shadow); padding: 24px; transition: box-shadow 0.2s, border-color 0.2s;
   }
   .card:hover { box-shadow: 0 4px 16px var(--shadow); }
+  .card-quiet { background: var(--card-2); }
   input, select {
-    font-family: 'IBM Plex Mono', monospace; font-size: 14px;
+    font-family: 'IBM Plex Mono', monospace; font-size: 14px; font-variant-numeric: tabular-nums;
     border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px;
-    background: var(--bg); color: var(--fg); transition: border-color 0.2s;
+    background: var(--card); color: var(--fg); transition: border-color 0.15s, box-shadow 0.15s;
     outline: none;
   }
-  input:focus, select:focus { border-color: var(--accent); }
+  input:focus, select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(180,132,26,0.14); }
+  .dark input, .dark select { background: var(--bg-2); }
   .modal-overlay {
     position: fixed; inset: 0; background: rgba(13, 11, 8, 0.5);
     backdrop-filter: blur(4px); z-index: 100; display: flex;
@@ -99,6 +128,12 @@ tailwind.config = {
     background: var(--card); border-radius: 14px; padding: 32px;
     max-width: 560px; width: 90%; max-height: 85vh; overflow-y: auto;
     box-shadow: 0 20px 60px rgba(0,0,0,0.15); animation: slideUp 0.25s ease;
+    border: 1px solid var(--border);
+  }
+  .modal-title { font-size: 22px; font-weight: 700; }
+  .modal-title .eyebrow {
+    font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 0.22em;
+    text-transform: uppercase; color: var(--muted); display: block; margin-bottom: 4px;
   }
   @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
   @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
@@ -119,7 +154,7 @@ tailwind.config = {
   .tag-pill:hover { filter: brightness(0.94); }
   .asset-row {
     display: grid; grid-template-columns: 2fr 1fr 1fr 1.5fr 1.5fr;
-    align-items: center; padding: 14px 0; border-bottom: 1px solid #f0ece0;
+    align-items: center; padding: 14px 0; border-bottom: 1px solid var(--rule);
     transition: background 0.15s;
   }
   .asset-row.grid-wide {
@@ -130,7 +165,7 @@ tailwind.config = {
   .asset-row.drag-over { border-top: 2px solid var(--accent); }
   .drag-handle { cursor: grab; display: inline-flex; align-items: center; justify-content: center; color: var(--muted); font-size: 14px; }
   .drag-handle:active { cursor: grabbing; }
-  .asset-row:hover { background: #fdfcf8; }
+  .asset-row:hover { background: var(--card-2); }
   .asset-row:last-child { border-bottom: none; }
   .toast {
     position: fixed; bottom: 24px; right: 24px; z-index: 200;
@@ -146,24 +181,71 @@ tailwind.config = {
   }
   .tab-btn.active { color: var(--fg); border-bottom-color: var(--accent); }
   .tab-btn:hover { color: var(--fg); }
-  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
   ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb { background: var(--rule); border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+
+  /* ===== Masthead / net-worth hero ===== */
+  .masthead { position: relative; padding: 30px 28px 26px; border-radius: 12px; overflow: hidden; }
+  .masthead::before {
+    content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px;
+    background: linear-gradient(180deg, var(--accent-soft), var(--accent) 55%, var(--verdigris));
+  }
+  .masthead-eyebrow {
+    font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 0.22em;
+    text-transform: uppercase; color: var(--muted); margin-bottom: 6px; display: flex; align-items: center; gap: 8px;
+  }
+  .masthead-eyebrow .live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--verdigris); box-shadow: 0 0 0 3px rgba(79,125,106,0.18); }
+  .masthead-amount {
+    font-family: 'Cormorant Garamond', 'Noto Serif SC', serif; font-weight: 500;
+    font-size: clamp(38px, 7vw, 64px); line-height: 1; letter-spacing: -0.01em;
+    color: var(--fg); font-variant-numeric: tabular-nums; display: flex; align-items: baseline; gap: 6px;
+  }
+  .masthead-amount .currency-mark { font-size: 0.42em; color: var(--accent); font-weight: 600; transform: translateY(-0.55em); }
+  .masthead-amount .cents { font-size: 0.4em; color: var(--muted); font-weight: 400; }
+  .masthead-sub { margin-top: 14px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; font-size: 13px; color: var(--muted); }
+  .masthead-sub .accent-num { color: var(--verdigris); font-weight: 600; font-variant-numeric: tabular-nums; }
+  .masthead-sub .accent-num.dim { color: var(--muted); }
+  /* Tri-color composition rule: a literal ledger ruling, segments proportional to CNY/HKD/USD */
+  .composition-rule { margin-top: 18px; display: flex; height: 5px; border-radius: 3px; overflow: hidden; gap: 2px; }
+  .composition-rule > span { display: block; transition: flex-grow 0.4s ease; }
+  .composition-rule .seg-cny { background: var(--accent); }
+  .composition-rule .seg-hkd { background: var(--verdigris); }
+  .composition-rule .seg-usd { background: #9a8758; }
+  .composition-rule .seg-other { background: var(--rule); }
+  .composition-legend { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .composition-legend .dot { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 5px; transform: translateY(0px); }
+  @media (max-width: 640px) {
+    .masthead { padding: 24px 20px 22px; }
+    .masthead-amount { font-size: clamp(34px, 12vw, 48px); }
+  }
+
+  /* ===== Section headers (eyebrow + title) ===== */
+  .section-head h2 { font-size: 20px; font-weight: 700; letter-spacing: -0.005em; }
+  .section-head .eyebrow {
+    font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 0.22em;
+    text-transform: uppercase; color: var(--muted); margin-bottom: 4px; display: block;
+  }
+  .section-head .sub { font-size: 13px; color: var(--muted); margin-top: 2px; }
 </style>
 </head>
 <body class="min-h-screen">
 
 <!-- Header -->
-<header style="border-bottom: 1px solid var(--border);">
-  <div class="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
-    <div class="flex items-center gap-6">
+<header style="border-bottom: 1px solid var(--border); background: linear-gradient(180deg, var(--card-2), transparent);">
+  <div class="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between gap-4 flex-wrap">
+    <div class="flex items-center gap-6 flex-wrap">
       <div class="flex items-center gap-3">
-        <div class="w-8 h-8 rounded-full flex items-center justify-center" style="background: linear-gradient(135deg, #d4a853, #a67f2e);">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1a1712" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="M12 6v12M6 12h12"/></svg>
+        <div class="w-9 h-9 rounded-full flex items-center justify-center" style="background: linear-gradient(135deg, #d9b25e, #8f6713); box-shadow: inset 0 1px 0 rgba(255,255,255,0.3), 0 1px 3px var(--shadow);">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#211b10" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v12M6 12h12"/></svg>
         </div>
-        <h1 class="font-display text-lg font-bold tracking-tight">财富管理</h1>
+        <div>
+          <h1 class="font-display text-lg font-bold tracking-tight leading-none">财富管理</h1>
+          <span class="text-[10px] tracking-[0.2em] uppercase" style="color:var(--muted);">Private Ledger</span>
+        </div>
       </div>
-      <div class="flex items-center p-0.5 rounded-lg" style="background: var(--border);">
+      <div class="flex items-center p-0.5 rounded-lg" style="background: var(--bg-2); border: 1px solid var(--border);">
         <button id="mode-assets" onclick="switchMode('assets')" class="btn-gold text-xs rounded-md" style="padding:6px 18px;">资产</button>
         <button id="mode-expenses" onclick="switchMode('expenses')" class="btn-ghost text-xs rounded-md" style="padding:6px 18px;">消费</button>
       </div>
@@ -171,7 +253,7 @@ tailwind.config = {
     <div class="flex items-center gap-3">
       <span id="rate-status" class="text-xs" style="color: var(--muted);"></span>
       <button onclick="showImportExport()" class="btn-ghost text-xs">导入 / 导出</button>
-      <button onclick="toggleDark()" id="dark-toggle" class="btn-ghost text-xs" style="min-width:36px;">☀</button>
+      <button onclick="toggleDark()" id="dark-toggle" class="btn-ghost text-xs" style="min-width:36px;" aria-label="切换暗色模式">☀</button>
     </div>
   </div>
 </header>
@@ -205,21 +287,26 @@ tailwind.config = {
 
   <!-- Assets Tab -->
   <section id="tab-assets">
-      <div class="flex items-center justify-between mb-6">
-      <div>
-        <h2 class="font-display text-lg font-bold">资产列表</h2>
-        <p class="text-sm mt-1" style="color: var(--muted);">
-          总计 <span id="total-cny" class="font-mono font-medium" style="color: var(--accent);">¥0</span> CNY
-        </p>
+      <div class="masthead mb-6 card" id="net-worth-masthead">
+        <div class="flex items-start justify-between gap-4 flex-wrap">
+          <div class="min-w-0">
+            <p class="masthead-eyebrow"><span class="live-dot"></span><span>净资产 · 截至 <span id="masthead-date">—</span></span></p>
+            <p class="masthead-amount" id="masthead-amount"><span class="currency-mark">¥</span><span class="whole" id="masthead-whole">0</span><span class="cents" id="masthead-cents">.00</span></p>
+          </div>
+          <button onclick="openAssetModal()" class="btn-gold" style="align-self:center;">＋ 登记资产</button>
+        </div>
+        <div class="composition-rule" id="composition-rule" aria-hidden="true">
+          <span class="seg-cny" style="flex-grow:1"></span><span class="seg-hkd" style="flex-grow:0"></span><span class="seg-usd" style="flex-grow:0"></span>
+        </div>
+        <div class="composition-legend" id="composition-legend"></div>
+        <div class="masthead-sub" id="masthead-sub"></div>
       </div>
-      <button onclick="openAssetModal()" class="btn-gold">+ 登记资产</button>
-    </div>
 
     <div id="assets-empty" class="card text-center py-16" style="display:none;">
       <div class="text-4xl mb-3 opacity-30">☧</div>
       <p style="color: var(--muted);">还没有资产记录</p>
       <p class="text-sm mt-1" style="color: var(--muted);">点击「登记资产」或导入示例数据开始</p>
-      <button onclick="loadDemoData()" class="btn-ghost mt-5" style="padding:8px 20px;">📦 导入示例数据</button>
+      <button onclick="loadDemoData()" class="btn-ghost mt-5" style="padding:8px 20px;">导入示例数据</button>
     </div>
 
     <div id="assets-list" class="card">
@@ -236,22 +323,24 @@ tailwind.config = {
 
   <!-- Categories Tab -->
   <section id="tab-categories" style="display:none;">
-    <div class="flex items-center justify-between mb-6">
+    <div class="flex items-center justify-between mb-6 section-head">
       <div>
-        <h2 class="font-display text-lg font-bold">标签分类管理</h2>
-        <p class="text-sm mt-1" style="color: var(--muted);">管理资产的分类维度与标签</p>
+        <span class="eyebrow">维度与标签</span>
+        <h2 class="font-display">标签分类管理</h2>
+        <p class="sub">管理资产的分类维度与标签</p>
       </div>
-      <button onclick="openCategoryModal()" class="btn-gold">+ 新增分类</button>
+      <button onclick="openCategoryModal()" class="btn-gold">＋ 新增分类</button>
     </div>
     <div id="categories-list" class="space-y-4"></div>
   </section>
 
   <!-- Chart Tab -->
   <section id="tab-chart" style="display:none;">
-    <div class="flex items-center justify-between mb-6">
+    <div class="flex items-center justify-between mb-6 section-head gap-4 flex-wrap">
       <div>
-        <h2 class="font-display text-lg font-bold">资产分布</h2>
-        <p class="text-sm mt-1" style="color: var(--muted);">选择一个分类维度查看资产分布（已换算为 CNY）</p>
+        <span class="eyebrow">旭日图</span>
+        <h2 class="font-display">资产分布</h2>
+        <p class="sub">选择一个分类维度查看资产分布（已换算为 CNY）</p>
       </div>
       <select id="chart-category-select" onchange="renderChart()" class="text-sm" style="min-width:160px;">
       </select>
@@ -266,14 +355,15 @@ tailwind.config = {
 
   <!-- History Tab -->
   <section id="tab-history" style="display:none;">
-    <div class="flex items-center justify-between mb-6">
+    <div class="flex items-center justify-between mb-6 section-head gap-4 flex-wrap">
       <div>
-        <h2 class="font-display text-lg font-bold">历史净值</h2>
-        <p class="text-sm mt-1" style="color: var(--muted);">记录资产快照，查看净值变化趋势</p>
+        <span class="eyebrow">月度快照</span>
+        <h2 class="font-display">历史净值</h2>
+        <p class="sub">记录资产快照，查看净值变化趋势</p>
       </div>
-      <div class="flex items-center gap-3">
+      <div class="flex items-center gap-3 flex-wrap">
         <select id="history-category-select" onchange="renderHistoryChart()" class="text-sm" style="min-width:160px;"></select>
-        <div class="flex rounded-lg p-0.5 gap-0.5" style="background:var(--border);">
+        <div class="flex rounded-lg p-0.5 gap-0.5" style="background:var(--bg-2); border:1px solid var(--border);">
           <button id="hist-mode-value" onclick="setHistoryChartMode('value')" class="btn-gold px-3 py-1 text-xs rounded-md" style="padding:4px 12px;">金额</button>
           <button id="hist-mode-percent" onclick="setHistoryChartMode('percent')" class="btn-ghost px-3 py-1 text-xs rounded-md" style="padding:4px 12px;">占比</button>
         </div>
@@ -292,10 +382,11 @@ tailwind.config = {
 
   <!-- Income Tab -->
   <section id="tab-income" style="display:none;">
-    <div class="flex items-center justify-between mb-6">
+    <div class="flex items-center justify-between mb-6 section-head gap-4 flex-wrap">
       <div>
-        <h2 class="font-display text-lg font-bold">收益测算</h2>
-        <p class="text-sm mt-1" style="color: var(--muted);">根据资产金额和预期年利率，计算预期收益</p>
+        <span class="eyebrow">预期收益</span>
+        <h2 class="font-display">收益测算</h2>
+        <p class="sub">根据资产金额和预期年利率，计算预期收益</p>
       </div>
     </div>
     <div id="income-mode-toggle" style="display:none;" class="flex gap-2 mb-4">
@@ -303,21 +394,23 @@ tailwind.config = {
       <button id="income-mode-max" onclick="setIncomeMode('max')" class="btn-ghost" style="padding:6px 16px;font-size:12px;">使用最高</button>
     </div>
     <div id="income-empty" class="card text-center py-16">
-      <p style="color: var(--muted);">⚠ 尚未设置预期利率，请先在「资产管理」中编辑资产并填写预期年利率</p>
+      <div class="text-3xl mb-3" style="color:var(--muted);opacity:0.6;">≷</div>
+      <p style="color: var(--fg);">尚未设置预期利率</p>
+      <p class="text-sm mt-1" style="color: var(--muted);">在「资产管理」中编辑资产并填写预期年利率，这里会显示收益测算。</p>
     </div>
     <div id="income-summary" class="card mb-6" style="display:none;">
       <div class="grid grid-cols-3 gap-6 text-center">
         <div>
-          <p class="text-xs font-medium mb-1" style="color:var(--muted);">年收益</p>
-          <p id="income-annual" class="font-display text-2xl font-bold" style="color:var(--accent);">¥0</p>
+          <p class="text-xs font-medium mb-1" style="color:var(--muted);letter-spacing:0.08em;">年收益</p>
+          <p id="income-annual" class="font-masthead tabular" style="font-size:30px;color:var(--verdigris);font-weight:500;">¥0</p>
         </div>
         <div>
-          <p class="text-xs font-medium mb-1" style="color:var(--muted);">月收益</p>
-          <p id="income-monthly" class="font-display text-2xl font-bold" style="color:var(--accent);">¥0</p>
+          <p class="text-xs font-medium mb-1" style="color:var(--muted);letter-spacing:0.08em;">月收益</p>
+          <p id="income-monthly" class="font-masthead tabular" style="font-size:30px;color:var(--verdigris);font-weight:500;">¥0</p>
         </div>
         <div>
-          <p class="text-xs font-medium mb-1" style="color:var(--muted);">日收益</p>
-          <p id="income-daily" class="font-display text-2xl font-bold" style="color:var(--accent);">¥0</p>
+          <p class="text-xs font-medium mb-1" style="color:var(--muted);letter-spacing:0.08em;">日收益</p>
+          <p id="income-daily" class="font-masthead tabular" style="font-size:30px;color:var(--verdigris);font-weight:500;">¥0</p>
         </div>
       </div>
       <p id="income-summary-footer" class="text-xs text-center mt-3" style="color:var(--muted);"></p>
@@ -340,14 +433,13 @@ tailwind.config = {
 
     <!-- Expense List Tab -->
     <section id="tab-expenses">
-      <div class="flex items-center justify-between mb-6">
+      <div class="flex items-center justify-between mb-6 section-head gap-4 flex-wrap">
         <div>
-          <h2 class="font-display text-lg font-bold">消费记录</h2>
-          <p class="text-sm mt-1" style="color: var(--muted);">
-            总计 <span id="expense-total" class="font-mono font-medium" style="color: var(--accent);">¥0</span> CNY
-          </p>
+          <span class="eyebrow">月度消费</span>
+          <h2 class="font-display">消费记录</h2>
+          <p class="sub">总计 <span id="expense-total" class="tabular font-medium" style="color: var(--accent);">¥0</span> CNY</p>
         </div>
-        <button onclick="openExpenseModal()" class="btn-gold">+ 记录消费</button>
+        <button onclick="openExpenseModal()" class="btn-gold">＋ 记录消费</button>
       </div>
 
       <div id="expenses-empty" class="card text-center py-16" style="display:none;">
@@ -369,22 +461,24 @@ tailwind.config = {
 
     <!-- Expense Categories Tab -->
     <section id="tab-expense-categories" style="display:none;">
-      <div class="flex items-center justify-between mb-6">
+      <div class="flex items-center justify-between mb-6 section-head gap-4 flex-wrap">
         <div>
-          <h2 class="font-display text-lg font-bold">消费标签分类</h2>
-          <p class="text-sm mt-1" style="color: var(--muted);">管理消费的分类维度与标签</p>
+          <span class="eyebrow">维度与标签</span>
+          <h2 class="font-display">消费标签分类</h2>
+          <p class="sub">管理消费的分类维度与标签</p>
         </div>
-        <button onclick="openExpenseCategoryModal()" class="btn-gold">+ 新增分类</button>
+        <button onclick="openExpenseCategoryModal()" class="btn-gold">＋ 新增分类</button>
       </div>
       <div id="expense-categories-list" class="space-y-4"></div>
     </section>
 
     <!-- Expense Chart Tab -->
     <section id="tab-expense-chart" style="display:none;">
-      <div class="flex items-center justify-between mb-6">
+      <div class="flex items-center justify-between mb-6 section-head gap-4 flex-wrap">
         <div>
-          <h2 class="font-display text-lg font-bold">消费分布</h2>
-          <p class="text-sm mt-1" style="color: var(--muted);">选择一个分类维度和月份，查看消费分布</p>
+          <span class="eyebrow">旭日图</span>
+          <h2 class="font-display">消费分布</h2>
+          <p class="sub">选择一个分类维度和月份，查看消费分布</p>
         </div>
         <div class="flex items-center gap-3">
           <select id="expense-chart-month-select" onchange="renderExpenseChart()" class="text-sm" style="min-width:140px;"></select>
@@ -401,14 +495,15 @@ tailwind.config = {
 
     <!-- Expense Trend Tab -->
     <section id="tab-expense-trend" style="display:none;">
-      <div class="flex items-center justify-between mb-6">
+      <div class="flex items-center justify-between mb-6 section-head gap-4 flex-wrap">
         <div>
-          <h2 class="font-display text-lg font-bold">消费趋势</h2>
-          <p class="text-sm mt-1" style="color: var(--muted);">按月份查看消费变化趋势</p>
+          <span class="eyebrow">月度对比</span>
+          <h2 class="font-display">消费趋势</h2>
+          <p class="sub">按月份查看消费变化趋势</p>
         </div>
         <div class="flex items-center gap-3">
           <select id="expense-trend-category-select" onchange="renderExpenseTrendChart()" class="text-sm" style="min-width:160px;"></select>
-          <div class="flex rounded-lg p-0.5 gap-0.5" style="background:var(--border);">
+          <div class="flex rounded-lg p-0.5 gap-0.5" style="background:var(--bg-2); border:1px solid var(--border);">
             <button id="expense-trend-mode-value" onclick="setExpenseTrendMode('value')" class="btn-gold px-3 py-1 text-xs rounded-md" style="padding:4px 12px;">金额</button>
             <button id="expense-trend-mode-percent" onclick="setExpenseTrendMode('percent')" class="btn-ghost px-3 py-1 text-xs rounded-md" style="padding:4px 12px;">占比</button>
           </div>
@@ -430,7 +525,7 @@ tailwind.config = {
 <!-- Snapshot Detail Modal -->
 <div id="snapshot-modal" class="modal-overlay" style="display:none;">
   <div class="modal-content" style="max-width:960px;">
-    <h3 class="font-display text-lg font-bold mb-4" id="snapshot-modal-title">快照详情</h3>
+    <h3 class="font-display modal-title mb-4" id="snapshot-modal-title">快照详情</h3>
     <div id="snapshot-detail-content"></div>
     <div class="flex justify-end mt-6">
       <button type="button" onclick="closeModal('snapshot-modal')" class="btn-ghost">关闭</button>
@@ -441,7 +536,7 @@ tailwind.config = {
 <!-- Snapshot Note Modal -->
 <div id="snapshot-note-modal" class="modal-overlay" style="display:none;">
   <div class="modal-content" style="max-width:400px;">
-    <h3 class="font-display text-lg font-bold mb-4">记录快照</h3>
+    <h3 class="font-display modal-title mb-4">记录快照</h3>
     <p class="text-sm mb-4" style="color:var(--muted);">将保存当前所有资产数据</p>
     <input type="text" id="snapshot-note-input" class="w-full" placeholder="备注（可选）" autofocus onkeydown="if(event.key==='Enter')confirmSnapshot()">
     <div class="flex justify-end gap-3 mt-6">
@@ -454,7 +549,7 @@ tailwind.config = {
 <!-- Asset Modal -->
 <div id="asset-modal" class="modal-overlay" style="display:none;">
   <div class="modal-content">
-    <h3 class="font-display text-lg font-bold mb-6" id="asset-modal-title">登记资产</h3>
+    <h3 class="font-display modal-title mb-6" id="asset-modal-title">登记资产</h3>
     <form id="asset-form" onsubmit="saveAsset(event)">
       <input type="hidden" id="asset-edit-id">
       <div class="space-y-4">
@@ -497,7 +592,7 @@ tailwind.config = {
 <!-- Category Modal -->
 <div id="category-modal" class="modal-overlay" style="display:none;">
   <div class="modal-content">
-    <h3 class="font-display text-lg font-bold mb-6" id="category-modal-title">新增分类</h3>
+    <h3 class="font-display modal-title mb-6" id="category-modal-title">新增分类</h3>
     <form id="category-form" onsubmit="saveCategory(event)">
       <input type="hidden" id="cat-edit-id">
       <div class="space-y-4">
@@ -521,7 +616,7 @@ tailwind.config = {
 <!-- Import/Export Modal -->
 <div id="io-modal" class="modal-overlay" style="display:none;">
   <div class="modal-content">
-    <h3 class="font-display text-lg font-bold mb-6">导入 / 导出</h3>
+    <h3 class="font-display modal-title mb-6">导入 / 导出</h3>
     <div class="space-y-5">
       <div>
         <p class="text-sm mb-3" style="color:var(--muted);">导出当前所有数据为 JSON 文件</p>
@@ -544,7 +639,7 @@ tailwind.config = {
 <!-- Confirm Modal -->
 <div id="confirm-modal" class="modal-overlay" style="display:none;">
   <div class="modal-content" style="max-width:400px;">
-    <h3 class="font-display text-lg font-bold mb-3" id="confirm-title">确认操作</h3>
+    <h3 class="font-display modal-title mb-3" id="confirm-title">确认操作</h3>
     <p id="confirm-msg" class="text-sm" style="color:var(--muted);"></p>
     <div class="flex justify-end gap-3 mt-8">
       <button type="button" onclick="confirmCancel()" class="btn-ghost">取消</button>
@@ -556,7 +651,7 @@ tailwind.config = {
 <!-- Expense Modal -->
 <div id="expense-modal" class="modal-overlay" style="display:none;">
   <div class="modal-content">
-    <h3 class="font-display text-lg font-bold mb-6" id="expense-modal-title">记录消费</h3>
+    <h3 class="font-display modal-title mb-6" id="expense-modal-title">记录消费</h3>
     <form id="expense-form" onsubmit="saveExpense(event)">
       <input type="hidden" id="expense-edit-id">
       <div class="space-y-4">
@@ -585,7 +680,7 @@ tailwind.config = {
 <!-- Expense Category Modal -->
 <div id="expense-category-modal" class="modal-overlay" style="display:none;">
   <div class="modal-content">
-    <h3 class="font-display text-lg font-bold mb-6" id="expense-category-modal-title">新增消费分类</h3>
+    <h3 class="font-display modal-title mb-6" id="expense-category-modal-title">新增消费分类</h3>
     <form id="expense-category-form" onsubmit="saveExpenseCategory(event)">
       <input type="hidden" id="expense-cat-edit-id">
       <div class="space-y-4">
@@ -853,11 +948,11 @@ function renderAssets() {
         : '<span style="color:var(--muted);font-size:11px;">未设置</span>';
       const cnyVal = toCNY(a.amount, a.currency);
       return `<div class="asset-row grid-wide" data-id="${a.id}" draggable="true" ondragstart="onAssetDragStart(event)" ondragend="onAssetDragEnd(event)">
-        <div class="drag-handle">⠿</div>
+        <div class="drag-handle" title="拖动排序">⠿</div>
         <div class="font-medium text-sm">${esc(a.name)}</div>
-        <div class="font-mono text-sm">${a.amount.toLocaleString('zh-CN', {minimumFractionDigits:2, maximumFractionDigits:2})}</div>
+        <div class="font-mono text-sm tabular">${a.amount.toLocaleString('zh-CN', {minimumFractionDigits:2, maximumFractionDigits:2})}</div>
         <div class="text-sm" style="color:var(--muted)">${a.currency}</div>
-        <div class="text-sm">${rateLabel}</div>
+        <div class="text-sm tabular">${rateLabel}</div>
         <div class="flex flex-wrap gap-1">${tagHtml}</div>
         <div class="flex gap-2 justify-end">
           <button onclick="editAsset('${a.id}')" class="text-xs" style="color:var(--accent);cursor:pointer;">编辑</button>
@@ -867,9 +962,85 @@ function renderAssets() {
     }).join('');
   }
 
-  // total
+  // masthead: net worth + currency composition + income hint
   const total = state.assets.reduce((s, a) => s + toCNY(a.amount, a.currency), 0);
-  document.getElementById('total-cny').textContent = formatCNY(total);
+  renderMasthead(total);
+}
+
+// ===== Masthead / net-worth hero =====
+let _mastheadRaf = null;
+let _mastheadPrev = 0;
+const _reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+function renderMasthead(total) {
+  const wholeEl = document.getElementById('masthead-whole');
+  const centsEl = document.getElementById('masthead-cents');
+  const dateEl = document.getElementById('masthead-date');
+  const ruleEl = document.getElementById('composition-rule');
+  const legendEl = document.getElementById('composition-legend');
+  const subEl = document.getElementById('masthead-sub');
+
+  const fixed = total.toFixed(2);
+  const [whole, cents] = fixed.split('.');
+  const wholeFmt = (parseInt(whole, 10) || 0).toLocaleString('zh-CN');
+
+  if (_reduceMotion) {
+    wholeEl.textContent = wholeFmt;
+    centsEl.textContent = '.' + cents;
+  } else {
+    cancelAnimationFrame(_mastheadRaf);
+    const from = _mastheadPrev;
+    const to = total;
+    const dur = 650;
+    const t0 = performance.now();
+    const step = (now) => {
+      const p = Math.min(1, (now - t0) / dur);
+      const eased = 1 - Math.pow(1 - p, 3);
+      const v = from + (to - from) * eased;
+      const f = v.toFixed(2).split('.');
+      wholeEl.textContent = (parseInt(f[0], 10) || 0).toLocaleString('zh-CN');
+      centsEl.textContent = '.' + f[1];
+      if (p < 1) _mastheadRaf = requestAnimationFrame(step);
+      else _mastheadPrev = to;
+    };
+    _mastheadPrev = to;
+    _mastheadRaf = requestAnimationFrame(step);
+  }
+
+  const today = new Date();
+  dateEl.textContent = today.getFullYear() + '/' + String(today.getMonth() + 1).padStart(2, '0') + '/' + String(today.getDate()).padStart(2, '0');
+
+  // currency composition
+  const byCur = { CNY: 0, HKD: 0, USD: 0 };
+  state.assets.forEach(a => { byCur[a.currency] = (byCur[a.currency] || 0) + toCNY(a.amount, a.currency); });
+  const segs = [
+    { key: 'CNY', cls: 'seg-cny', color: 'var(--accent)' },
+    { key: 'HKD', cls: 'seg-hkd', color: 'var(--verdigris)' },
+    { key: 'USD', cls: 'seg-usd', color: '#9a8758' },
+  ];
+  const parts = segs.map(s => ({ ...s, val: byCur[s.key] })).filter(s => s.val > 0);
+  ruleEl.innerHTML = parts.map(p =>
+    `<span class="${p.cls}" style="flex-grow:${Math.max(p.val, 1)}" title="${p.key}"></span>`
+  ).join('') || '<span class="seg-other" style="flex-grow:1"></span>';
+  legendEl.innerHTML = segs.map(s => {
+    const v = byCur[s.key];
+    const pct = total > 0 ? (v / total * 100).toFixed(1) : '0.0';
+    return `<span><span class="dot" style="background:${s.color}"></span>${s.key} <span class="tabular" style="color:var(--fg);opacity:0.85;">${pct}%</span></span>`;
+  }).join('');
+
+  // sub line: asset count + monthly income hint
+  const monthlyIncome = state.assets.reduce((s, a) => {
+    const rate = Math.max(a.expectedRateMin || 0, a.expectedRateMax || 0);
+    return s + (rate > 0 ? toCNY(a.amount, a.currency) * rate / 100 / 12 : 0);
+  }, 0);
+  const count = state.assets.length;
+  let subHtml = `<span>${count} 项资产</span>`;
+  if (monthlyIncome > 0) {
+    subHtml += `<span>·</span><span>预计月收益 <span class="accent-num">+${formatCNY(monthlyIncome)}</span></span>`;
+  } else {
+    subHtml += `<span>·</span><span class="accent-num dim">未设置预期利率</span>`;
+  }
+  subEl.innerHTML = subHtml;
 }
 
 function renderCategories() {
@@ -882,8 +1053,8 @@ function renderCategories() {
     return `<div class="card">
       <div class="flex items-center justify-between mb-3">
         <div class="flex items-center gap-2">
-          <h3 class="font-display font-bold">${esc(cat.name)}</h3>
-          ${cat.builtin ? '<span class="text-xs px-2 py-0.5 rounded" style="background:#f0ece0;color:var(--muted);">内置</span>' : ''}
+          <h3 class="font-display" style="font-size:17px;font-weight:700;letter-spacing:-0.005em;">${esc(cat.name)}</h3>
+          ${cat.builtin ? '<span class="text-xs px-2 py-0.5 rounded" style="background:var(--bg-2);border:1px solid var(--border);color:var(--muted);">内置</span>' : ''}
         </div>
         <div class="flex gap-2">
           ${!cat.builtin ? `<button onclick="editCategory('${cat.id}')" class="text-xs" style="color:var(--accent);cursor:pointer;">编辑</button>
@@ -1201,15 +1372,15 @@ function renderChart() {
         {},
         {
           r0: '12%', r: '50%',
-          itemStyle: { borderWidth: 2, borderColor: '#faf8f2' },
+          itemStyle: { borderWidth: 2, borderColor: '#fffcf3' },
           label: { rotate: 'tangential', fontSize: 13, fontWeight: 600, fontFamily: '"IBM Plex Mono", monospace', color: '#fff',
             formatter: function(p) { return p.name; }
           }
         },
         {
           r0: '50%', r: '90%',
-          itemStyle: { borderWidth: 1, borderColor: '#faf8f2' },
-          label: { rotate: 'radial', fontSize: 11, fontFamily: '"IBM Plex Mono", monospace', color: '#1a1712',
+          itemStyle: { borderWidth: 1, borderColor: '#fffcf3' },
+          label: { rotate: 'radial', fontSize: 11, fontFamily: '"IBM Plex Mono", monospace', color: '#211b10',
             formatter: function(p) { return p.name; }
           }
         }
@@ -1465,7 +1636,7 @@ function renderHistoryChart() {
         formatter: function(p) { return formatCNY(totals[p.dataIndex]); },
         fontFamily: '"IBM Plex Mono", monospace',
         fontSize: 11,
-        color: '#5e5337',
+        color: '#7c6b43',
       } : undefined,
     };
   });
@@ -1694,15 +1865,15 @@ function renderIncomeChart() {
         {},
         {
           r0: '12%', r: '50%',
-          itemStyle: { borderWidth: 2, borderColor: '#faf8f2' },
+          itemStyle: { borderWidth: 2, borderColor: '#fffcf3' },
           label: { rotate: 'tangential', fontSize: 13, fontWeight: 600, fontFamily: '"IBM Plex Mono", monospace', color: '#fff',
             formatter: function(p) { return p.name; }
           }
         },
         {
           r0: '50%', r: '90%',
-          itemStyle: { borderWidth: 1, borderColor: '#faf8f2' },
-          label: { rotate: 'radial', fontSize: 11, fontFamily: '"IBM Plex Mono", monospace', color: '#1a1712',
+          itemStyle: { borderWidth: 1, borderColor: '#fffcf3' },
+          label: { rotate: 'radial', fontSize: 11, fontFamily: '"IBM Plex Mono", monospace', color: '#211b10',
             formatter: function(p) { return p.name; }
           }
         }
@@ -2158,8 +2329,8 @@ function renderExpenseCategories() {
     return `<div class="card">
       <div class="flex items-center justify-between mb-3">
         <div class="flex items-center gap-2">
-          <h3 class="font-display font-bold">${esc(cat.name)}</h3>
-          ${cat.builtin ? '<span class="text-xs px-2 py-0.5 rounded" style="background:#f0ece0;color:var(--muted);">内置</span>' : ''}
+          <h3 class="font-display" style="font-size:17px;font-weight:700;letter-spacing:-0.005em;">${esc(cat.name)}</h3>
+          ${cat.builtin ? '<span class="text-xs px-2 py-0.5 rounded" style="background:var(--bg-2);border:1px solid var(--border);color:var(--muted);">内置</span>' : ''}
         </div>
         <div class="flex gap-2">
           ${!cat.builtin ? `<button onclick="editExpenseCategory('${cat.id}')" class="text-xs" style="color:var(--accent);cursor:pointer;">编辑</button>
@@ -2356,15 +2527,15 @@ function renderExpenseChart() {
         {},
         {
           r0: '12%', r: '50%',
-          itemStyle: { borderWidth: 2, borderColor: '#faf8f2' },
+          itemStyle: { borderWidth: 2, borderColor: '#fffcf3' },
           label: { rotate: 'tangential', fontSize: 13, fontWeight: 600, fontFamily: '"IBM Plex Mono", monospace', color: '#fff',
             formatter: function(p) { return p.name; }
           }
         },
         {
           r0: '50%', r: '90%',
-          itemStyle: { borderWidth: 1, borderColor: '#faf8f2' },
-          label: { rotate: 'radial', fontSize: 11, fontFamily: '"IBM Plex Mono", monospace', color: '#1a1712',
+          itemStyle: { borderWidth: 1, borderColor: '#fffcf3' },
+          label: { rotate: 'radial', fontSize: 11, fontFamily: '"IBM Plex Mono", monospace', color: '#211b10',
             formatter: function(p) { return p.name; }
           }
         }
@@ -2459,7 +2630,7 @@ function renderExpenseTrendChart() {
         formatter: function(p) { return formatCNY(totals[p.dataIndex]); },
         fontFamily: '"IBM Plex Mono", monospace',
         fontSize: 11,
-        color: '#5e5337',
+        color: '#7c6b43',
       } : undefined,
     };
   });
