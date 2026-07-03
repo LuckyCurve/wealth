@@ -123,8 +123,13 @@ tailwind.config = {
     transition: background 0.15s;
   }
   .asset-row.grid-wide {
-    grid-template-columns: 2fr 1fr 0.7fr 0.7fr 1.5fr 80px;
+    grid-template-columns: 28px 2fr 1fr 0.7fr 0.7fr 1.5fr 80px;
   }
+  .asset-row[draggable="true"] { user-select: none; }
+  .asset-row.dragging { opacity: 0.35; background: var(--border); border-radius: 6px; }
+  .asset-row.drag-over { border-top: 2px solid var(--accent); }
+  .drag-handle { cursor: grab; display: inline-flex; align-items: center; justify-content: center; color: var(--muted); font-size: 14px; }
+  .drag-handle:active { cursor: grabbing; }
   .asset-row:hover { background: #fdfcf8; }
   .asset-row:last-child { border-bottom: none; }
   .toast {
@@ -219,12 +224,13 @@ tailwind.config = {
 
     <div id="assets-list" class="card">
       <div class="asset-row grid-wide text-xs font-medium" style="color: var(--muted); border-bottom: 1px solid var(--border);">
+        <div></div>
         <div onclick="toggleSort('name')" style="cursor:pointer;">名称<span class="sort-indicator" id="sort-name"></span></div>
         <div onclick="toggleSort('amount')" style="cursor:pointer;">金额<span class="sort-indicator" id="sort-amount"></span></div>
         <div onclick="toggleSort('currency')" style="cursor:pointer;">货币<span class="sort-indicator" id="sort-currency"></span></div>
         <div>预期年化</div><div>标签</div><div></div>
       </div>
-      <div id="assets-rows"></div>
+      <div id="assets-rows" ondragover="onAssetDragOver(event)" ondrop="onAssetDrop(event)"></div>
     </div>
   </section>
 
@@ -846,7 +852,8 @@ function renderAssets() {
           : `${a.expectedRateMin}-${a.expectedRateMax}%`)
         : '<span style="color:var(--muted);font-size:11px;">未设置</span>';
       const cnyVal = toCNY(a.amount, a.currency);
-      return `<div class="asset-row grid-wide">
+      return `<div class="asset-row grid-wide" data-id="${a.id}" draggable="true" ondragstart="onAssetDragStart(event)" ondragend="onAssetDragEnd(event)">
+        <div class="drag-handle">⠿</div>
         <div class="font-medium text-sm">${esc(a.name)}</div>
         <div class="font-mono text-sm">${a.amount.toLocaleString('zh-CN', {minimumFractionDigits:2, maximumFractionDigits:2})}</div>
         <div class="text-sm" style="color:var(--muted)">${a.currency}</div>
@@ -1725,6 +1732,48 @@ function renderIncomeChart() {
       }
     }
   }, true);
+}
+
+// ========== DRAG REORDER ==========
+let dragSrcId = null;
+
+function onAssetDragStart(e) {
+  const row = e.target.closest('.asset-row');
+  dragSrcId = row?.dataset.id;
+  if (!dragSrcId) return;
+  row.classList.add('dragging');
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', dragSrcId);
+}
+
+function onAssetDragOver(e) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  const row = e.target.closest('.asset-row');
+  if (!row || !row.dataset.id || row.dataset.id === dragSrcId) return;
+  document.querySelectorAll('#assets-rows .asset-row.drag-over').forEach(r => r.classList.remove('drag-over'));
+  row.classList.add('drag-over');
+}
+
+function onAssetDragEnd(e) {
+  document.querySelectorAll('#assets-rows .asset-row').forEach(r => r.classList.remove('dragging', 'drag-over'));
+  dragSrcId = null;
+}
+
+function onAssetDrop(e) {
+  e.preventDefault();
+  e.stopPropagation();
+  const targetRow = e.target.closest('.asset-row');
+  if (!targetRow || !dragSrcId || !targetRow.dataset.id || targetRow.dataset.id === dragSrcId) return;
+  const srcIdx = state.assets.findIndex(a => a.id === dragSrcId);
+  const tgtIdx = state.assets.findIndex(a => a.id === targetRow.dataset.id);
+  if (srcIdx === -1 || tgtIdx === -1) return;
+  const [moved] = state.assets.splice(srcIdx, 1);
+  state.assets.splice(tgtIdx, 0, moved);
+  sortBy = '';
+  sortDir = 'asc';
+  saveState();
+  renderAssets();
 }
 
 // ========== SORT ==========
