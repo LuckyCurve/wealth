@@ -1882,11 +1882,14 @@ document.getElementById('confirm-ok-btn').addEventListener('click', () => {
   if (_confirmCallback) { _confirmCallback(); _confirmCallback = null; }
 });
 
-// close modal on overlay click
+// close modal on overlay click (only if the click actually started on the overlay, not dragged from a child like a number input spinner)
+let __modalMouseDownTarget = null;
+document.addEventListener('mousedown', e => { __modalMouseDownTarget = e.target; });
 document.addEventListener('click', e => {
-  if (e.target.classList.contains('modal-overlay')) {
+  if (e.target.classList.contains('modal-overlay') && __modalMouseDownTarget && !__modalMouseDownTarget.closest('.modal-content')) {
     e.target.style.display = 'none';
   }
+  __modalMouseDownTarget = null;
 });
 
 function getCurrentMonth() {
