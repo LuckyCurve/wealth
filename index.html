@@ -205,8 +205,6 @@ tailwind.config = {
   .masthead-amount .currency-mark { font-size: 0.42em; color: var(--accent); font-weight: 600; transform: translateY(-0.55em); }
   .masthead-amount .cents { font-size: 0.4em; color: var(--muted); font-weight: 400; }
   .masthead-sub { margin-top: 14px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; font-size: 13px; color: var(--muted); }
-  .masthead-sub .accent-num { color: var(--verdigris); font-weight: 600; font-variant-numeric: tabular-nums; }
-  .masthead-sub .accent-num.dim { color: var(--muted); }
   /* Tri-color composition rule: a literal ledger ruling, segments proportional to CNY/HKD/USD */
   .composition-rule { margin-top: 18px; display: flex; height: 5px; border-radius: 3px; overflow: hidden; gap: 2px; }
   .composition-rule > span { display: block; transition: flex-grow 0.4s ease; }
@@ -1028,19 +1026,9 @@ function renderMasthead(total) {
     return `<span><span class="dot" style="background:${s.color}"></span>${s.key} <span class="tabular" style="color:var(--fg);opacity:0.85;">${pct}%</span></span>`;
   }).join('');
 
-  // sub line: asset count + monthly income hint
-  const monthlyIncome = state.assets.reduce((s, a) => {
-    const rate = Math.max(a.expectedRateMin || 0, a.expectedRateMax || 0);
-    return s + (rate > 0 ? toCNY(a.amount, a.currency) * rate / 100 / 12 : 0);
-  }, 0);
+  // sub line: asset count only
   const count = state.assets.length;
-  let subHtml = `<span>${count} 项资产</span>`;
-  if (monthlyIncome > 0) {
-    subHtml += `<span>·</span><span>预计月收益 <span class="accent-num">+${formatCNY(monthlyIncome)}</span></span>`;
-  } else {
-    subHtml += `<span>·</span><span class="accent-num dim">未设置预期利率</span>`;
-  }
-  subEl.innerHTML = subHtml;
+  subEl.innerHTML = `<span>${count} 项资产</span>`;
 }
 
 function renderCategories() {
