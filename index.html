@@ -2151,6 +2151,10 @@ function renderExpenses() {
         if (typeof vb === 'string') vb = vb.toLowerCase();
         if (va < vb) return expenseSortDir === 'asc' ? -1 : 1;
         if (va > vb) return expenseSortDir === 'asc' ? 1 : -1;
+        // 主键相同（如同一天）时，按 id 次级排序：降序时新记录在上，升序时旧记录在上
+        // genId() 以 Date.now() 为前缀，id 字典序即创建顺序
+        if (a.id < b.id) return expenseSortDir === 'asc' ? -1 : 1;
+        if (a.id > b.id) return expenseSortDir === 'asc' ? 1 : -1;
         return 0;
       });
     }
