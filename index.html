@@ -244,8 +244,8 @@ tailwind.config = {
         </div>
       </div>
       <div class="flex items-center p-0.5 rounded-lg" style="background: var(--bg-2); border: 1px solid var(--border);">
-        <button id="mode-assets" onclick="switchMode('assets')" class="btn-gold text-xs rounded-md" style="padding:6px 18px;">资产</button>
-        <button id="mode-expenses" onclick="switchMode('expenses')" class="btn-ghost text-xs rounded-md" style="padding:6px 18px;">消费</button>
+        <button id="mode-assets" onclick="switchMode('assets')" class="btn-ghost text-xs rounded-md" style="padding:6px 18px;">资产</button>
+        <button id="mode-expenses" onclick="switchMode('expenses')" class="btn-gold text-xs rounded-md" style="padding:6px 18px;">消费</button>
       </div>
     </div>
     <div class="flex items-center gap-3">
@@ -257,7 +257,7 @@ tailwind.config = {
 </header>
 
 <!-- Tabs: Assets -->
-<div id="tabs-assets" class="max-w-6xl mx-auto px-6">
+<div id="tabs-assets" class="max-w-6xl mx-auto px-6" style="display:none;">
   <div class="flex gap-0 border-b" style="border-color: var(--border);">
     <button class="tab-btn active" data-tab="assets" onclick="switchTab('assets')">资产管理</button>
     <button class="tab-btn" data-tab="categories" onclick="switchTab('categories')">标签分类</button>
@@ -268,7 +268,7 @@ tailwind.config = {
 </div>
 
 <!-- Tabs: Expenses -->
-<div id="tabs-expenses" class="max-w-6xl mx-auto px-6" style="display:none;">
+<div id="tabs-expenses" class="max-w-6xl mx-auto px-6">
   <div class="flex gap-0 border-b" style="border-color: var(--border);">
     <button class="tab-btn active" data-tab="expenses" onclick="switchTab('expenses')">消费记录</button>
     <button class="tab-btn" data-tab="expense-categories" onclick="switchTab('expense-categories')">标签分类</button>
@@ -281,10 +281,10 @@ tailwind.config = {
 <main class="max-w-6xl mx-auto px-6 py-6">
 
   <!-- ====== ASSETS CONTENT ====== -->
-  <div id="content-assets">
+  <div id="content-assets" style="display:none;">
 
   <!-- Assets Tab -->
-  <section id="tab-assets">
+  <section id="tab-assets" style="display:none;">
       <div class="masthead mb-6 card" id="net-worth-masthead">
         <div class="flex items-start justify-between gap-4 flex-wrap">
           <div class="min-w-0">
@@ -427,7 +427,7 @@ tailwind.config = {
   </div><!-- /content-assets -->
 
   <!-- ====== EXPENSES CONTENT ====== -->
-  <div id="content-expenses" style="display:none;">
+  <div id="content-expenses">
 
     <!-- Expense List Tab -->
     <section id="tab-expenses">
@@ -710,7 +710,7 @@ let historyChartMode = 'value';
 let expenseSortBy = 'date';
 let expenseSortDir = 'desc';
 let expenseTrendMode = 'value';
-let currentMode = 'assets';
+let currentMode = 'expenses';
 let sortBy = '';
 let sortDir = 'asc';
 
