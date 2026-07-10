@@ -2604,8 +2604,7 @@ function renderExpenseTrendChart() {
     return cat.tags.reduce((s, tag) => s + (monthMap[m][tag] || 0), 0);
   });
 
-  const series = cat.tags.map((tag, si) => {
-    const isLast = si === cat.tags.length - 1;
+  const tagSeries = cat.tags.map((tag, si) => {
     const raw = sorted.map(m => monthMap[m][tag] || 0);
     const data = expenseTrendMode === 'percent'
       ? raw.map((v, vi) => ({ value: totals[vi] > 0 ? +(v / totals[vi] * 100).toFixed(1) : 0, raw: Math.round(v * 100) / 100 }))
@@ -2616,16 +2615,35 @@ function renderExpenseTrendChart() {
       itemStyle: { color: pal.base },
       emphasis: { focus: 'self' },
       blur: { itemStyle: { opacity: 0.2 } },
-      label: isLast && expenseTrendMode === 'value' ? {
-        show: true,
-        position: 'top',
-        formatter: function(p) { return formatCNY(totals[p.dataIndex]); },
-        fontFamily: '"IBM Plex Mono", monospace',
-        fontSize: 11,
-        color: '#7c6b43',
-      } : undefined,
     };
   });
+
+  // 透明「合计」系列：仅用于在堆叠柱顶部展示当前可见各项之和
+  // 不占高度、不参与图例，随 legend 选中状态实时重算
+  const totalSeries = expenseTrendMode === 'value' ? [{
+    name: '__total__', type: 'bar', stack: 'total',
+    data: sorted.map(() => 0),
+    itemStyle: { color: 'transparent' },
+    emphasis: { disabled: true },
+    z: 10,
+    label: {
+      show: true,
+      position: 'top',
+      formatter: function(p) {
+        const opt = expenseTrendChart && expenseTrendChart.getOption();
+        const selected = (opt && opt.legend && opt.legend[0] && opt.legend[0].selected) || {};
+        const m = sorted[p.dataIndex];
+        const visTotal = cat.tags.reduce((s, tag) =>
+          selected[tag] === false ? s : s + (monthMap[m][tag] || 0), 0);
+        return formatCNY(visTotal);
+      },
+      fontFamily: '"IBM Plex Mono", monospace',
+      fontSize: 11,
+      color: '#7c6b43',
+    },
+  }] : [];
+
+  const series = tagSeries.concat(totalSeries);
 
   if (!expenseTrendChart) {
     expenseTrendChart = echarts.init(chartEl);
@@ -2635,19 +2653,47 @@ function renderExpenseTrendChart() {
     backgroundColor: 'transparent',
     tooltip: {
       trigger: 'item',
+      confine: true,
+      // 始终置于鼠标下方偏右，避免遮挡堆叠柱顶部的合计 label
+      position: function(point, params, dom, rect, size) {
+        const w = dom.offsetWidth, h = dom.offsetHeight;
+        let x = point[0] + 15;
+        let y = point[1] + 18;
+        if (y + h > size.viewSize[1]) y = point[1] - h - 18;
+        if (x + w > size.viewSize[0]) x = point[0] - w - 15;
+        if (x < 5) x = 5;
+        return [x, y];
+      },
+      // item 模式下只在 hover 到柱子实体时触发（空白处不弹），
+      // 这里手动组装整月所有可见项，保留与 axis 相同的明细 + 合计体验
       formatter: function(p) {
+        if (!p || p.seriesName === '__total__') return ''; // 透明承载系列不响应
         const idx = p.dataIndex;
         const d = dates[idx];
-        const total = totals[idx];
-        if (expenseTrendMode === 'percent') {
-          const raw = p.data && p.data.raw != null ? p.data.raw : 0;
-          return `<b>${d}</b><br/>${p.marker} ${p.seriesName}: ${p.value}% (${formatCNY(raw)})`;
-        }
-        const pct = total > 0 ? ((p.value / total) * 100).toFixed(1) : '0.0';
-        return `<b>${d}</b><br/>${p.marker} ${p.seriesName}: ${formatCNY(p.value)} (${pct}%)`;
+        const m = sorted[idx];
+        const opt = expenseTrendChart && expenseTrendChart.getOption();
+        const selected = (opt && opt.legend && opt.legend[0] && opt.legend[0].selected) || {};
+        let html = `<b>${d}</b>`;
+        let visTotal = 0;
+        cat.tags.forEach((tag, si) => {
+          if (selected[tag] === false) return; // 跳过已取消的图例项
+          const v = monthMap[m][tag] || 0;
+          visTotal += v;
+          const total = totals[idx];
+          const pctVal = total > 0 ? +(v / total * 100).toFixed(1) : 0;
+          const pal = CATEGORY_PALETTE[si % CATEGORY_PALETTE.length];
+          const marker = `<span style="display:inline-block;margin-right:6px;border-radius:50%;width:10px;height:10px;background:${pal.base};"></span>`;
+          if (expenseTrendMode === 'percent') {
+            html += `<br/>${marker}${tag}: ${pctVal}% (${formatCNY(v)})`;
+          } else {
+            html += `<br/>${marker}${tag}: ${formatCNY(v)} (${pctVal}%)`;
+          }
+        });
+        if (visTotal > 0) html += `<br/><b>合计: ${formatCNY(visTotal)}</b>`;
+        return html;
       }
     },
-    legend: { show: true, type: 'scroll', bottom: 0 },
+    legend: { show: true, type: 'scroll', bottom: 0, data: cat.tags },
     grid: { left: '3%', right: '4%', bottom: '22%', top: '10%', containLabel: true },
     xAxis: { type: 'category', data: dates, axisLabel: { fontFamily: '"IBM Plex Mono", monospace', fontSize: 11 } },
     yAxis: expenseTrendMode === 'percent'
