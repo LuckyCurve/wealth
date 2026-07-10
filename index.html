@@ -2665,32 +2665,19 @@ function renderExpenseTrendChart() {
         return [x, y];
       },
       // item 模式下只在 hover 到柱子实体时触发（空白处不弹），
-      // 这里手动组装整月所有可见项，保留与 axis 相同的明细 + 合计体验
+      // 只展示当前项名称、数值与百分比
       formatter: function(p) {
         if (!p || p.seriesName === '__total__') return ''; // 透明承载系列不响应
         const idx = p.dataIndex;
         const d = dates[idx];
-        const m = sorted[idx];
-        const opt = expenseTrendChart && expenseTrendChart.getOption();
-        const selected = (opt && opt.legend && opt.legend[0] && opt.legend[0].selected) || {};
-        let html = `<b>${d}</b>`;
-        let visTotal = 0;
-        cat.tags.forEach((tag, si) => {
-          if (selected[tag] === false) return; // 跳过已取消的图例项
-          const v = monthMap[m][tag] || 0;
-          visTotal += v;
-          const total = totals[idx];
-          const pctVal = total > 0 ? +(v / total * 100).toFixed(1) : 0;
-          const pal = CATEGORY_PALETTE[si % CATEGORY_PALETTE.length];
-          const marker = `<span style="display:inline-block;margin-right:6px;border-radius:50%;width:10px;height:10px;background:${pal.base};"></span>`;
-          if (expenseTrendMode === 'percent') {
-            html += `<br/>${marker}${tag}: ${pctVal}% (${formatCNY(v)})`;
-          } else {
-            html += `<br/>${marker}${tag}: ${formatCNY(v)} (${pctVal}%)`;
-          }
-        });
-        if (visTotal > 0) html += `<br/><b>合计: ${formatCNY(visTotal)}</b>`;
-        return html;
+        const total = totals[idx];
+        if (expenseTrendMode === 'percent') {
+          const raw = p.data && p.data.raw != null ? p.data.raw : 0;
+          const pct = total > 0 ? ((raw / total) * 100).toFixed(1) : '0.0';
+          return `<b>${d}</b><br/>${p.marker} ${p.seriesName}: ${formatCNY(raw)} (${pct}%)`;
+        }
+        const pct = total > 0 ? ((p.value / total) * 100).toFixed(1) : '0.0';
+        return `<b>${d}</b><br/>${p.marker} ${p.seriesName}: ${formatCNY(p.value)} (${pct}%)`;
       }
     },
     legend: { show: true, type: 'scroll', bottom: 0, data: cat.tags },
