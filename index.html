@@ -2604,11 +2604,21 @@ function renderExpenseTrendChart() {
     return cat.tags.reduce((s, tag) => s + (monthMap[m][tag] || 0), 0);
   });
 
-  const tagSeries = cat.tags.map((tag, si) => {
+  // 按各标签全部月份总和降序排列：大的放堆叠柱底部，小的在上
+  const tagTotals = {};
+  cat.tags.forEach(tag => { tagTotals[tag] = 0; });
+  sorted.forEach(m => {
+    cat.tags.forEach(tag => { tagTotals[tag] += monthMap[m][tag] || 0; });
+  });
+  const sortedTags = [...cat.tags].sort((a, b) => tagTotals[b] - tagTotals[a]);
+
+  const tagSeries = sortedTags.map((tag) => {
     const raw = sorted.map(m => monthMap[m][tag] || 0);
     const data = expenseTrendMode === 'percent'
       ? raw.map((v, vi) => ({ value: totals[vi] > 0 ? +(v / totals[vi] * 100).toFixed(1) : 0, raw: Math.round(v * 100) / 100 }))
       : raw;
+    // 颜色按标签在分类中的原始下标取色，保持稳定不随排序变化
+    const si = cat.tags.indexOf(tag);
     const pal = CATEGORY_PALETTE[si % CATEGORY_PALETTE.length];
     return {
       name: tag, type: 'bar', stack: 'total', data,
@@ -2680,7 +2690,7 @@ function renderExpenseTrendChart() {
         return `<b>${d}</b><br/>${p.marker} ${p.seriesName}: ${formatCNY(p.value)} (${pct}%)`;
       }
     },
-    legend: { show: true, type: 'scroll', bottom: 0, data: cat.tags },
+    legend: { show: true, type: 'scroll', bottom: 0, data: sortedTags },
     grid: { left: '3%', right: '4%', bottom: '22%', top: '10%', containLabel: true },
     xAxis: { type: 'category', data: dates, axisLabel: { fontFamily: '"IBM Plex Mono", monospace', fontSize: 11 } },
     yAxis: expenseTrendMode === 'percent'
