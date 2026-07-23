@@ -725,6 +725,28 @@ let sortDir = 'asc';
     }
   });
 
+  // 从 bfcache 恢复（后退/前进、恢复标签页）时，DOMContentLoaded 不会再次触发，
+  // 汇率与 masthead 总资产停留在页面被冻结时的旧值——这正是「强刷一下就好」的根因。
+  // 监听 pageshow，命中 bfcache 时重新拉取汇率并重渲染。
+  window.addEventListener('pageshow', (event) => {
+    if (event.persisted) {
+      fetchRates();
+      renderAll();
+    }
+  });
+
+  // 切回本标签页时，若汇率已过期（超过 1 小时）也刷新一次，保证「每次进入」都是新汇率。
+  // 过期判断避免频繁切 tab 时重复请求 CDN。
+  window.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      const fetchedAt = state.rates && state.rates.fetchedAt ? Date.parse(state.rates.fetchedAt) : 0;
+      if (!fetchedAt || Date.now() - fetchedAt > 3600000) {
+        fetchRates();
+        renderAll();
+      }
+    }
+  });
+
 function loadState() {
   try {
     const raw = localStorage.getItem(LS_KEY);
