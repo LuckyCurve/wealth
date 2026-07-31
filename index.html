@@ -790,6 +790,7 @@ function loadState() {
       state.categories = [{ id: 'currency', name: '货币类型', builtin: true, tags: ['CNY', 'HKD', 'USD'] }];
     }
     // init expense data
+    if (!state.expenses) state.expenses = [];
     if (!state.expenseCategories) {
       state.expenseCategories = [];
     } else {
@@ -803,7 +804,6 @@ function loadState() {
         });
       });
     }
-    if (!state.expenses) state.expenses = [];
   } catch(e) {
     state.categories = [{ id: 'currency', name: '货币类型', builtin: true, tags: ['CNY', 'HKD', 'USD'] }];
     state.expenseCategories = [];
@@ -819,7 +819,10 @@ function saveState() {
 async function fetchRates() {
   const statusEl = document.getElementById('rate-status');
   try {
-    const resp = await fetch('https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/cny.json');
+    // CDN 对 @latest 响应带 Cache-Control: max-age=604800（7 天），
+    // fetch 默认复用浏览器缓存，导致普通刷新拿不到新汇率（Ctrl+Shift+R 才行）。
+    // 这里强制不缓存，由外层 1 小时节流（visibilitychange/pageshow）控制请求频率。
+    const resp = await fetch('https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/cny.json', { cache: 'no-store' });
     const data = await resp.json();
     const cny = data.cny;
     // API gives: 1 CNY = X foreign currency
@@ -834,12 +837,13 @@ async function fetchRates() {
     saveState();
     statusEl.textContent = '汇率已更新';
     statusEl.style.color = '#2d5a3d';
-    setTimeout(() => { statusEl.textContent = ''; }, 3000);
+    setTimeout(() => { statusEl.textContent = ''; statusEl.style.color = ''; }, 3000);
     renderAssets();
   } catch(e) {
     // use saved rates if available
     if (state.rates.fetchedAt) {
       statusEl.textContent = '使用缓存汇率';
+      statusEl.style.color = '';
     } else {
       statusEl.textContent = '汇率获取失败';
       statusEl.style.color = '#8b2e2b';
@@ -1553,7 +1557,7 @@ function doLoadDemoData() {
   const now = new Date();
   const months = [];
   for (let i = 5; i >= 0; i--) {
-    months.push(new Date(now.getFullYear(), now.getMonth() - i, 1).toISOString().slice(0, 7));
+    months.push(getLocalMonthStr(new Date(now.getFullYear(), now.getMonth() - i, 1)));
   }
   const notes = ['初始配置', '小幅加仓', '市场波动', '补仓操作', '分红再投', '季度调整'];
   const monthlyChanges = [
@@ -1986,7 +1990,7 @@ function exportData() {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `wealth-data-${new Date().toISOString().slice(0,10)}.json`;
+  a.download = `wealth-data-${getLocalDateStr()}.json`;
   a.click();
   URL.revokeObjectURL(url);
   toast('数据已导出', 'success');
@@ -2123,7 +2127,18 @@ document.addEventListener('click', e => {
 });
 
 function getCurrentMonth() {
-  return new Date().toISOString().slice(0, 7);
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+}
+
+// 本地日期/月份字符串（避免 toISOString 的 UTC 时区偏移，东八区凌晨会错一天/月）
+function getLocalDateStr(d) {
+  d = d || new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+function getLocalMonthStr(d) {
+  d = d || new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
 }
 
 function monthLabel(month) {
@@ -2142,7 +2157,9 @@ function genId() {
 function esc(str) {
   const d = document.createElement('div');
   d.textContent = str;
-  return d.innerHTML;
+  // textContent+innerHTML 会转义 & < > "，但不含单引号；
+  // 单引号若不转义，嵌在 onclick="removeTag(...,'..')" 里可导致 JS 语法错误甚至注入
+  return d.innerHTML.replace(/'/g, '&#39;');
 }
 
 function toast(msg, type) {
@@ -2217,7 +2234,7 @@ function openExpenseModal(editId) {
   const form = document.getElementById('expense-form');
   form.reset();
   document.getElementById('expense-edit-id').value = editId || '';
-  document.getElementById('expense-date').value = new Date().toISOString().slice(0, 10);
+  document.getElementById('expense-date').value = getLocalDateStr();
 
   if (editId) {
     title.textContent = '编辑消费';
@@ -2813,7 +2830,7 @@ function doLoadExpenseDemoData() {
     const year = now.getFullYear();
     const month = now.getMonth() - off;
     const d = new Date(year, month, 1);
-    const monthStr = d.toISOString().slice(0, 7);
+    const monthStr = getLocalMonthStr(d);
     const factor = 1 + jitter[mi];
     const daysInMonth = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
 
