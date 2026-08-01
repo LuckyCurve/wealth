@@ -159,7 +159,7 @@ tailwind.config = {
     transition: background 0.15s;
   }
   .asset-row.grid-wide {
-    grid-template-columns: 28px 2fr 1fr 0.7fr 0.7fr 1.5fr 80px;
+    grid-template-columns: 28px 2fr 1fr 0.7fr 1fr 0.7fr 1.5fr 80px;
   }
   .drag-handle { user-select: none; -webkit-user-select: none; }
   .asset-row.dragging { opacity: 0.35; background: var(--border); border-radius: 6px; }
@@ -314,6 +314,7 @@ tailwind.config = {
         <div onclick="toggleSort('name')" style="cursor:pointer;">名称<span class="sort-indicator" id="sort-name"></span></div>
         <div onclick="toggleSort('amount')" style="cursor:pointer;">金额<span class="sort-indicator" id="sort-amount"></span></div>
         <div onclick="toggleSort('currency')" style="cursor:pointer;">货币<span class="sort-indicator" id="sort-currency"></span></div>
+        <div onclick="toggleSort('cny')" style="cursor:pointer;">金额 (CNY)<span class="sort-indicator" id="sort-cny"></span></div>
         <div>预期年化</div><div>标签</div><div></div>
       </div>
       <div id="assets-rows" ondragover="onAssetDragOver(event)" ondrop="onAssetDrop(event)"></div>
@@ -986,7 +987,15 @@ function renderAssets() {
     let sorted = [...state.assets];
     if (sortBy) {
       sorted.sort((a, b) => {
-        let va = a[sortBy], vb = b[sortBy];
+        let va, vb;
+        if (sortBy === 'cny') {
+          // 金额(CNY) 是换算值, 非资产字段, 需按汇率实时计算
+          va = toCNY(a.amount, a.currency);
+          vb = toCNY(b.amount, b.currency);
+        } else {
+          va = a[sortBy];
+          vb = b[sortBy];
+        }
         if (typeof va === 'string') va = va.toLowerCase();
         if (typeof vb === 'string') vb = vb.toLowerCase();
         if (va < vb) return sortDir === 'asc' ? -1 : 1;
@@ -995,7 +1004,7 @@ function renderAssets() {
       });
     }
     // update sort indicators
-    ['name', 'amount', 'currency'].forEach(f => {
+    ['name', 'amount', 'currency', 'cny'].forEach(f => {
       const el = document.getElementById('sort-' + f);
       if (el) {
         el.textContent = sortBy === f ? (sortDir === 'asc' ? ' ▲' : ' ▼') : '';
@@ -1020,6 +1029,7 @@ function renderAssets() {
         <div class="font-medium text-sm">${esc(a.name)}</div>
         <div class="font-mono text-sm tabular">${a.amount.toLocaleString('zh-CN', {minimumFractionDigits:2, maximumFractionDigits:2})}</div>
         <div class="text-sm" style="color:var(--muted)">${a.currency}</div>
+        <div class="font-mono text-sm tabular">${formatCNY(cnyVal)}</div>
         <div class="text-sm tabular">${rateLabel}</div>
         <div class="flex flex-wrap gap-1">${tagHtml}</div>
         <div class="flex gap-2 justify-end">
