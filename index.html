@@ -881,6 +881,8 @@ async function fetchRates() {
     statusEl.style.color = '#2d5a3d';
     setTimeout(() => { statusEl.textContent = ''; statusEl.style.color = ''; }, 3000);
     renderAssets();
+    // 资产分布/收益测算等使用当前汇率换算的图表需要同步重绘（历史净值用快照时点汇率不受影响, 消费均为 CNY）
+    refreshVisibleCharts();
   } catch(e) {
     // use saved rates if available
     if (state.rates.fetchedAt) {
@@ -2043,11 +2045,16 @@ function toggleDark() {
   localStorage.setItem('dark-mode', isDark ? '1' : '');
   document.getElementById('dark-toggle').textContent = isDark ? '☾' : '☀';
   // 图表文字/线条颜色随主题重绘（仅当前可见的图表; 隐藏 tab 的图表会在下次进入时用新主题渲染）
-  if (document.getElementById('tab-history').style.display !== 'none') renderHistoryChart();
-  if (document.getElementById('tab-expense-trend').style.display !== 'none') renderExpenseTrendChart();
+  refreshVisibleCharts();
+}
+
+// 重绘当前可见的图表（汇率刷新、暗色切换共用）
+function refreshVisibleCharts() {
   if (document.getElementById('tab-chart').style.display !== 'none') renderChart();
-  if (document.getElementById('tab-income').style.display !== 'none') renderIncomeChart();
+  if (document.getElementById('tab-history').style.display !== 'none') renderHistoryChart();
+  if (document.getElementById('tab-income').style.display !== 'none') renderIncomeTab();
   if (document.getElementById('tab-expense-chart').style.display !== 'none') renderExpenseChart();
+  if (document.getElementById('tab-expense-trend').style.display !== 'none') renderExpenseTrendChart();
 }
 
 // ========== IMPORT/EXPORT ==========
