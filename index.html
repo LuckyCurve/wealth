@@ -1154,15 +1154,21 @@ function saveAsset(e) {
   const amount = parseFloat(document.getElementById('asset-amount').value);
   const currency = document.getElementById('asset-currency').value;
 
-  const expectedRateMin = parseFloat(document.getElementById('asset-rate-min').value) || 0;
-  const expectedRateMax = parseFloat(document.getElementById('asset-rate-max').value) || 0;
+  // 利率: 只有输入框真正为空才用另一值补齐; 0 是合法的利率下限, 不能当空值吞掉
+  // （否则 0-5% 会被折叠成 5-5%，且「只填 min 留空 max」会先被校验拒绝）
+  const minStr = document.getElementById('asset-rate-min').value.trim();
+  const maxStr = document.getElementById('asset-rate-max').value.trim();
+  const rateMin = minStr === '' ? NaN : parseFloat(minStr);
+  const rateMax = maxStr === '' ? NaN : parseFloat(maxStr);
+  let finalMin = isNaN(rateMin) ? rateMax : rateMin;
+  let finalMax = isNaN(rateMax) ? rateMin : rateMax;
+  if (isNaN(finalMin)) finalMin = 0;
+  if (isNaN(finalMax)) finalMax = 0;
 
-  if (expectedRateMin > expectedRateMax) {
+  if (finalMin > finalMax) {
     toast('最低利率不能高于最高利率', 'error');
     return;
   }
-  const finalMin = expectedRateMin || expectedRateMax;
-  const finalMax = expectedRateMax || expectedRateMin;
 
   const tags = {};
   // auto-assign currency tag from the currency dropdown
@@ -1327,6 +1333,18 @@ const CATEGORY_PALETTE = [
   { base: '#C75B39', shades: ['#D98367', '#E7A99A', '#F4CFC5'] },
   { base: '#A0635A', shades: ['#B9877E', '#CEABA5', '#E3CDCA'] },
 ];
+
+// 图表文字/线条随主题取色（ECharts canvas 不识别 CSS 变量, 需读取计算后的值）
+function chartTheme() {
+  const cs = getComputedStyle(document.documentElement);
+  const v = n => (cs.getPropertyValue(n) || '').trim();
+  return {
+    fg: v('--fg') || '#211b10',
+    muted: v('--muted') || '#8a7a52',
+    line: v('--rule') || '#d8cbab',
+    split: v('--bg-2') || '#efe8d6',
+  };
+}
 
 // ========== CHART ==========
 function populateChartSelect() {
@@ -1641,6 +1659,7 @@ function renderHistoryChart() {
   const cat = state.categories.find(c => c.id === catId);
   if (!cat) return;
 
+  const th = chartTheme();
   const sorted = [...state.snapshots].sort((a, b) => a.month.localeCompare(b.month));
   const dates = sorted.map(s => monthLabel(s.month));
 
@@ -1667,7 +1686,7 @@ function renderHistoryChart() {
         formatter: function(p) { return formatCNY(totals[p.dataIndex]); },
         fontFamily: '"IBM Plex Mono", monospace',
         fontSize: 11,
-        color: '#7c6b43',
+        color: th.muted,
       } : undefined,
     };
   });
@@ -1692,12 +1711,12 @@ function renderHistoryChart() {
         return `<b>${d}</b><br/>${p.marker} ${p.seriesName}: ${formatCNY(p.value)} (${pct}%)`;
       }
     },
-    legend: { show: true, type: 'scroll', bottom: 0 },
+    legend: { show: true, type: 'scroll', bottom: 0, textStyle: { color: th.fg } },
     grid: { left: '3%', right: '4%', bottom: '22%', top: '10%', containLabel: true },
-    xAxis: { type: 'category', data: dates, axisLabel: { fontFamily: '"IBM Plex Mono", monospace', fontSize: 11 } },
+    xAxis: { type: 'category', data: dates, axisLine: { lineStyle: { color: th.line } }, axisLabel: { color: th.muted, fontFamily: '"IBM Plex Mono", monospace', fontSize: 11 } },
     yAxis: historyChartMode === 'percent'
-      ? { type: 'value', max: 100, axisLabel: { fontFamily: '"IBM Plex Mono", monospace', fontSize: 11, formatter: '{value}%' } }
-      : { type: 'value', axisLabel: { fontFamily: '"IBM Plex Mono", monospace', fontSize: 11, formatter: v => v.toLocaleString('zh-CN', {minimumFractionDigits:0, maximumFractionDigits:0}) } },
+      ? { type: 'value', max: 100, axisLabel: { color: th.muted, fontFamily: '"IBM Plex Mono", monospace', fontSize: 11, formatter: '{value}%' }, splitLine: { lineStyle: { color: th.split } } }
+      : { type: 'value', axisLabel: { color: th.muted, fontFamily: '"IBM Plex Mono", monospace', fontSize: 11, formatter: v => v.toLocaleString('zh-CN', {minimumFractionDigits:0, maximumFractionDigits:0}) }, splitLine: { lineStyle: { color: th.split } } },
     series
   }, true);
 }
@@ -1995,6 +2014,9 @@ function toggleDark() {
   const isDark = document.documentElement.classList.contains('dark');
   localStorage.setItem('dark-mode', isDark ? '1' : '');
   document.getElementById('dark-toggle').textContent = isDark ? '☾' : '☀';
+  // 图表文字/线条颜色随主题重绘（仅当前可见的图表; 隐藏 tab 的图表会在下次进入时用新主题渲染）
+  if (document.getElementById('tab-history').style.display !== 'none') renderHistoryChart();
+  if (document.getElementById('tab-expense-trend').style.display !== 'none') renderExpenseTrendChart();
 }
 
 // ========== IMPORT/EXPORT ==========
@@ -2650,6 +2672,7 @@ function renderExpenseTrendChart() {
   const cat = state.expenseCategories.find(c => c.id === catId);
   if (!cat) return;
 
+  const th = chartTheme();
   const monthMap = {};
   state.expenses.forEach(e => {
     const m = e.date.slice(0, 7);
@@ -2715,7 +2738,7 @@ function renderExpenseTrendChart() {
       },
       fontFamily: '"IBM Plex Mono", monospace',
       fontSize: 11,
-      color: '#7c6b43',
+      color: th.muted,
     },
   }] : [];
 
@@ -2756,12 +2779,12 @@ function renderExpenseTrendChart() {
         return `<b>${d}</b><br/>${p.marker} ${p.seriesName}: ${formatCNY(p.value)} (${pct}%)`;
       }
     },
-    legend: { show: true, type: 'scroll', bottom: 0, data: sortedTags },
+    legend: { show: true, type: 'scroll', bottom: 0, data: sortedTags, textStyle: { color: th.fg } },
     grid: { left: '3%', right: '4%', bottom: '22%', top: '10%', containLabel: true },
-    xAxis: { type: 'category', data: dates, axisLabel: { fontFamily: '"IBM Plex Mono", monospace', fontSize: 11 } },
+    xAxis: { type: 'category', data: dates, axisLine: { lineStyle: { color: th.line } }, axisLabel: { color: th.muted, fontFamily: '"IBM Plex Mono", monospace', fontSize: 11 } },
     yAxis: expenseTrendMode === 'percent'
-      ? { type: 'value', max: 100, axisLabel: { fontFamily: '"IBM Plex Mono", monospace', fontSize: 11, formatter: '{value}%' } }
-      : { type: 'value', axisLabel: { fontFamily: '"IBM Plex Mono", monospace', fontSize: 11, formatter: v => v.toLocaleString('zh-CN', {minimumFractionDigits:0, maximumFractionDigits:0}) } },
+      ? { type: 'value', max: 100, axisLabel: { color: th.muted, fontFamily: '"IBM Plex Mono", monospace', fontSize: 11, formatter: '{value}%' }, splitLine: { lineStyle: { color: th.split } } }
+      : { type: 'value', axisLabel: { color: th.muted, fontFamily: '"IBM Plex Mono", monospace', fontSize: 11, formatter: v => v.toLocaleString('zh-CN', {minimumFractionDigits:0, maximumFractionDigits:0}) }, splitLine: { lineStyle: { color: th.split } } },
     series
   }, true);
   renderExpenseTrendList();
