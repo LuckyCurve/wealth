@@ -576,7 +576,7 @@ tailwind.config = {
         <div class="grid grid-cols-2 gap-4">
           <div>
             <label class="block text-xs font-medium mb-1.5" style="color:var(--muted);">金额</label>
-            <input type="number" id="asset-amount" required min="0" step="0.01" class="w-full" placeholder="0.00">
+            <input type="text" id="asset-amount" required inputmode="decimal" class="w-full" placeholder="0.00" oninput="formatMoneyInput(this)" autocomplete="off">
           </div>
           <div>
             <label class="block text-xs font-medium mb-1.5" style="color:var(--muted);">货币</label>
@@ -677,7 +677,7 @@ tailwind.config = {
         </div>
         <div>
           <label class="block text-xs font-medium mb-1.5" style="color:var(--muted);">金额 (CNY)</label>
-          <input type="number" id="expense-amount" required min="0.01" step="0.01" class="w-full" placeholder="0.00">
+          <input type="text" id="expense-amount" required inputmode="decimal" class="w-full" placeholder="0.00" oninput="formatMoneyInput(this)" autocomplete="off">
         </div>
         <div>
           <label class="block text-xs font-medium mb-1.5" style="color:var(--muted);">备注</label>
@@ -722,7 +722,7 @@ tailwind.config = {
   <div class="modal-content" style="max-width:400px;">
     <h3 class="font-display modal-title mb-4">预期消费</h3>
     <p class="text-sm mb-4" style="color:var(--muted);">在消费趋势图中显示为水平参考线，收起部分类别后可对比每月合计</p>
-    <input type="number" id="expectation-input" min="0" step="100" class="w-full" placeholder="预期月消费 (CNY)" onkeydown="if(event.key==='Enter')saveExpectation()">
+    <input type="text" id="expectation-input" inputmode="decimal" class="w-full" placeholder="预期月消费 (CNY)" oninput="formatMoneyInput(this)" autocomplete="off" onkeydown="if(event.key==='Enter')saveExpectation()">
     <div class="flex justify-end gap-3 mt-6">
       <button type="button" onclick="clearExpectation()" class="btn-danger" style="padding:6px 14px;">清除</button>
       <button type="button" onclick="closeModal('expectation-modal')" class="btn-ghost">取消</button>
@@ -736,7 +736,7 @@ tailwind.config = {
   <div class="modal-content" style="max-width:400px;">
     <h3 class="font-display modal-title mb-4">目标净资产</h3>
     <p class="text-sm mb-4" style="color:var(--muted);">设置后资产页显示达成进度</p>
-    <input type="number" id="target-input" min="0" step="1000" class="w-full" placeholder="目标净资产 (CNY)" onkeydown="if(event.key==='Enter')saveTarget()">
+    <input type="text" id="target-input" inputmode="decimal" class="w-full" placeholder="目标净资产 (CNY)" oninput="formatMoneyInput(this)" autocomplete="off" onkeydown="if(event.key==='Enter')saveTarget()">
     <div class="flex justify-end gap-3 mt-6">
       <button type="button" onclick="clearTarget()" class="btn-danger" style="padding:6px 14px;">清除</button>
       <button type="button" onclick="closeModal('target-modal')" class="btn-ghost">取消</button>
@@ -1201,12 +1201,12 @@ function renderMasthead(total) {
 
 // ========== NET WORTH TARGET ==========
 function openTargetModal() {
-  document.getElementById('target-input').value = state.netWorthTarget || '';
+  document.getElementById('target-input').value = moneyStr(state.netWorthTarget);
   document.getElementById('target-modal').style.display = '';
   setTimeout(() => document.getElementById('target-input').focus(), 100);
 }
 function saveTarget() {
-  const v = parseFloat(document.getElementById('target-input').value);
+  const v = parseFloat(document.getElementById('target-input').value.replace(/,/g, ''));
   if (!v || v <= 0) { toast('请输入有效的目标金额', 'error'); return; }
   const hadTarget = (state.netWorthTarget || 0) > 0;
   state.netWorthTarget = v;
@@ -1264,7 +1264,7 @@ function openAssetModal(editId) {
     const a = state.assets.find(x => x.id === editId);
     if (a) {
       document.getElementById('asset-name').value = a.name;
-      document.getElementById('asset-amount').value = a.amount;
+      document.getElementById('asset-amount').value = moneyStr(a.amount);
       document.getElementById('asset-currency').value = a.currency;
       document.getElementById('asset-rate-min').value = a.expectedRateMin ?? 0;
       document.getElementById('asset-rate-max').value = a.expectedRateMax ?? 0;
@@ -1301,7 +1301,8 @@ function saveAsset(e) {
   e.preventDefault();
   const editId = document.getElementById('asset-edit-id').value;
   const name = document.getElementById('asset-name').value.trim();
-  const amount = parseFloat(document.getElementById('asset-amount').value);
+  const amount = parseFloat(document.getElementById('asset-amount').value.replace(/,/g, ''));
+  if (isNaN(amount) || amount < 0) { toast('请输入有效的金额', 'error'); return; }
   const currency = document.getElementById('asset-currency').value;
 
   // 利率: 只有输入框真正为空才用另一值补齐; 0 是合法的利率下限, 不能当空值吞掉
@@ -2403,6 +2404,38 @@ function esc(str) {
   return d.innerHTML.replace(/'/g, '&#39;').replace(/"/g, '&quot;');
 }
 
+// 金额输入实时千分位格式化（保留光标位置）
+function formatMoneyInput(el) {
+  const sel = el.selectionStart;
+  const raw = el.value;
+  // 清理: 去除非数字/小数点, 仅保留第一个小数点
+  let clean = raw.replace(/[^\d.]/g, '');
+  const dot = clean.indexOf('.');
+  if (dot !== -1) clean = clean.slice(0, dot + 1) + clean.slice(dot + 1).replace(/\./g, '');
+  const parts = clean.split('.');
+  const intFmt = (parts[0] || '').replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  const formatted = parts.length > 1 ? intFmt + '.' + parts[1] : intFmt;
+  if (formatted !== raw) {
+    el.value = formatted;
+    // 光标位置映射: 光标前内容清理并格式化后的长度
+    let before = raw.slice(0, sel).replace(/[^\d.]/g, '');
+    const bd = before.indexOf('.');
+    if (bd !== -1) before = before.slice(0, bd + 1) + before.slice(bd + 1).replace(/\./g, '');
+    const bp = before.split('.');
+    const newPos = bp[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',').length + (bp.length > 1 ? 1 + bp[1].length : 0);
+    el.setSelectionRange(newPos, newPos);
+  }
+}
+
+// 数字 → 千分位字符串（回填输入框用）
+function moneyStr(v) {
+  if (v == null || v === '') return '';
+  const num = Number(String(v).replace(/,/g, ''));
+  if (isNaN(num)) return '';
+  const [int, dec] = String(num).split('.');
+  return int.replace(/\B(?=(\d{3})+(?!\d))/g, ',') + (dec != null ? '.' + dec : '');
+}
+
 // 用于行内事件属性（onclick="fn('...')"）里的 JS 字符串参数：
 // HTML 属性解析时 &#39; 会被还原成 '，导致单引号 JS 字符串语法错误甚至注入，
 // 所以必须先做 JS 字符串转义（\\ → \\, ' → \'），再做 HTML 属性转义（& "）。
@@ -2537,7 +2570,7 @@ function openExpenseModal(editId, prefillId) {
 
   if (source) {
     document.getElementById('expense-date').value = editId ? source.date : getLocalDateStr();
-    document.getElementById('expense-amount').value = source.amount;
+    document.getElementById('expense-amount').value = moneyStr(source.amount);
     document.getElementById('expense-note').value = source.note || '';
   }
 
@@ -2563,7 +2596,7 @@ function saveExpense(e) {
   e.preventDefault();
   const editId = document.getElementById('expense-edit-id').value;
   const date = document.getElementById('expense-date').value;
-  const amount = parseFloat(document.getElementById('expense-amount').value);
+  const amount = parseFloat(document.getElementById('expense-amount').value.replace(/,/g, ''));
   const note = document.getElementById('expense-note').value.trim();
 
   if (!date) { toast('请选择日期', 'error'); return; }
@@ -2926,12 +2959,12 @@ function setExpenseTrendMode(mode) {
 
 // ========== EXPECTATION (消费趋势参考线) ==========
 function openExpectationModal() {
-  document.getElementById('expectation-input').value = state.expenseExpectation || '';
+  document.getElementById('expectation-input').value = moneyStr(state.expenseExpectation);
   document.getElementById('expectation-modal').style.display = '';
   setTimeout(() => document.getElementById('expectation-input').focus(), 100);
 }
 function saveExpectation() {
-  const v = parseFloat(document.getElementById('expectation-input').value);
+  const v = parseFloat(document.getElementById('expectation-input').value.replace(/,/g, ''));
   if (!v || v <= 0) { toast('请输入有效的预期消费金额', 'error'); return; }
   const hadValue = (state.expenseExpectation || 0) > 0;
   state.expenseExpectation = v;
