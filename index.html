@@ -1426,6 +1426,13 @@ function renderChart() {
     return { name: tag, itemStyle: { color: pal.base }, children };
   });
 
+  // 所选维度下所有分组均为空（如新建分类后资产尚未分配标签）时显示空态, 避免空白画布
+  if (data.length === 0) {
+    chartEl.style.display = 'none';
+    emptyEl.style.display = '';
+    return;
+  }
+
   if (!chart) {
     chart = echarts.init(chartEl, null, { renderer: 'canvas' });
   }
@@ -2630,6 +2637,13 @@ function renderExpenseChart() {
     }));
     return { name: tag, itemStyle: { color: pal.base }, children };
   });
+
+  // 所选维度下所有分组均为空（如新建分类后消费尚未分配标签）时显示空态, 避免空白画布
+  if (data.length === 0) {
+    chartEl.style.display = 'none';
+    emptyEl.style.display = '';
+    return;
+  }
 
   if (!expenseChart) {
     expenseChart = echarts.init(chartEl);
