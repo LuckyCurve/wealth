@@ -182,6 +182,26 @@ tailwind.config = {
   }
   .tab-btn.active { color: var(--fg); border-bottom-color: var(--accent); }
   .tab-btn:hover { color: var(--fg); }
+  /* Segmented control（模式/视图切换器） */
+  .seg-control { display: inline-flex; padding: 3px; border-radius: 8px; background: var(--bg-2); border: 1px solid var(--border); gap: 2px; }
+  .seg-btn { border: none; background: transparent; color: var(--muted); font-size: 12px; font-family: 'IBM Plex Mono', monospace; padding: 5px 18px; border-radius: 6px; cursor: pointer; transition: background 0.15s, color 0.15s; }
+  .seg-btn:hover { color: var(--fg); }
+  .seg-btn.active { background: linear-gradient(180deg, #d9b25e, #b4841a); color: #211b10; font-weight: 600; box-shadow: inset 0 1px 0 rgba(255,255,255,0.25), 0 1px 2px var(--shadow); }
+  /* 统一空态（邀请行动） */
+  .empty-state { text-align: center; padding: 56px 24px; }
+  .empty-state .empty-rule { width: 36px; height: 2px; background: var(--accent-soft); border-radius: 1px; margin: 0 auto 18px; }
+  .empty-state .empty-title { color: var(--muted); }
+  .empty-state .empty-sub { color: var(--muted); font-size: 13px; margin-top: 6px; }
+  .empty-state .empty-action { margin-top: 22px; }
+  /* 窄屏表格横向滚动（保列对齐） */
+  @media (max-width: 900px) {
+    #assets-list { overflow-x: auto; }
+    #assets-list .asset-row { min-width: 780px; }
+  }
+  @media (max-width: 640px) {
+    #expenses-list { overflow-x: auto; }
+    #expenses-list .asset-row { min-width: 600px; }
+  }
   ::-webkit-scrollbar { width: 8px; height: 8px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--rule); border-radius: 4px; }
@@ -255,9 +275,9 @@ tailwind.config = {
           <span class="text-[10px] tracking-[0.2em] uppercase" style="color:var(--muted);">Private Ledger</span>
         </div>
       </div>
-      <div class="flex items-center p-0.5 rounded-lg" style="background: var(--bg-2); border: 1px solid var(--border);">
-        <button id="mode-assets" onclick="switchMode('assets')" class="btn-ghost text-xs rounded-md" style="padding:6px 18px;">资产</button>
-        <button id="mode-expenses" onclick="switchMode('expenses')" class="btn-gold text-xs rounded-md" style="padding:6px 18px;">消费</button>
+      <div class="seg-control">
+        <button id="mode-assets" onclick="switchMode('assets')" class="seg-btn">资产</button>
+        <button id="mode-expenses" onclick="switchMode('expenses')" class="seg-btn active">消费</button>
       </div>
     </div>
     <div class="flex items-center gap-3">
@@ -313,11 +333,11 @@ tailwind.config = {
         <div class="masthead-sub" id="masthead-sub"></div>
       </div>
 
-    <div id="assets-empty" class="card text-center py-16" style="display:none;">
-      <div class="text-4xl mb-3 opacity-30">☧</div>
-      <p style="color: var(--muted);">还没有资产记录</p>
-      <p class="text-sm mt-1" style="color: var(--muted);">点击「登记资产」或导入示例数据开始</p>
-      <button onclick="loadDemoData()" class="btn-ghost mt-5" style="padding:8px 20px;">导入示例数据</button>
+    <div id="assets-empty" class="card empty-state" style="display:none;">
+      <div class="empty-rule"></div>
+      <p class="empty-title">还没有资产记录</p>
+      <p class="empty-sub">点击「登记资产」或导入示例数据开始</p>
+      <div class="empty-action"><button onclick="loadDemoData()" class="btn-ghost" style="padding:8px 20px;">导入示例数据</button></div>
     </div>
 
     <div id="assets-list" class="card">
@@ -405,10 +425,11 @@ tailwind.config = {
       <button id="income-mode-min" onclick="setIncomeMode('min')" class="btn-gold" style="padding:6px 16px;font-size:12px;">使用最低</button>
       <button id="income-mode-max" onclick="setIncomeMode('max')" class="btn-ghost" style="padding:6px 16px;font-size:12px;">使用最高</button>
     </div>
-    <div id="income-empty" class="card text-center py-16">
-      <div class="text-3xl mb-3" style="color:var(--muted);opacity:0.6;">≷</div>
-      <p style="color: var(--fg);">尚未设置预期利率</p>
-      <p class="text-sm mt-1" style="color: var(--muted);">在「资产管理」中编辑资产并填写预期年利率，这里会显示收益测算。</p>
+    <div id="income-empty" class="card empty-state">
+      <div class="empty-rule"></div>
+      <p class="empty-title">暂无收益测算数据</p>
+      <p class="empty-sub">在「资产管理」中登记资产并填写预期年利率，这里会显示收益测算。</p>
+      <div class="empty-action"><button onclick="switchTab('assets')" class="btn-ghost" style="padding:8px 20px;">去资产管理</button></div>
     </div>
     <div id="income-summary" class="card mb-6" style="display:none;">
       <div class="grid grid-cols-3 gap-6 text-center">
@@ -457,11 +478,11 @@ tailwind.config = {
         </div>
       </div>
 
-      <div id="expenses-empty" class="card text-center py-16" style="display:none;">
-        <div class="text-4xl mb-3 opacity-30">📝</div>
-        <p id="expenses-empty-title" style="color: var(--muted);">还没有消费记录</p>
-        <p id="expenses-empty-sub" class="text-sm mt-1" style="color: var(--muted);">点击「记录消费」或导入示例数据开始</p>
-        <button id="expenses-empty-demo" onclick="loadExpenseDemoData()" class="btn-ghost mt-5" style="padding:8px 20px;">📦 导入示例消费数据</button>
+      <div id="expenses-empty" class="card empty-state" style="display:none;">
+        <div class="empty-rule"></div>
+        <p id="expenses-empty-title" class="empty-title">还没有消费记录</p>
+        <p id="expenses-empty-sub" class="empty-sub">点击「记录消费」或导入示例数据开始</p>
+        <div class="empty-action"><button id="expenses-empty-demo" onclick="loadExpenseDemoData()" class="btn-ghost" style="padding:8px 20px;">导入示例消费数据</button></div>
       </div>
 
       <div id="expenses-list" class="card">
@@ -967,12 +988,8 @@ function formatCNY(val) {
 // ========== TABS ==========
 function switchMode(mode) {
   currentMode = mode;
-  document.getElementById('mode-assets').className = mode === 'assets'
-    ? 'btn-gold text-xs rounded-md'
-    : 'btn-ghost text-xs rounded-md';
-  document.getElementById('mode-expenses').className = mode === 'expenses'
-    ? 'btn-gold text-xs rounded-md'
-    : 'btn-ghost text-xs rounded-md';
+  document.getElementById('mode-assets').className = mode === 'assets' ? 'seg-btn active' : 'seg-btn';
+  document.getElementById('mode-expenses').className = mode === 'expenses' ? 'seg-btn active' : 'seg-btn';
 
   document.getElementById('tabs-assets').style.display = mode === 'assets' ? '' : 'none';
   document.getElementById('tabs-expenses').style.display = mode === 'expenses' ? '' : 'none';
@@ -1089,7 +1106,7 @@ function renderAssets() {
         <div class="font-medium text-sm">${esc(a.name)}</div>
         <div class="font-mono text-sm tabular">${a.amount.toLocaleString('zh-CN', {minimumFractionDigits:2, maximumFractionDigits:2})}</div>
         <div class="text-sm" style="color:var(--muted)">${a.currency}</div>
-        <div class="font-mono text-sm tabular">${formatCNY(cnyVal)}</div>
+        <div class="font-mono text-xs tabular" style="color:var(--muted);">${formatCNY(cnyVal)}</div>
         <div class="text-sm tabular">${rateLabel}</div>
         <div class="flex flex-wrap gap-1">${tagHtml}</div>
         <div class="flex gap-2 justify-end">
