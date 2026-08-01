@@ -118,8 +118,6 @@ tailwind.config = {
     background: var(--card); border: 1px solid var(--border); border-radius: 10px;
     box-shadow: 0 1px 3px var(--shadow); padding: 24px; transition: box-shadow 0.2s, border-color 0.2s;
   }
-  .card-quiet { background: var(--card-2); }
-  /* 可交互卡片: 仅快照/月度列表等可点击卡片有 hover 浮起（克制原则） */
   .card-interactive { cursor: pointer; }
   .card-interactive:hover { box-shadow: 0 4px 16px var(--shadow); border-color: var(--accent-soft); }
   input, select {
@@ -143,10 +141,6 @@ tailwind.config = {
     border: 1px solid var(--border);
   }
   .modal-title { font-size: 22px; font-weight: 700; }
-  .modal-title .eyebrow {
-    font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 0.22em;
-    text-transform: uppercase; color: var(--muted); display: block; margin-bottom: 4px;
-  }
   @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
   @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
   .tag-pill {
@@ -608,7 +602,7 @@ tailwind.config = {
           </div>
           <div>
             <label class="block text-xs font-medium mb-1.5" style="color:var(--muted);">货币</label>
-            <select id="asset-currency" class="w-full" onchange="syncCurrencyTag()">
+            <select id="asset-currency" class="w-full">
               <option value="CNY">CNY ¥</option>
               <option value="HKD">HKD $</option>
               <option value="USD">USD $</option>
@@ -776,7 +770,6 @@ tailwind.config = {
 <script>
 // ========== STATE ==========
 const LS_KEY = 'wealth-manager-data';
-const CURRENCIES = ['CNY', 'HKD', 'USD'];
 let state = { categories: [], assets: [], snapshots: [], rates: { CNY: 1, HKD: 1, USD: 1, fetchedAt: null }, expenseExpectation: 0, netWorthTarget: 0 };
 let chart = null;
 let historyChart = null;
@@ -1319,10 +1312,6 @@ function openAssetModal(editId) {
   modal.style.display = '';
 }
 
-function syncCurrencyTag() {
-  // currency tag is auto-managed from the currency dropdown
-}
-
 function saveAsset(e) {
   e.preventDefault();
   const editId = document.getElementById('asset-edit-id').value;
@@ -1429,7 +1418,6 @@ function saveCategory(e) {
   if (editId) {
     const idx = state.categories.findIndex(c => c.id === editId);
     if (idx >= 0) {
-      const oldTags = state.categories[idx].tags;
       state.categories[idx] = { ...state.categories[idx], name, tags };
       // update assets referencing renamed/removed tags
       state.assets.forEach(a => {
@@ -2105,9 +2093,7 @@ function renderIncomeChart() {
         name: a.name,
         value: Math.round(inc.monthly * 100) / 100,
         itemStyle: { color: pal.shades[ai % pal.shades.length] },
-        _assetId: a.id,
-        _annual: inc.annual,
-        _rate: getAssetRate(a)
+        _assetId: a.id
       };
     });
     return { name: tag, itemStyle: { color: pal.base }, children };
@@ -2406,8 +2392,7 @@ document.addEventListener('click', e => {
 });
 
 function getCurrentMonth() {
-  const d = new Date();
-  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+  return getLocalMonthStr();
 }
 
 // 本地日期/月份字符串（避免 toISOString 的 UTC 时区偏移，东八区凌晨会错一天/月）
@@ -2792,7 +2777,6 @@ function saveExpenseCategory(e) {
   if (editId) {
     const idx = state.expenseCategories.findIndex(c => c.id === editId);
     if (idx >= 0) {
-      const oldTags = state.expenseCategories[idx].tags;
       state.expenseCategories[idx] = { ...state.expenseCategories[idx], name, tags };
       state.expenses.forEach(e => {
         if (e.tags[editId] && !tags.includes(e.tags[editId])) {
