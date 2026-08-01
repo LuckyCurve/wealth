@@ -106,7 +106,7 @@ tailwind.config = {
   .dark .btn-danger { color: #d98a86; border-color: #5a3a39; }
   .dark .btn-danger:hover { color: #fff; }
   /* 行内操作按钮（统一规格, 颜色区分操作层级） */
-  .row-btn { border: none; background: transparent; font-size: 11px; padding: 3px 8px; border-radius: 5px; cursor: pointer; font-family: 'IBM Plex Mono', monospace; transition: background 0.15s, color 0.15s; }
+  .row-btn { border: none; background: transparent; font-size: 11px; padding: 3px 6px; border-radius: 5px; cursor: pointer; font-family: 'IBM Plex Mono', monospace; white-space: nowrap; flex-shrink: 0; transition: background 0.15s, color 0.15s; }
   .row-btn:hover { background: var(--bg-2); }
   .row-btn.edit { color: var(--accent); }
   .row-btn.copy { color: var(--verdigris); }
@@ -168,7 +168,7 @@ tailwind.config = {
     transition: background 0.15s;
   }
   .asset-row.grid-wide {
-    grid-template-columns: 28px 2fr 1fr 0.7fr 1fr 0.7fr 1.5fr 80px;
+    grid-template-columns: 28px 2fr 1fr 0.7fr 1fr 0.7fr 1.5fr 92px;
   }
   .drag-handle { user-select: none; -webkit-user-select: none; }
   .asset-row.dragging { opacity: 0.35; background: var(--border); border-radius: 6px; }
@@ -495,7 +495,7 @@ tailwind.config = {
       </div>
 
       <div id="expenses-list" class="card">
-        <div class="asset-row text-xs font-medium" style="color: var(--muted); border-bottom: 1px solid var(--border); grid-template-columns: 1fr 1fr 2fr 1.5fr 118px;">
+        <div class="asset-row text-xs font-medium" style="color: var(--muted); border-bottom: 1px solid var(--border); grid-template-columns: 1fr 1fr 2fr 1.5fr 130px;">
           <div onclick="toggleExpenseSort('date')" style="cursor:pointer;">日期<span class="sort-indicator" id="expense-sort-date"></span></div>
           <div onclick="toggleExpenseSort('amount')" style="cursor:pointer;">金额<span class="sort-indicator" id="expense-sort-amount"></span></div>
           <div>备注</div><div>标签</div><div></div>
@@ -2564,7 +2564,7 @@ function renderExpenses() {
         const c = expenseCatColor(cat.id, tagVal);
         return `<span class="tag-pill" style="background:${c.bg};color:${c.fg};border-left-color:${c.border};"><span class="tag-key">${esc(cat.name)}</span><span class="tag-val">${esc(tagVal)}</span></span>`;
       }).join(' ');
-      return `<div class="asset-row" style="grid-template-columns: 1fr 1fr 2fr 1.5fr 118px;">
+      return `<div class="asset-row" style="grid-template-columns: 1fr 1fr 2fr 1.5fr 130px;">
         <div class="font-mono text-sm">${e.date}</div>
         <div class="font-mono text-sm">${e.amount.toLocaleString('zh-CN', {minimumFractionDigits:2, maximumFractionDigits:2})}</div>
         <div class="text-sm" style="color:var(--muted);">${e.note ? esc(e.note) : '—'}</div>
