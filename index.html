@@ -105,6 +105,15 @@ tailwind.config = {
   .btn-danger:hover { background: #b85450; color: white; border-color: #b85450; }
   .dark .btn-danger { color: #d98a86; border-color: #5a3a39; }
   .dark .btn-danger:hover { color: #fff; }
+  /* 行内操作按钮（统一规格, 颜色区分操作层级） */
+  .row-btn { border: none; background: transparent; font-size: 11px; padding: 3px 8px; border-radius: 5px; cursor: pointer; font-family: 'IBM Plex Mono', monospace; transition: background 0.15s, color 0.15s; }
+  .row-btn:hover { background: var(--bg-2); }
+  .row-btn.edit { color: var(--accent); }
+  .row-btn.copy { color: var(--verdigris); }
+  .row-btn.danger { color: #b85450; }
+  .row-btn.danger:hover { background: #b85450; color: #fff; }
+  .dark .row-btn.danger { color: #d98a86; }
+  .dark .row-btn.danger:hover { color: #fff; }
   .card {
     background: var(--card); border: 1px solid var(--border); border-radius: 10px;
     box-shadow: 0 1px 3px var(--shadow); padding: 24px; transition: box-shadow 0.2s, border-color 0.2s;
@@ -395,9 +404,9 @@ tailwind.config = {
       </div>
       <div class="flex items-center gap-3 flex-wrap">
         <select id="history-category-select" onchange="renderHistoryChart()" class="text-sm" style="min-width:160px;"></select>
-        <div class="flex rounded-lg p-0.5 gap-0.5" style="background:var(--bg-2); border:1px solid var(--border);">
-          <button id="hist-mode-value" onclick="setHistoryChartMode('value')" class="btn-gold px-3 py-1 text-xs rounded-md" style="padding:4px 12px;">金额</button>
-          <button id="hist-mode-percent" onclick="setHistoryChartMode('percent')" class="btn-ghost px-3 py-1 text-xs rounded-md" style="padding:4px 12px;">占比</button>
+        <div class="seg-control">
+          <button id="hist-mode-value" onclick="setHistoryChartMode('value')" class="seg-btn active">金额</button>
+          <button id="hist-mode-percent" onclick="setHistoryChartMode('percent')" class="seg-btn">占比</button>
         </div>
         <div id="history-record-area"></div>
       </div>
@@ -421,9 +430,9 @@ tailwind.config = {
         <p class="sub">根据资产金额和预期年利率，计算预期收益</p>
       </div>
     </div>
-    <div id="income-mode-toggle" style="display:none;" class="flex gap-2 mb-4">
-      <button id="income-mode-min" onclick="setIncomeMode('min')" class="btn-gold" style="padding:6px 16px;font-size:12px;">使用最低</button>
-      <button id="income-mode-max" onclick="setIncomeMode('max')" class="btn-ghost" style="padding:6px 16px;font-size:12px;">使用最高</button>
+    <div id="income-mode-toggle" style="display:none;" class="seg-control mb-4">
+      <button id="income-mode-min" onclick="setIncomeMode('min')" class="seg-btn active">使用最低</button>
+      <button id="income-mode-max" onclick="setIncomeMode('max')" class="seg-btn">使用最高</button>
     </div>
     <div id="income-empty" class="card empty-state">
       <div class="empty-rule"></div>
@@ -539,9 +548,9 @@ tailwind.config = {
         </div>
         <div class="flex items-center gap-3">
           <select id="expense-trend-category-select" onchange="renderExpenseTrendChart()" class="text-sm" style="min-width:160px;"></select>
-          <div class="flex rounded-lg p-0.5 gap-0.5" style="background:var(--bg-2); border:1px solid var(--border);">
-            <button id="expense-trend-mode-value" onclick="setExpenseTrendMode('value')" class="btn-gold px-3 py-1 text-xs rounded-md" style="padding:4px 12px;">金额</button>
-            <button id="expense-trend-mode-percent" onclick="setExpenseTrendMode('percent')" class="btn-ghost px-3 py-1 text-xs rounded-md" style="padding:4px 12px;">占比</button>
+          <div class="seg-control">
+            <button id="expense-trend-mode-value" onclick="setExpenseTrendMode('value')" class="seg-btn active">金额</button>
+            <button id="expense-trend-mode-percent" onclick="setExpenseTrendMode('percent')" class="seg-btn">占比</button>
           </div>
           <button id="expense-expectation-btn" onclick="openExpectationModal()" class="btn-ghost text-xs" style="padding:6px 14px;">预期消费</button>
         </div>
@@ -1110,8 +1119,8 @@ function renderAssets() {
         <div class="text-sm tabular">${rateLabel}</div>
         <div class="flex flex-wrap gap-1">${tagHtml}</div>
         <div class="flex gap-2 justify-end">
-          <button onclick="editAsset('${jsAttr(a.id)}')" class="text-xs" style="color:var(--accent);cursor:pointer;">编辑</button>
-          <button onclick="deleteAsset('${jsAttr(a.id)}')" class="btn-danger" style="padding:3px 8px;font-size:11px;">删除</button>
+          <button onclick="editAsset('${jsAttr(a.id)}')" class="row-btn edit">编辑</button>
+          <button onclick="deleteAsset('${jsAttr(a.id)}')" class="row-btn danger">删除</button>
         </div>
       </div>`;
     }).join('');
@@ -1254,8 +1263,8 @@ function renderCategories() {
           ${cat.builtin ? '<span class="text-xs px-2 py-0.5 rounded" style="background:var(--bg-2);border:1px solid var(--border);color:var(--muted);">内置</span>' : ''}
         </div>
         <div class="flex gap-2">
-          ${!cat.builtin ? `<button onclick="editCategory('${jsAttr(cat.id)}')" class="text-xs" style="color:var(--accent);cursor:pointer;">编辑</button>
-          <button onclick="deleteCategory('${jsAttr(cat.id)}')" class="btn-danger" style="padding:3px 8px;font-size:11px;">删除</button>` : ''}
+          ${!cat.builtin ? `<button onclick="editCategory('${jsAttr(cat.id)}')" class="row-btn edit">编辑</button>
+          <button onclick="deleteCategory('${jsAttr(cat.id)}')" class="row-btn danger">删除</button>` : ''}
         </div>
       </div>
       <div class="flex flex-wrap gap-2 mb-3">${tagPills}</div>
@@ -1609,6 +1618,10 @@ function renderChart() {
     }],
     tooltip: {
       trigger: 'item',
+      backgroundColor: th.card,
+      borderColor: th.line,
+      borderWidth: 1,
+      textStyle: { color: th.fg, fontFamily: '"IBM Plex Mono", monospace', fontSize: 12 },
       formatter: function(p) {
         const pct = totalCNY > 0 ? ((p.value / totalCNY) * 100).toFixed(1) : '0.0';
         const emoji = p.treePathInfo && p.treePathInfo.length <= 2 ? '🏷️' : '💰';
@@ -1812,8 +1825,8 @@ function populateHistorySelect() {
 
 function setHistoryChartMode(mode) {
   historyChartMode = mode;
-  document.getElementById('hist-mode-value').className = mode === 'value' ? 'btn-gold px-3 py-1 text-xs rounded-md' : 'btn-ghost px-3 py-1 text-xs rounded-md';
-  document.getElementById('hist-mode-percent').className = mode === 'percent' ? 'btn-gold px-3 py-1 text-xs rounded-md' : 'btn-ghost px-3 py-1 text-xs rounded-md';
+  document.getElementById('hist-mode-value').className = mode === 'value' ? 'seg-btn active' : 'seg-btn';
+  document.getElementById('hist-mode-percent').className = mode === 'percent' ? 'seg-btn active' : 'seg-btn';
   renderHistoryChart();
 }
 
@@ -1873,6 +1886,10 @@ function renderHistoryChart() {
     backgroundColor: 'transparent',
     tooltip: {
       trigger: 'item',
+      backgroundColor: th.card,
+      borderColor: th.line,
+      borderWidth: 1,
+      textStyle: { color: th.fg, fontFamily: '"IBM Plex Mono", monospace', fontSize: 12 },
       formatter: function(p) {
         const idx = p.dataIndex;
         const d = dates[idx];
@@ -1929,7 +1946,7 @@ function renderHistoryTab() {
         </div>
         <div class="text-xs mt-0.5" style="color:var(--muted);">${esc(s.note) || '无备注'} · ${formatCNY(s.totalCNY)} · ${(s.assets || []).length} 项资产${diffLine ? ' · ' + diffLine : ''}</div>
       </div>
-      <button onclick="deleteSnapshot('${jsAttr(s.month)}')" class="btn-danger" style="padding:3px 8px;font-size:11px;">删除</button>
+      <button onclick="deleteSnapshot('${jsAttr(s.month)}')" class="row-btn danger">删除</button>
     </div>`;
   }).join('');
 }
@@ -1954,8 +1971,8 @@ function calcAssetIncome(a, mode) {
 
 function setIncomeMode(mode) {
   incomeMode = mode;
-  document.getElementById('income-mode-min').className = mode === 'min' ? 'btn-gold' : 'btn-ghost';
-  document.getElementById('income-mode-max').className = mode === 'max' ? 'btn-gold' : 'btn-ghost';
+  document.getElementById('income-mode-min').className = mode === 'min' ? 'seg-btn active' : 'seg-btn';
+  document.getElementById('income-mode-max').className = mode === 'max' ? 'seg-btn active' : 'seg-btn';
   renderIncomeTab();
 }
 
@@ -2130,6 +2147,10 @@ function renderIncomeChart() {
     }],
     tooltip: {
       trigger: 'item',
+      backgroundColor: th.card,
+      borderColor: th.line,
+      borderWidth: 1,
+      textStyle: { color: th.fg, fontFamily: '"IBM Plex Mono", monospace', fontSize: 12 },
       formatter: function(p) {
         const pct = totalIncome > 0 ? ((p.value / totalIncome) * 100).toFixed(1) : '0.0';
         // ECharts 不会把 data 上的自定义字段展开到 params 顶层, 必须从 p.data 取
@@ -2549,9 +2570,9 @@ function renderExpenses() {
         <div class="text-sm" style="color:var(--muted);">${e.note ? esc(e.note) : '—'}</div>
         <div class="flex flex-wrap gap-1">${tagHtml}</div>
         <div class="flex gap-2 justify-end">
-          <button onclick="editExpense('${jsAttr(e.id)}')" class="text-xs" style="color:var(--accent);cursor:pointer;">编辑</button>
-          <button onclick="duplicateExpense('${jsAttr(e.id)}')" class="text-xs" style="color:var(--verdigris);cursor:pointer;">复制</button>
-          <button onclick="deleteExpense('${jsAttr(e.id)}')" class="btn-danger" style="padding:3px 8px;font-size:11px;">删除</button>
+          <button onclick="editExpense('${jsAttr(e.id)}')" class="row-btn edit">编辑</button>
+          <button onclick="duplicateExpense('${jsAttr(e.id)}')" class="row-btn copy">复制</button>
+          <button onclick="deleteExpense('${jsAttr(e.id)}')" class="row-btn danger">删除</button>
         </div>
       </div>`;
     }).join('');
@@ -2723,8 +2744,8 @@ function renderExpenseCategories() {
           ${cat.builtin ? '<span class="text-xs px-2 py-0.5 rounded" style="background:var(--bg-2);border:1px solid var(--border);color:var(--muted);">内置</span>' : ''}
         </div>
         <div class="flex gap-2">
-          ${!cat.builtin ? `<button onclick="editExpenseCategory('${jsAttr(cat.id)}')" class="text-xs" style="color:var(--accent);cursor:pointer;">编辑</button>
-          <button onclick="deleteExpenseCategory('${jsAttr(cat.id)}')" class="btn-danger" style="padding:3px 8px;font-size:11px;">删除</button>` : ''}
+          ${!cat.builtin ? `<button onclick="editExpenseCategory('${jsAttr(cat.id)}')" class="row-btn edit">编辑</button>
+          <button onclick="deleteExpenseCategory('${jsAttr(cat.id)}')" class="row-btn danger">删除</button>` : ''}
         </div>
       </div>
       <div class="flex flex-wrap gap-2 mb-3">${tagPills}</div>
@@ -2941,6 +2962,10 @@ function renderExpenseChart() {
     }],
     tooltip: {
       trigger: 'item',
+      backgroundColor: th.card,
+      borderColor: th.line,
+      borderWidth: 1,
+      textStyle: { color: th.fg, fontFamily: '"IBM Plex Mono", monospace', fontSize: 12 },
       formatter: function(p) {
         const pct = total > 0 ? ((p.value / total) * 100).toFixed(1) : '0.0';
         const emoji = p.treePathInfo && p.treePathInfo.length <= 2 ? '🏷️' : '💰';
@@ -2967,10 +2992,8 @@ function populateExpenseTrendSelect() {
 
 function setExpenseTrendMode(mode) {
   expenseTrendMode = mode;
-  document.getElementById('expense-trend-mode-value').className = mode === 'value'
-    ? 'btn-gold px-3 py-1 text-xs rounded-md' : 'btn-ghost px-3 py-1 text-xs rounded-md';
-  document.getElementById('expense-trend-mode-percent').className = mode === 'percent'
-    ? 'btn-gold px-3 py-1 text-xs rounded-md' : 'btn-ghost px-3 py-1 text-xs rounded-md';
+  document.getElementById('expense-trend-mode-value').className = mode === 'value' ? 'seg-btn active' : 'seg-btn';
+  document.getElementById('expense-trend-mode-percent').className = mode === 'percent' ? 'seg-btn active' : 'seg-btn';
   renderExpenseTrendChart();
 }
 
@@ -3131,6 +3154,10 @@ function renderExpenseTrendChart() {
     tooltip: {
       trigger: 'item',
       confine: true,
+      backgroundColor: th.card,
+      borderColor: th.line,
+      borderWidth: 1,
+      textStyle: { color: th.fg, fontFamily: '"IBM Plex Mono", monospace', fontSize: 12 },
       // 始终置于鼠标下方偏右，避免遮挡堆叠柱顶部的合计 label
       position: function(point, params, dom, rect, size) {
         const w = dom.offsetWidth, h = dom.offsetHeight;
