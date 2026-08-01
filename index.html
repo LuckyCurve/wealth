@@ -465,7 +465,7 @@ tailwind.config = {
       </div>
 
       <div id="expenses-list" class="card">
-        <div class="asset-row text-xs font-medium" style="color: var(--muted); border-bottom: 1px solid var(--border); grid-template-columns: 1fr 1fr 2fr 1.5fr 80px;">
+        <div class="asset-row text-xs font-medium" style="color: var(--muted); border-bottom: 1px solid var(--border); grid-template-columns: 1fr 1fr 2fr 1.5fr 118px;">
           <div onclick="toggleExpenseSort('date')" style="cursor:pointer;">日期<span class="sort-indicator" id="expense-sort-date"></span></div>
           <div onclick="toggleExpenseSort('amount')" style="cursor:pointer;">金额<span class="sort-indicator" id="expense-sort-amount"></span></div>
           <div>备注</div><div>标签</div><div></div>
@@ -2493,13 +2493,14 @@ function renderExpenses() {
         const c = expenseCatColor(cat.id, tagVal);
         return `<span class="tag-pill" style="background:${c.bg};color:${c.fg};border-left-color:${c.border};"><span class="tag-key">${esc(cat.name)}</span><span class="tag-val">${esc(tagVal)}</span></span>`;
       }).join(' ');
-      return `<div class="asset-row" style="grid-template-columns: 1fr 1fr 2fr 1.5fr 80px;">
+      return `<div class="asset-row" style="grid-template-columns: 1fr 1fr 2fr 1.5fr 118px;">
         <div class="font-mono text-sm">${e.date}</div>
         <div class="font-mono text-sm">${e.amount.toLocaleString('zh-CN', {minimumFractionDigits:2, maximumFractionDigits:2})}</div>
         <div class="text-sm" style="color:var(--muted);">${e.note ? esc(e.note) : '—'}</div>
         <div class="flex flex-wrap gap-1">${tagHtml}</div>
         <div class="flex gap-2 justify-end">
           <button onclick="editExpense('${jsAttr(e.id)}')" class="text-xs" style="color:var(--accent);cursor:pointer;">编辑</button>
+          <button onclick="duplicateExpense('${jsAttr(e.id)}')" class="text-xs" style="color:var(--verdigris);cursor:pointer;">复制</button>
           <button onclick="deleteExpense('${jsAttr(e.id)}')" class="btn-danger" style="padding:3px 8px;font-size:11px;">删除</button>
         </div>
       </div>`;
@@ -2513,7 +2514,7 @@ function renderExpenses() {
     `${totalLabel} · <span class="tabular font-medium" style="color:var(--accent);">${formatCNY(total)}</span> · ${filtered.length} 笔`;
 }
 
-function openExpenseModal(editId) {
+function openExpenseModal(editId, prefillId) {
   const modal = document.getElementById('expense-modal');
   const title = document.getElementById('expense-modal-title');
   const form = document.getElementById('expense-form');
@@ -2521,22 +2522,28 @@ function openExpenseModal(editId) {
   document.getElementById('expense-edit-id').value = editId || '';
   document.getElementById('expense-date').value = getLocalDateStr();
 
+  // 数据来源: 编辑取原记录（含原日期）; 复制取源记录但日期改为今天
+  const source = editId
+    ? state.expenses.find(x => x.id === editId)
+    : (prefillId ? state.expenses.find(x => x.id === prefillId) : null);
+
   if (editId) {
     title.textContent = '编辑消费';
-    const e = state.expenses.find(x => x.id === editId);
-    if (e) {
-      document.getElementById('expense-date').value = e.date;
-      document.getElementById('expense-amount').value = e.amount;
-      document.getElementById('expense-note').value = e.note || '';
-    }
+  } else if (prefillId) {
+    title.textContent = '复制消费';
   } else {
     title.textContent = '记录消费';
   }
 
+  if (source) {
+    document.getElementById('expense-date').value = editId ? source.date : getLocalDateStr();
+    document.getElementById('expense-amount').value = source.amount;
+    document.getElementById('expense-note').value = source.note || '';
+  }
+
   const section = document.getElementById('expense-tags-section');
   section.innerHTML = state.expenseCategories.map(cat => {
-    const expense = editId ? state.expenses.find(x => x.id === editId) : null;
-    const selected = expense ? (expense.tags[cat.id] || '') : '';
+    const selected = source ? (source.tags[cat.id] || '') : '';
     const options = cat.tags.map(t =>
       `<option value="${esc(t)}" ${t === selected ? 'selected' : ''}>${esc(t)}</option>`
     ).join('');
@@ -2591,6 +2598,11 @@ function saveExpense(e) {
 
 function editExpense(id) {
   openExpenseModal(id);
+}
+
+// 复制消费: 打开新增窗口, 预填金额/备注/标签, 日期改为今天
+function duplicateExpense(id) {
+  openExpenseModal('', id);
 }
 
 function deleteExpense(id) {
