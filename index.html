@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='16' cy='16' r='15' fill='url(%23g)'/><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='%23d9b25e'/><stop offset='1' stop-color='%238f6713'/></linearGradient></defs><line x1='16' y1='7' x2='16' y2='25' stroke='%23211b10' stroke-width='2.5' stroke-linecap='round'/><line x1='7' y1='16' x2='25' y2='16' stroke='%23211b10' stroke-width='2.5' stroke-linecap='round'/></svg>">
 <title>财富管理</title>
+<script>if (localStorage.getItem('dark-mode')) document.documentElement.classList.add('dark');</script>
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -719,8 +720,8 @@ let sortDir = 'asc';
     loadState();
     fetchRates();
     renderAll();
-    if (localStorage.getItem('dark-mode')) {
-      document.documentElement.classList.add('dark');
+    // dark class 已在 <head> 内联脚本提前设置（避免暗色用户首屏闪烁），这里只需同步图标
+    if (document.documentElement.classList.contains('dark')) {
       document.getElementById('dark-toggle').textContent = '☾';
     }
   });
@@ -747,67 +748,83 @@ let sortDir = 'asc';
     }
   });
 
+// 迁移/兜底逻辑：本地加载（loadState）与 JSON 导入（importData）共用，
+// 保证旧版导出（单值 expectedRate、旧快照格式、内置 expense-type 分类等）导入后行为一致
+function migrateState() {
+  if (!Array.isArray(state.snapshots)) state.snapshots = [];
+  // migrate old snapshot format (with 'id') to new monthly format
+  if (state.snapshots.length > 0 && state.snapshots[0].id) {
+    const grouped = {};
+    state.snapshots.forEach(s => {
+      const m = s.date.slice(0, 7);
+      if (!grouped[m] || new Date(s.date) > new Date(grouped[m].date)) {
+        grouped[m] = s;
+      }
+    });
+    state.snapshots = Object.entries(grouped).map(([month, s]) => ({
+      month,
+      note: s.note || '',
+      totalCNY: s.totalCNY,
+      currencyRates: s.currencyRates,
+      assets: s.assets,
+      updatedAt: s.date,
+    }));
+  }
+  // ensure categories/assets arrays
+  if (!Array.isArray(state.categories)) state.categories = [];
+  if (!Array.isArray(state.assets)) state.assets = [];
+  // ensure currency category exists
+  if (!state.categories.find(c => c.id === 'currency')) {
+    state.categories.unshift({ id: 'currency', name: '货币类型', builtin: true, tags: ['CNY', 'HKD', 'USD'] });
+  }
+  // ensure rates object（导入数据可能缺失或损坏）
+  if (!state.rates || typeof state.rates !== 'object' || state.rates.CNY == null) {
+    state.rates = { CNY: 1, HKD: 1, USD: 1, fetchedAt: null };
+  }
+  // migrate expectedRate -> expectedRateMin/Max (only if new fields not present)
+  state.assets.forEach(a => {
+    if (a.expectedRate != null && a.expectedRateMin == null) {
+      a.expectedRateMin = a.expectedRate;
+      a.expectedRateMax = a.expectedRate;
+    }
+    if (a.expectedRateMin == null) a.expectedRateMin = 0;
+    if (a.expectedRateMax == null) a.expectedRateMax = 0;
+    delete a.expectedRate;
+  });
+  // init expense data
+  if (!Array.isArray(state.expenses)) state.expenses = [];
+  if (!Array.isArray(state.expenseCategories)) {
+    state.expenseCategories = [];
+  } else {
+    // migrate: remove old builtin expense categories
+    state.expenseCategories = state.expenseCategories.filter(c => c.id !== 'expense-type' || !c.builtin);
+    // clean up orphaned tag references
+    const validCatIds = new Set(state.expenseCategories.map(c => c.id));
+    state.expenses.forEach(e => {
+      if (e && e.tags) {
+        Object.keys(e.tags).forEach(catId => {
+          if (!validCatIds.has(catId)) delete e.tags[catId];
+        });
+      }
+    });
+  }
+}
+
 function loadState() {
   try {
     const raw = localStorage.getItem(LS_KEY);
     if (raw) {
-      const saved = JSON.parse(raw);
-      state = { ...state, ...saved };
-      if (!state.snapshots) state.snapshots = [];
-      // migrate old snapshot format (with 'id') to new monthly format
-      if (state.snapshots.length > 0 && state.snapshots[0].id) {
-        const grouped = {};
-        state.snapshots.forEach(s => {
-          const m = s.date.slice(0, 7);
-          if (!grouped[m] || new Date(s.date) > new Date(grouped[m].date)) {
-            grouped[m] = s;
-          }
-        });
-        state.snapshots = Object.entries(grouped).map(([month, s]) => ({
-          month,
-          note: s.note || '',
-          totalCNY: s.totalCNY,
-          currencyRates: s.currencyRates,
-          assets: s.assets,
-          updatedAt: s.date,
-        }));
-      }
-      // ensure currency category exists
-      if (!state.categories.find(c => c.id === 'currency')) {
-        state.categories.unshift({ id: 'currency', name: '货币类型', builtin: true, tags: ['CNY', 'HKD', 'USD'] });
-      }
-      // migrate expectedRate -> expectedRateMin/Max (only if new fields not present)
-      state.assets.forEach(a => {
-        if (a.expectedRate != null && a.expectedRateMin == null) {
-          a.expectedRateMin = a.expectedRate;
-          a.expectedRateMax = a.expectedRate;
-        }
-        if (a.expectedRateMin == null) a.expectedRateMin = 0;
-        if (a.expectedRateMax == null) a.expectedRateMax = 0;
-        delete a.expectedRate;
-      });
+      state = { ...state, ...JSON.parse(raw) };
     } else {
       state.categories = [{ id: 'currency', name: '货币类型', builtin: true, tags: ['CNY', 'HKD', 'USD'] }];
     }
-    // init expense data
-    if (!state.expenses) state.expenses = [];
-    if (!state.expenseCategories) {
-      state.expenseCategories = [];
-    } else {
-      // migrate: remove old builtin expense categories
-      state.expenseCategories = state.expenseCategories.filter(c => c.id !== 'expense-type' || !c.builtin);
-      // clean up orphaned tag references
-      const validCatIds = new Set(state.expenseCategories.map(c => c.id));
-      state.expenses.forEach(e => {
-        Object.keys(e.tags).forEach(catId => {
-          if (!validCatIds.has(catId)) delete e.tags[catId];
-        });
-      });
-    }
+    migrateState();
   } catch(e) {
     state.categories = [{ id: 'currency', name: '货币类型', builtin: true, tags: ['CNY', 'HKD', 'USD'] }];
     state.expenseCategories = [];
     state.expenses = [];
+    state.assets = [];
+    state.snapshots = [];
   }
 }
 
@@ -963,7 +980,7 @@ function renderAssets() {
         const tagVal = a.tags[cat.id];
         if (!tagVal) return '';
         const c = catColor(cat.id, tagVal);
-        return `<span class="tag-pill" style="background:${c.bg};color:${c.fg};border-left-color:${c.border};"><span class="tag-key">${cat.name}</span><span class="tag-val">${tagVal}</span></span>`;
+        return `<span class="tag-pill" style="background:${c.bg};color:${c.fg};border-left-color:${c.border};"><span class="tag-key">${esc(cat.name)}</span><span class="tag-val">${esc(tagVal)}</span></span>`;
       }).join(' ');
       const rateLabel = a.expectedRateMin > 0 || a.expectedRateMax > 0
         ? (a.expectedRateMin === a.expectedRateMax
@@ -971,7 +988,7 @@ function renderAssets() {
           : `${a.expectedRateMin}-${a.expectedRateMax}%`)
         : '<span style="color:var(--muted);font-size:11px;">未设置</span>';
       const cnyVal = toCNY(a.amount, a.currency);
-      return `<div class="asset-row grid-wide" data-id="${a.id}" draggable="true" ondragstart="onAssetDragStart(event)" ondragend="onAssetDragEnd(event)">
+      return `<div class="asset-row grid-wide" data-id="${esc(a.id)}" draggable="true" ondragstart="onAssetDragStart(event)" ondragend="onAssetDragEnd(event)">
         <div class="drag-handle" title="拖动排序">⠿</div>
         <div class="font-medium text-sm">${esc(a.name)}</div>
         <div class="font-mono text-sm tabular">${a.amount.toLocaleString('zh-CN', {minimumFractionDigits:2, maximumFractionDigits:2})}</div>
@@ -979,8 +996,8 @@ function renderAssets() {
         <div class="text-sm tabular">${rateLabel}</div>
         <div class="flex flex-wrap gap-1">${tagHtml}</div>
         <div class="flex gap-2 justify-end">
-          <button onclick="editAsset('${a.id}')" class="text-xs" style="color:var(--accent);cursor:pointer;">编辑</button>
-          <button onclick="deleteAsset('${a.id}')" class="btn-danger" style="padding:3px 8px;font-size:11px;">删除</button>
+          <button onclick="editAsset('${jsAttr(a.id)}')" class="text-xs" style="color:var(--accent);cursor:pointer;">编辑</button>
+          <button onclick="deleteAsset('${jsAttr(a.id)}')" class="btn-danger" style="padding:3px 8px;font-size:11px;">删除</button>
         </div>
       </div>`;
     }).join('');
@@ -1062,7 +1079,7 @@ function renderCategories() {
   container.innerHTML = state.categories.map(cat => {
     const tagPills = cat.tags.map(t => {
       const c = catColor(cat.id, t);
-      return `<span class="tag-pill" style="background:${c.bg};color:${c.fg};border-left-color:${c.border};"><span class="tag-val">${esc(t)}</span>${!cat.builtin ? ` <button onclick="removeTag('${cat.id}','${esc(t)}')" style="margin-left:2px;cursor:pointer;font-size:10px;line-height:1;color:${c.fg};">✕</button>` : ''}</span>`;
+      return `<span class="tag-pill" style="background:${c.bg};color:${c.fg};border-left-color:${c.border};"><span class="tag-val">${esc(t)}</span>${!cat.builtin ? ` <button onclick="removeTag('${jsAttr(cat.id)}','${jsAttr(t)}')" style="margin-left:2px;cursor:pointer;font-size:10px;line-height:1;color:${c.fg};">✕</button>` : ''}</span>`;
     }).join(' ');
     return `<div class="card">
       <div class="flex items-center justify-between mb-3">
@@ -1071,14 +1088,14 @@ function renderCategories() {
           ${cat.builtin ? '<span class="text-xs px-2 py-0.5 rounded" style="background:var(--bg-2);border:1px solid var(--border);color:var(--muted);">内置</span>' : ''}
         </div>
         <div class="flex gap-2">
-          ${!cat.builtin ? `<button onclick="editCategory('${cat.id}')" class="text-xs" style="color:var(--accent);cursor:pointer;">编辑</button>
-          <button onclick="deleteCategory('${cat.id}')" class="btn-danger" style="padding:3px 8px;font-size:11px;">删除</button>` : ''}
+          ${!cat.builtin ? `<button onclick="editCategory('${jsAttr(cat.id)}')" class="text-xs" style="color:var(--accent);cursor:pointer;">编辑</button>
+          <button onclick="deleteCategory('${jsAttr(cat.id)}')" class="btn-danger" style="padding:3px 8px;font-size:11px;">删除</button>` : ''}
         </div>
       </div>
       <div class="flex flex-wrap gap-2 mb-3">${tagPills}</div>
       <div class="flex gap-2">
         <input type="text" id="new-tag-${cat.id}" placeholder="新增标签" class="text-sm flex-1" style="padding:6px 10px;">
-        <button onclick="addTag('${cat.id}')" class="btn-ghost" style="padding:6px 14px;">添加</button>
+        <button onclick="addTag('${jsAttr(cat.id)}')" class="btn-ghost" style="padding:6px 14px;">添加</button>
       </div>
     </div>`;
   }).join('');
@@ -1691,11 +1708,11 @@ function renderHistoryTab() {
   if (state.snapshots.length === 0) { list.innerHTML = ''; return; }
   list.innerHTML = [...state.snapshots].sort((a, b) => b.month.localeCompare(a.month)).map(s => {
     return `<div class="card flex items-center justify-between">
-      <div class="flex-1 cursor-pointer" onclick="viewSnapshot('${s.month}')">
+      <div class="flex-1 cursor-pointer" onclick="viewSnapshot('${jsAttr(s.month)}')">
         <div class="font-medium text-sm">${monthLabel(s.month)}</div>
         <div class="text-xs" style="color:var(--muted);">${esc(s.note) || '无备注'} · ${formatCNY(s.totalCNY)} · ${s.assets.length} 项资产</div>
       </div>
-      <button onclick="deleteSnapshot('${s.month}')" class="btn-danger" style="padding:3px 8px;font-size:11px;">删除</button>
+      <button onclick="deleteSnapshot('${jsAttr(s.month)}')" class="btn-danger" style="padding:3px 8px;font-size:11px;">删除</button>
     </div>`;
   }).join('');
 }
@@ -2004,15 +2021,10 @@ function importData(e) {
   reader.onload = function(ev) {
     try {
       const data = JSON.parse(ev.target.result);
-      if (data.categories && data.assets) {
+      if (data && Array.isArray(data.categories) && Array.isArray(data.assets)) {
         state = { ...state, ...data };
-        // ensure expense data exists for older exports
-        if (!state.expenseCategories || !Array.isArray(state.expenseCategories)) {
-          state.expenseCategories = [];
-        }
-        if (!state.expenses || !Array.isArray(state.expenses)) {
-          state.expenses = [];
-        }
+        // 与 loadState 共用同一套迁移/兜底逻辑（旧版 expectedRate、快照格式、孤儿标签等）
+        migrateState();
         saveState();
         renderAll();
         closeModal('io-modal');
@@ -2121,7 +2133,11 @@ let __modalMouseDownTarget = null;
 document.addEventListener('mousedown', e => { __modalMouseDownTarget = e.target; });
 document.addEventListener('click', e => {
   if (e.target.classList.contains('modal-overlay') && __modalMouseDownTarget && !__modalMouseDownTarget.closest('.modal-content')) {
-    e.target.style.display = 'none';
+    if (e.target.id === 'confirm-modal') {
+      confirmCancel(); // 统一走 confirmCancel：隐藏 + 清空 _confirmCallback
+    } else {
+      e.target.style.display = 'none';
+    }
   }
   __modalMouseDownTarget = null;
 });
@@ -2160,6 +2176,17 @@ function esc(str) {
   // textContent+innerHTML 会转义 & < > "，但不含单引号；
   // 单引号若不转义，嵌在 onclick="removeTag(...,'..')" 里可导致 JS 语法错误甚至注入
   return d.innerHTML.replace(/'/g, '&#39;');
+}
+
+// 用于行内事件属性（onclick="fn('...')"）里的 JS 字符串参数：
+// HTML 属性解析时 &#39; 会被还原成 '，导致单引号 JS 字符串语法错误甚至注入，
+// 所以必须先做 JS 字符串转义（\\ → \\, ' → \'），再做 HTML 属性转义（& "）。
+function jsAttr(str) {
+  return String(str)
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;');
 }
 
 function toast(msg, type) {
@@ -2209,7 +2236,7 @@ function renderExpenses() {
         const tagVal = e.tags[cat.id];
         if (!tagVal) return '';
         const c = expenseCatColor(cat.id, tagVal);
-        return `<span class="tag-pill" style="background:${c.bg};color:${c.fg};border-left-color:${c.border};"><span class="tag-key">${cat.name}</span><span class="tag-val">${tagVal}</span></span>`;
+        return `<span class="tag-pill" style="background:${c.bg};color:${c.fg};border-left-color:${c.border};"><span class="tag-key">${esc(cat.name)}</span><span class="tag-val">${esc(tagVal)}</span></span>`;
       }).join(' ');
       return `<div class="asset-row" style="grid-template-columns: 1fr 1fr 2fr 1.5fr 80px;">
         <div class="font-mono text-sm">${e.date}</div>
@@ -2217,8 +2244,8 @@ function renderExpenses() {
         <div class="text-sm" style="color:var(--muted);">${esc(e.note) || '—'}</div>
         <div class="flex flex-wrap gap-1">${tagHtml}</div>
         <div class="flex gap-2 justify-end">
-          <button onclick="editExpense('${e.id}')" class="text-xs" style="color:var(--accent);cursor:pointer;">编辑</button>
-          <button onclick="deleteExpense('${e.id}')" class="btn-danger" style="padding:3px 8px;font-size:11px;">删除</button>
+          <button onclick="editExpense('${jsAttr(e.id)}')" class="text-xs" style="color:var(--accent);cursor:pointer;">编辑</button>
+          <button onclick="deleteExpense('${jsAttr(e.id)}')" class="btn-danger" style="padding:3px 8px;font-size:11px;">删除</button>
         </div>
       </div>`;
     }).join('');
@@ -2355,7 +2382,7 @@ function renderExpenseCategories() {
   container.innerHTML = state.expenseCategories.map(cat => {
     const tagPills = cat.tags.map(t => {
       const c = expenseCatColor(cat.id, t);
-      return `<span class="tag-pill" style="background:${c.bg};color:${c.fg};border-left-color:${c.border};"><span class="tag-val">${esc(t)}</span>${!cat.builtin ? ` <button onclick="removeExpenseTag('${cat.id}','${esc(t)}')" style="margin-left:2px;cursor:pointer;font-size:10px;line-height:1;color:${c.fg};">✕</button>` : ''}</span>`;
+      return `<span class="tag-pill" style="background:${c.bg};color:${c.fg};border-left-color:${c.border};"><span class="tag-val">${esc(t)}</span>${!cat.builtin ? ` <button onclick="removeExpenseTag('${jsAttr(cat.id)}','${jsAttr(t)}')" style="margin-left:2px;cursor:pointer;font-size:10px;line-height:1;color:${c.fg};">✕</button>` : ''}</span>`;
     }).join(' ');
     return `<div class="card">
       <div class="flex items-center justify-between mb-3">
@@ -2364,14 +2391,14 @@ function renderExpenseCategories() {
           ${cat.builtin ? '<span class="text-xs px-2 py-0.5 rounded" style="background:var(--bg-2);border:1px solid var(--border);color:var(--muted);">内置</span>' : ''}
         </div>
         <div class="flex gap-2">
-          ${!cat.builtin ? `<button onclick="editExpenseCategory('${cat.id}')" class="text-xs" style="color:var(--accent);cursor:pointer;">编辑</button>
-          <button onclick="deleteExpenseCategory('${cat.id}')" class="btn-danger" style="padding:3px 8px;font-size:11px;">删除</button>` : ''}
+          ${!cat.builtin ? `<button onclick="editExpenseCategory('${jsAttr(cat.id)}')" class="text-xs" style="color:var(--accent);cursor:pointer;">编辑</button>
+          <button onclick="deleteExpenseCategory('${jsAttr(cat.id)}')" class="btn-danger" style="padding:3px 8px;font-size:11px;">删除</button>` : ''}
         </div>
       </div>
       <div class="flex flex-wrap gap-2 mb-3">${tagPills}</div>
       <div class="flex gap-2">
         <input type="text" id="expense-new-tag-${cat.id}" placeholder="新增标签" class="text-sm flex-1" style="padding:6px 10px;">
-        <button onclick="addExpenseTag('${cat.id}')" class="btn-ghost" style="padding:6px 14px;">添加</button>
+        <button onclick="addExpenseTag('${jsAttr(cat.id)}')" class="btn-ghost" style="padding:6px 14px;">添加</button>
       </div>
     </div>`;
   }).join('');
@@ -2754,7 +2781,7 @@ function renderExpenseTrendList() {
   if (months.length === 0) { list.innerHTML = ''; return; }
   list.innerHTML = months.map(m => {
     return `<div class="card flex items-center justify-between">
-      <div class="flex-1 cursor-pointer" onclick="viewExpenseMonth('${m}')">
+      <div class="flex-1 cursor-pointer" onclick="viewExpenseMonth('${jsAttr(m)}')">
         <div class="font-medium text-sm">${monthLabel(m)}</div>
         <div class="text-xs" style="color:var(--muted);">${formatCNY(monthMap[m].total)} · ${monthMap[m].count} 条消费记录</div>
       </div>
