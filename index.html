@@ -2275,9 +2275,9 @@ function genId() {
 function esc(str) {
   const d = document.createElement('div');
   d.textContent = str;
-  // textContent+innerHTML 会转义 & < > "，但不含单引号；
-  // 单引号若不转义，嵌在 onclick="removeTag(...,'..')" 里可导致 JS 语法错误甚至注入
-  return d.innerHTML.replace(/'/g, '&#39;');
+  // textContent+innerHTML 会转义 & < >；但文本节点中的单/双引号不会被序列化转义，需手动处理：
+  // 单引号防 JS 字符串注入（onclick 内嵌参数），双引号防 HTML 属性值被截断（如 <option value="...">）
+  return d.innerHTML.replace(/'/g, '&#39;').replace(/"/g, '&quot;');
 }
 
 // 用于行内事件属性（onclick="fn('...')"）里的 JS 字符串参数：
