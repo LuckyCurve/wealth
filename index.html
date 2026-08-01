@@ -720,6 +720,15 @@ let sortDir = 'asc';
     loadState();
     fetchRates();
     renderAll();
+    // 图表统一 resize：必须在顶层注册（原代码嵌在 renderChart 首次 init 里，
+    // 导致从未进入「资产分布」tab 时其他图表在窗口缩放后不跟随调整）
+    window.addEventListener('resize', () => {
+      if (chart) chart.resize();
+      if (historyChart) historyChart.resize();
+      if (incomeChart) incomeChart.resize();
+      if (expenseChart) expenseChart.resize();
+      if (expenseTrendChart) expenseTrendChart.resize();
+    });
     // dark class 已在 <head> 内联脚本提前设置（避免暗色用户首屏闪烁），这里只需同步图标
     if (document.documentElement.classList.contains('dark')) {
       document.getElementById('dark-toggle').textContent = '☾';
@@ -787,6 +796,10 @@ function migrateState() {
   // ensure rates object（导入数据可能缺失或损坏）
   if (!state.rates || typeof state.rates !== 'object' || state.rates.CNY == null) {
     state.rates = { CNY: 1, HKD: 1, USD: 1, fetchedAt: null };
+  } else {
+    // 补全缺失货币字段，避免 toCNY 按 1:1 兜底导致数值失真
+    if (state.rates.HKD == null) state.rates.HKD = 1;
+    if (state.rates.USD == null) state.rates.USD = 1;
   }
   // migrate expectedRate -> expectedRateMin/Max (only if new fields not present)
   state.assets.forEach(a => {
@@ -1105,10 +1118,11 @@ function renderCategories() {
         </div>
       </div>
       <div class="flex flex-wrap gap-2 mb-3">${tagPills}</div>
+      ${cat.builtin ? '' : `
       <div class="flex gap-2">
         <input type="text" id="new-tag-${cat.id}" placeholder="新增标签" class="text-sm flex-1" style="padding:6px 10px;">
         <button onclick="addTag('${jsAttr(cat.id)}')" class="btn-ghost" style="padding:6px 14px;">添加</button>
-      </div>
+      </div>`}
     </div>`;
   }).join('');
 }
@@ -1308,6 +1322,7 @@ function addTag(catId) {
   const val = input.value.trim();
   if (!val) return;
   const cat = state.categories.find(c => c.id === catId);
+  if (cat.builtin) { toast('内置分类不可修改', 'error'); return; }
   if (cat.tags.includes(val)) { toast('标签已存在', 'error'); return; }
   cat.tags.push(val);
   saveState();
@@ -1320,6 +1335,7 @@ function addTag(catId) {
 function removeTag(catId, tagName) {
   const cat = state.categories.find(c => c.id === catId);
   if (!cat) return;
+  if (cat.builtin) { toast('内置分类不可修改', 'error'); return; }
   if (cat.tags.length <= 1) { toast('至少保留一个标签', 'error'); return; }
   cat.tags = cat.tags.filter(t => t !== tagName);
   // clean up assets
@@ -1410,13 +1426,6 @@ function renderChart() {
 
   if (!chart) {
     chart = echarts.init(chartEl, null, { renderer: 'canvas' });
-    window.addEventListener('resize', () => {
-      if (chart) chart.resize();
-      if (historyChart) historyChart.resize();
-      if (incomeChart) incomeChart.resize();
-      if (expenseChart) expenseChart.resize();
-      if (expenseTrendChart) expenseTrendChart.resize();
-    });
   }
 
   // compute total for percentage
@@ -1553,7 +1562,7 @@ function viewSnapshot(month) {
       <div>名称</div><div>金额</div><div>货币</div><div>预期年化</div><div>标签</div>
     </div>
     ${(snap.assets || []).map(a => {
-      const tagHtml = Object.entries(a.tags).map(([catId, val]) => {
+      const tagHtml = Object.entries(a.tags || {}).map(([catId, val]) => {
         const cat = state.categories.find(c => c.id === catId);
         if (!cat) return '';
         const c = catColor(catId, val);
@@ -1684,8 +1693,8 @@ function renderHistoryChart() {
   const series = cat.tags.map((tag, si) => {
     const isLast = si === cat.tags.length - 1;
     const raw = sorted.map(snap => (snap.assets || [])
-      .filter(a => a.tags[catId] === tag)
-      .reduce((s, a) => s + a.amount * (snap.currencyRates[a.currency] || 1), 0)
+      .filter(a => (a.tags || {})[catId] === tag)
+      .reduce((s, a) => s + a.amount * ((snap.currencyRates || {})[a.currency] || 1), 0)
     );
     const data = historyChartMode === 'percent'
       ? raw.map((v, vi) => ({ value: totals[vi] > 0 ? +(v / totals[vi] * 100).toFixed(1) : 0, raw: Math.round(v * 100) / 100 }))
