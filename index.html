@@ -820,6 +820,10 @@ function migrateState() {
     if (a.expectedRateMin == null) a.expectedRateMin = 0;
     if (a.expectedRateMax == null) a.expectedRateMax = 0;
     delete a.expectedRate;
+    // 防御: 导入数据中利率可能是字符串, 统一转为数字
+    // （renderIncomeTab/incomeChart 对利率调用 toFixed, 字符串会 TypeError）
+    a.expectedRateMin = Number(a.expectedRateMin) || 0;
+    a.expectedRateMax = Number(a.expectedRateMax) || 0;
     // 防御: 导入数据中 amount 可能是字符串, 统一转为数字, 避免总计拼接/排序错误
     if (a.amount != null) a.amount = Number(a.amount) || 0;
   });
