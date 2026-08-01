@@ -797,9 +797,14 @@ function migrateState() {
     if (a.expectedRateMin == null) a.expectedRateMin = 0;
     if (a.expectedRateMax == null) a.expectedRateMax = 0;
     delete a.expectedRate;
+    // 防御: 导入数据中 amount 可能是字符串, 统一转为数字, 避免总计拼接/排序错误
+    if (a.amount != null) a.amount = Number(a.amount) || 0;
   });
   // init expense data
   if (!Array.isArray(state.expenses)) state.expenses = [];
+  state.expenses.forEach(e => {
+    if (e && e.amount != null) e.amount = Number(e.amount) || 0;
+  });
   if (!Array.isArray(state.expenseCategories)) {
     state.expenseCategories = [];
   } else {
@@ -1350,6 +1355,7 @@ function chartTheme() {
     muted: v('--muted') || '#8a7a52',
     line: v('--rule') || '#d8cbab',
     split: v('--bg-2') || '#efe8d6',
+    card: v('--card') || '#fffcf3',
   };
 }
 
@@ -1416,6 +1422,7 @@ function renderChart() {
   // compute total for percentage
   const totalCNY = state.assets.reduce((s, a) => s + toCNY(a.amount, a.currency), 0);
 
+  const th = chartTheme();
   chart.setOption({
     backgroundColor: 'transparent',
     series: [{
@@ -1428,14 +1435,14 @@ function renderChart() {
         {},
         {
           r0: '12%', r: '50%',
-          itemStyle: { borderWidth: 2, borderColor: '#fffcf3' },
+          itemStyle: { borderWidth: 2, borderColor: th.card },
           label: { rotate: 'tangential', fontSize: 13, fontWeight: 600, fontFamily: '"IBM Plex Mono", monospace', color: '#fff',
             formatter: function(p) { return p.name; }
           }
         },
         {
           r0: '50%', r: '90%',
-          itemStyle: { borderWidth: 1, borderColor: '#fffcf3' },
+          itemStyle: { borderWidth: 1, borderColor: th.card },
           label: { rotate: 'radial', fontSize: 11, fontFamily: '"IBM Plex Mono", monospace', color: '#211b10',
             formatter: function(p) { return p.name; }
           }
@@ -1912,6 +1919,7 @@ function renderIncomeChart() {
     return;
   }
 
+  const th = chartTheme();
   incomeChart.setOption({
     backgroundColor: 'transparent',
     series: [{
@@ -1924,14 +1932,14 @@ function renderIncomeChart() {
         {},
         {
           r0: '12%', r: '50%',
-          itemStyle: { borderWidth: 2, borderColor: '#fffcf3' },
+          itemStyle: { borderWidth: 2, borderColor: th.card },
           label: { rotate: 'tangential', fontSize: 13, fontWeight: 600, fontFamily: '"IBM Plex Mono", monospace', color: '#fff',
             formatter: function(p) { return p.name; }
           }
         },
         {
           r0: '50%', r: '90%',
-          itemStyle: { borderWidth: 1, borderColor: '#fffcf3' },
+          itemStyle: { borderWidth: 1, borderColor: th.card },
           label: { rotate: 'radial', fontSize: 11, fontFamily: '"IBM Plex Mono", monospace', color: '#211b10',
             formatter: function(p) { return p.name; }
           }
@@ -1942,8 +1950,10 @@ function renderIncomeChart() {
       trigger: 'item',
       formatter: function(p) {
         const pct = totalIncome > 0 ? ((p.value / totalIncome) * 100).toFixed(1) : '0.0';
-        if (p._assetId) {
-          const a = state.assets.find(x => x.id === p._assetId);
+        // ECharts 不会把 data 上的自定义字段展开到 params 顶层, 必须从 p.data 取
+        const assetId = p.data && p.data._assetId;
+        if (assetId) {
+          const a = state.assets.find(x => x.id === assetId);
           if (a) {
             const inc = calcAssetIncome(a);
             const rateRange = (a.expectedRateMin > 0 || a.expectedRateMax > 0)
@@ -2026,6 +2036,9 @@ function toggleDark() {
   // 图表文字/线条颜色随主题重绘（仅当前可见的图表; 隐藏 tab 的图表会在下次进入时用新主题渲染）
   if (document.getElementById('tab-history').style.display !== 'none') renderHistoryChart();
   if (document.getElementById('tab-expense-trend').style.display !== 'none') renderExpenseTrendChart();
+  if (document.getElementById('tab-chart').style.display !== 'none') renderChart();
+  if (document.getElementById('tab-income').style.display !== 'none') renderIncomeChart();
+  if (document.getElementById('tab-expense-chart').style.display !== 'none') renderExpenseChart();
 }
 
 // ========== IMPORT/EXPORT ==========
@@ -2190,8 +2203,9 @@ function getLocalMonthStr(d) {
 }
 
 function monthLabel(month) {
-  const d = new Date(month + '-01');
-  return d.getFullYear() + '年' + (d.getMonth() + 1) + '月';
+  // 手动拆解避免 new Date('YYYY-MM-01') 按 UTC 解析, 西半球时区（UTC-11/-12）会错月/年
+  const [y, m] = String(month || '').split('-');
+  return y && m ? y + '年' + parseInt(m, 10) + '月' : String(month || '');
 }
 
 function findMonthSnapshot(month) {
@@ -2605,6 +2619,7 @@ function renderExpenseChart() {
     expenseChart = echarts.init(chartEl);
   }
 
+  const th = chartTheme();
   expenseChart.setOption({
     backgroundColor: 'transparent',
     series: [{
@@ -2617,14 +2632,14 @@ function renderExpenseChart() {
         {},
         {
           r0: '12%', r: '50%',
-          itemStyle: { borderWidth: 2, borderColor: '#fffcf3' },
+          itemStyle: { borderWidth: 2, borderColor: th.card },
           label: { rotate: 'tangential', fontSize: 13, fontWeight: 600, fontFamily: '"IBM Plex Mono", monospace', color: '#fff',
             formatter: function(p) { return p.name; }
           }
         },
         {
           r0: '50%', r: '90%',
-          itemStyle: { borderWidth: 1, borderColor: '#fffcf3' },
+          itemStyle: { borderWidth: 1, borderColor: th.card },
           label: { rotate: 'radial', fontSize: 11, fontFamily: '"IBM Plex Mono", monospace', color: '#211b10',
             formatter: function(p) { return p.name; }
           }
