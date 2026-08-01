@@ -2425,6 +2425,10 @@ function renderExpenses() {
   const empty = document.getElementById('expenses-empty');
   const list = document.getElementById('expenses-list');
 
+  // 同步月份筛选状态（下拉 onchange 仅触发 renderExpenses, 需从控件读取选中值）
+  const monthSel = document.getElementById('expense-month-filter');
+  if (monthSel) expenseMonthFilter = monthSel.value;
+
   populateExpenseMonthFilter();
 
   // 月份筛选（与排序独立）
