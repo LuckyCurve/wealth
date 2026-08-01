@@ -787,6 +787,15 @@ function migrateState() {
       })),
     ];
   }
+  // 补全快照加工字段：新版导出已剥离 totalCNY（纯原始数据）, 导入时按快照时点
+  // 汇率重算（与 confirmSnapshot 保存时算法一致）, 保证历史净值图表/详情可用
+  state.snapshots.forEach(s => {
+    if (s && s.totalCNY == null) {
+      const snapRates = s.currencyRates || state.rates;
+      s.totalCNY = (s.assets || []).reduce((sum, a) =>
+        sum + (a.amount || 0) * (snapRates[a.currency] || 1), 0);
+    }
+  });
   // ensure categories/assets arrays
   if (!Array.isArray(state.categories)) state.categories = [];
   if (!Array.isArray(state.assets)) state.assets = [];
@@ -2086,7 +2095,11 @@ function showImportExport() {
 }
 
 function exportData() {
-  const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+  // 导出纯原始数据：剥离快照中的加工字段 totalCNY（保存时页面计算的 CNY 总净值）。
+  // 该值可由快照的 assets × currencyRates 重新计算, 导入时由 migrateState 补全。
+  const clean = JSON.parse(JSON.stringify(state));
+  (clean.snapshots || []).forEach(s => { delete s.totalCNY; });
+  const blob = new Blob([JSON.stringify(clean, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
