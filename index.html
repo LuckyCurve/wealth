@@ -2036,8 +2036,14 @@ function onAssetDrop(e) {
 
 // ========== SORT ==========
 function toggleSort(field) {
+  // 三态循环: 升序 → 降序 → 取消排序（恢复自然/拖拽顺序）
   if (sortBy === field) {
-    sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+    if (sortDir === 'asc') {
+      sortDir = 'desc';
+    } else if (sortDir === 'desc') {
+      sortBy = '';
+      sortDir = 'asc';
+    }
   } else {
     sortBy = field;
     sortDir = 'asc';
@@ -2413,9 +2419,21 @@ function deleteExpense(id) {
   });
 }
 
+let expenseSortTouched = false;
+
 function toggleExpenseSort(field) {
+  // 三态循环: 升序 → 降序 → 取消排序（恢复创建顺序）
+  // 消费列表默认即日期降序（最新在前），首次点击保留旧行为（切升序），之后才进入三态循环
   if (expenseSortBy === field) {
-    expenseSortDir = expenseSortDir === 'asc' ? 'desc' : 'asc';
+    if (!expenseSortTouched) {
+      expenseSortDir = expenseSortDir === 'asc' ? 'desc' : 'asc';
+      expenseSortTouched = true;
+    } else if (expenseSortDir === 'asc') {
+      expenseSortDir = 'desc';
+    } else {
+      expenseSortBy = '';
+      expenseSortDir = 'asc';
+    }
   } else {
     expenseSortBy = field;
     expenseSortDir = 'asc';
