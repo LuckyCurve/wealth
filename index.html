@@ -298,7 +298,7 @@ tailwind.config = {
 <div id="tabs-assets" class="max-w-6xl mx-auto px-6" style="display:none;">
   <div class="flex gap-0 border-b" style="border-color: var(--border);">
     <button class="tab-btn active" data-tab="assets" onclick="switchTab('assets')">资产管理</button>
-    <button class="tab-btn" data-tab="categories" onclick="switchTab('categories')">标签分类</button>
+    <button class="tab-btn" data-tab="categories" onclick="switchTab('categories')">分类管理</button>
     <button class="tab-btn" data-tab="chart" onclick="switchTab('chart')">资产分布</button>
     <button class="tab-btn" data-tab="history" onclick="switchTab('history')">历史净值</button>
     <button class="tab-btn" data-tab="income" onclick="switchTab('income')">收益测算</button>
@@ -309,7 +309,7 @@ tailwind.config = {
 <div id="tabs-expenses" class="max-w-6xl mx-auto px-6">
   <div class="flex gap-0 border-b" style="border-color: var(--border);">
     <button class="tab-btn active" data-tab="expenses" onclick="switchTab('expenses')">消费记录</button>
-    <button class="tab-btn" data-tab="expense-categories" onclick="switchTab('expense-categories')">标签分类</button>
+    <button class="tab-btn" data-tab="expense-categories" onclick="switchTab('expense-categories')">分类管理</button>
     <button class="tab-btn" data-tab="expense-chart" onclick="switchTab('expense-chart')">消费分布</button>
     <button class="tab-btn" data-tab="expense-trend" onclick="switchTab('expense-trend')">消费趋势</button>
   </div>
@@ -364,7 +364,7 @@ tailwind.config = {
     <div class="flex items-center justify-between mb-6 section-head">
       <div>
         <span class="eyebrow">维度与标签</span>
-        <h2 class="font-display">标签分类管理</h2>
+        <h2 class="font-display">分类管理</h2>
         <p class="sub">管理资产的分类与标签</p>
       </div>
       <button onclick="openCategoryModal()" class="btn-gold">＋ 新增分类</button>
@@ -376,6 +376,7 @@ tailwind.config = {
   <section id="tab-chart" style="display:none;">
     <div class="flex items-center justify-between mb-6 section-head gap-4 flex-wrap">
       <div>
+        <span class="eyebrow">结构视图</span>
         <h2 class="font-display">资产分布</h2>
         <p class="sub">按分类维度查看资产分布（已换算 CNY）</p>
       </div>
@@ -394,6 +395,7 @@ tailwind.config = {
   <section id="tab-history" style="display:none;">
     <div class="flex items-center justify-between mb-6 section-head gap-4 flex-wrap">
       <div>
+        <span class="eyebrow">月度快照</span>
         <h2 class="font-display">历史净值</h2>
         <p class="sub">记录每月快照，看净值趋势</p>
       </div>
@@ -420,6 +422,7 @@ tailwind.config = {
   <section id="tab-income" style="display:none;">
     <div class="flex items-center justify-between mb-6 section-head gap-4 flex-wrap">
       <div>
+        <span class="eyebrow">收益预估</span>
         <h2 class="font-display">收益测算</h2>
         <p class="sub">按资产金额与预期年利率测算收益</p>
       </div>
@@ -503,7 +506,7 @@ tailwind.config = {
       <div class="flex items-center justify-between mb-6 section-head gap-4 flex-wrap">
         <div>
           <span class="eyebrow">维度与标签</span>
-          <h2 class="font-display">消费标签分类</h2>
+          <h2 class="font-display">消费分类管理</h2>
           <p class="sub">管理消费的分类与标签</p>
         </div>
         <button onclick="openExpenseCategoryModal()" class="btn-gold">＋ 新增分类</button>
@@ -515,6 +518,7 @@ tailwind.config = {
     <section id="tab-expense-chart" style="display:none;">
       <div class="flex items-center justify-between mb-6 section-head gap-4 flex-wrap">
         <div>
+          <span class="eyebrow">结构视图</span>
           <h2 class="font-display">消费分布</h2>
           <p class="sub">按分类维度和月份查看消费分布</p>
         </div>
@@ -535,6 +539,7 @@ tailwind.config = {
     <section id="tab-expense-trend" style="display:none;">
       <div class="flex items-center justify-between mb-6 section-head gap-4 flex-wrap">
         <div>
+          <span class="eyebrow">趋势分析</span>
           <h2 class="font-display">消费趋势</h2>
           <p class="sub">按月查看消费趋势</p>
         </div>
@@ -1612,11 +1617,10 @@ function renderChart() {
       textStyle: { color: th.fg, fontFamily: '"IBM Plex Mono", monospace', fontSize: 12 },
       formatter: function(p) {
         const pct = totalCNY > 0 ? ((p.value / totalCNY) * 100).toFixed(1) : '0.0';
-        const emoji = p.treePathInfo && p.treePathInfo.length <= 2 ? '🏷️' : '💰';
         const arrow = p.treePathInfo && p.treePathInfo.length > 2
-          ? '🏷️ ' + p.treePathInfo[1].name + ' › '
+          ? p.treePathInfo[1].name + ' › '
           : '';
-        return `${emoji} <b>${arrow}${p.name}</b><br/>💵 ${formatCNY(p.value)}&nbsp;&nbsp;📊 ${pct}%`;
+        return `<b>${arrow}${p.name}</b><br/><span style="color:${th.muted}">${formatCNY(p.value)} · ${pct}%</span>`;
       }
     }
   }, true);
@@ -1672,13 +1676,13 @@ function renderHistoryHeader() {
     area.innerHTML = `
       <div class="flex items-center gap-2">
         <span class="text-sm" style="color:var(--muted);">
-          📅 ${monthLabel(month)} 已记录 ✓
+          ${monthLabel(month)} 已记录 ✓
         </span>
         <button onclick="promptOverwrite()" class="btn-ghost text-xs" style="padding:4px 10px;">覆盖更新</button>
       </div>
     `;
   } else {
-    area.innerHTML = `<button onclick="takeSnapshot()" class="btn-gold">📸 记录本月数据</button>`;
+    area.innerHTML = `<button onclick="takeSnapshot()" class="btn-gold">记录本月数据</button>`;
   }
 }
 
@@ -2150,14 +2154,13 @@ function renderIncomeChart() {
                 ? `${a.expectedRateMin.toFixed(1)}%`
                 : `${a.expectedRateMin.toFixed(1)}-${a.expectedRateMax.toFixed(1)}%`)
               : '未设置';
-            return `💰 <b>${esc(a.name)}</b><br/>📈 月收益: ${formatCNY(inc.monthly)}<br/>📅 年收益: ${formatCNY(inc.annual)}<br/>🏷️ 利率: ${rateRange}<br/>📊 占比: ${pct}%`;
+            return `<b>${esc(a.name)}</b><br/>月收益 ${formatCNY(inc.monthly)} · 年收益 ${formatCNY(inc.annual)}<br/><span style="color:${th.muted}">利率 ${rateRange} · 占比 ${pct}%</span>`;
           }
         }
-        const emoji = p.treePathInfo && p.treePathInfo.length <= 2 ? '🏷️' : '💰';
         const arrow = p.treePathInfo && p.treePathInfo.length > 2
-          ? '🏷️ ' + p.treePathInfo[1].name + ' › '
+          ? p.treePathInfo[1].name + ' › '
           : '';
-        return `${emoji} <b>${arrow}${p.name}</b><br/>💵 月收益: ${formatCNY(p.value)}&nbsp;&nbsp;📊 ${pct}%`;
+        return `<b>${arrow}${p.name}</b><br/><span style="color:${th.muted}">月收益 ${formatCNY(p.value)} · 占比 ${pct}%</span>`;
       }
     }
   }, true);
@@ -2389,6 +2392,16 @@ document.addEventListener('click', e => {
     }
   }
   __modalMouseDownTarget = null;
+});
+
+// ESC 关闭当前最上层弹窗（确认框走 confirmCancel 以清空回调）
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  const open = [...document.querySelectorAll('.modal-overlay')].filter(m => m.style.display !== 'none');
+  const top = open[open.length - 1];
+  if (!top) return;
+  if (top.id === 'confirm-modal') confirmCancel();
+  else top.style.display = 'none';
 });
 
 function getCurrentMonth() {
@@ -2952,11 +2965,10 @@ function renderExpenseChart() {
       textStyle: { color: th.fg, fontFamily: '"IBM Plex Mono", monospace', fontSize: 12 },
       formatter: function(p) {
         const pct = total > 0 ? ((p.value / total) * 100).toFixed(1) : '0.0';
-        const emoji = p.treePathInfo && p.treePathInfo.length <= 2 ? '🏷️' : '💰';
         const arrow = p.treePathInfo && p.treePathInfo.length > 2
-          ? '🏷️ ' + p.treePathInfo[1].name + ' › '
+          ? p.treePathInfo[1].name + ' › '
           : '';
-        return `${emoji} <b>${arrow}${p.name}</b><br/>💵 ${formatCNY(p.value)}&nbsp;&nbsp;📊 ${pct}%`;
+        return `<b>${arrow}${p.name}</b><br/><span style="color:${th.muted}">${formatCNY(p.value)} · ${pct}%</span>`;
       }
     }
   }, true);
