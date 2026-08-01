@@ -753,22 +753,29 @@ let sortDir = 'asc';
 function migrateState() {
   if (!Array.isArray(state.snapshots)) state.snapshots = [];
   // migrate old snapshot format (with 'id') to new monthly format
-  if (state.snapshots.length > 0 && state.snapshots[0].id) {
+  // 旧格式快照（{id,date}）迁移为月度格式；已迁移过的（含 month 字段）原样保留。
+  // 用 some/filter 分流，避免混入损坏/新格式快照时 s.date.slice 抛错导致整个加载失败
+  if (state.snapshots.length > 0 && state.snapshots.some(s => s && s.date && !s.month)) {
+    const oldSnaps = state.snapshots.filter(s => s && s.date && !s.month);
+    const newSnaps = state.snapshots.filter(s => !(s && s.date && !s.month));
     const grouped = {};
-    state.snapshots.forEach(s => {
-      const m = s.date.slice(0, 7);
+    oldSnaps.forEach(s => {
+      const m = String(s.date).slice(0, 7);
       if (!grouped[m] || new Date(s.date) > new Date(grouped[m].date)) {
         grouped[m] = s;
       }
     });
-    state.snapshots = Object.entries(grouped).map(([month, s]) => ({
-      month,
-      note: s.note || '',
-      totalCNY: s.totalCNY,
-      currencyRates: s.currencyRates,
-      assets: s.assets,
-      updatedAt: s.date,
-    }));
+    state.snapshots = [
+      ...newSnaps,
+      ...Object.entries(grouped).map(([month, s]) => ({
+        month,
+        note: s.note || '',
+        totalCNY: s.totalCNY,
+        currencyRates: s.currencyRates,
+        assets: s.assets,
+        updatedAt: s.date,
+      })),
+    ];
   }
   // ensure categories/assets arrays
   if (!Array.isArray(state.categories)) state.categories = [];
@@ -1531,12 +1538,14 @@ function deleteSnapshot(month) {
 function viewSnapshot(month) {
   const snap = state.snapshots.find(s => s.month === month);
   if (!snap) return;
+  // viewExpenseMonth 会把标题改成「月度消费明细」，这里重置回快照标题
+  document.getElementById('snapshot-modal-title').textContent = '快照详情';
   document.getElementById('snapshot-detail-content').innerHTML = `
     <p class="text-sm mb-4" style="color:var(--muted);">${monthLabel(snap.month)}${snap.note ? ' — ' + esc(snap.note) : ''} | 总净值: <strong>${formatCNY(snap.totalCNY)}</strong></p>
     <div class="asset-row text-xs font-medium" style="color:var(--muted);border-bottom:1px solid var(--border);">
       <div>名称</div><div>金额</div><div>货币</div><div>预期年化</div><div>标签</div>
     </div>
-    ${snap.assets.map(a => {
+    ${(snap.assets || []).map(a => {
       const tagHtml = Object.entries(a.tags).map(([catId, val]) => {
         const cat = state.categories.find(c => c.id === catId);
         if (!cat) return '';
@@ -1667,7 +1676,7 @@ function renderHistoryChart() {
 
   const series = cat.tags.map((tag, si) => {
     const isLast = si === cat.tags.length - 1;
-    const raw = sorted.map(snap => snap.assets
+    const raw = sorted.map(snap => (snap.assets || [])
       .filter(a => a.tags[catId] === tag)
       .reduce((s, a) => s + a.amount * (snap.currencyRates[a.currency] || 1), 0)
     );
@@ -1729,7 +1738,7 @@ function renderHistoryTab() {
     return `<div class="card flex items-center justify-between">
       <div class="flex-1 cursor-pointer" onclick="viewSnapshot('${jsAttr(s.month)}')">
         <div class="font-medium text-sm">${monthLabel(s.month)}</div>
-        <div class="text-xs" style="color:var(--muted);">${esc(s.note) || '无备注'} · ${formatCNY(s.totalCNY)} · ${s.assets.length} 项资产</div>
+        <div class="text-xs" style="color:var(--muted);">${esc(s.note) || '无备注'} · ${formatCNY(s.totalCNY)} · ${(s.assets || []).length} 项资产</div>
       </div>
       <button onclick="deleteSnapshot('${jsAttr(s.month)}')" class="btn-danger" style="padding:3px 8px;font-size:11px;">删除</button>
     </div>`;
@@ -2038,6 +2047,7 @@ function exportData() {
 function importData(e) {
   const file = e.target.files[0];
   if (!file) return;
+  e.target.value = ''; // 重置，允许再次选择同一文件导入
   document.getElementById('import-file-name').textContent = file.name;
   const reader = new FileReader();
   reader.onload = function(ev) {
@@ -2263,7 +2273,7 @@ function renderExpenses() {
       return `<div class="asset-row" style="grid-template-columns: 1fr 1fr 2fr 1.5fr 80px;">
         <div class="font-mono text-sm">${e.date}</div>
         <div class="font-mono text-sm">${e.amount.toLocaleString('zh-CN', {minimumFractionDigits:2, maximumFractionDigits:2})}</div>
-        <div class="text-sm" style="color:var(--muted);">${esc(e.note) || '—'}</div>
+        <div class="text-sm" style="color:var(--muted);">${e.note ? esc(e.note) : '—'}</div>
         <div class="flex flex-wrap gap-1">${tagHtml}</div>
         <div class="flex gap-2 justify-end">
           <button onclick="editExpense('${jsAttr(e.id)}')" class="text-xs" style="color:var(--accent);cursor:pointer;">编辑</button>
@@ -2548,7 +2558,6 @@ function populateExpenseChartSelects() {
 function renderExpenseChart() {
   const catId = document.getElementById('expense-chart-category-select').value;
   const monthFilter = document.getElementById('expense-chart-month-select').value;
-  if (!catId) return;
 
   const chartEl = document.getElementById('expense-sunburst-chart');
   const emptyEl = document.getElementById('expense-chart-empty');
@@ -2557,7 +2566,8 @@ function renderExpenseChart() {
     ? state.expenses.filter(e => e.date.slice(0, 7) === monthFilter)
     : state.expenses;
 
-  if (filtered.length === 0) {
+  // 无分类（select 无选项）或当月无数据时都显示空态，避免空白画布
+  if (!catId || filtered.length === 0) {
     chartEl.style.display = 'none';
     emptyEl.style.display = '';
     return;
@@ -2661,16 +2671,15 @@ function renderExpenseTrendChart() {
   const chartEl = document.getElementById('expense-trend-chart');
   const emptyEl = document.getElementById('expense-trend-empty');
 
-  if (state.expenses.length === 0) {
+  const cat = state.expenseCategories.find(c => c.id === catId);
+
+  if (state.expenses.length === 0 || !cat) {
     chartEl.style.display = 'none';
     emptyEl.style.display = '';
     return;
   }
   chartEl.style.display = '';
   emptyEl.style.display = 'none';
-
-  const cat = state.expenseCategories.find(c => c.id === catId);
-  if (!cat) return;
 
   const th = chartTheme();
   const monthMap = {};
@@ -2832,7 +2841,7 @@ function viewExpenseMonth(month) {
       return `<div class="asset-row" style="grid-template-columns:1fr 1fr 2fr 1.5fr;">
         <div class="font-mono text-sm">${e.date}</div>
         <div class="font-mono text-sm">${e.amount.toLocaleString('zh-CN', {minimumFractionDigits:2, maximumFractionDigits:2})}</div>
-        <div class="text-sm" style="color:var(--muted);">${esc(e.note) || '—'}</div>
+        <div class="text-sm" style="color:var(--muted);">${e.note ? esc(e.note) : '—'}</div>
         <div class="flex flex-wrap gap-1">${tagHtml}</div>
       </div>`;
     }).join('')}
