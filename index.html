@@ -215,6 +215,8 @@ tailwind.config = {
   .composition-rule .seg-other { background: var(--rule); }
   .composition-legend { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
   .composition-legend .dot { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 5px; transform: translateY(0px); }
+  .target-progress { height: 6px; border-radius: 3px; background: var(--bg-2); border: 1px solid var(--border); overflow: hidden; }
+  .target-progress-fill { height: 100%; border-radius: 3px; transition: width 0.4s ease; }
   @media (max-width: 640px) {
     .masthead { padding: 24px 20px 22px; }
     .masthead-amount { font-size: clamp(34px, 12vw, 48px); }
@@ -298,6 +300,7 @@ tailwind.config = {
           <span class="seg-cny" style="flex-grow:1"></span><span class="seg-hkd" style="flex-grow:0"></span><span class="seg-usd" style="flex-grow:0"></span>
         </div>
         <div class="composition-legend" id="composition-legend"></div>
+        <div id="net-worth-target" class="mt-4" style="display:none;"></div>
         <div class="masthead-sub" id="masthead-sub"></div>
       </div>
 
@@ -439,14 +442,17 @@ tailwind.config = {
           <h2 class="font-display">消费记录</h2>
           <p class="sub">总计 <span id="expense-total" class="tabular font-medium" style="color: var(--accent);">¥0</span> CNY</p>
         </div>
-        <button onclick="openExpenseModal()" class="btn-gold">＋ 记录消费</button>
+        <div class="flex items-center gap-3">
+          <select id="expense-month-filter" onchange="renderExpenses()" class="text-sm" style="min-width:130px;"></select>
+          <button onclick="openExpenseModal()" class="btn-gold">＋ 记录消费</button>
+        </div>
       </div>
 
       <div id="expenses-empty" class="card text-center py-16" style="display:none;">
         <div class="text-4xl mb-3 opacity-30">📝</div>
-        <p style="color: var(--muted);">还没有消费记录</p>
-        <p class="text-sm mt-1" style="color: var(--muted);">点击「记录消费」或导入示例数据开始</p>
-        <button onclick="loadExpenseDemoData()" class="btn-ghost mt-5" style="padding:8px 20px;">📦 导入示例消费数据</button>
+        <p id="expenses-empty-title" style="color: var(--muted);">还没有消费记录</p>
+        <p id="expenses-empty-sub" class="text-sm mt-1" style="color: var(--muted);">点击「记录消费」或导入示例数据开始</p>
+        <button id="expenses-empty-demo" onclick="loadExpenseDemoData()" class="btn-ghost mt-5" style="padding:8px 20px;">📦 导入示例消费数据</button>
       </div>
 
       <div id="expenses-list" class="card">
@@ -507,6 +513,7 @@ tailwind.config = {
             <button id="expense-trend-mode-value" onclick="setExpenseTrendMode('value')" class="btn-gold px-3 py-1 text-xs rounded-md" style="padding:4px 12px;">金额</button>
             <button id="expense-trend-mode-percent" onclick="setExpenseTrendMode('percent')" class="btn-ghost px-3 py-1 text-xs rounded-md" style="padding:4px 12px;">占比</button>
           </div>
+          <button id="expense-expectation-btn" onclick="openExpectationModal()" class="btn-ghost text-xs" style="padding:6px 14px;">预期消费</button>
         </div>
       </div>
       <div class="card mb-6">
@@ -701,11 +708,39 @@ tailwind.config = {
   </div>
 </div>
 
+<!-- Expectation (预期消费参考线) Modal -->
+<div id="expectation-modal" class="modal-overlay" style="display:none;">
+  <div class="modal-content" style="max-width:400px;">
+    <h3 class="font-display modal-title mb-4">预期消费</h3>
+    <p class="text-sm mb-4" style="color:var(--muted);">在消费趋势图中显示为水平参考线，收起部分类别后可对比每月合计</p>
+    <input type="number" id="expectation-input" min="0" step="100" class="w-full" placeholder="预期月消费 (CNY)" onkeydown="if(event.key==='Enter')saveExpectation()">
+    <div class="flex justify-end gap-3 mt-6">
+      <button type="button" onclick="clearExpectation()" class="btn-danger" style="padding:6px 14px;">清除</button>
+      <button type="button" onclick="closeModal('expectation-modal')" class="btn-ghost">取消</button>
+      <button type="button" onclick="saveExpectation()" class="btn-gold">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- Net Worth Target Modal -->
+<div id="target-modal" class="modal-overlay" style="display:none;">
+  <div class="modal-content" style="max-width:400px;">
+    <h3 class="font-display modal-title mb-4">目标净资产</h3>
+    <p class="text-sm mb-4" style="color:var(--muted);">设置后资产页显示达成进度</p>
+    <input type="number" id="target-input" min="0" step="1000" class="w-full" placeholder="目标净资产 (CNY)" onkeydown="if(event.key==='Enter')saveTarget()">
+    <div class="flex justify-end gap-3 mt-6">
+      <button type="button" onclick="clearTarget()" class="btn-danger" style="padding:6px 14px;">清除</button>
+      <button type="button" onclick="closeModal('target-modal')" class="btn-ghost">取消</button>
+      <button type="button" onclick="saveTarget()" class="btn-gold">保存</button>
+    </div>
+  </div>
+</div>
+
 <script>
 // ========== STATE ==========
 const LS_KEY = 'wealth-manager-data';
 const CURRENCIES = ['CNY', 'HKD', 'USD'];
-let state = { categories: [], assets: [], snapshots: [], rates: { CNY: 1, HKD: 1, USD: 1, fetchedAt: null } };
+let state = { categories: [], assets: [], snapshots: [], rates: { CNY: 1, HKD: 1, USD: 1, fetchedAt: null }, expenseExpectation: 0, netWorthTarget: 0 };
 let chart = null;
 let historyChart = null;
 let historyChartMode = 'value';
@@ -811,6 +846,9 @@ function migrateState() {
     if (state.rates.HKD == null) state.rates.HKD = 1;
     if (state.rates.USD == null) state.rates.USD = 1;
   }
+  // 用户设置字段（旧数据可能缺失）
+  if (state.expenseExpectation == null) state.expenseExpectation = 0;
+  if (state.netWorthTarget == null) state.netWorthTarget = 0;
   // migrate expectedRate -> expectedRateMin/Max (only if new fields not present)
   state.assets.forEach(a => {
     if (a.expectedRate != null && a.expectedRateMin == null) {
@@ -1119,9 +1157,56 @@ function renderMasthead(total) {
     return `<span><span class="dot" style="background:${s.color}"></span>${s.key} <span class="tabular" style="color:var(--fg);opacity:0.85;">${pct}%</span></span>`;
   }).join('');
 
+  // 目标净资产进度（实时计算不存储；总资产为 0 时不显示避免误报达成）
+  const targetEl = document.getElementById('net-worth-target');
+  const target = state.netWorthTarget || 0;
+  if (target > 0 && total > 0) {
+    targetEl.style.display = '';
+    const pct = Math.min(100, total / target * 100);
+    const achieved = total >= target;
+    const fillColor = achieved ? 'var(--verdigris)' : (pct >= 90 ? 'var(--accent)' : 'var(--accent-soft)');
+    targetEl.innerHTML = `
+      <div class="flex items-center justify-between text-xs mb-1" style="color:var(--muted);">
+        <span>目标净资产</span>
+        <span class="flex items-center gap-2">
+          <span class="tabular">${formatCNY(total)} / ${formatCNY(target)}${achieved ? ' · 🎉 已达成' : ' · ' + pct.toFixed(0) + '%'}</span>
+          <button onclick="openTargetModal()" class="btn-ghost" style="padding:2px 8px;font-size:10px;">调整</button>
+        </span>
+      </div>
+      <div class="target-progress"><div class="target-progress-fill" style="width:${pct}%;background:${fillColor};"></div></div>`;
+  } else if (target > 0) {
+    targetEl.style.display = 'none';
+  } else {
+    targetEl.style.display = '';
+    targetEl.innerHTML = `<button onclick="openTargetModal()" class="btn-ghost text-xs" style="padding:4px 12px;">🎯 设置目标净资产</button>`;
+  }
+
   // sub line: asset count only
   const count = state.assets.length;
   subEl.innerHTML = `<span>${count} 项资产</span>`;
+}
+
+// ========== NET WORTH TARGET ==========
+function openTargetModal() {
+  document.getElementById('target-input').value = state.netWorthTarget || '';
+  document.getElementById('target-modal').style.display = '';
+  setTimeout(() => document.getElementById('target-input').focus(), 100);
+}
+function saveTarget() {
+  const v = parseFloat(document.getElementById('target-input').value);
+  if (!v || v <= 0) { toast('请输入有效的目标金额', 'error'); return; }
+  state.netWorthTarget = v;
+  saveState();
+  closeModal('target-modal');
+  renderAssets(); // 刷新 masthead 进度
+  toast('目标已设置', 'success');
+}
+function clearTarget() {
+  state.netWorthTarget = 0;
+  saveState();
+  closeModal('target-modal');
+  renderAssets();
+  toast('目标已清除', 'success');
 }
 
 function renderCategories() {
@@ -1778,15 +1863,36 @@ function renderHistoryChart() {
   }, true);
 }
 
+// 找指定月份之前的最近一个快照（环比基准，实时计算不存储）
+function getPrevSnapshot(month) {
+  return state.snapshots
+    .filter(s => s.month < month)
+    .sort((a, b) => b.month.localeCompare(a.month))[0] || null;
+}
+
 function renderHistoryTab() {
   renderHistoryHeader();
   const list = document.getElementById('snapshots-list');
   if (state.snapshots.length === 0) { list.innerHTML = ''; return; }
   list.innerHTML = [...state.snapshots].sort((a, b) => b.month.localeCompare(a.month)).map(s => {
+    const prev = getPrevSnapshot(s.month);
+    let moM;
+    if (!prev) {
+      moM = '<span style="color:var(--muted);">首月快照</span>';
+    } else if ((prev.totalCNY || 0) === 0) {
+      moM = '<span style="color:var(--verdigris);">新增</span>';
+    } else {
+      const diff = (s.totalCNY || 0) - (prev.totalCNY || 0);
+      const pct = diff / prev.totalCNY * 100;
+      const color = diff >= 0 ? 'var(--verdigris)' : '#b85450';
+      const sign = diff >= 0 ? '+' : '';
+      moM = `<span style="color:${color};">较上月 ${sign}${formatCNY(diff)}（${sign}${pct.toFixed(1)}%）</span>`;
+    }
     return `<div class="card flex items-center justify-between">
       <div class="flex-1 cursor-pointer" onclick="viewSnapshot('${jsAttr(s.month)}')">
         <div class="font-medium text-sm">${monthLabel(s.month)}</div>
         <div class="text-xs" style="color:var(--muted);">${esc(s.note) || '无备注'} · ${formatCNY(s.totalCNY)} · ${(s.assets || []).length} 项资产</div>
+        <div class="text-xs mt-0.5">${moM}</div>
       </div>
       <button onclick="deleteSnapshot('${jsAttr(s.month)}')" class="btn-danger" style="padding:3px 8px;font-size:11px;">删除</button>
     </div>`;
@@ -2300,18 +2406,44 @@ function toast(msg, type) {
 }
 
 // ========== EXPENSE CRUD ==========
+// ====== EXPENSE MONTH FILTER ======
+let expenseMonthFilter = '';
+
+// 消费月份下拉：选项从数据自动生成（倒序），保留当前选择
+function populateExpenseMonthFilter() {
+  const sel = document.getElementById('expense-month-filter');
+  if (!sel) return;
+  const current = sel.value;
+  const months = [...new Set(state.expenses.map(e => (e.date || '').slice(0, 7)).filter(Boolean))].sort().reverse();
+  sel.innerHTML = '<option value="">全部时间</option>' +
+    months.map(m => `<option value="${m}">${monthLabel(m)}</option>`).join('');
+  if (current && sel.querySelector(`option[value="${current}"]`)) sel.value = current;
+}
+
 function renderExpenses() {
   const rows = document.getElementById('expenses-rows');
   const empty = document.getElementById('expenses-empty');
   const list = document.getElementById('expenses-list');
 
-  if (state.expenses.length === 0) {
+  populateExpenseMonthFilter();
+
+  // 月份筛选（与排序独立）
+  const filtered = expenseMonthFilter
+    ? state.expenses.filter(e => (e.date || '').slice(0, 7) === expenseMonthFilter)
+    : state.expenses;
+
+  if (filtered.length === 0) {
     empty.style.display = '';
     list.style.display = 'none';
+    // 区分「完全无数据」与「筛选月份无记录」
+    const hasAny = state.expenses.length > 0;
+    document.getElementById('expenses-empty-title').textContent = hasAny ? '该月份暂无消费记录' : '还没有消费记录';
+    document.getElementById('expenses-empty-sub').style.display = hasAny ? 'none' : '';
+    document.getElementById('expenses-empty-demo').style.display = hasAny ? 'none' : '';
   } else {
     empty.style.display = 'none';
     list.style.display = '';
-    let sorted = [...state.expenses];
+    let sorted = [...filtered];
     if (expenseSortBy) {
       sorted.sort((a, b) => {
         let va = a[expenseSortBy], vb = b[expenseSortBy];
@@ -2353,7 +2485,8 @@ function renderExpenses() {
     }).join('');
   }
 
-  const total = state.expenses.reduce((s, e) => s + e.amount, 0);
+  // 总计跟随筛选变化
+  const total = filtered.reduce((s, e) => s + e.amount, 0);
   document.getElementById('expense-total').textContent = formatCNY(total);
 }
 
@@ -2756,6 +2889,29 @@ function setExpenseTrendMode(mode) {
   renderExpenseTrendChart();
 }
 
+// ========== EXPECTATION (消费趋势参考线) ==========
+function openExpectationModal() {
+  document.getElementById('expectation-input').value = state.expenseExpectation || '';
+  document.getElementById('expectation-modal').style.display = '';
+  setTimeout(() => document.getElementById('expectation-input').focus(), 100);
+}
+function saveExpectation() {
+  const v = parseFloat(document.getElementById('expectation-input').value);
+  if (!v || v <= 0) { toast('请输入有效的预期消费金额', 'error'); return; }
+  state.expenseExpectation = v;
+  saveState();
+  closeModal('expectation-modal');
+  renderExpenseTrendChart();
+  toast('预期消费已设置', 'success');
+}
+function clearExpectation() {
+  state.expenseExpectation = 0;
+  saveState();
+  closeModal('expectation-modal');
+  renderExpenseTrendChart();
+  toast('已清除预期消费', 'success');
+}
+
 function renderExpenseTrendChart() {
   const catId = document.getElementById('expense-trend-category-select').value;
   const chartEl = document.getElementById('expense-trend-chart');
@@ -2772,6 +2928,7 @@ function renderExpenseTrendChart() {
   emptyEl.style.display = 'none';
 
   const th = chartTheme();
+  const expectation = state.expenseExpectation || 0;
   const monthMap = {};
   state.expenses.forEach(e => {
     const m = e.date.slice(0, 7);
@@ -2818,6 +2975,7 @@ function renderExpenseTrendChart() {
 
   // 透明「合计」系列：仅用于在堆叠柱顶部展示当前可见各项之和
   // 不占高度、不参与图例，随 legend 选中状态实时重算
+  // 金额模式下叠加「预期消费」水平参考线, 超线月份的柱顶 label 标红加 ▲
   const totalSeries = expenseTrendMode === 'value' ? [{
     name: '__total__', type: 'bar', stack: 'total',
     data: sorted.map(() => 0),
@@ -2833,12 +2991,37 @@ function renderExpenseTrendChart() {
         const m = sorted[p.dataIndex];
         const visTotal = cat.tags.reduce((s, tag) =>
           selected[tag] === false ? s : s + (monthMap[m][tag] || 0), 0);
+        if (expectation > 0 && visTotal > expectation) {
+          return '{red|▲ ' + formatCNY(visTotal) + '}';
+        }
         return formatCNY(visTotal);
+      },
+      rich: {
+        red: { color: '#b85450', fontFamily: '"IBM Plex Mono", monospace', fontSize: 11, fontWeight: 600 },
       },
       fontFamily: '"IBM Plex Mono", monospace',
       fontSize: 11,
       color: th.muted,
     },
+    // 预期消费参考线（仅金额模式；占比模式 y 轴为百分比, 不显示）
+    markLine: expectation > 0 ? {
+      silent: true,
+      symbol: ['none', 'none'],
+      lineStyle: { color: '#b4841a', type: 'dashed', width: 1.5 },
+      label: {
+        formatter: '预期 ' + formatCNY(expectation) + '/月',
+        position: 'insideEndTop',
+        color: th.fg,
+        fontSize: 11,
+        fontFamily: '"IBM Plex Mono", monospace',
+        backgroundColor: th.card,
+        borderColor: th.line,
+        borderWidth: 1,
+        borderRadius: 3,
+        padding: [2, 6],
+      },
+      data: [{ yAxis: expectation }],
+    } : undefined,
   }] : [];
 
   const series = tagSeries.concat(totalSeries);
