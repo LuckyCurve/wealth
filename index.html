@@ -215,7 +215,16 @@ tailwind.config = {
   .composition-rule .seg-other { background: var(--rule); }
   .composition-legend { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
   .composition-legend .dot { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 5px; transform: translateY(0px); }
-  .target-progress { height: 6px; border-radius: 3px; background: var(--bg-2); border: 1px solid var(--border); overflow: hidden; }
+  /* 涨跌徽章（历史净值环比 / 目标达成） */
+  .mo-badge { display: inline-flex; align-items: center; padding: 1px 7px; border-radius: 4px; font-size: 11px; font-weight: 600; font-family: 'IBM Plex Mono', monospace; border: 1px solid; line-height: 1.6; white-space: nowrap; }
+  .mo-badge.up { background: #e8f5ec; color: #3d7a52; border-color: #b8dfc4; }
+  .mo-badge.down { background: #fce8e0; color: #b05540; border-color: #f0c8b8; }
+  .mo-badge.first { background: var(--bg-2); color: var(--muted); border-color: var(--border); }
+  .dark .mo-badge.up { background: #1c2a20; color: #7ba995; border-color: #2d4435; }
+  .dark .mo-badge.down { background: #2a1c1a; color: #d98a86; border-color: #4a2c2a; }
+  .dark .mo-badge.first { background: var(--card-2); color: var(--muted); border-color: var(--border); }
+  /* 目标进度条（带刻度标尺, 呼应 masthead 构成条） */
+  .target-progress { height: 7px; border-radius: 3px; background: repeating-linear-gradient(90deg, var(--border) 0 1px, transparent 1px 25%), var(--bg-2); border: 1px solid var(--border); overflow: hidden; }
   .target-progress-fill { height: 100%; border-radius: 3px; transition: width 0.4s ease; }
   @media (max-width: 640px) {
     .masthead { padding: 24px 20px 22px; }
@@ -440,7 +449,7 @@ tailwind.config = {
         <div>
           <span class="eyebrow">月度消费</span>
           <h2 class="font-display">消费记录</h2>
-          <p class="sub">总计 <span id="expense-total" class="tabular font-medium" style="color: var(--accent);">¥0</span> CNY</p>
+          <p class="sub" id="expense-total-line"></p>
         </div>
         <div class="flex items-center gap-3">
           <select id="expense-month-filter" onchange="renderExpenses()" class="text-sm" style="min-width:130px;"></select>
@@ -1165,12 +1174,16 @@ function renderMasthead(total) {
     const pct = Math.min(100, total / target * 100);
     const achieved = total >= target;
     const fillColor = achieved ? 'var(--verdigris)' : (pct >= 90 ? 'var(--accent)' : 'var(--accent-soft)');
+    const gap = achieved
+      ? '<span class="mo-badge up">目标已达成</span>'
+      : `<span class="tabular" style="color:var(--accent);">还差 ${formatCNY(target - total)}</span>`;
     targetEl.innerHTML = `
       <div class="flex items-center justify-between text-xs mb-1" style="color:var(--muted);">
-        <span>目标净资产</span>
+        <span>目标净资产 · <span class="tabular" style="color:var(--fg);opacity:0.85;">${pct.toFixed(0)}%</span></span>
         <span class="flex items-center gap-2">
-          <span class="tabular">${formatCNY(total)} / ${formatCNY(target)}${achieved ? ' · 🎉 已达成' : ' · ' + pct.toFixed(0) + '%'}</span>
-          <button onclick="openTargetModal()" class="btn-ghost" style="padding:2px 8px;font-size:10px;">调整</button>
+          <span class="tabular" style="color:var(--fg);opacity:0.85;">${formatCNY(total)} / ${formatCNY(target)}</span>
+          ${gap}
+          <button onclick="openTargetModal()" class="btn-ghost" style="padding:2px 8px;font-size:10px;">修改</button>
         </span>
       </div>
       <div class="target-progress"><div class="target-progress-fill" style="width:${pct}%;background:${fillColor};"></div></div>`;
@@ -1178,7 +1191,7 @@ function renderMasthead(total) {
     targetEl.style.display = 'none';
   } else {
     targetEl.style.display = '';
-    targetEl.innerHTML = `<button onclick="openTargetModal()" class="btn-ghost text-xs" style="padding:4px 12px;">🎯 设置目标净资产</button>`;
+    targetEl.innerHTML = `<button onclick="openTargetModal()" class="btn-ghost text-xs" style="padding:4px 12px;">设定目标</button>`;
   }
 
   // sub line: asset count only
@@ -1195,11 +1208,12 @@ function openTargetModal() {
 function saveTarget() {
   const v = parseFloat(document.getElementById('target-input').value);
   if (!v || v <= 0) { toast('请输入有效的目标金额', 'error'); return; }
+  const hadTarget = (state.netWorthTarget || 0) > 0;
   state.netWorthTarget = v;
   saveState();
   closeModal('target-modal');
   renderAssets(); // 刷新 masthead 进度
-  toast('目标已设置', 'success');
+  toast(hadTarget ? '目标已更新' : '目标已设置', 'success');
 }
 function clearTarget() {
   state.netWorthTarget = 0;
@@ -1876,23 +1890,26 @@ function renderHistoryTab() {
   if (state.snapshots.length === 0) { list.innerHTML = ''; return; }
   list.innerHTML = [...state.snapshots].sort((a, b) => b.month.localeCompare(a.month)).map(s => {
     const prev = getPrevSnapshot(s.month);
-    let moM;
+    let badge = '', diffLine = '';
     if (!prev) {
-      moM = '<span style="color:var(--muted);">首月快照</span>';
+      badge = '<span class="mo-badge first">首月</span>';
     } else if ((prev.totalCNY || 0) === 0) {
-      moM = '<span style="color:var(--verdigris);">新增</span>';
+      badge = '<span class="mo-badge up">新增</span>';
     } else {
       const diff = (s.totalCNY || 0) - (prev.totalCNY || 0);
       const pct = diff / prev.totalCNY * 100;
-      const color = diff >= 0 ? 'var(--verdigris)' : '#b85450';
-      const sign = diff >= 0 ? '+' : '';
-      moM = `<span style="color:${color};">较上月 ${sign}${formatCNY(diff)}（${sign}${pct.toFixed(1)}%）</span>`;
+      const up = diff >= 0;
+      const sign = up ? '+' : '';
+      badge = `<span class="mo-badge ${up ? 'up' : 'down'}" title="较上月 ${sign}${formatCNY(diff)}（${sign}${pct.toFixed(1)}%）">${up ? '▲' : '▼'} ${sign}${pct.toFixed(1)}%</span>`;
+      diffLine = `<span style="color:${up ? 'var(--verdigris)' : '#b85450'};">较上月 ${sign}${formatCNY(diff)}</span>`;
     }
     return `<div class="card flex items-center justify-between">
       <div class="flex-1 cursor-pointer" onclick="viewSnapshot('${jsAttr(s.month)}')">
-        <div class="font-medium text-sm">${monthLabel(s.month)}</div>
-        <div class="text-xs" style="color:var(--muted);">${esc(s.note) || '无备注'} · ${formatCNY(s.totalCNY)} · ${(s.assets || []).length} 项资产</div>
-        <div class="text-xs mt-0.5">${moM}</div>
+        <div class="flex items-center gap-2">
+          <span class="font-medium text-sm">${monthLabel(s.month)}</span>
+          ${badge}
+        </div>
+        <div class="text-xs mt-0.5" style="color:var(--muted);">${esc(s.note) || '无备注'} · ${formatCNY(s.totalCNY)} · ${(s.assets || []).length} 项资产${diffLine ? ' · ' + diffLine : ''}</div>
       </div>
       <button onclick="deleteSnapshot('${jsAttr(s.month)}')" class="btn-danger" style="padding:3px 8px;font-size:11px;">删除</button>
     </div>`;
@@ -2489,9 +2506,11 @@ function renderExpenses() {
     }).join('');
   }
 
-  // 总计跟随筛选变化
+  // 合计跟随筛选变化: 默认「合计」, 筛选后显示月份名
   const total = filtered.reduce((s, e) => s + e.amount, 0);
-  document.getElementById('expense-total').textContent = formatCNY(total);
+  const totalLabel = expenseMonthFilter ? monthLabel(expenseMonthFilter) : '合计';
+  document.getElementById('expense-total-line').innerHTML =
+    `${totalLabel} · <span class="tabular font-medium" style="color:var(--accent);">${formatCNY(total)}</span> · ${filtered.length} 笔`;
 }
 
 function openExpenseModal(editId) {
@@ -2902,11 +2921,12 @@ function openExpectationModal() {
 function saveExpectation() {
   const v = parseFloat(document.getElementById('expectation-input').value);
   if (!v || v <= 0) { toast('请输入有效的预期消费金额', 'error'); return; }
+  const hadValue = (state.expenseExpectation || 0) > 0;
   state.expenseExpectation = v;
   saveState();
   closeModal('expectation-modal');
   renderExpenseTrendChart();
-  toast('预期消费已设置', 'success');
+  toast(hadValue ? '预期消费已更新' : '预期消费已设置', 'success');
 }
 function clearExpectation() {
   state.expenseExpectation = 0;
@@ -2917,6 +2937,16 @@ function clearExpectation() {
 }
 
 function renderExpenseTrendChart() {
+  // 预期消费按钮状态化: 未设置 →「设定预期」, 已设置 → 显示当前值
+  const expBtn = document.getElementById('expense-expectation-btn');
+  if (expBtn) {
+    const exp = state.expenseExpectation || 0;
+    expBtn.textContent = exp > 0
+      ? '预期 ¥' + exp.toLocaleString('zh-CN', { maximumFractionDigits: 0 })
+      : '设定预期';
+    expBtn.style.color = exp > 0 ? 'var(--accent)' : '';
+  }
+
   const catId = document.getElementById('expense-trend-category-select').value;
   const chartEl = document.getElementById('expense-trend-chart');
   const emptyEl = document.getElementById('expense-trend-empty');
