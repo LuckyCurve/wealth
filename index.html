@@ -15,8 +15,13 @@
 </script>
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;700;900&family=IBM+Plex+Mono:wght@300;400;500;600&family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+<!-- 字体走 Google 官方大陆端点 fonts.googleapis.cn / fonts.gstatic.cn（国内 CDN，比直连 gstatic.com 快且稳）。
+     子集化按 unicode-range 按需下载，仅取页面实际用到的字重；display=swap 保证字体未就绪时先用系统字体渲染。
+     media=print + onload 让字体 CSS 不阻塞首屏——CDN 再慢页面也会立即显示。 -->
+<link rel="preconnect" href="https://fonts.googleapis.cn">
+<link rel="preconnect" href="https://fonts.gstatic.cn" crossorigin>
+<link href="https://fonts.googleapis.cn/css2?family=Noto+Serif+SC:wght@400;700&family=IBM+Plex+Mono:wght@400;500;600&family=Cormorant+Garamond:wght@400;500;600&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<noscript><link rel="stylesheet" href="https://fonts.googleapis.cn/css2?family=Noto+Serif+SC:wght@400;700&family=IBM+Plex+Mono:wght@400;500;600&family=Cormorant+Garamond:wght@400;500;600&display=swap"></noscript>
 <script>
 tailwind.config = {
   theme: {
@@ -824,6 +829,11 @@ let sortDir = 'asc';
     // dark class 已在 <head> 内联脚本提前设置（避免暗色用户首屏闪烁），这里只需同步图标
     if (document.documentElement.classList.contains('dark')) {
       document.getElementById('dark-toggle').textContent = '☾';
+    }
+    // 字体 CSS 是异步加载（media=print 技巧），canvas 图表初次渲染可能用了回退字体；
+    // 字体就绪后重绘当前可见图表，保证标签/数字渲染一致。
+    if (document.fonts && document.fonts.ready) {
+      document.fonts.ready.then(() => refreshVisibleCharts());
     }
   });
 
