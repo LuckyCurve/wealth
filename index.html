@@ -79,6 +79,8 @@ tailwind.config = {
   .dark .card { border-color: var(--border); }
   .sort-indicator { margin-left: 2px; font-size: 10px; color: var(--muted); }
   .sort-indicator.active { color: var(--accent); }
+  /* 可点击行/表头禁用文字选中：快速点击(双击)排序表头时避免浏览器选中文本（<button> 原生即不选中，无需处理） */
+  [onclick]:not(button) { user-select: none; -webkit-user-select: none; }
   * { box-sizing: border-box; }
   html { -webkit-text-size-adjust: 100%; }
   body { background: var(--bg); color: var(--fg); font-family: 'IBM Plex Mono', monospace; font-feature-settings: 'tnum' 1; }
