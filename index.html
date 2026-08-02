@@ -1558,6 +1558,25 @@ function chartTheme() {
   };
 }
 
+// 旭日图标签截断：长名称以省略号收尾，完整内容 hover 时由 tooltip 展示
+// 标签字体为等宽体（IBM Plex Mono + CJK 回退），按字符像素宽度估算：拉丁 0.6em、CJK 1em
+function truncateLabel(name, fontSize, maxPx) {
+  name = String(name == null ? '' : name);
+  const cw = ch => (ch.codePointAt(0) > 0xFF ? fontSize : fontSize * 0.6);
+  let px = 0;
+  for (const ch of name) px += cw(ch);
+  if (px <= maxPx) return name;
+  let out = '';
+  px = 0;
+  for (const ch of name) {
+    const w = cw(ch);
+    if (px + w + fontSize > maxPx) break; // 预留省略号「…」宽度
+    out += ch;
+    px += w;
+  }
+  return out + '…';
+}
+
 // ========== CHART ==========
 function populateChartSelect() {
   const sel = document.getElementById('chart-category-select');
@@ -1636,14 +1655,14 @@ function renderChart() {
           r0: '12%', r: '50%',
           itemStyle: { borderWidth: 2, borderColor: th.card },
           label: { rotate: 'tangential', fontSize: 13, fontWeight: 600, fontFamily: '"IBM Plex Mono", monospace', color: '#fff',
-            formatter: function(p) { return p.name; }
+            formatter: function(p) { return truncateLabel(p.name, 13, 132); }
           }
         },
         {
           r0: '50%', r: '90%',
           itemStyle: { borderWidth: 1, borderColor: th.card },
           label: { rotate: 'radial', fontSize: 11, fontFamily: '"IBM Plex Mono", monospace', color: '#211b10',
-            formatter: function(p) { return p.name; }
+            formatter: function(p) { return truncateLabel(p.name, 11, 96); }
           }
         }
       ]
@@ -2162,14 +2181,14 @@ function renderIncomeChart() {
           r0: '12%', r: '50%',
           itemStyle: { borderWidth: 2, borderColor: th.card },
           label: { rotate: 'tangential', fontSize: 13, fontWeight: 600, fontFamily: '"IBM Plex Mono", monospace', color: '#fff',
-            formatter: function(p) { return p.name; }
+            formatter: function(p) { return truncateLabel(p.name, 13, 132); }
           }
         },
         {
           r0: '50%', r: '90%',
           itemStyle: { borderWidth: 1, borderColor: th.card },
           label: { rotate: 'radial', fontSize: 11, fontFamily: '"IBM Plex Mono", monospace', color: '#211b10',
-            formatter: function(p) { return p.name; }
+            formatter: function(p) { return truncateLabel(p.name, 11, 96); }
           }
         }
       ]
@@ -2984,14 +3003,14 @@ function renderExpenseChart() {
           r0: '12%', r: '50%',
           itemStyle: { borderWidth: 2, borderColor: th.card },
           label: { rotate: 'tangential', fontSize: 13, fontWeight: 600, fontFamily: '"IBM Plex Mono", monospace', color: '#fff',
-            formatter: function(p) { return p.name; }
+            formatter: function(p) { return truncateLabel(p.name, 13, 132); }
           }
         },
         {
           r0: '50%', r: '90%',
           itemStyle: { borderWidth: 1, borderColor: th.card },
           label: { rotate: 'radial', fontSize: 11, fontFamily: '"IBM Plex Mono", monospace', color: '#211b10',
-            formatter: function(p) { return p.name; }
+            formatter: function(p) { return truncateLabel(p.name, 11, 96); }
           }
         }
       ]
