@@ -1723,6 +1723,8 @@ function confirmSnapshot(overwrite) {
 
   saveState();
   renderAll();
+  // 快照数据变化后立即重绘历史净值柱状图，无需重新进入 Tab 或刷新页面
+  setTimeout(() => renderHistoryChart(), 100);
 }
 
 function renderHistoryHeader() {
@@ -1759,6 +1761,7 @@ function deleteSnapshot(month) {
     state.snapshots = state.snapshots.filter(s => s.month !== month);
     saveState();
     renderHistoryTab();
+    setTimeout(() => renderHistoryChart(), 100);
     toast('快照已删除', 'success');
   });
 }
