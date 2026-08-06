@@ -51,6 +51,7 @@ tailwind.config = {
     --accent: #b4841a;
     --accent-soft: #d9b25e;
     --verdigris: #4f7d6a;
+    --down: #b85450;
     --card: #fffcf3;
     --card-2: #faf3e2;
     --border: #e2d8bd;
@@ -66,6 +67,7 @@ tailwind.config = {
     --accent: #d9b25e;
     --accent-soft: #e6c982;
     --verdigris: #7ba995;
+    --down: #d98a86;
     --card: #211b10;
     --card-2: #2a2214;
     --border: #3a301d;
@@ -280,6 +282,9 @@ tailwind.config = {
   .target-panel { background: var(--card-2); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; }
   .target-progress { height: 10px; border-radius: 4px; background: repeating-linear-gradient(90deg, var(--border) 0 1px, transparent 1px 25%), var(--bg-2); border: 1px solid var(--border); overflow: hidden; }
   .target-progress-fill { height: 100%; border-radius: 3px; transition: width 0.4s ease; }
+  /* 快照对比：每行变动量条（账本刻度语言, 一眼看出谁推动了净值变化） */
+  .cmp-bar-track { height: 3px; border-radius: 2px; background: var(--bg-2); margin-top: 4px; overflow: hidden; }
+  .cmp-bar { height: 100%; border-radius: 2px; }
   @media (max-width: 640px) {
     .masthead { padding: 24px 20px 22px; }
     .masthead-amount { font-size: clamp(34px, 12vw, 48px); }
@@ -609,14 +614,21 @@ tailwind.config = {
 <div id="compare-modal" class="modal-overlay" style="display:none;">
   <div class="modal-content" style="max-width:960px;">
     <h3 class="font-display modal-title mb-4">快照对比</h3>
-    <div class="flex items-center gap-4 flex-wrap mb-4">
-      <label class="text-xs font-medium" style="color:var(--muted);letter-spacing:0.04em;">基准月
+    <div class="flex items-center gap-3 flex-wrap mb-6">
+      <label class="text-xs font-medium" style="color:var(--muted);letter-spacing:0.04em;">起始月
         <select id="compare-base-select" onchange="renderCompareTable()" class="text-sm ml-2" style="min-width:130px;"></select>
       </label>
-      <label class="text-xs font-medium" style="color:var(--muted);letter-spacing:0.04em;">对比月
+      <span class="text-sm" style="color:var(--muted);">→</span>
+      <label class="text-xs font-medium" style="color:var(--muted);letter-spacing:0.04em;">结束月
         <select id="compare-target-select" onchange="renderCompareTable()" class="text-sm ml-2" style="min-width:130px;"></select>
       </label>
-      <div id="compare-summary" class="text-sm"></div>
+    </div>
+    <div class="flex items-end justify-between gap-4 flex-wrap pb-5 mb-5" style="border-bottom:1px solid var(--rule);">
+      <div>
+        <span class="masthead-eyebrow">总净值变动</span>
+        <p id="compare-hero" class="font-masthead tabular" style="font-size:36px;line-height:1.1;font-weight:500;">—</p>
+      </div>
+      <p id="compare-context" class="text-xs text-right" style="color:var(--muted);padding-bottom:6px;"></p>
     </div>
     <p class="text-xs mb-2" style="color:var(--muted);">金额按各快照当时汇率折算为 CNY</p>
     <div id="compare-detail-content" style="overflow-x:auto;"></div>
@@ -1910,17 +1922,26 @@ function renderCompareTable() {
   const compSnap = state.snapshots.find(s => s.month === document.getElementById('compare-target-select').value);
   if (!baseSnap || !compSnap) return;
   const container = document.getElementById('compare-detail-content');
-  const summary = document.getElementById('compare-summary');
+  const heroEl = document.getElementById('compare-hero');
+  const ctxEl = document.getElementById('compare-context');
 
   const cnyAt = (snap, a) => (a.amount || 0) * ((snap.currencyRates || {})[a.currency] || 1);
   const baseTotal = baseSnap.totalCNY || baseSnap.assets.reduce((s, a) => s + cnyAt(baseSnap, a), 0);
   const compTotal = compSnap.totalCNY || compSnap.assets.reduce((s, a) => s + cnyAt(compSnap, a), 0);
   const diff = compTotal - baseTotal;
   const up = diff >= 0;
-  const sign = up ? '+' : '';
-  const pct = baseTotal > 0 ? diff / baseTotal * 100 : 0;
-  summary.innerHTML = `${monthLabel(baseSnap.month)} → ${monthLabel(compSnap.month)} · 总净值 <span class="tabular">${formatCNY(baseTotal)}</span> → <span class="tabular">${formatCNY(compTotal)}</span>
-    <span class="mo-badge ${up ? 'up' : 'down'}">${up ? '▲' : '▼'} ${sign}${formatCNY(diff)} (${sign}${pct.toFixed(1)}%)</span>`;
+  const sign = up ? '+' : '-';
+  if (diff === 0) {
+    heroEl.style.color = 'var(--muted)';
+    heroEl.innerHTML = `±${formatCNY(0)} (0.00%)`;
+  } else {
+    const heroPct = baseTotal > 0
+      ? `<span style="font-family:'IBM Plex Mono',monospace;font-size:14px;color:var(--muted);font-weight:400;"> (${sign}${(Math.abs(diff) / baseTotal * 100).toFixed(2)}%)</span>`
+      : '';
+    heroEl.style.color = up ? 'var(--verdigris)' : 'var(--down)';
+    heroEl.innerHTML = `${up ? '▲' : '▼'} ${sign}${formatCNY(Math.abs(diff))}${heroPct}`;
+  }
+  ctxEl.textContent = `${monthLabel(baseSnap.month)} ${formatCNY(baseTotal)} → ${monthLabel(compSnap.month)} ${formatCNY(compTotal)}`;
 
   const baseMap = new Map((baseSnap.assets || []).map(a => [a.id, a]));
   const compMap = new Map((compSnap.assets || []).map(a => [a.id, a]));
@@ -1942,23 +1963,31 @@ function renderCompareTable() {
     return;
   }
 
-  const color = (v, isPct) => v > 0 ? 'var(--verdigris)' : (v < 0 ? '#b85450' : 'var(--muted)');
+  const color = v => v > 0 ? 'var(--verdigris)' : (v < 0 ? 'var(--down)' : 'var(--muted)');
   const fmt = v => v.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const maxAbs = Math.max(...rows.map(r => Math.abs(r.d)), 1);
   container.innerHTML = `
-    <div class="asset-row text-xs font-medium" style="color:var(--muted);border-bottom:1px solid var(--border);grid-template-columns:2fr 1.2fr 1.2fr 1.4fr 1fr;">
-      <div>名称</div><div>基准金额</div><div>对比金额</div><div>变动</div><div>变动 %</div>
+    <div class="asset-row text-xs font-medium" style="color:var(--muted);border-bottom:1px solid var(--border);grid-template-columns:2fr 1.2fr 1.2fr 1.5fr 1fr;">
+      <div>资产</div><div>期初</div><div>期末</div><div>变动</div><div>变动 %</div>
     </div>
     ${rows.map(r => {
       const badge = r.status === 'new' ? '<span class="mo-badge up">新增</span>'
         : r.status === 'gone' ? '<span class="mo-badge down">移除</span>' : '';
       const s = r.d >= 0 ? '+' : '';
       const pctCell = r.p == null ? '<span style="color:var(--muted);">—</span>'
-        : `<span class="tabular" style="color:${color(r.d, true)};">${s}${r.p.toFixed(1)}%</span>`;
-      return `<div class="asset-row" style="grid-template-columns:2fr 1.2fr 1.2fr 1.4fr 1fr;">
+        : r.d === 0 ? '<span style="color:var(--muted);">0.00%</span>'
+        : `<span class="tabular" style="color:${color(r.d)};">${s}${r.p.toFixed(1)}%</span>`;
+      const bar = r.d !== 0
+        ? `<div class="cmp-bar-track"><div class="cmp-bar" style="width:${Math.max(3, Math.abs(r.d) / maxAbs * 100).toFixed(1)}%;background:${color(r.d)};"></div></div>`
+        : '';
+      return `<div class="asset-row" style="grid-template-columns:2fr 1.2fr 1.2fr 1.5fr 1fr;">
         <div class="font-medium text-sm flex items-center gap-2">${esc(r.name)}<span class="text-xs" style="color:var(--muted);">${r.cur}</span>${badge}</div>
         <div class="font-mono text-sm tabular" ${r.status === 'new' ? 'style="color:var(--muted);"' : ''}>${r.av > 0 ? fmt(r.av) : '—'}</div>
         <div class="font-mono text-sm tabular" ${r.status === 'gone' ? 'style="color:var(--muted);"' : ''}>${r.bv > 0 ? fmt(r.bv) : '—'}</div>
-        <div class="font-mono text-sm tabular" style="color:${color(r.d, false)};">${r.d === 0 ? '±0' : `${s}${fmt(r.d)}`}</div>
+        <div class="text-sm" style="color:${color(r.d)};">
+          <div class="font-mono tabular">${r.d === 0 ? '±0' : `${s}${fmt(r.d)}`}</div>
+          ${bar}
+        </div>
         ${pctCell}
       </div>`;
     }).join('')}`;
