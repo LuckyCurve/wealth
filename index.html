@@ -1655,6 +1655,7 @@ function renderChart() {
           r0: '12%', r: '50%',
           itemStyle: { borderWidth: 2, borderColor: th.card },
           label: { rotate: 'tangential', fontSize: 13, fontWeight: 600, fontFamily: '"IBM Plex Mono", monospace', color: '#fff',
+            minAngle: 12, // 扇区小于 12°(≈3.3%) 时隐藏标签，避免碎片文字堆叠；hover 仍会显示
             formatter: function(p) { return truncateLabel(p.name, 13, 132); }
           }
         },
@@ -1662,6 +1663,7 @@ function renderChart() {
           r0: '50%', r: '90%',
           itemStyle: { borderWidth: 1, borderColor: th.card },
           label: { rotate: 'radial', fontSize: 11, fontFamily: '"IBM Plex Mono", monospace', color: '#211b10',
+            minAngle: 8, // 扇区小于 8°(≈2.2%) 时隐藏标签
             formatter: function(p) { return truncateLabel(p.name, 11, 96); }
           }
         }
@@ -2184,6 +2186,7 @@ function renderIncomeChart() {
           r0: '12%', r: '50%',
           itemStyle: { borderWidth: 2, borderColor: th.card },
           label: { rotate: 'tangential', fontSize: 13, fontWeight: 600, fontFamily: '"IBM Plex Mono", monospace', color: '#fff',
+            minAngle: 12, // 扇区小于 12°(≈3.3%) 时隐藏标签，避免碎片文字堆叠；hover 仍会显示
             formatter: function(p) { return truncateLabel(p.name, 13, 132); }
           }
         },
@@ -2191,6 +2194,7 @@ function renderIncomeChart() {
           r0: '50%', r: '90%',
           itemStyle: { borderWidth: 1, borderColor: th.card },
           label: { rotate: 'radial', fontSize: 11, fontFamily: '"IBM Plex Mono", monospace', color: '#211b10',
+            minAngle: 8, // 扇区小于 8°(≈2.2%) 时隐藏标签
             formatter: function(p) { return truncateLabel(p.name, 11, 96); }
           }
         }
@@ -3006,6 +3010,7 @@ function renderExpenseChart() {
           r0: '12%', r: '50%',
           itemStyle: { borderWidth: 2, borderColor: th.card },
           label: { rotate: 'tangential', fontSize: 13, fontWeight: 600, fontFamily: '"IBM Plex Mono", monospace', color: '#fff',
+            minAngle: 12, // 扇区小于 12°(≈3.3%) 时隐藏标签，避免碎片文字堆叠；hover 仍会显示
             formatter: function(p) { return truncateLabel(p.name, 13, 132); }
           }
         },
@@ -3013,6 +3018,7 @@ function renderExpenseChart() {
           r0: '50%', r: '90%',
           itemStyle: { borderWidth: 1, borderColor: th.card },
           label: { rotate: 'radial', fontSize: 11, fontFamily: '"IBM Plex Mono", monospace', color: '#211b10',
+            minAngle: 8, // 扇区小于 8°(≈2.2%) 时隐藏标签
             formatter: function(p) { return truncateLabel(p.name, 11, 96); }
           }
         }
