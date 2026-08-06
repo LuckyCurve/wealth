@@ -1945,8 +1945,9 @@ function renderCompareTable() {
 
   const baseMap = new Map((baseSnap.assets || []).map(a => [a.id, a]));
   const compMap = new Map((compSnap.assets || []).map(a => [a.id, a]));
-  const ids = [...new Set([...baseMap.keys(), ...compMap.keys()])];
-  const rows = ids.map(id => {
+  // 行序对齐起始月快照的记录顺序（拖拽调整的资产顺序在对比中保持一致），新增资产按结束月顺序追加在末尾
+  const orderedIds = [...baseMap.keys(), ...[...compMap.keys()].filter(id => !baseMap.has(id))];
+  const rows = orderedIds.map(id => {
     const a = baseMap.get(id), b = compMap.get(id);
     const av = a ? cnyAt(baseSnap, a) : 0;
     const bv = b ? cnyAt(compSnap, b) : 0;
@@ -1956,7 +1957,7 @@ function renderCompareTable() {
       p: av > 0 ? (bv - av) / av * 100 : null,
       status: !a ? 'new' : (!b ? 'gone' : 'same'),
     };
-  }).sort((x, y) => Math.abs(y.d) - Math.abs(x.d));
+  });
 
   if (rows.length === 0) {
     container.innerHTML = '<p class="text-center py-8 text-sm" style="color:var(--muted);">两个月份均无资产记录</p>';
