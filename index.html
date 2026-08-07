@@ -1899,6 +1899,14 @@ function viewSnapshot(month) {
 }
 
 // ========== SNAPSHOT COMPARE ==========
+// 对比基准默认取「一年前或更早的最近一个快照」，弱化相邻月波动、突出长期跨度；
+// 快照数据不足一年时退回最早快照（最长可用跨度）。
+function defaultCompareBaseMonth(sorted) {
+  const yearAgo = addMonths(sorted[sorted.length - 1].month, -12);
+  const prev = sorted.filter(s => s.month <= yearAgo);
+  return (prev.length ? prev[prev.length - 1] : sorted[0]).month;
+}
+
 function openCompareModal() {
   const sorted = [...state.snapshots].sort((a, b) => a.month.localeCompare(b.month));
   if (sorted.length < 2) { toast('至少需要两个月的快照才能对比', 'error'); return; }
@@ -1910,8 +1918,8 @@ function openCompareModal() {
   const opts = months.map(m => `<option value="${m}">${monthLabel(m)}</option>`).join('');
   baseSel.innerHTML = opts;
   targetSel.innerHTML = opts;
-  // 保留上次选择（有效且两月不同时），否则默认最近两个月
-  baseSel.value = (months.includes(prevBase) && prevBase !== prevTarget) ? prevBase : sorted[sorted.length - 2].month;
+  // 保留上次选择（有效且两月不同时），否则默认最近 vs 一年前（数据不足一年则取最早快照，即最长可用跨度）
+  baseSel.value = (months.includes(prevBase) && prevBase !== prevTarget) ? prevBase : defaultCompareBaseMonth(sorted);
   targetSel.value = (months.includes(prevTarget) && prevTarget !== baseSel.value) ? prevTarget : sorted[sorted.length - 1].month;
   document.getElementById('compare-modal').style.display = '';
   renderCompareTable();
