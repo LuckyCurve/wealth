@@ -105,6 +105,7 @@ interface Expense {
 - **消费趋势** — `expenseExpectation` 设定后作为水平参考线，超线月份的柱顶 label 标红加 ▲；按钮状态化显示「设定预期 / 预期 ¥X」；透明「合计」系列不占高度、随 legend 选中实时重算。趋势下方按月列表 `viewExpenseMonth()` 查看当月明细。
 - **暗色模式** — `toggleDark()` 写 `localStorage['dark-mode']`（`'1'`=暗色、`''`=亮色、`null`=未设置），通过 `document.documentElement.classList.toggle('dark')` 切换 `:root.dark` 下的 CSS 变量。`<head>` 内联脚本在渲染前设置主题：首次访问跟随系统 `prefers-color-scheme`，显式切换后以存储值为准（避免首屏闪烁）。
 - **报头 (masthead) 数字动画** — `renderMasthead()` 用 `requestAnimationFrame` 做缓动滚动数字；`prefers-reduced-motion` 时直接设值。masthead 另含货币构成条 (composition rule/legend) 与目标净资产进度面板。
+- **印刷账页细节** — 报头四角有裁切标记（register ticks，`.masthead::after` 八层渐变）、大数字带压印感 `text-shadow`（亮暗各一套）；卡片有纸张顶缘高光（`--card-edge`）；`.btn-gold` 为压印金属感（顶部受光 + 底部内阴影）；表格列头用 `.list-head` 双线规则（2px `--rule`）+ 0.05em 字距。
 - **旭日图只显示名称** — 数值和百分比在 tooltip 中，标签只展示分类/标签名称（formatter 只返回 `p.name`）。
 - **图表空态** — 所选维度全空或无可选数据时显示空态文案而非空白画布（资产/消费分布、历史净值、消费趋势均如此）。
 - **弹窗关闭** — `closeModal(id)` 统一关闭；ESC 键关闭最上层弹窗；点击遮罩空白处关闭（`mousedown` 记录目标 + overlay click 判断）。

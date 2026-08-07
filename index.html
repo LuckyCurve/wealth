@@ -58,6 +58,7 @@ tailwind.config = {
     --rule: #d8cbab;
     --shadow: rgba(33, 27, 16, 0.07);
     --shadow-lg: rgba(33, 27, 16, 0.12);
+    --card-edge: rgba(255, 255, 255, 0.55);
   }
   :root.dark {
     --bg: #15110a;
@@ -74,6 +75,7 @@ tailwind.config = {
     --rule: #473b28;
     --shadow: rgba(0, 0, 0, 0.4);
     --shadow-lg: rgba(0, 0, 0, 0.55);
+    --card-edge: rgba(255, 255, 255, 0.04);
   }
   .dark .asset-row { border-bottom-color: var(--rule); }
   .dark .asset-row:hover { background: #2a2214; }
@@ -94,6 +96,7 @@ tailwind.config = {
   .font-masthead { font-family: 'Cormorant Garamond', 'Noto Serif SC', serif; font-feature-settings: 'lnum' 1, 'tnum' 1; }
   .tabular { font-variant-numeric: tabular-nums; font-feature-settings: 'tnum' 1; }
   :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+  ::selection { background: rgba(180, 132, 26, 0.28); }
   button:focus-visible, .btn-gold:focus-visible, .btn-ghost:focus-visible, .btn-danger:focus-visible { outline-offset: 2px; }
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; scroll-behavior: auto !important; }
@@ -103,10 +106,11 @@ tailwind.config = {
     color: #211b10; border: 1px solid #8f6713; border-radius: 6px; padding: 8px 20px;
     font-weight: 600; cursor: pointer; transition: filter .15s, box-shadow .15s, transform .05s;
     font-family: 'IBM Plex Mono', monospace; font-size: 13px; letter-spacing: 0.01em;
-    box-shadow: inset 0 1px 0 rgba(255,255,255,0.25), 0 1px 2px var(--shadow);
+    /* 压印金属感: 顶部受光 + 底部内阴影, 取代模板式外发光 */
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.4), inset 0 -1px 0 rgba(33,27,16,0.22), 0 1px 2px var(--shadow);
   }
-  .btn-gold:hover { filter: brightness(1.05); box-shadow: inset 0 1px 0 rgba(255,255,255,0.3), 0 3px 12px rgba(180,132,26,0.28); }
-  .btn-gold:active { transform: translateY(1px); }
+  .btn-gold:hover { filter: brightness(1.04); box-shadow: inset 0 1px 0 rgba(255,255,255,0.45), inset 0 -1px 0 rgba(33,27,16,0.22), 0 2px 10px rgba(180,132,26,0.22); }
+  .btn-gold:active { transform: translateY(1px); box-shadow: inset 0 2px 5px rgba(33,27,16,0.3); }
   .btn-ghost {
     background: transparent; color: var(--muted); border: 1px solid var(--border);
     border-radius: 6px; padding: 8px 20px; cursor: pointer; transition: all 0.15s;
@@ -131,11 +135,12 @@ tailwind.config = {
   .dark .row-btn.danger { color: #d98a86; }
   .dark .row-btn.danger:hover { color: #fff; }
   .card {
-    background: var(--card); border: 1px solid var(--border); border-radius: 10px;
-    box-shadow: 0 1px 3px var(--shadow); padding: 24px; transition: box-shadow 0.2s, border-color 0.2s;
+    background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+    box-shadow: inset 0 1px 0 var(--card-edge), 0 1px 3px var(--shadow); padding: 24px;
+    transition: box-shadow 0.2s, border-color 0.2s;
   }
   .card-interactive { cursor: pointer; }
-  .card-interactive:hover { box-shadow: 0 4px 16px var(--shadow); border-color: var(--accent-soft); }
+  .card-interactive:hover { box-shadow: inset 0 1px 0 var(--card-edge), 0 4px 16px var(--shadow); border-color: var(--accent-soft); }
   input, select {
     font-family: 'IBM Plex Mono', monospace; font-size: 14px; font-variant-numeric: tabular-nums;
     border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px;
@@ -151,7 +156,7 @@ tailwind.config = {
     animation: fadeIn 0.2s ease;
   }
   .modal-content {
-    background: var(--card); border-radius: 14px; padding: 32px;
+    background: var(--card); border-radius: 10px; padding: 32px;
     max-width: 560px; width: 90%; max-height: 85vh; overflow-y: auto;
     box-shadow: 0 20px 60px rgba(0,0,0,0.15); animation: slideUp 0.25s ease;
     border: 1px solid var(--border);
@@ -189,6 +194,8 @@ tailwind.config = {
   .drag-handle:active { cursor: grabbing; }
   .asset-row:hover { background: var(--card-2); }
   .asset-row:last-child { border-bottom: none; }
+  /* 表格列头: 账本收尾双线规则（粗于内容行细线），列头文字加字距 */
+  .list-head { border-bottom: 2px solid var(--rule); letter-spacing: 0.05em; }
   .toast {
     position: fixed; bottom: 24px; right: 24px; z-index: 200;
     padding: 12px 24px; border-radius: 8px; font-size: 13px;
@@ -260,6 +267,24 @@ tailwind.config = {
   }
   .masthead-amount .currency-mark { font-size: 0.42em; color: var(--accent); font-weight: 600; transform: translateY(-0.55em); }
   .masthead-amount .cents { font-size: 0.4em; color: var(--muted); font-weight: 400; }
+  /* 报头四角裁切标记（register ticks）: 像一张刚从印刷版上裁下的账页 */
+  .masthead::after {
+    content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 1;
+    background:
+      linear-gradient(var(--rule), var(--rule)) 12px 10px / 16px 1px no-repeat,
+      linear-gradient(90deg, var(--rule), var(--rule)) 12px 10px / 1px 16px no-repeat,
+      linear-gradient(var(--rule), var(--rule)) calc(100% - 28px) 10px / 16px 1px no-repeat,
+      linear-gradient(90deg, var(--rule), var(--rule)) calc(100% - 28px) 10px / 1px 16px no-repeat,
+      linear-gradient(var(--rule), var(--rule)) 12px calc(100% - 11px) / 16px 1px no-repeat,
+      linear-gradient(90deg, var(--rule), var(--rule)) 12px calc(100% - 27px) / 1px 16px no-repeat,
+      linear-gradient(var(--rule), var(--rule)) calc(100% - 28px) calc(100% - 11px) / 16px 1px no-repeat,
+      linear-gradient(90deg, var(--rule), var(--rule)) calc(100% - 28px) calc(100% - 27px) / 1px 16px no-repeat;
+  }
+  /* 大数字压印感: 纸面受光凸起的错觉（暗色模式反转为下压阴影） */
+  .masthead-amount {
+    text-shadow: 0 1px 0 rgba(255, 255, 255, 0.45);
+  }
+  .dark .masthead-amount { text-shadow: 0 1px 0 rgba(0, 0, 0, 0.6); }
   .masthead-sub { margin-top: 14px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; font-size: 13px; color: var(--muted); }
   /* Tri-color composition rule: a literal ledger ruling, segments proportional to CNY/HKD/USD */
   .composition-rule { margin-top: 18px; display: flex; height: 5px; border-radius: 3px; overflow: hidden; gap: 2px; }
@@ -380,7 +405,7 @@ tailwind.config = {
     </div>
 
     <div id="assets-list" class="card">
-      <div class="asset-row grid-wide text-xs font-medium" style="color: var(--muted); border-bottom: 1px solid var(--border);">
+      <div class="asset-row grid-wide list-head text-xs font-medium" style="color: var(--muted);">
         <div></div>
         <div onclick="toggleSort('name')" style="cursor:pointer;">名称<span class="sort-indicator" id="sort-name"></span></div>
         <div onclick="toggleSort('amount')" style="cursor:pointer;">金额<span class="sort-indicator" id="sort-amount"></span></div>
@@ -526,7 +551,7 @@ tailwind.config = {
       </div>
 
       <div id="expenses-list" class="card">
-        <div class="asset-row text-xs font-medium" style="color: var(--muted); border-bottom: 1px solid var(--border); grid-template-columns: 1fr 1fr 2fr 1.5fr 130px;">
+        <div class="asset-row list-head text-xs font-medium" style="color: var(--muted); grid-template-columns: 1fr 1fr 2fr 1.5fr 130px;">
           <div onclick="toggleExpenseSort('date')" style="cursor:pointer;">日期<span class="sort-indicator" id="expense-sort-date"></span></div>
           <div onclick="toggleExpenseSort('amount')" style="cursor:pointer;">金额<span class="sort-indicator" id="expense-sort-amount"></span></div>
           <div>备注</div><div>标签</div><div></div>
@@ -1871,7 +1896,7 @@ function viewSnapshot(month) {
   document.getElementById('snapshot-modal-title').textContent = '快照详情';
   document.getElementById('snapshot-detail-content').innerHTML = `
     <p class="text-sm mb-4" style="color:var(--muted);">${monthLabel(snap.month)}${snap.note ? ' — ' + esc(snap.note) : ''} | 总净值: <strong>${formatCNY(snap.totalCNY)}</strong></p>
-    <div class="asset-row text-xs font-medium" style="color:var(--muted);border-bottom:1px solid var(--border);">
+    <div class="asset-row list-head text-xs font-medium" style="color:var(--muted);">
       <div>名称</div><div>金额</div><div>货币</div><div>预期年化</div><div>标签</div>
     </div>
     ${(snap.assets || []).map(a => {
@@ -1976,7 +2001,7 @@ function renderCompareTable() {
   const fmt = v => v.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const maxAbs = Math.max(...rows.map(r => Math.abs(r.d)), 1);
   container.innerHTML = `
-    <div class="asset-row text-xs font-medium" style="color:var(--muted);border-bottom:1px solid var(--border);grid-template-columns:2fr 1.2fr 1.2fr 1.5fr 1fr;">
+    <div class="asset-row list-head text-xs font-medium" style="color:var(--muted);grid-template-columns:2fr 1.2fr 1.2fr 1.5fr 1fr;">
       <div>资产</div><div>期初</div><div>期末</div><div>变动</div><div>变动 %</div>
     </div>
     ${rows.map(r => {
