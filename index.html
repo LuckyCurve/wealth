@@ -242,6 +242,12 @@ tailwind.config = {
   .seg-btn { border: none; background: transparent; color: var(--muted); font-size: 12px; font-family: 'IBM Plex Mono', monospace; padding: 5px 18px; border-radius: 6px; cursor: pointer; transition: background 0.15s, color 0.15s; }
   .seg-btn:hover { color: var(--fg); }
   .seg-btn.active { background: linear-gradient(180deg, #d9b25e, #b4841a); color: #211b10; font-weight: 600; box-shadow: inset 0 1px 0 rgba(255,255,255,0.25), 0 1px 2px var(--shadow); }
+  /* 安全边际因子: 与 seg-control 同语言的参数条, 账页边注式 */
+  .safety-control { display: inline-flex; align-items: center; gap: 8px; padding: 5px 10px; border-radius: 8px; background: var(--bg-2); border: 1px solid var(--border); }
+  .safety-label { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--muted); letter-spacing: 0.08em; }
+  .safety-control input { width: 56px; padding: 4px 8px; font-size: 13px; text-align: right; border-radius: 5px; }
+  .safety-control input.invalid { border-color: var(--down); }
+  .safety-suffix { font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--muted); }
   /* 统一空态（邀请行动） */
   .empty-state { text-align: center; padding: 56px 24px; }
   /* 空账本图标: 账页隐喻, 邀请开始记账 */
@@ -527,9 +533,16 @@ tailwind.config = {
         <p class="sub">按资产金额与预期年利率测算收益</p>
       </div>
     </div>
-    <div id="income-mode-toggle" style="display:none;" class="seg-control mb-4">
-      <button id="income-mode-min" onclick="setIncomeMode('min')" class="seg-btn active">使用最低</button>
-      <button id="income-mode-max" onclick="setIncomeMode('max')" class="seg-btn">使用最高</button>
+    <div class="flex items-center justify-between mb-4 gap-3 flex-wrap">
+      <div id="income-mode-toggle" style="display:none;" class="seg-control">
+        <button id="income-mode-min" onclick="setIncomeMode('min')" class="seg-btn active">使用最低</button>
+        <button id="income-mode-max" onclick="setIncomeMode('max')" class="seg-btn">使用最高</button>
+      </div>
+      <label class="safety-control" for="income-safety-input">
+        <span class="safety-label">安全边际</span>
+        <input id="income-safety-input" type="text" inputmode="decimal" value="100" autocomplete="off" aria-label="安全边际因子（百分比）" oninput="onIncomeSafetyInput()" onkeydown="if(event.key==='Enter')this.blur()" onblur="onIncomeSafetyBlur()">
+        <span class="safety-suffix">%</span>
+      </label>
     </div>
     <div id="income-empty" class="card empty-state">
       <div class="empty-rule"></div>
@@ -556,6 +569,7 @@ tailwind.config = {
     </div>
     <div id="income-table-container" class="card" style="display:none;">
       <div id="income-rows"></div>
+      <p id="income-table-note" class="text-xs mt-3" style="color:var(--muted);display:none;"></p>
     </div>
     <div id="income-chart-container" class="card mt-6" style="display:none;">
       <div class="flex items-center justify-between mb-4">
@@ -912,7 +926,7 @@ tailwind.config = {
 <script>
 // ========== STATE ==========
 const LS_KEY = 'wealth-manager-data';
-let state = { categories: [], assets: [], snapshots: [], rates: { CNY: 1, HKD: 1, USD: 1, fetchedAt: null }, expenseExpectation: 0, netWorthTarget: 0 };
+let state = { categories: [], assets: [], snapshots: [], rates: { CNY: 1, HKD: 1, USD: 1, fetchedAt: null }, expenseExpectation: 0, netWorthTarget: 0, incomeSafetyFactor: 100 };
 let chart = null;
 let historyChart = null;
 let historyChartMode = 'value';
@@ -1026,6 +1040,8 @@ function migrateState() {
   // 用户设置字段（旧数据可能缺失）
   if (state.expenseExpectation == null) state.expenseExpectation = 0;
   if (state.netWorthTarget == null) state.netWorthTarget = 0;
+  if (state.incomeSafetyFactor == null) state.incomeSafetyFactor = 100;
+  state.incomeSafetyFactor = Math.min(100, Math.max(1, Number(state.incomeSafetyFactor) || 100));
   // migrate expectedRate -> expectedRateMin/Max (only if new fields not present)
   state.assets.forEach(a => {
     if (a.expectedRate != null && a.expectedRateMin == null) {
@@ -2292,14 +2308,45 @@ function getAssetRate(a, mode) {
   return mode === 'min' ? min : max;
 }
 
+// 安全边际因子: state.incomeSafetyFactor 为百分比 (默认 100 = 不打折), 返回 0.01~1 的折算系数
+function getSafetyFactor() {
+  const f = Number(state.incomeSafetyFactor);
+  if (!isFinite(f) || f <= 0) return 1;
+  return Math.min(1, f / 100);
+}
+
 function calcAssetIncome(a, mode) {
   mode = mode || incomeMode;
   const rate = getAssetRate(a, mode);
   const cny = toCNY(a.amount, a.currency);
-  const annual = cny * rate / 100;
+  const factor = getSafetyFactor();
+  const annual = cny * rate / 100 * factor;
   const monthly = annual / 12;
   const daily = annual / 365;
   return { cny, annual, monthly, daily };
+}
+
+function onIncomeSafetyInput() {
+  const el = document.getElementById('income-safety-input');
+  const raw = el.value.trim();
+  const v = parseFloat(raw);
+  const valid = raw !== '' && isFinite(v) && v >= 1 && v <= 100;
+  el.classList.toggle('invalid', raw !== '' && !valid);
+  if (valid && v !== state.incomeSafetyFactor) {
+    state.incomeSafetyFactor = v;
+    saveState();
+    renderIncomeTab();
+    const total = state.assets.reduce((s, a) => s + toCNY(a.amount, a.currency), 0);
+    renderMasthead(total);
+  }
+}
+
+function onIncomeSafetyBlur() {
+  const el = document.getElementById('income-safety-input');
+  if (el.value.trim() !== String(state.incomeSafetyFactor)) {
+    el.value = String(state.incomeSafetyFactor);
+    el.classList.remove('invalid');
+  }
 }
 
 function setIncomeMode(mode) {
@@ -2314,6 +2361,12 @@ function renderIncomeTab() {
   const summary = document.getElementById('income-summary');
   const table = document.getElementById('income-table-container');
   const chartContainer = document.getElementById('income-chart-container');
+
+  // 安全边际输入框与状态同步（用户输入中不打断）
+  const safetyEl = document.getElementById('income-safety-input');
+  if (document.activeElement !== safetyEl && safetyEl.value !== String(state.incomeSafetyFactor)) {
+    safetyEl.value = String(state.incomeSafetyFactor);
+  }
 
   const hasAnyRate = state.assets.some(a => (a.expectedRateMin ?? a.expectedRate ?? 0) > 0 || (a.expectedRateMax ?? a.expectedRate ?? 0) > 0);
   document.getElementById('income-mode-toggle').style.display = hasAnyRate ? '' : 'none';
@@ -2350,8 +2403,11 @@ function renderIncomeTab() {
   }, 0);
   const totalAssetCNY = assets.reduce((s, a) => s + toCNY(a.amount, a.currency), 0);
   const avgRate = totalAssetCNY > 0 ? (totalWeighted / totalAssetCNY).toFixed(2) : '0.00';
+  const safetyPct = state.incomeSafetyFactor || 100;
+  const discounted = safetyPct < 100;
   document.getElementById('income-summary-footer').textContent =
-    `加权平均利率 ${avgRate}% · 总资产 ${formatCNY(totalCNY)}`;
+    `加权平均利率 ${avgRate}% · 总资产 ${formatCNY(totalCNY)}` +
+    (discounted ? ` · 已按 ${safetyPct}% 安全边际折算` : '');
 
   // --- Table ---
   const sorted = [...state.assets].sort((a, b) => {
@@ -2360,7 +2416,7 @@ function renderIncomeTab() {
   const rows = document.getElementById('income-rows');
   rows.innerHTML = [
     '<div class="asset-row list-head text-xs font-medium" style="color:var(--muted);">',
-    '  <div>名称</div><div>金额 (CNY)</div><div>年利率</div><div>年收益</div><div>月收益</div>',
+    `  <div>名称</div><div>金额 (CNY)</div><div>年利率</div><div>年收益${discounted ? '*' : ''}</div><div>月收益${discounted ? '*' : ''}</div>`,
     '</div>',
     ...sorted.map(a => {
       const inc = calcAssetIncome(a);
@@ -2380,6 +2436,11 @@ function renderIncomeTab() {
       </div>`;
     }).join('')
   ].join('');
+
+  // 安全边际折算表注（账页星注）
+  const noteEl = document.getElementById('income-table-note');
+  noteEl.style.display = discounted ? '' : 'none';
+  noteEl.textContent = discounted ? `* 已按 ${safetyPct}% 安全边际折算` : '';
 
   // --- Chart ---
   populateIncomeChartSelect();
