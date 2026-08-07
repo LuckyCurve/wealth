@@ -155,6 +155,18 @@ tailwind.config = {
   .search-wrap { position: relative; display: inline-block; }
   .search-wrap svg { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); width: 13px; height: 13px; color: var(--muted); pointer-events: none; }
   .search-wrap input { padding-left: 30px; }
+  .search-wrap input.has-clear { padding-right: 30px; }
+  /* 行内清除: 墨色 ×, 悬停转金 */
+  .search-clear {
+    position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
+    width: 22px; height: 22px; border: none; background: transparent; border-radius: 4px;
+    color: var(--muted); font-size: 14px; line-height: 1; cursor: pointer; padding: 0;
+    display: flex; align-items: center; justify-content: center;
+    transition: color 0.15s, background 0.15s;
+  }
+  .search-clear:hover { color: var(--accent); background: var(--card-2); }
+  /* 搜索命中: 金笔划线, 如账本上以金笔勾过的字样, 不覆盖字形 */
+  mark.search-hit { background: linear-gradient(transparent 58%, var(--accent-soft) 58%); color: inherit; padding: 0; }
   .modal-overlay {
     position: fixed; inset: 0; background: rgba(13, 11, 8, 0.5);
     backdrop-filter: blur(4px); z-index: 100; display: flex;
@@ -569,7 +581,8 @@ tailwind.config = {
         <div class="flex items-center gap-3">
           <span class="search-wrap">
             <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><line x1="10.5" y1="10.5" x2="14" y2="14"/></svg>
-            <input type="text" id="expense-search" placeholder="搜索备注 / 标签 / 分类" class="text-sm" style="min-width:180px;" autocomplete="off" oninput="renderExpenses()">
+            <input type="text" id="expense-search" placeholder="搜索备注 / 标签 / 分类" class="text-sm" style="min-width:180px;" autocomplete="off" oninput="renderExpenses()" onkeydown="if(event.key==='Escape')clearExpenseSearch()">
+            <button type="button" id="expense-search-clear" class="search-clear" onclick="clearExpenseSearch()" tabindex="-1" aria-label="清除搜索" style="display:none;">×</button>
           </span>
           <select id="expense-month-filter" onchange="renderExpenses()" class="text-sm" style="min-width:130px;"></select>
           <button onclick="openExpenseModal()" class="btn-gold">＋ 记录消费</button>
@@ -2847,6 +2860,26 @@ function clearExpenseFilters() {
   renderExpenses();
 }
 
+// 输入框内 × / ESC: 仅清除搜索词, 保留月份筛选
+function clearExpenseSearch() {
+  const el = document.getElementById('expense-search');
+  if (el) { el.value = ''; el.focus(); }
+  renderExpenses();
+}
+
+function escRegExp(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+
+// 搜索命中高亮: 先 esc 转义再做不区分大小写替换, 保留原文大小写; 查询词同走 esc 保证 & < > 等字符一致
+function highlightMatch(text, q) {
+  const escaped = esc(text);
+  if (!q) return escaped;
+  try {
+    return escaped.replace(new RegExp(escRegExp(esc(q)), 'gi'), m => `<mark class="search-hit">${m}</mark>`);
+  } catch (e) {
+    return escaped;
+  }
+}
+
 function renderExpenses() {
   const rows = document.getElementById('expenses-rows');
   const empty = document.getElementById('expenses-empty');
@@ -2864,6 +2897,9 @@ function renderExpenses() {
 
   // 月份筛选 + 关键词搜索（互相独立，可叠加）
   const q = expenseSearch.trim().toLowerCase();
+  const searchClear = document.getElementById('expense-search-clear');
+  if (searchClear) searchClear.style.display = q ? '' : 'none';
+  if (searchInput) searchInput.classList.toggle('has-clear', !!q);
   let filtered = state.expenses;
   if (expenseMonthFilter) {
     filtered = filtered.filter(e => (e.date || '').slice(0, 7) === expenseMonthFilter);
@@ -2883,13 +2919,30 @@ function renderExpenses() {
   if (filtered.length === 0) {
     empty.style.display = '';
     list.style.display = 'none';
-    // 区分「完全无数据」「搜索无结果」与「月份无记录」
+    document.getElementById('expenses-empty-clear').style.display = 'none';
+    // 区分「完全无数据」「搜索无结果」与「月份无记录」; 无结果时给出方向而非只报错
     const hasAny = state.expenses.length > 0;
     const hasFilter = !!(q || expenseMonthFilter);
-    document.getElementById('expenses-empty-title').textContent = hasAny ? (q ? '没有匹配的消费记录' : '该月份暂无消费记录') : '还没有消费记录';
-    document.getElementById('expenses-empty-sub').style.display = hasAny ? 'none' : '';
-    document.getElementById('expenses-empty-demo').style.display = hasAny ? 'none' : '';
-    document.getElementById('expenses-empty-clear').style.display = hasAny && hasFilter ? '' : 'none';
+    const rawQ = expenseSearch.trim();
+    const titleEl = document.getElementById('expenses-empty-title');
+    const subEl = document.getElementById('expenses-empty-sub');
+    const demoBtn = document.getElementById('expenses-empty-demo');
+    if (!hasAny) {
+      titleEl.textContent = '还没有消费记录';
+      subEl.style.display = '';
+      subEl.textContent = '点击「记录消费」或导入示例数据开始';
+      demoBtn.style.display = '';
+    } else if (q) {
+      titleEl.textContent = `没有匹配「${rawQ}」的消费记录`;
+      subEl.style.display = '';
+      subEl.textContent = '换个关键词试试，或清除筛选';
+      demoBtn.style.display = 'none';
+    } else {
+      titleEl.textContent = '该月份暂无消费记录';
+      subEl.style.display = 'none';
+      demoBtn.style.display = 'none';
+    }
+    document.getElementById('expenses-empty-clear').style.display = hasFilter ? '' : 'none';
   } else {
     empty.style.display = 'none';
     list.style.display = '';
@@ -2921,12 +2974,12 @@ function renderExpenses() {
         const tagVal = e.tags[cat.id];
         if (!tagVal) return '';
         const c = expenseCatColor(cat.id, tagVal);
-        return `<span class="tag-pill" style="background:${c.bg};color:${c.fg};border-left-color:${c.border};"><span class="tag-key">${esc(cat.name)}</span><span class="tag-val">${esc(tagVal)}</span></span>`;
+        return `<span class="tag-pill" style="background:${c.bg};color:${c.fg};border-left-color:${c.border};"><span class="tag-key">${highlightMatch(cat.name, q)}</span><span class="tag-val">${highlightMatch(tagVal, q)}</span></span>`;
       }).join(' ');
       return `<div class="asset-row" style="grid-template-columns: 1fr 1fr 2fr 1.5fr 130px;">
-        <div class="font-mono text-sm">${e.date}</div>
+        <div class="font-mono text-sm">${highlightMatch(e.date, q)}</div>
         <div class="font-mono text-sm">${e.amount.toLocaleString('zh-CN', {minimumFractionDigits:2, maximumFractionDigits:2})}</div>
-        <div class="text-sm" style="color:var(--muted);">${e.note ? esc(e.note) : '—'}</div>
+        <div class="text-sm" style="color:var(--muted);">${e.note ? highlightMatch(e.note, q) : '—'}</div>
         <div class="flex flex-wrap gap-1">${tagHtml}</div>
         <div class="flex gap-2 justify-end">
           <button onclick="editExpense('${jsAttr(e.id)}')" class="row-btn edit">编辑</button>
@@ -2937,9 +2990,11 @@ function renderExpenses() {
     }).join('');
   }
 
-  // 合计跟随筛选变化: 默认「合计」, 月份筛选后显示月份名, 仅搜索时显示「匹配」
+  // 合计跟随筛选变化: 默认「合计」, 月份筛选后显示月份名, 仅搜索时显示「匹配」, 双筛选显示「月份 匹配」
   const total = filtered.reduce((s, e) => s + e.amount, 0);
-  const totalLabel = expenseMonthFilter ? monthLabel(expenseMonthFilter) : (q ? '匹配' : '合计');
+  const totalLabel = expenseMonthFilter
+    ? monthLabel(expenseMonthFilter) + (q ? ' 匹配' : '')
+    : (q ? '匹配' : '合计');
   document.getElementById('expense-total-line').innerHTML =
     `${totalLabel} · <span class="tabular font-medium" style="color:var(--accent);">${formatCNY(total)}</span> · ${filtered.length} 笔`;
 }
