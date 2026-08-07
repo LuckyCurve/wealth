@@ -151,6 +151,10 @@ tailwind.config = {
   }
   input:focus, select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(180,132,26,0.14); }
   .dark input, .dark select { background: var(--bg-2); }
+  /* 搜索框: 放大镜以墨色线条内嵌, 同表单控件的账页语言 */
+  .search-wrap { position: relative; display: inline-block; }
+  .search-wrap svg { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); width: 13px; height: 13px; color: var(--muted); pointer-events: none; }
+  .search-wrap input { padding-left: 30px; }
   .modal-overlay {
     position: fixed; inset: 0; background: rgba(13, 11, 8, 0.5);
     backdrop-filter: blur(4px); z-index: 100; display: flex;
@@ -563,6 +567,10 @@ tailwind.config = {
           <p class="sub" id="expense-total-line"></p>
         </div>
         <div class="flex items-center gap-3">
+          <span class="search-wrap">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><line x1="10.5" y1="10.5" x2="14" y2="14"/></svg>
+            <input type="text" id="expense-search" placeholder="搜索备注 / 标签 / 分类" class="text-sm" style="min-width:180px;" autocomplete="off" oninput="renderExpenses()">
+          </span>
           <select id="expense-month-filter" onchange="renderExpenses()" class="text-sm" style="min-width:130px;"></select>
           <button onclick="openExpenseModal()" class="btn-gold">＋ 记录消费</button>
         </div>
@@ -572,7 +580,10 @@ tailwind.config = {
         <div class="empty-rule"></div>
         <p id="expenses-empty-title" class="empty-title">还没有消费记录</p>
         <p id="expenses-empty-sub" class="empty-sub">点击「记录消费」或导入示例数据开始</p>
-        <div class="empty-action"><button id="expenses-empty-demo" onclick="loadExpenseDemoData()" class="btn-ghost" style="padding:8px 20px;">导入示例消费数据</button></div>
+        <div class="empty-action">
+          <button id="expenses-empty-demo" onclick="loadExpenseDemoData()" class="btn-ghost" style="padding:8px 20px;">导入示例消费数据</button>
+          <button id="expenses-empty-clear" onclick="clearExpenseFilters()" class="btn-ghost" style="padding:8px 20px; display:none;">清除筛选</button>
+        </div>
       </div>
 
       <div id="expenses-list" class="card">
@@ -2814,6 +2825,7 @@ function toast(msg, type) {
 // ========== EXPENSE CRUD ==========
 // ====== EXPENSE MONTH FILTER ======
 let expenseMonthFilter = '';
+let expenseSearch = '';
 
 // 消费月份下拉：选项从数据自动生成（倒序），保留当前选择
 function populateExpenseMonthFilter() {
@@ -2826,6 +2838,15 @@ function populateExpenseMonthFilter() {
   if (current && sel.querySelector(`option[value="${current}"]`)) sel.value = current;
 }
 
+// 空态「清除筛选」: 重置搜索框与月份下拉
+function clearExpenseFilters() {
+  const monthSel = document.getElementById('expense-month-filter');
+  if (monthSel) monthSel.value = '';
+  const searchInput = document.getElementById('expense-search');
+  if (searchInput) searchInput.value = '';
+  renderExpenses();
+}
+
 function renderExpenses() {
   const rows = document.getElementById('expenses-rows');
   const empty = document.getElementById('expenses-empty');
@@ -2835,24 +2856,44 @@ function renderExpenses() {
   const monthSel = document.getElementById('expense-month-filter');
   if (monthSel) expenseMonthFilter = monthSel.value;
 
+  // 同步搜索状态（输入框 oninput 仅触发 renderExpenses）
+  const searchInput = document.getElementById('expense-search');
+  if (searchInput) expenseSearch = searchInput.value;
+
   populateExpenseMonthFilter();
 
-  // 月份筛选（与排序独立）
-  const filtered = expenseMonthFilter
-    ? state.expenses.filter(e => (e.date || '').slice(0, 7) === expenseMonthFilter)
-    : state.expenses;
+  // 月份筛选 + 关键词搜索（互相独立，可叠加）
+  const q = expenseSearch.trim().toLowerCase();
+  let filtered = state.expenses;
+  if (expenseMonthFilter) {
+    filtered = filtered.filter(e => (e.date || '').slice(0, 7) === expenseMonthFilter);
+  }
+  if (q) {
+    // 匹配：备注 / 日期 / 分类名 / 标签值（不区分大小写）
+    filtered = filtered.filter(e => {
+      if ((e.note || '').toLowerCase().includes(q)) return true;
+      if ((e.date || '').includes(q)) return true;
+      return state.expenseCategories.some(cat => {
+        const tv = e.tags && e.tags[cat.id];
+        return tv ? cat.name.toLowerCase().includes(q) || tv.toLowerCase().includes(q) : false;
+      });
+    });
+  }
 
   if (filtered.length === 0) {
     empty.style.display = '';
     list.style.display = 'none';
-    // 区分「完全无数据」与「筛选月份无记录」
+    // 区分「完全无数据」「搜索无结果」与「月份无记录」
     const hasAny = state.expenses.length > 0;
-    document.getElementById('expenses-empty-title').textContent = hasAny ? '该月份暂无消费记录' : '还没有消费记录';
+    const hasFilter = !!(q || expenseMonthFilter);
+    document.getElementById('expenses-empty-title').textContent = hasAny ? (q ? '没有匹配的消费记录' : '该月份暂无消费记录') : '还没有消费记录';
     document.getElementById('expenses-empty-sub').style.display = hasAny ? 'none' : '';
     document.getElementById('expenses-empty-demo').style.display = hasAny ? 'none' : '';
+    document.getElementById('expenses-empty-clear').style.display = hasAny && hasFilter ? '' : 'none';
   } else {
     empty.style.display = 'none';
     list.style.display = '';
+    document.getElementById('expenses-empty-clear').style.display = 'none';
     let sorted = [...filtered];
     if (expenseSortBy) {
       sorted.sort((a, b) => {
@@ -2896,9 +2937,9 @@ function renderExpenses() {
     }).join('');
   }
 
-  // 合计跟随筛选变化: 默认「合计」, 筛选后显示月份名
+  // 合计跟随筛选变化: 默认「合计」, 月份筛选后显示月份名, 仅搜索时显示「匹配」
   const total = filtered.reduce((s, e) => s + e.amount, 0);
-  const totalLabel = expenseMonthFilter ? monthLabel(expenseMonthFilter) : '合计';
+  const totalLabel = expenseMonthFilter ? monthLabel(expenseMonthFilter) : (q ? '匹配' : '合计');
   document.getElementById('expense-total-line').innerHTML =
     `${totalLabel} · <span class="tabular font-medium" style="color:var(--accent);">${formatCNY(total)}</span> · ${filtered.length} 笔`;
 }
