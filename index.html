@@ -59,6 +59,7 @@ tailwind.config = {
     --shadow: rgba(33, 27, 16, 0.07);
     --shadow-lg: rgba(33, 27, 16, 0.12);
     --card-edge: rgba(255, 255, 255, 0.55);
+    --tick: rgba(33, 27, 16, 0.22);
   }
   :root.dark {
     --bg: #15110a;
@@ -76,6 +77,7 @@ tailwind.config = {
     --shadow: rgba(0, 0, 0, 0.4);
     --shadow-lg: rgba(0, 0, 0, 0.55);
     --card-edge: rgba(255, 255, 255, 0.04);
+    --tick: rgba(236, 228, 208, 0.22);
   }
   .dark .asset-row { border-bottom-color: var(--rule); }
   .dark .asset-row:hover { background: #2a2214; }
@@ -162,6 +164,11 @@ tailwind.config = {
     border: 1px solid var(--border);
   }
   .modal-title { font-size: 22px; font-weight: 700; }
+  /* 章节线: 与 section-head/empty-rule 同一结构语言, 每个弹窗如账页新起一章 */
+  .modal-title::before {
+    content: ''; display: block; width: 28px; height: 2px; border-radius: 1px;
+    background: var(--accent-soft); margin-bottom: 12px;
+  }
   @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
   @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
   .tag-pill {
@@ -200,9 +207,13 @@ tailwind.config = {
     position: fixed; bottom: 24px; right: 24px; z-index: 200;
     padding: 12px 24px; border-radius: 8px; font-size: 13px;
     animation: slideUp 0.25s ease; box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+    font-family: 'IBM Plex Mono', monospace; border: 1px solid;
   }
-  .toast-success { background: #2d5a3d; color: #e0f0e4; }
-  .toast-error { background: #8b2e2b; color: #fde0df; }
+  /* 与 mo-badge 同色系: 提示即一张盖在账页上的便条 */
+  .toast-success { background: #e8f5ec; color: #3d7a52; border-color: #b8dfc4; }
+  .toast-error { background: #fce8e0; color: #b05540; border-color: #f0c8b8; }
+  .dark .toast-success { background: #1c2a20; color: #7ba995; border-color: #2d4435; }
+  .dark .toast-error { background: #2a1c1a; color: #d98a86; border-color: #4a2c2a; }
   .tab-btn {
     padding: 10px 22px; font-size: 13px; border: none; background: transparent;
     color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent;
@@ -217,6 +228,12 @@ tailwind.config = {
   .seg-btn.active { background: linear-gradient(180deg, #d9b25e, #b4841a); color: #211b10; font-weight: 600; box-shadow: inset 0 1px 0 rgba(255,255,255,0.25), 0 1px 2px var(--shadow); }
   /* 统一空态（邀请行动） */
   .empty-state { text-align: center; padding: 56px 24px; }
+  /* 空账本图标: 账页隐喻, 邀请开始记账 */
+  .empty-state::before {
+    content: ''; display: block; width: 36px; height: 36px; margin: 0 auto 14px;
+    color: var(--accent); opacity: 0.55;
+    background: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%20fill='none'%20stroke='currentColor'%20stroke-width='1.4'%20stroke-linecap='round'%20stroke-linejoin='round'%3E%3Cpath%20d='M4%205.5A2.5%202.5%200%200%201%206.5%203H20v15H6.5A2.5%202.5%200%200%200%204%2020.5z'/%3E%3Cpath%20d='M4%205.5v15'/%3E%3Cpath%20d='M8.5%207.5h7M8.5%2011h7M8.5%2014.5h4.5'/%3E%3C/svg%3E") center/contain no-repeat;
+  }
   .empty-state .empty-rule { width: 36px; height: 2px; background: var(--accent-soft); border-radius: 1px; margin: 0 auto 18px; }
   .empty-state .empty-title { color: var(--muted); }
   .empty-state .empty-sub { color: var(--muted); font-size: 13px; margin-top: 6px; }
@@ -287,7 +304,15 @@ tailwind.config = {
   .dark .masthead-amount { text-shadow: 0 1px 0 rgba(0, 0, 0, 0.6); }
   .masthead-sub { margin-top: 14px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; font-size: 13px; color: var(--muted); }
   /* Tri-color composition rule: a literal ledger ruling, segments proportional to CNY/HKD/USD */
-  .composition-rule { margin-top: 18px; display: flex; height: 5px; border-radius: 3px; overflow: hidden; gap: 2px; }
+  .composition-rule { margin-top: 18px; display: flex; height: 5px; border-radius: 3px; overflow: hidden; gap: 2px; position: relative; }
+  /* 25/50/75% 刻度墨线: 构成条本身即比例尺, 刻度给眼睛以测量参照 */
+  .composition-rule::before {
+    content: ''; position: absolute; inset: 0; z-index: 1; pointer-events: none;
+    background:
+      linear-gradient(90deg, var(--tick) 0 100%, transparent 0) 25% 0 / 1px 100% no-repeat,
+      linear-gradient(90deg, var(--tick) 0 100%, transparent 0) 50% 0 / 1px 100% no-repeat,
+      linear-gradient(90deg, var(--tick) 0 100%, transparent 0) 75% 0 / 1px 100% no-repeat;
+  }
   .composition-rule > span { display: block; transition: flex-grow 0.4s ease; }
   .composition-rule .seg-cny { background: var(--accent); }
   .composition-rule .seg-hkd { background: var(--verdigris); }
@@ -407,10 +432,10 @@ tailwind.config = {
     <div id="assets-list" class="card">
       <div class="asset-row grid-wide list-head text-xs font-medium" style="color: var(--muted);">
         <div></div>
-        <div onclick="toggleSort('name')" style="cursor:pointer;">名称<span class="sort-indicator" id="sort-name"></span></div>
-        <div onclick="toggleSort('amount')" style="cursor:pointer;">金额<span class="sort-indicator" id="sort-amount"></span></div>
-        <div onclick="toggleSort('currency')" style="cursor:pointer;">货币<span class="sort-indicator" id="sort-currency"></span></div>
-        <div onclick="toggleSort('cny')" style="cursor:pointer;">金额 (CNY)<span class="sort-indicator" id="sort-cny"></span></div>
+        <div onclick="toggleSort('name')" role="button" tabindex="0" onkeydown="if(event.key==='Enter')toggleSort('name')" style="cursor:pointer;">名称<span class="sort-indicator" id="sort-name"></span></div>
+        <div onclick="toggleSort('amount')" role="button" tabindex="0" onkeydown="if(event.key==='Enter')toggleSort('amount')" style="cursor:pointer;">金额<span class="sort-indicator" id="sort-amount"></span></div>
+        <div onclick="toggleSort('currency')" role="button" tabindex="0" onkeydown="if(event.key==='Enter')toggleSort('currency')" style="cursor:pointer;">货币<span class="sort-indicator" id="sort-currency"></span></div>
+        <div onclick="toggleSort('cny')" role="button" tabindex="0" onkeydown="if(event.key==='Enter')toggleSort('cny')" style="cursor:pointer;">金额 (CNY)<span class="sort-indicator" id="sort-cny"></span></div>
         <div>预期年化</div><div>标签</div><div></div>
       </div>
       <div id="assets-rows" ondragover="onAssetDragOver(event)" ondrop="onAssetDrop(event)"></div>
@@ -552,8 +577,8 @@ tailwind.config = {
 
       <div id="expenses-list" class="card">
         <div class="asset-row list-head text-xs font-medium" style="color: var(--muted); grid-template-columns: 1fr 1fr 2fr 1.5fr 130px;">
-          <div onclick="toggleExpenseSort('date')" style="cursor:pointer;">日期<span class="sort-indicator" id="expense-sort-date"></span></div>
-          <div onclick="toggleExpenseSort('amount')" style="cursor:pointer;">金额<span class="sort-indicator" id="expense-sort-amount"></span></div>
+          <div onclick="toggleExpenseSort('date')" role="button" tabindex="0" onkeydown="if(event.key==='Enter')toggleExpenseSort('date')" style="cursor:pointer;">日期<span class="sort-indicator" id="expense-sort-date"></span></div>
+          <div onclick="toggleExpenseSort('amount')" role="button" tabindex="0" onkeydown="if(event.key==='Enter')toggleExpenseSort('amount')" style="cursor:pointer;">金额<span class="sort-indicator" id="expense-sort-amount"></span></div>
           <div>备注</div><div>标签</div><div></div>
         </div>
         <div id="expenses-rows"></div>
@@ -1796,6 +1821,7 @@ function renderChart() {
       borderColor: th.line,
       borderWidth: 1,
       textStyle: { color: th.fg, fontFamily: '"IBM Plex Mono", monospace', fontSize: 12 },
+      extraCssText: 'border-radius:6px;padding:10px 14px;box-shadow:0 6px 18px rgba(33,27,16,0.14);',
       formatter: function(p) {
         const pct = totalCNY > 0 ? ((p.value / totalCNY) * 100).toFixed(1) : '0.0';
         const arrow = p.treePathInfo && p.treePathInfo.length > 2
@@ -2172,6 +2198,7 @@ function renderHistoryChart() {
       borderColor: th.line,
       borderWidth: 1,
       textStyle: { color: th.fg, fontFamily: '"IBM Plex Mono", monospace', fontSize: 12 },
+      extraCssText: 'border-radius:6px;padding:10px 14px;box-shadow:0 6px 18px rgba(33,27,16,0.14);',
       formatter: function(p) {
         const idx = p.dataIndex;
         const d = dates[idx];
@@ -2308,7 +2335,7 @@ function renderIncomeTab() {
   });
   const rows = document.getElementById('income-rows');
   rows.innerHTML = [
-    '<div class="asset-row text-xs font-medium" style="color:var(--muted);border-bottom:1px solid var(--border);">',
+    '<div class="asset-row list-head text-xs font-medium" style="color:var(--muted);">',
     '  <div>名称</div><div>金额 (CNY)</div><div>年利率</div><div>年收益</div><div>月收益</div>',
     '</div>',
     ...sorted.map(a => {
@@ -2433,6 +2460,7 @@ function renderIncomeChart() {
       borderColor: th.line,
       borderWidth: 1,
       textStyle: { color: th.fg, fontFamily: '"IBM Plex Mono", monospace', fontSize: 12 },
+      extraCssText: 'border-radius:6px;padding:10px 14px;box-shadow:0 6px 18px rgba(33,27,16,0.14);',
       formatter: function(p) {
         const pct = totalIncome > 0 ? ((p.value / totalIncome) * 100).toFixed(1) : '0.0';
         // ECharts 不会把 data 上的自定义字段展开到 params 顶层, 必须从 p.data 取
@@ -3257,6 +3285,7 @@ function renderExpenseChart() {
       borderColor: th.line,
       borderWidth: 1,
       textStyle: { color: th.fg, fontFamily: '"IBM Plex Mono", monospace', fontSize: 12 },
+      extraCssText: 'border-radius:6px;padding:10px 14px;box-shadow:0 6px 18px rgba(33,27,16,0.14);',
       formatter: function(p) {
         const pct = total > 0 ? ((p.value / total) * 100).toFixed(1) : '0.0';
         const arrow = p.treePathInfo && p.treePathInfo.length > 2
@@ -3448,6 +3477,7 @@ function renderExpenseTrendChart() {
       borderColor: th.line,
       borderWidth: 1,
       textStyle: { color: th.fg, fontFamily: '"IBM Plex Mono", monospace', fontSize: 12 },
+      extraCssText: 'border-radius:6px;padding:10px 14px;box-shadow:0 6px 18px rgba(33,27,16,0.14);',
       // 始终置于鼠标下方偏右，避免遮挡堆叠柱顶部的合计 label
       position: function(point, params, dom, rect, size) {
         const w = dom.offsetWidth, h = dom.offsetHeight;
