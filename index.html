@@ -1468,6 +1468,18 @@ function renderMasthead(total) {
     const monthly = state.assets.reduce((s, a) => s + calcAssetIncome(a).monthly, 0);
     const cashMonthly = state.assets.reduce((s, a) => s + calcAssetIncome(a).cashMonthly, 0);
     subText += ` · <span>预估月收益 <span class="tabular font-medium" style="color:var(--verdigris);">${formatCNY(monthly)}</span> <span style="color:var(--muted);">（现金 <span class="tabular font-medium" style="color:var(--accent);">${formatCNY(cashMonthly)}</span>）</span></span>`;
+    // 与预期月消费对比: 总收益/现金收益各自 vs 预期消费, 盈余绿 / 缺口红 (未设置预期时不显示)
+    const expectation = state.expenseExpectation || 0;
+    if (expectation > 0) {
+      const gapBadge = (amount, label) => {
+        const gap = amount - expectation;
+        const ok = gap >= 0;
+        const pct = Math.abs(gap) / expectation * 100;
+        const amt = Math.round(Math.abs(gap)).toLocaleString('zh-CN');
+        return `<span class="mo-badge ${ok ? 'up' : 'down'}" title="${label}${ok ? '盈余' : '缺口'} ${formatCNY(Math.abs(gap))} (${gap >= 0 ? '+' : '-'}${(Math.abs(gap) / expectation * 100).toFixed(2)}%)">${label}${ok ? '盈余' : '缺口'} ¥${amt} · ${pct.toFixed(1)}%</span>`;
+      };
+      subText += ` · <span style="color:var(--muted);">预期月消费 <span class="tabular font-medium" style="color:var(--fg);opacity:0.85;">${formatCNY(expectation)}</span></span> ${gapBadge(monthly, '总收益')} ${gapBadge(cashMonthly, '现金')}`;
+    }
   }
   subEl.innerHTML = subText;
 }
@@ -3636,6 +3648,7 @@ function saveExpectation() {
   saveState();
   closeModal('expectation-modal');
   renderExpenseTrendChart();
+  renderAssets(); // 报头收益 vs 预期消费徽章依赖该值
   toast(hadValue ? '预期消费已更新' : '预期消费已设置', 'success');
 }
 function clearExpectation() {
@@ -3643,6 +3656,7 @@ function clearExpectation() {
   saveState();
   closeModal('expectation-modal');
   renderExpenseTrendChart();
+  renderAssets();
   toast('已清除预期消费', 'success');
 }
 
