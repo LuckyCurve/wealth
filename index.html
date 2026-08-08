@@ -57,7 +57,6 @@ tailwind.config = {
     --border: #e2d8bd;
     --rule: #d8cbab;
     --shadow: rgba(33, 27, 16, 0.07);
-    --shadow-lg: rgba(33, 27, 16, 0.12);
     --card-edge: rgba(255, 255, 255, 0.55);
     --tick: rgba(33, 27, 16, 0.22);
   }
@@ -75,7 +74,6 @@ tailwind.config = {
     --border: #3a301d;
     --rule: #473b28;
     --shadow: rgba(0, 0, 0, 0.4);
-    --shadow-lg: rgba(0, 0, 0, 0.55);
     --card-edge: rgba(255, 255, 255, 0.04);
     --tick: rgba(236, 228, 208, 0.22);
   }
@@ -471,11 +469,11 @@ tailwind.config = {
 
   <!-- Assets Tab -->
   <section id="tab-assets" style="display:none;">
-      <div class="masthead mb-6 card" id="net-worth-masthead">
+      <div class="masthead mb-6 card">
         <div class="flex items-start justify-between gap-4 flex-wrap">
           <div class="min-w-0">
             <p class="masthead-eyebrow"><span class="live-dot"></span><span>净资产 · 截至 <span id="masthead-date">—</span></span></p>
-            <p class="masthead-amount" id="masthead-amount"><span class="currency-mark">¥</span><span class="whole" id="masthead-whole">0</span><span class="cents" id="masthead-cents">.00</span></p>
+            <p class="masthead-amount"><span class="currency-mark">¥</span><span class="whole" id="masthead-whole">0</span><span class="cents" id="masthead-cents">.00</span></p>
           </div>
           <button onclick="openAssetModal()" class="btn-gold" style="align-self:center;">＋ 登记资产</button>
         </div>
@@ -893,7 +891,7 @@ tailwind.config = {
       <hr style="border-color: var(--border);">
       <div>
         <p class="text-sm mb-3" style="color:var(--muted);">从 JSON 文件导入数据（将覆盖当前数据）</p>
-        <label id="import-file-label" for="import-file" class="btn-gold" style="display:inline-block; cursor:pointer;">选择文件</label>
+        <label for="import-file" class="btn-gold" style="display:inline-block; cursor:pointer;">选择文件</label>
         <input type="file" id="import-file" accept=".json" onchange="importData(event)" style="display:none;">
         <span id="import-file-name" class="text-xs ml-3" style="color:var(--muted);"></span>
       </div>
@@ -1253,11 +1251,11 @@ function switchTab(tab) {
   document.getElementById('tab-history').style.display = tab === 'history' ? '' : 'none';
   document.getElementById('tab-income').style.display = tab === 'income' ? '' : 'none';
   if (tab === 'chart') {
-    populateChartSelect();
+    fillCategorySelect('chart-category-select', state.categories);
     setTimeout(() => renderChart(), 100);
   }
   if (tab === 'history') {
-    populateHistorySelect();
+    fillCategorySelect('history-category-select', state.categories);
     setTimeout(() => renderHistoryChart(), 100);
   }
   if (tab === 'income') {
@@ -1276,7 +1274,7 @@ function switchTab(tab) {
     setTimeout(() => renderExpenseChart(), 100);
   }
   if (tab === 'expense-trend') {
-    populateExpenseTrendSelect();
+    fillCategorySelect('expense-trend-category-select', state.expenseCategories);
     setTimeout(() => renderExpenseTrendChart(), 100);
   }
 }
@@ -1465,8 +1463,13 @@ function renderMasthead(total) {
   const expectation = state.expenseExpectation || 0;
   let subText = `<span>${count} 项资产</span>`;
   if (hasRate) {
-    const monthly = state.assets.reduce((s, a) => s + calcAssetIncome(a).monthly, 0);
-    const cashMonthly = state.assets.reduce((s, a) => s + calcAssetIncome(a).cashMonthly, 0);
+    // 一次遍历同时累计两口径（避免每个资产重复计算 calcAssetIncome）
+    let monthly = 0, cashMonthly = 0;
+    state.assets.forEach(a => {
+      const inc = calcAssetIncome(a);
+      monthly += inc.monthly;
+      cashMonthly += inc.cashMonthly;
+    });
     const gapSuffix = (amount) => {
       if (expectation <= 0) return '';
       const gap = amount - expectation;
@@ -1836,10 +1839,11 @@ function truncateLabel(name, fontSize, maxPx) {
 }
 
 // ========== CHART ==========
-function populateChartSelect() {
-  const sel = document.getElementById('chart-category-select');
+// 分类下拉统一填充（资产/消费的 5 个图表分类下拉共用），保留当前选中值
+function fillCategorySelect(selId, cats) {
+  const sel = document.getElementById(selId);
   const current = sel.value;
-  sel.innerHTML = state.categories.map(c =>
+  sel.innerHTML = cats.map(c =>
     `<option value="${c.id}">${esc(c.name)}</option>`
   ).join('');
   if (current && sel.querySelector(`option[value="${current}"]`)) sel.value = current;
@@ -2234,15 +2238,6 @@ function doLoadDemoData() {
   toast('示例数据已导入（6个月快照）', 'success');
 }
 
-function populateHistorySelect() {
-  const sel = document.getElementById('history-category-select');
-  const current = sel.value;
-  sel.innerHTML = state.categories.map(c =>
-    `<option value="${c.id}">${esc(c.name)}</option>`
-  ).join('');
-  if (current && sel.querySelector(`option[value="${current}"]`)) sel.value = current;
-}
-
 function setHistoryChartMode(mode) {
   historyChartMode = mode;
   document.getElementById('hist-mode-value').className = mode === 'value' ? 'seg-btn active' : 'seg-btn';
@@ -2538,7 +2533,7 @@ function renderIncomeTab() {
   noteEl.textContent = discounted ? `* 已按 ${safetyPct}% 安全边际折算` : '';
 
   // --- Chart ---
-  populateIncomeChartSelect();
+  fillCategorySelect('income-chart-category-select', state.categories);
   renderIncomeChart();
 }
 
@@ -2551,15 +2546,6 @@ function setIncomeChartMode(mode) {
   document.getElementById('income-chart-mode-cash').className = mode === 'cash' ? 'seg-btn active' : 'seg-btn';
   document.getElementById('income-chart-mode-total').className = mode === 'total' ? 'seg-btn active' : 'seg-btn';
   renderIncomeChart();
-}
-
-function populateIncomeChartSelect() {
-  const sel = document.getElementById('income-chart-category-select');
-  const current = sel.value;
-  sel.innerHTML = state.categories.map(c =>
-    `<option value="${c.id}">${esc(c.name)}</option>`
-  ).join('');
-  if (current && sel.querySelector(`option[value="${current}"]`)) sel.value = current;
 }
 
 function renderIncomeChart() {
@@ -2945,12 +2931,12 @@ function genId() {
   return 'id_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7);
 }
 
+const _escDiv = document.createElement('div');
 function esc(str) {
-  const d = document.createElement('div');
-  d.textContent = str;
   // textContent+innerHTML 会转义 & < >；但文本节点中的单/双引号不会被序列化转义，需手动处理：
   // 单引号防 JS 字符串注入（onclick 内嵌参数），双引号防 HTML 属性值被截断（如 <option value="...">）
-  return d.innerHTML.replace(/'/g, '&#39;').replace(/"/g, '&quot;');
+  _escDiv.textContent = str;
+  return _escDiv.innerHTML.replace(/'/g, '&#39;').replace(/"/g, '&quot;');
 }
 
 // 金额输入实时千分位格式化（保留光标位置）
@@ -3441,12 +3427,7 @@ function removeExpenseTag(catId, tagName) {
 let expenseChart = null;
 
 function populateExpenseChartSelects() {
-  const catSel = document.getElementById('expense-chart-category-select');
-  const currentCat = catSel.value;
-  catSel.innerHTML = state.expenseCategories.map(c =>
-    `<option value="${c.id}">${esc(c.name)}</option>`
-  ).join('');
-  if (currentCat && catSel.querySelector(`option[value="${currentCat}"]`)) catSel.value = currentCat;
+  fillCategorySelect('expense-chart-category-select', state.expenseCategories);
 
   const monthSel = document.getElementById('expense-chart-month-select');
   const currentMonth = monthSel.value;
@@ -3564,15 +3545,6 @@ function renderExpenseChart() {
 
 // ========== EXPENSE TREND ==========
 let expenseTrendChart = null;
-
-function populateExpenseTrendSelect() {
-  const sel = document.getElementById('expense-trend-category-select');
-  const current = sel.value;
-  sel.innerHTML = state.expenseCategories.map(c =>
-    `<option value="${c.id}">${esc(c.name)}</option>`
-  ).join('');
-  if (current && sel.querySelector(`option[value="${current}"]`)) sel.value = current;
-}
 
 function setExpenseTrendMode(mode) {
   expenseTrendMode = mode;
