@@ -1461,26 +1461,28 @@ function renderMasthead(total) {
     targetEl.innerHTML = `<div class="target-panel"><button onclick="openTargetModal()" class="btn-ghost text-xs" style="padding:4px 12px;">设定目标</button></div>`;
   }
 
-  // sub line: 资产数 + 预估月收益（任一资产设置利率后出现）
+  // sub line: 资产数 + 月收益/现金 双口径平齐展示（任一资产设置利率后出现）
+  // 设置了预期月消费时, 每个口径后内联其与预期的差额: 盈余绿 / 缺口红
   const count = state.assets.length;
   const hasRate = state.assets.some(a => (a.expectedRateMin ?? 0) > 0 || (a.expectedRateMax ?? 0) > 0);
+  const expectation = state.expenseExpectation || 0;
   let subText = `<span>${count} 项资产</span>`;
   if (hasRate) {
     const monthly = state.assets.reduce((s, a) => s + calcAssetIncome(a).monthly, 0);
     const cashMonthly = state.assets.reduce((s, a) => s + calcAssetIncome(a).cashMonthly, 0);
-    subText += ` · <span>预估月收益 <span class="tabular font-medium" style="color:var(--verdigris);">${formatCNY(monthly)}</span> <span style="color:var(--muted);">（现金 <span class="tabular font-medium" style="color:var(--accent);">${formatCNY(cashMonthly)}</span>）</span></span>`;
-    // 与预期月消费对比: 总收益/现金收益各自 vs 预期消费, 盈余绿 / 缺口红 (未设置预期时不显示)
-    const expectation = state.expenseExpectation || 0;
+    const gapSuffix = (amount) => {
+      if (expectation <= 0) return '';
+      const gap = amount - expectation;
+      const ok = gap >= 0;
+      const amt = Math.round(Math.abs(gap)).toLocaleString('zh-CN');
+      const pct = Math.abs(gap) / expectation * 100;
+      return ` <span style="color:${ok ? 'var(--verdigris)' : 'var(--down)'}">（${ok ? '盈余' : '缺口'} ¥${amt} · ${pct.toFixed(1)}%）</span>`;
+    };
     if (expectation > 0) {
-      const gapBadge = (amount, label) => {
-        const gap = amount - expectation;
-        const ok = gap >= 0;
-        const pct = Math.abs(gap) / expectation * 100;
-        const amt = Math.round(Math.abs(gap)).toLocaleString('zh-CN');
-        return `<span class="mo-badge ${ok ? 'up' : 'down'}" title="${label}${ok ? '盈余' : '缺口'} ${formatCNY(Math.abs(gap))} (${gap >= 0 ? '+' : '-'}${(Math.abs(gap) / expectation * 100).toFixed(2)}%)">${label}${ok ? '盈余' : '缺口'} ¥${amt} · ${pct.toFixed(1)}%</span>`;
-      };
-      subText += ` · <span style="color:var(--muted);">预期月消费 <span class="tabular font-medium" style="color:var(--fg);opacity:0.85;">${formatCNY(expectation)}</span></span> ${gapBadge(monthly, '总收益')} ${gapBadge(cashMonthly, '现金')}`;
+      subText += ` · <span style="color:var(--muted);">预期月消费 <span class="tabular font-medium" style="color:var(--fg);opacity:0.85;">${formatCNY(expectation)}</span></span>`;
     }
+    subText += ` · <span>预估月收益 <span class="tabular font-medium" style="color:var(--verdigris);">${formatCNY(monthly)}</span>${gapSuffix(monthly)}</span>`;
+    subText += ` · <span>现金收益 <span class="tabular font-medium" style="color:var(--accent);">${formatCNY(cashMonthly)}</span>${gapSuffix(cashMonthly)}</span>`;
   }
   subEl.innerHTML = subText;
 }
