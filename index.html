@@ -189,7 +189,7 @@ tailwind.config = {
   @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
   .tag-pill {
     display: inline-flex; align-items: center; gap: 3px;
-    padding: 4px 10px 4px 7px; border-radius: 5px; font-size: 13px;
+    padding: 3px 7px 3px 5px; border-radius: 4px; font-size: 12px;
     font-weight: 500; font-family: 'IBM Plex Mono', monospace;
     border: 1px solid var(--border);
     border-left: 3px solid var(--border);
@@ -208,7 +208,7 @@ tailwind.config = {
     transition: background 0.15s;
   }
   .asset-row.grid-wide {
-    grid-template-columns: 28px 2fr 1fr 0.7fr 1fr 0.7fr 1.5fr 92px;
+    grid-template-columns: 28px 1.45fr 1fr 0.55fr 1.1fr 1.25fr 1.9fr 92px;
   }
   .drag-handle { user-select: none; -webkit-user-select: none; }
   .asset-row.dragging { opacity: 0.35; background: var(--border); border-radius: 6px; }
@@ -1331,7 +1331,8 @@ function renderAssets() {
       }
     });
     rows.innerHTML = sorted.map(a => {
-      const tagHtml = state.categories.map(cat => {
+      // 跳过 currency 分类: 货币列已单独显示, 避免重复 pill 挤占标签列
+      const tagHtml = state.categories.filter(cat => cat.id !== 'currency').map(cat => {
         const tagVal = a.tags[cat.id];
         if (!tagVal) return '';
         const c = catColor(cat.id, tagVal);
