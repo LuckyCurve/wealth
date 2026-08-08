@@ -50,6 +50,7 @@ interface Asset {
   tags: { [catId: string]: string };  // 含自动同步的 tags.currency
   expectedRateMin: number;    // 预期年利率下限 (%)，0 表示未设置
   expectedRateMax: number;    // 预期年利率上限 (%)
+  cashRatio: number;          // 现金比例 (%)：预期收益中来自股息/利息/租金等现金流的比例，0~100
   // 旧版曾用单一 expectedRate，migrateState() 会迁移为 Min/Max 并 delete expectedRate
 }
 
@@ -83,6 +84,7 @@ interface Expense {
 - `currency` 内置分类缺失时自动创建；`rates` 缺失/损坏时重置，补全 `HKD`/`USD`
 - 用户设置字段缺失时补 0：`expenseExpectation`、`netWorthTarget`
 - `expectedRate` → `expectedRateMin/Max` 迁移并 `delete`；利率/金额字符串统一 `Number()` 转数字（导入数据防御）
+- 资产 `cashRatio` 缺失时默认 100（全额现金，与旧版「全部收益视为收入」行为一致），越界钳制 0~100
 - 移除内置 `expense-type` 消费分类 + 清理 `expenses[].tags` 孤立引用
 
 ## 关键发现
@@ -99,7 +101,7 @@ interface Expense {
 - **三态排序** — 资产 `toggleSort(field)` 与消费 `toggleExpenseSort(field)` 均为三态循环（升序 → 降序 → 取消排序恢复自然顺序）。消费侧首击保留旧行为（`expenseSortTouched` 标记后进入三态循环）。主键相同时按 `id`（创建顺序）次级排序。
 - **资产拖拽排序** — `onAssetDragStart/DragOver/DragEnd/Drop` 拖拽调整 `state.assets` 顺序并保存，排序后自动清除 `sortBy` 恢复自然顺序。
 - **月度快照** — 同月仅保留一条，重复记录会提示「覆盖更新」。快照详情的标签颜色与资产管理列表保持一致（复用 `catColor`）。快照同时保存当时汇率 `currencyRates`。历史净值 Tab 中每条快照显示环比：首月 / 新增 / `▲▼ x.x%`（`getPrevSnapshot()` 取上一个月份）。「对比快照」弹窗（`openCompareModal`/`renderCompareTable`）按资产 id 关联两月快照逐资产 diff（新增/移除徽章），金额按各快照当时 `currencyRates` 折算 CNY；行序对齐**起始月快照的记录顺序**（拖拽调整的顺序保持一致），新增资产按结束月顺序追加在末尾；弹窗顶部为「总净值变动」hero 数字（`font-masthead`，2 位小数），表格列头用账本语汇「期初/期末」，变动列带按比例宽度迷你量条（`.cmp-bar`）；示例数据的快照资产 id 跨月稳定（与真实记录流程一致），对比才能按 id 关联出差异。
-- **收入测算** — 基于 `expectedRateMin/Max` 计算 `calcAssetIncome()`（`getAssetRate()` 按 `incomeMode` `'min'|'max'` 取值），支持切换；展示年/月/日收益 + 加权平均利率。旭日图按资产聚合（仅统计有利率的资产）。**安全边际因子** `state.incomeSafetyFactor`（百分比，默认 100=不打折，migrateState 兜底并钳制 1~100）：`getSafetyFactor()` 取折算系数，在 `calcAssetIncome()` 内统一乘入，因此摘要/表格/旭日图/masthead 预估月收益全部折算；<100 时摘要页脚与表格下方（`#income-table-note`，表头年/月收益带 `*` 星注）提示「已按 N% 安全边际折算」；控件为参数条 `#income-safety-input`（`onIncomeSafetyInput` 输入即存并重渲染、`onIncomeSafetyBlur` 非法值回退，`renderIncomeTab` 顶部带焦点守卫同步值）。
+- **收入测算** — 基于 `expectedRateMin/Max` 计算 `calcAssetIncome()`（`getAssetRate()` 按 `incomeMode` `'min'|'max'` 取值），支持切换；展示年/月/日收益 + 加权平均利率。**收益拆分现金/总额**：每项资产有 `cashRatio`（现金比例 %，`getCashRatio()` 取 0~1，缺失默认 1），`calcAssetIncome()` 返回 `annual/monthly/daily`（总资产收益）与 `cashAnnual/cashMonthly`（其中现金收益 = 总收益 × 现金比例）两套口径，**安全边际因子对两套口径统一折算**；摘要双 hero（总收益 年/月/日 绿 + 现金收益 年/月/占比 金）、表格加「现金比例」「现金/月」列（表头星注覆盖两口径）、旭日图 `incomeChartMode` 支持 `'cash'|'total'` 切换（默认现金，tooltip 双口径并列）；报头「预估月收益」同时显示总额与现金（`预估月收益 ¥X（现金 ¥Y）`），资产列表利率格带「· 现金 N%」后缀。资产弹窗现金比例输入（提交钳制 0~100，空值=100）带「全额现金/纯增值」预设（`setCashRatioPreset`）。旭日图按资产聚合（仅统计有利率的资产）。**安全边际因子** `state.incomeSafetyFactor`（百分比，默认 100=不打折，migrateState 兜底并钳制 1~100）：`getSafetyFactor()` 取折算系数，在 `calcAssetIncome()` 内统一乘入，因此摘要/表格/旭日图/masthead 预估月收益全部折算；<100 时摘要页脚与表格下方（`#income-table-note`，表头年/月收益带 `*` 星注）提示「已按 N% 安全边际折算」；控件为参数条 `#income-safety-input`（`onIncomeSafetyInput` 输入即存并重渲染、`onIncomeSafetyBlur` 非法值回退，`renderIncomeTab` 顶部带焦点守卫同步值）。
 - **目标净资产** — `netWorthTarget` 在 masthead 显示进度条（`openTargetModal`/`saveTarget`/`clearTarget`），90%+ 变强调色、达成显示「目标已达成」徽章；总资产为 0 时不显示进度避免误报。masthead 副行同时展示「N 项资产」与预估月收益（任一资产设了利率即出现）。达成预测：`predictTarget()` 取最近 6 段快照月均净值增量（按快照月份间隔归一化）反推达成月份，展示于 masthead 目标面板与目标弹窗（`renderTargetPrediction`）；数据不足 / 已达成 / 月增量 ≤ 0 返回 null，预测超 20 年显示「20 年以上」。
 - **消费记录** — 排序状态 `expenseSortBy`/`expenseSortDir`；「复制」操作 `duplicateExpense(id)` 打开新增窗口预填金额/备注/标签、日期改为今天；月份筛选 `expenseMonthFilter`（下拉由 `populateExpenseMonthFilter()` 生成）；搜索框 `expenseSearch`（`oninput` 触发 `renderExpenses()`，匹配备注/日期/分类名/标签值，不区分大小写，与月份筛选叠加）；搜索交互：命中片段以「金笔划线」`mark.search-hit` 高亮（`highlightMatch()` 先 esc 转义再大小写不敏感替换，保留原文大小写）、输入框内 ×（`clearExpenseSearch()`，仅清搜索保留月份）与 ESC 清空、空态标题带搜索词并给「换个关键词」指引、合计标签双筛选时显示「月份 匹配」；空态按「完全无数据 / 搜索无结果 / 月份无记录」区分文案，「清除筛选」`clearExpenseFilters()` 重置两类筛选。趋势图按月聚合，与历史净值柱状图风格一致。
 - **消费趋势** — `expenseExpectation` 设定后作为水平参考线，超线月份的柱顶 label 标红加 ▲；按钮状态化显示「设定预期 / 预期 ¥X」；透明「合计」系列不占高度、随 legend 选中实时重算。趋势下方按月列表 `viewExpenseMonth()` 查看当月明细。
@@ -110,7 +112,7 @@ interface Expense {
 - **图表空态** — 所选维度全空或无可选数据时显示空态文案而非空白画布（资产/消费分布、历史净值、消费趋势均如此）。
 - **弹窗关闭** — `closeModal(id)` 统一关闭；ESC 键关闭最上层弹窗；点击遮罩空白处关闭（`mousedown` 记录目标 + overlay click 判断）。
 - **数据导入/导出** — `exportData()` 导出完整 `state` JSON，但剥离快照加工字段 `totalCNY`（可由 assets × currencyRates 重算，导入时 `migrateState()` 补全）；`importData()` 校验 `categories && assets` 字段后合并并走 `migrateState()`。
-- **示例数据** — 资产端 `loadDemoData()`、消费端 `loadExpenseDemoData()`，均先 `showConfirm` 二次确认后覆盖当前数据。
+- **示例数据** — 资产端 `loadDemoData()`、消费端 `loadExpenseDemoData()`，均先 `showConfirm` 二次确认后覆盖当前数据。资产示例含现金比例演示：存款/债/理财 100%，沪深300 指数 5~8% 利率 + 20% 现金（红利型指数）。快照内资产同样带 `cashRatio`（当前资产由最新快照深拷贝而来，缺失会导致演示现金比例失效）。
 
 ## 开发
 

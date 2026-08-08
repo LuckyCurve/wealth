@@ -265,7 +265,7 @@ tailwind.config = {
     #assets-list { overflow-x: auto; }
     #assets-list .asset-row { min-width: 780px; }
     #income-table-container { overflow-x: auto; }
-    #income-table-container .asset-row { min-width: 640px; }
+    #income-table-container .asset-row { min-width: 820px; }
     #snapshot-detail-content { overflow-x: auto; }
     #snapshot-detail-content .asset-row { min-width: 620px; }
   }
@@ -274,7 +274,8 @@ tailwind.config = {
     #expenses-list .asset-row { min-width: 600px; }
     /* 收益摘要三栏改纵向堆叠，避免窄屏挤爆 */
     #income-summary .grid { grid-template-columns: 1fr; }
-    #income-summary .grid > div:nth-child(2) {
+    #income-summary .grid > div:nth-child(2),
+    #income-summary .grid > div:nth-child(5) {
       border-left: none !important;
       border-right: none !important;
       border-top: 1px solid var(--rule);
@@ -553,16 +554,30 @@ tailwind.config = {
     <div id="income-summary" class="card mb-6" style="display:none;">
       <div class="grid grid-cols-3 text-center items-center" style="padding:4px 0;">
         <div>
-          <p class="text-xs font-medium mb-1" style="color:var(--muted);letter-spacing:0.08em;">年收益</p>
+          <p class="text-xs font-medium mb-1" style="color:var(--muted);letter-spacing:0.08em;">总收益 · 年</p>
           <p id="income-annual" class="font-masthead tabular" style="font-size:30px;color:var(--verdigris);font-weight:500;">¥0</p>
         </div>
         <div style="border-left:1px solid var(--rule);border-right:1px solid var(--rule);">
-          <p class="text-xs font-medium mb-1" style="color:var(--muted);letter-spacing:0.08em;">月收益</p>
+          <p class="text-xs font-medium mb-1" style="color:var(--muted);letter-spacing:0.08em;">总收益 · 月</p>
           <p id="income-monthly" class="font-masthead tabular" style="font-size:30px;color:var(--verdigris);font-weight:500;">¥0</p>
         </div>
         <div>
-          <p class="text-xs font-medium mb-1" style="color:var(--muted);letter-spacing:0.08em;">日收益</p>
+          <p class="text-xs font-medium mb-1" style="color:var(--muted);letter-spacing:0.08em;">总收益 · 日</p>
           <p id="income-daily" class="font-masthead tabular" style="font-size:30px;color:var(--verdigris);font-weight:500;">¥0</p>
+        </div>
+      </div>
+      <div class="grid grid-cols-3 text-center items-center" style="padding:4px 0;border-top:1px dashed var(--rule);">
+        <div>
+          <p class="text-xs font-medium mb-1" style="color:var(--muted);letter-spacing:0.08em;">现金收益 · 年</p>
+          <p id="income-cash-annual" class="font-masthead tabular" style="font-size:22px;color:var(--accent);font-weight:500;">¥0</p>
+        </div>
+        <div style="border-left:1px solid var(--rule);border-right:1px solid var(--rule);">
+          <p class="text-xs font-medium mb-1" style="color:var(--muted);letter-spacing:0.08em;">现金收益 · 月</p>
+          <p id="income-cash-monthly" class="font-masthead tabular" style="font-size:22px;color:var(--accent);font-weight:500;">¥0</p>
+        </div>
+        <div>
+          <p class="text-xs font-medium mb-1" style="color:var(--muted);letter-spacing:0.08em;">现金收益占比</p>
+          <p id="income-cash-share" class="font-masthead tabular" style="font-size:22px;color:var(--accent);font-weight:500;">—</p>
         </div>
       </div>
       <p id="income-summary-footer" class="text-xs text-center mt-3" style="color:var(--muted);"></p>
@@ -574,7 +589,13 @@ tailwind.config = {
     <div id="income-chart-container" class="card mt-6" style="display:none;">
       <div class="flex items-center justify-between mb-4">
         <h3 class="font-display text-sm font-bold">收益分布</h3>
-        <select id="income-chart-category-select" onchange="renderIncomeChart()" class="text-sm" style="min-width:160px;"></select>
+        <div class="flex items-center gap-3">
+          <div class="seg-control">
+            <button id="income-chart-mode-cash" onclick="setIncomeChartMode('cash')" class="seg-btn active">现金收益</button>
+            <button id="income-chart-mode-total" onclick="setIncomeChartMode('total')" class="seg-btn">总收益</button>
+          </div>
+          <select id="income-chart-category-select" onchange="renderIncomeChart()" class="text-sm" style="min-width:160px;"></select>
+        </div>
       </div>
       <div id="income-chart" style="width:100%; height:320px;"></div>
     </div>
@@ -771,6 +792,15 @@ tailwind.config = {
             <span style="color:var(--muted);">—</span>
             <input type="number" id="asset-rate-max" min="0" step="0.1" class="w-full" placeholder="最高" value="0">
           </div>
+        </div>
+        <div>
+          <label class="block text-xs font-medium mb-1.5" style="color:var(--muted);">现金比例 (%)</label>
+          <div class="flex items-center gap-2">
+            <input type="number" id="asset-cash-ratio" min="0" max="100" step="1" class="w-full" placeholder="100" value="100">
+            <button type="button" onclick="setCashRatioPreset(100)" class="btn-ghost text-xs" style="padding:6px 10px;white-space:nowrap;">全额现金</button>
+            <button type="button" onclick="setCashRatioPreset(0)" class="btn-ghost text-xs" style="padding:6px 10px;white-space:nowrap;">纯增值</button>
+          </div>
+          <p class="text-xs mt-1" style="color:var(--muted);">预期收益中来自股息 / 利息 / 租金等现金流的比例。存款、债券填 100；股票按分红占比估。</p>
         </div>
         <div id="asset-tags-section" class="space-y-3"></div>
       </div>
@@ -1055,6 +1085,10 @@ function migrateState() {
     // （renderIncomeTab/incomeChart 对利率调用 toFixed, 字符串会 TypeError）
     a.expectedRateMin = Number(a.expectedRateMin) || 0;
     a.expectedRateMax = Number(a.expectedRateMax) || 0;
+    // 现金比例: 收益中来自股息/利息/租金等现金流的比例 (%)。旧数据缺失默认 100（全额现金），
+    // 与旧版「全部收益视为收入」的行为完全一致；导入数据可能是字符串, 统一转数字并钳制 0~100
+    if (a.cashRatio == null) a.cashRatio = 100;
+    a.cashRatio = Math.min(100, Math.max(0, Number(a.cashRatio) || 0));
     // 防御: 导入数据中 amount 可能是字符串, 统一转为数字, 避免总计拼接/排序错误
     if (a.amount != null) a.amount = Number(a.amount) || 0;
   });
@@ -1263,6 +1297,9 @@ function renderAssets() {
           ? `${a.expectedRateMin}%`
           : `${a.expectedRateMin}-${a.expectedRateMax}%`)
         : '<span style="color:var(--muted);font-size:11px;">未设置</span>';
+      const cashTag = (a.expectedRateMin > 0 || a.expectedRateMax > 0)
+        ? `<span style="color:var(--accent);font-size:11px;"> · 现金 ${Math.round(getCashRatio(a) * 100)}%</span>`
+        : '';
       const cnyVal = toCNY(a.amount, a.currency);
       return `<div class="asset-row grid-wide" data-id="${esc(a.id)}">
         <div class="drag-handle" title="拖动排序" draggable="true" ondragstart="onAssetDragStart(event)" ondragend="onAssetDragEnd(event)">⠿</div>
@@ -1270,7 +1307,7 @@ function renderAssets() {
         <div class="font-mono text-sm tabular">${a.amount.toLocaleString('zh-CN', {minimumFractionDigits:2, maximumFractionDigits:2})}</div>
         <div class="text-sm" style="color:var(--muted)">${a.currency}</div>
         <div class="font-mono text-xs tabular" style="color:var(--muted);">${formatCNY(cnyVal)}</div>
-        <div class="text-sm tabular">${rateLabel}</div>
+        <div class="text-sm tabular">${rateLabel}${cashTag}</div>
         <div class="flex flex-wrap gap-1">${tagHtml}</div>
         <div class="flex gap-2 justify-end">
           <button onclick="editAsset('${jsAttr(a.id)}')" class="row-btn edit">编辑</button>
@@ -1384,7 +1421,8 @@ function renderMasthead(total) {
   let subText = `<span>${count} 项资产</span>`;
   if (hasRate) {
     const monthly = state.assets.reduce((s, a) => s + calcAssetIncome(a).monthly, 0);
-    subText += ` · <span>预估月收益 <span class="tabular font-medium" style="color:var(--verdigris);">${formatCNY(monthly)}</span></span>`;
+    const cashMonthly = state.assets.reduce((s, a) => s + calcAssetIncome(a).cashMonthly, 0);
+    subText += ` · <span>预估月收益 <span class="tabular font-medium" style="color:var(--verdigris);">${formatCNY(monthly)}</span> <span style="color:var(--muted);">（现金 <span class="tabular font-medium" style="color:var(--accent);">${formatCNY(cashMonthly)}</span>）</span></span>`;
   }
   subEl.innerHTML = subText;
 }
@@ -1517,6 +1555,7 @@ function openAssetModal(editId) {
       document.getElementById('asset-currency').value = a.currency;
       document.getElementById('asset-rate-min').value = a.expectedRateMin ?? 0;
       document.getElementById('asset-rate-max').value = a.expectedRateMax ?? 0;
+      document.getElementById('asset-cash-ratio').value = a.cashRatio ?? 100;
     }
   } else {
     title.textContent = '登记资产';
@@ -1566,6 +1605,12 @@ function saveAsset(e) {
     return;
   }
 
+  // 现金比例: 空值视为 100（全额现金）；非法/越界钳制 0~100
+  const cashRatioStr = document.getElementById('asset-cash-ratio').value.trim();
+  let cashRatio = cashRatioStr === '' ? 100 : parseFloat(cashRatioStr);
+  if (!isFinite(cashRatio)) cashRatio = 100;
+  cashRatio = Math.min(100, Math.max(0, cashRatio));
+
   const tags = {};
   // auto-assign currency tag from the currency dropdown
   tags['currency'] = currency;
@@ -1585,12 +1630,12 @@ function saveAsset(e) {
   if (editId) {
     const idx = state.assets.findIndex(a => a.id === editId);
     if (idx >= 0) {
-      const updated = { ...state.assets[idx], name, amount, currency, tags, expectedRateMin: finalMin, expectedRateMax: finalMax };
+      const updated = { ...state.assets[idx], name, amount, currency, tags, expectedRateMin: finalMin, expectedRateMax: finalMax, cashRatio };
       delete updated.expectedRate;
       state.assets[idx] = updated;
     }
   } else {
-    state.assets.push({ id: genId(), name, amount, currency, tags, expectedRateMin: finalMin, expectedRateMax: finalMax });
+    state.assets.push({ id: genId(), name, amount, currency, tags, expectedRateMin: finalMin, expectedRateMax: finalMax, cashRatio });
   }
 
   saveState();
@@ -1601,6 +1646,11 @@ function saveAsset(e) {
 
 function editAsset(id) {
   openAssetModal(id);
+}
+
+// 资产弹窗「现金比例」快捷预设
+function setCashRatioPreset(v) {
+  document.getElementById('asset-cash-ratio').value = String(v);
 }
 
 function deleteAsset(id) {
@@ -2109,18 +2159,18 @@ function doLoadDemoData() {
   const catRisk = { id: genId(), name: '风险等级', builtin: false, tags: ['低风险', '中风险', '高风险'] };
   state.categories = [currencyCat, catAsset, catRisk];
   const defs = [
-    { name: '招商银行活期', base: 50000, cur: 'CNY', type: '活期现金', risk: '低风险', rMin: 0.25, rMax: 0.35 },
-    { name: '工商银行定期', base: 200000, cur: 'CNY', type: '定期存款', risk: '低风险', rMin: 1.8, rMax: 2.2 },
-    { name: '沪深300指数', base: 80000, cur: 'CNY', type: '权益基金', risk: '高风险', rMin: 0, rMax: 0 },
-    { name: '标普500ETF', base: 10000, cur: 'USD', type: '权益基金', risk: '高风险', rMin: 0, rMax: 0 },
-    { name: '纯债基金A', base: 100000, cur: 'CNY', type: '债券基金', risk: '中风险', rMin: 3, rMax: 4.5 },
-    { name: '招行理财', base: 150000, cur: 'CNY', type: '银行理财', risk: '中风险', rMin: 2.5, rMax: 3.5 },
-    { name: '汇丰香港储蓄', base: 50000, cur: 'HKD', type: '活期现金', risk: '低风险', rMin: 0.1, rMax: 0.2 },
+    { name: '招商银行活期', base: 50000, cur: 'CNY', type: '活期现金', risk: '低风险', rMin: 0.25, rMax: 0.35, cash: 100 },
+    { name: '工商银行定期', base: 200000, cur: 'CNY', type: '定期存款', risk: '低风险', rMin: 1.8, rMax: 2.2, cash: 100 },
+    { name: '沪深300指数', base: 80000, cur: 'CNY', type: '权益基金', risk: '高风险', rMin: 5, rMax: 8, cash: 20 },
+    { name: '标普500ETF', base: 10000, cur: 'USD', type: '权益基金', risk: '高风险', rMin: 0, rMax: 0, cash: 0 },
+    { name: '纯债基金A', base: 100000, cur: 'CNY', type: '债券基金', risk: '中风险', rMin: 3, rMax: 4.5, cash: 100 },
+    { name: '招行理财', base: 150000, cur: 'CNY', type: '银行理财', risk: '中风险', rMin: 2.5, rMax: 3.5, cash: 100 },
+    { name: '汇丰香港储蓄', base: 50000, cur: 'HKD', type: '活期现金', risk: '低风险', rMin: 0.1, rMax: 0.2, cash: 100 },
   ];
   state.assets = defs.map(d => ({
     id: genId(), name: d.name, amount: d.base, currency: d.cur,
     tags: { currency: d.cur, [catAsset.id]: d.type, [catRisk.id]: d.risk },
-    expectedRateMin: d.rMin, expectedRateMax: d.rMax,
+    expectedRateMin: d.rMin, expectedRateMax: d.rMax, cashRatio: d.cash,
   }));
   // 快照内资产 id 跨月保持稳定（与真实记录流程一致），快照对比才能按 id 关联出差异
   const assetIds = state.assets.map(a => a.id);
@@ -2149,7 +2199,7 @@ function doLoadDemoData() {
       return {
         id: assetIds[ai], name: d.name, amount, currency: d.cur,
         tags: { currency: d.cur, [catAsset.id]: d.type, [catRisk.id]: d.risk },
-        expectedRateMin: d.rMin, expectedRateMax: d.rMax,
+        expectedRateMin: d.rMin, expectedRateMax: d.rMax, cashRatio: d.cash,
       };
     });
     const totalCNY = snapAssets.reduce((s, a) => s + a.amount * (state.rates[a.currency] || 1), 0);
@@ -2315,15 +2365,24 @@ function getSafetyFactor() {
   return Math.min(1, f / 100);
 }
 
+// 现金比例: 0~100 (%)，预期收益中来自股息/利息/租金等现金流的比例；缺失视为 100（全额现金，旧版行为）
+function getCashRatio(a) {
+  const r = Number(a.cashRatio);
+  return isFinite(r) ? Math.min(100, Math.max(0, r)) / 100 : 1;
+}
+
+// 收益拆分: annual/monthly/daily 为总资产收益（现有口径）；cash* 为其中现金收益（能付账单的部分）
 function calcAssetIncome(a, mode) {
   mode = mode || incomeMode;
   const rate = getAssetRate(a, mode);
   const cny = toCNY(a.amount, a.currency);
   const factor = getSafetyFactor();
   const annual = cny * rate / 100 * factor;
+  const cashAnnual = annual * getCashRatio(a);
   const monthly = annual / 12;
   const daily = annual / 365;
-  return { cny, annual, monthly, daily };
+  const cashMonthly = cashAnnual / 12;
+  return { cny, annual, monthly, daily, cashAnnual, cashMonthly };
 }
 
 function onIncomeSafetyInput() {
@@ -2391,22 +2450,33 @@ function renderIncomeTab() {
   const totalMonthly = totalAnnual / 12;
   const totalDaily = totalAnnual / 365;
   const totalCNY = state.assets.reduce((s, a) => s + toCNY(a.amount, a.currency), 0);
+  const cashAnnual = incomes.filter(i => i.cashAnnual > 0).reduce((s, i) => s + i.cashAnnual, 0);
+  const cashMonthly = cashAnnual / 12;
 
   document.getElementById('income-annual').textContent = formatCNY(totalAnnual);
   document.getElementById('income-monthly').textContent = formatCNY(totalMonthly);
   document.getElementById('income-daily').textContent = formatCNY(totalDaily);
+  document.getElementById('income-cash-annual').textContent = formatCNY(cashAnnual);
+  document.getElementById('income-cash-monthly').textContent = formatCNY(cashMonthly);
+  document.getElementById('income-cash-share').textContent = totalAnnual > 0
+    ? (cashAnnual / totalAnnual * 100).toFixed(0) + '%' : '—';
 
-  // Weighted average rate
+  // Weighted average rate (总收益与现金收益各自加权平均，安全边际因子相消不影响均值)
   const totalWeighted = assets.reduce((s, a) => {
     const cny = toCNY(a.amount, a.currency);
     return s + cny * getAssetRate(a);
   }, 0);
+  const cashWeighted = assets.reduce((s, a) => {
+    const cny = toCNY(a.amount, a.currency);
+    return s + cny * getAssetRate(a) * getCashRatio(a);
+  }, 0);
   const totalAssetCNY = assets.reduce((s, a) => s + toCNY(a.amount, a.currency), 0);
   const avgRate = totalAssetCNY > 0 ? (totalWeighted / totalAssetCNY).toFixed(2) : '0.00';
+  const avgCashRate = totalAssetCNY > 0 ? (cashWeighted / totalAssetCNY).toFixed(2) : '0.00';
   const safetyPct = state.incomeSafetyFactor || 100;
   const discounted = safetyPct < 100;
   document.getElementById('income-summary-footer').textContent =
-    `加权平均利率 ${avgRate}% · 总资产 ${formatCNY(totalCNY)}` +
+    `加权平均利率 ${avgRate}% · 平均现金收益率 ${avgCashRate}% · 总资产 ${formatCNY(totalCNY)}` +
     (discounted ? ` · 已按 ${safetyPct}% 安全边际折算` : '');
 
   // --- Table ---
@@ -2415,24 +2485,27 @@ function renderIncomeTab() {
   });
   const rows = document.getElementById('income-rows');
   rows.innerHTML = [
-    '<div class="asset-row list-head text-xs font-medium" style="color:var(--muted);">',
-    `  <div>名称</div><div>金额 (CNY)</div><div>年利率</div><div>年收益${discounted ? '*' : ''}</div><div>月收益${discounted ? '*' : ''}</div>`,
+    '<div class="asset-row list-head text-xs font-medium" style="color:var(--muted);grid-template-columns:1.8fr 1fr 0.8fr 0.8fr 1fr 1fr 1fr;">',
+    `  <div>名称</div><div>金额 (CNY)</div><div>年利率</div><div>现金比例</div><div>年收益${discounted ? '*' : ''}</div><div>月收益${discounted ? '*' : ''}</div><div>现金/月${discounted ? '*' : ''}</div>`,
     '</div>',
     ...sorted.map(a => {
       const inc = calcAssetIncome(a);
       const hasRate = getAssetRate(a) > 0;
-      const style = hasRate ? '' : ' style="opacity:0.4;"';
+      const rowStyle = `grid-template-columns:1.8fr 1fr 0.8fr 0.8fr 1fr 1fr 1fr;${hasRate ? '' : ' opacity:0.4;'}`;
       const rateLabel = (a.expectedRateMin > 0 || a.expectedRateMax > 0)
         ? (a.expectedRateMin === a.expectedRateMax
           ? `${a.expectedRateMin.toFixed(1)}%`
           : `${a.expectedRateMin.toFixed(1)}-${a.expectedRateMax.toFixed(1)}%`)
         : '<span style="color:var(--muted);">未设置</span>';
-      return `<div class="asset-row"${style}>
+      const cashPct = Math.round(getCashRatio(a) * 100);
+      return `<div class="asset-row" style="${rowStyle}">
         <div class="font-medium text-sm">${esc(a.name)}</div>
         <div class="font-mono text-sm">${inc.cny.toLocaleString('zh-CN', {minimumFractionDigits:2, maximumFractionDigits:2})}</div>
         <div class="text-sm">${rateLabel}</div>
+        <div class="text-sm tabular">${hasRate ? cashPct + '%' : '-'}</div>
         <div class="font-mono text-sm">${hasRate ? formatCNY(inc.annual) : '-'}</div>
         <div class="font-mono text-sm">${hasRate ? formatCNY(inc.monthly) : '-'}</div>
+        <div class="font-mono text-sm" style="color:var(--accent);">${hasRate ? formatCNY(inc.cashMonthly) : '-'}</div>
       </div>`;
     }).join('')
   ].join('');
@@ -2449,6 +2522,14 @@ function renderIncomeTab() {
 
 let incomeChart = null;
 let incomeMode = 'min';
+let incomeChartMode = 'cash'; // 收益分布旭日图口径: 'cash' 现金收益 | 'total' 总收益
+
+function setIncomeChartMode(mode) {
+  incomeChartMode = mode;
+  document.getElementById('income-chart-mode-cash').className = mode === 'cash' ? 'seg-btn active' : 'seg-btn';
+  document.getElementById('income-chart-mode-total').className = mode === 'total' ? 'seg-btn active' : 'seg-btn';
+  renderIncomeChart();
+}
 
 function populateIncomeChartSelect() {
   const sel = document.getElementById('income-chart-category-select');
@@ -2489,15 +2570,20 @@ function renderIncomeChart() {
     incomeChart = echarts.init(el);
   }
 
-  const totalIncome = rateAssets.reduce((s, a) => s + calcAssetIncome(a).monthly, 0);
+  const modeLabel = incomeChartMode === 'cash' ? '月现金收益' : '月总收益';
+  const totalIncome = rateAssets.reduce((s, a) => {
+    const inc = calcAssetIncome(a);
+    return s + (incomeChartMode === 'cash' ? inc.cashMonthly : inc.monthly);
+  }, 0);
 
   const data = cat.tags.filter(t => groups[t].length > 0).map((tag, ti) => {
     const pal = CATEGORY_PALETTE[ti % CATEGORY_PALETTE.length];
     const children = groups[tag].map((a, ai) => {
       const inc = calcAssetIncome(a);
+      const v = incomeChartMode === 'cash' ? inc.cashMonthly : inc.monthly;
       return {
         name: a.name,
-        value: Math.round(inc.monthly * 100) / 100,
+        value: Math.round(v * 100) / 100,
         itemStyle: { color: pal.shades[ai % pal.shades.length] },
         _assetId: a.id
       };
@@ -2559,13 +2645,13 @@ function renderIncomeChart() {
                 ? `${a.expectedRateMin.toFixed(1)}%`
                 : `${a.expectedRateMin.toFixed(1)}-${a.expectedRateMax.toFixed(1)}%`)
               : '未设置';
-            return `<b>${esc(a.name)}</b><br/>月收益 ${formatCNY(inc.monthly)} · 年收益 ${formatCNY(inc.annual)}<br/><span style="color:${th.muted}">利率 ${rateRange} · 占比 ${pct}%</span>`;
+            return `<b>${esc(a.name)}</b><br/>月现金收益 ${formatCNY(inc.cashMonthly)} · 月总收益 ${formatCNY(inc.monthly)}<br/><span style="color:${th.muted}">利率 ${rateRange} · 现金 ${Math.round(getCashRatio(a) * 100)}% · 占比 ${pct}%</span>`;
           }
         }
         const arrow = p.treePathInfo && p.treePathInfo.length > 2
           ? p.treePathInfo[1].name + ' › '
           : '';
-        return `<b>${arrow}${p.name}</b><br/><span style="color:${th.muted}">月收益 ${formatCNY(p.value)} · 占比 ${pct}%</span>`;
+        return `<b>${arrow}${p.name}</b><br/><span style="color:${th.muted}">${modeLabel} ${formatCNY(p.value)} · 占比 ${pct}%</span>`;
       }
     }
   }, true);
