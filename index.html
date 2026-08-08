@@ -243,11 +243,53 @@ tailwind.config = {
   .seg-btn:hover { color: var(--fg); }
   .seg-btn.active { background: linear-gradient(180deg, #d9b25e, #b4841a); color: #211b10; font-weight: 600; box-shadow: inset 0 1px 0 rgba(255,255,255,0.25), 0 1px 2px var(--shadow); }
   /* 安全边际因子: 与 seg-control 同语言的参数条, 账页边注式 */
-  .safety-control { display: inline-flex; align-items: center; gap: 8px; padding: 5px 10px; border-radius: 8px; background: var(--bg-2); border: 1px solid var(--border); }
+  .safety-control { display: inline-flex; align-items: center; gap: 10px; padding: 5px 10px; border-radius: 8px; background: var(--bg-2); border: 1px solid var(--border); }
   .safety-label { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--muted); letter-spacing: 0.08em; }
-  .safety-control input { width: 56px; padding: 4px 8px; font-size: 13px; text-align: right; border-radius: 5px; }
-  .safety-control input.invalid { border-color: var(--down); }
-  .safety-suffix { font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--muted); }
+  .safety-control .scale-input { width: 150px; }
+  /* ===== 比例尺滑块: 账页刻度量尺 =====
+     刻度线 0/25/50/75/100% 与货币构成条同语言; 菱形拇指呼应报头裁切标记;
+     填充段表示当前比例 (--fill 由 JS 同步), 读数用等宽 tabular */
+  .scale-input {
+    /* 轨道背景由伪元素承载: 填充段必须画在轨道上（input 自身背景会被轨道盖住）;
+       层序: 填充(顶) → 刻度(中) → bg-2(底); --fill 由 JS 同步 */
+    -webkit-appearance: none; appearance: none;
+    height: 24px; padding: 0; border: none; cursor: pointer; border-radius: 2px;
+  }
+  .scale-input:focus-visible { outline: none; }
+  .scale-input:focus-visible::-webkit-slider-thumb,
+  .scale-input:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 3px var(--accent-soft), 0 1px 3px var(--shadow); }
+  .scale-input::-webkit-slider-runnable-track {
+    height: 4px; border-radius: 2px;
+    background:
+      linear-gradient(var(--accent-soft), var(--accent-soft)) 0 0 / var(--fill, 0%) 100% no-repeat,
+      linear-gradient(90deg, var(--tick) 0 100%, transparent 0) 0% 0 / 1px 100% no-repeat,
+      linear-gradient(90deg, var(--tick) 0 100%, transparent 0) 25% 0 / 1px 100% no-repeat,
+      linear-gradient(90deg, var(--tick) 0 100%, transparent 0) 50% 0 / 1px 100% no-repeat,
+      linear-gradient(90deg, var(--tick) 0 100%, transparent 0) 75% 0 / 1px 100% no-repeat,
+      linear-gradient(90deg, var(--tick) 0 100%, transparent 0) 100% 0 / 1px 100% no-repeat,
+      var(--bg-2);
+  }
+  .scale-input::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 12px; height: 12px; margin-top: -4px;
+    border-radius: 2px; transform: rotate(45deg);
+    background: var(--accent);
+    border: 1.5px solid var(--card);
+    box-shadow: 0 1px 3px var(--shadow);
+    cursor: grab;
+  }
+  .scale-input::-moz-range-track { height: 4px; border-radius: 2px; background: var(--bg-2); }
+  .scale-input::-moz-range-progress { height: 4px; border-radius: 2px; background: var(--accent-soft); }
+  .scale-input::-moz-range-thumb {
+    width: 12px; height: 12px; border-radius: 2px; transform: rotate(45deg);
+    background: var(--accent); border: 1.5px solid var(--card);
+    box-shadow: 0 1px 3px var(--shadow); cursor: grab;
+  }
+  .scale-reading {
+    font-family: 'IBM Plex Mono', monospace; font-variant-numeric: tabular-nums;
+    font-size: 13px; font-weight: 600; color: var(--accent); letter-spacing: 0.02em;
+    min-width: 3.4em; text-align: right;
+  }
   /* 统一空态（邀请行动） */
   .empty-state { text-align: center; padding: 56px 24px; }
   /* 空账本图标: 账页隐喻, 邀请开始记账 */
@@ -541,8 +583,8 @@ tailwind.config = {
       </div>
       <label class="safety-control" for="income-safety-input">
         <span class="safety-label">安全边际</span>
-        <input id="income-safety-input" type="text" inputmode="decimal" value="100" autocomplete="off" aria-label="安全边际因子（百分比）" oninput="onIncomeSafetyInput()" onkeydown="if(event.key==='Enter')this.blur()" onblur="onIncomeSafetyBlur()">
-        <span class="safety-suffix">%</span>
+        <input type="range" id="income-safety-input" class="scale-input" min="1" max="100" step="1" value="100" aria-label="安全边际因子（百分比）" oninput="onIncomeSafetyInput()">
+        <span class="scale-reading" id="income-safety-readout">100%</span>
       </label>
     </div>
     <div id="income-empty" class="card empty-state">
@@ -794,13 +836,16 @@ tailwind.config = {
           </div>
         </div>
         <div>
-          <label class="block text-xs font-medium mb-1.5" style="color:var(--muted);">现金比例 (%)</label>
-          <div class="flex items-center gap-2">
-            <input type="number" id="asset-cash-ratio" min="0" max="100" step="1" class="w-full" placeholder="100" value="100">
+          <div class="flex items-center justify-between mb-1.5">
+            <label class="block text-xs font-medium" for="asset-cash-ratio" style="color:var(--muted);">现金比例 (%)</label>
+            <span class="scale-reading" id="asset-cash-ratio-readout">100%</span>
+          </div>
+          <div class="flex items-center gap-3">
+            <input type="range" id="asset-cash-ratio" class="scale-input flex-1" min="0" max="100" step="1" value="100" aria-label="现金比例（百分比）" oninput="onCashRatioInput()">
             <button type="button" onclick="setCashRatioPreset(100)" class="btn-ghost text-xs" style="padding:6px 10px;white-space:nowrap;">全额现金</button>
             <button type="button" onclick="setCashRatioPreset(0)" class="btn-ghost text-xs" style="padding:6px 10px;white-space:nowrap;">纯增值</button>
           </div>
-          <p class="text-xs mt-1" style="color:var(--muted);">预期收益中来自股息 / 利息 / 租金等现金流的比例。存款、债券填 100；股票按分红占比估。</p>
+          <p class="text-xs mt-1.5" style="color:var(--muted);">预期收益中来自股息 / 利息 / 租金等现金流的比例。存款、债券拉满；股票按分红占比估。</p>
         </div>
         <div id="asset-tags-section" class="space-y-3"></div>
       </div>
@@ -1578,6 +1623,12 @@ function openAssetModal(editId) {
     </div>`;
   }).join('');
 
+  // 现金比例滑块初始同步（读数与填充段，新建=reset 后的 100，编辑=资产值）
+  const crEl = document.getElementById('asset-cash-ratio');
+  syncScaleFill(crEl);
+  const crRo = document.getElementById('asset-cash-ratio-readout');
+  if (crRo) crRo.textContent = crEl.value + '%';
+
   modal.style.display = '';
 }
 
@@ -1648,9 +1699,21 @@ function editAsset(id) {
   openAssetModal(id);
 }
 
-// 资产弹窗「现金比例」快捷预设
+// 资产弹窗「现金比例」快捷预设: 滑块跳值并同步读数/填充段
 function setCashRatioPreset(v) {
-  document.getElementById('asset-cash-ratio').value = String(v);
+  const el = document.getElementById('asset-cash-ratio');
+  el.value = String(v);
+  syncScaleFill(el);
+  const readout = document.getElementById('asset-cash-ratio-readout');
+  if (readout) readout.textContent = el.value + '%';
+}
+
+// 现金比例滑块拖动: 实时同步读数/填充段（保存时 saveAsset 读取滑块值）
+function onCashRatioInput() {
+  const el = document.getElementById('asset-cash-ratio');
+  syncScaleFill(el);
+  const readout = document.getElementById('asset-cash-ratio-readout');
+  if (readout) readout.textContent = el.value + '%';
 }
 
 function deleteAsset(id) {
@@ -2385,26 +2448,23 @@ function calcAssetIncome(a, mode) {
   return { cny, annual, monthly, daily, cashAnnual, cashMonthly };
 }
 
+// 比例尺滑块: 同步填充段 (--fill) 与等宽读数
+function syncScaleFill(el) {
+  el.style.setProperty('--fill', el.value + '%');
+}
+
 function onIncomeSafetyInput() {
   const el = document.getElementById('income-safety-input');
-  const raw = el.value.trim();
-  const v = parseFloat(raw);
-  const valid = raw !== '' && isFinite(v) && v >= 1 && v <= 100;
-  el.classList.toggle('invalid', raw !== '' && !valid);
-  if (valid && v !== state.incomeSafetyFactor) {
+  const v = parseFloat(el.value);
+  syncScaleFill(el);
+  const readout = document.getElementById('income-safety-readout');
+  if (readout) readout.textContent = v + '%';
+  if (v !== state.incomeSafetyFactor) {
     state.incomeSafetyFactor = v;
     saveState();
     renderIncomeTab();
     const total = state.assets.reduce((s, a) => s + toCNY(a.amount, a.currency), 0);
     renderMasthead(total);
-  }
-}
-
-function onIncomeSafetyBlur() {
-  const el = document.getElementById('income-safety-input');
-  if (el.value.trim() !== String(state.incomeSafetyFactor)) {
-    el.value = String(state.incomeSafetyFactor);
-    el.classList.remove('invalid');
   }
 }
 
@@ -2421,10 +2481,13 @@ function renderIncomeTab() {
   const table = document.getElementById('income-table-container');
   const chartContainer = document.getElementById('income-chart-container');
 
-  // 安全边际输入框与状态同步（用户输入中不打断）
+  // 安全边际滑块与状态同步（用户拖动中不打断）
   const safetyEl = document.getElementById('income-safety-input');
-  if (document.activeElement !== safetyEl && safetyEl.value !== String(state.incomeSafetyFactor)) {
-    safetyEl.value = String(state.incomeSafetyFactor);
+  if (document.activeElement !== safetyEl) {
+    if (safetyEl.value !== String(state.incomeSafetyFactor)) safetyEl.value = String(state.incomeSafetyFactor);
+    syncScaleFill(safetyEl);
+    const safetyRo = document.getElementById('income-safety-readout');
+    if (safetyRo) safetyRo.textContent = safetyEl.value + '%';
   }
 
   const hasAnyRate = state.assets.some(a => (a.expectedRateMin ?? a.expectedRate ?? 0) > 0 || (a.expectedRateMax ?? a.expectedRate ?? 0) > 0);
