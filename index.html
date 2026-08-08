@@ -989,7 +989,6 @@ tailwind.config = {
     <h3 class="font-display modal-title mb-4">目标净资产</h3>
     <p class="text-sm mb-4" style="color:var(--muted);">设置后资产页显示达成进度</p>
     <input type="text" id="target-input" inputmode="decimal" class="w-full" placeholder="目标净资产 (CNY)" oninput="formatMoneyInput(this)" autocomplete="off" onkeydown="if(event.key==='Enter')saveTarget()">
-    <div id="target-prediction"></div>
     <div class="flex justify-end gap-3 mt-6">
       <button type="button" onclick="clearTarget()" class="btn-danger" style="padding:6px 14px;">清除</button>
       <button type="button" onclick="closeModal('target-modal')" class="btn-ghost">取消</button>
@@ -1440,7 +1439,6 @@ function renderMasthead(total) {
     const gap = achieved
       ? '<span class="mo-badge up">目标已达成</span>'
       : `<span class="tabular" style="color:var(--accent);">还差 ${formatCNY(target - total)}</span>`;
-    const pred = predictTarget();
     targetEl.innerHTML = `
       <div class="target-panel">
         <div class="flex items-center justify-between text-xs mb-1.5" style="color:var(--muted);">
@@ -1452,7 +1450,6 @@ function renderMasthead(total) {
           </span>
         </div>
         <div class="target-progress"><div class="target-progress-fill" style="width:${pct}%;background:${fillColor};"></div></div>
-        ${!achieved && pred ? `<div class="text-xs mt-1.5" style="color:var(--muted);">预计 <span class="tabular">${pred.months > 240 ? '20 年以上' : monthLabel(pred.targetMonth)}</span> 达成 · 月均增 <span class="tabular">${formatCNY(pred.avg)}</span></div>` : ''}
       </div>`;
   } else if (target > 0) {
     targetEl.style.display = 'none';
@@ -1491,7 +1488,6 @@ function renderMasthead(total) {
 function openTargetModal() {
   document.getElementById('target-input').value = moneyStr(state.netWorthTarget);
   document.getElementById('target-modal').style.display = '';
-  renderTargetPrediction();
   setTimeout(() => document.getElementById('target-input').focus(), 100);
 }
 function saveTarget() {
@@ -1512,62 +1508,10 @@ function clearTarget() {
   toast('目标已清除', 'success');
 }
 
-function monthDiff(a, b) {
-  const [ay, am] = String(a).split('-').map(Number);
-  const [by, bm] = String(b).split('-').map(Number);
-  return (by - ay) * 12 + (bm - am);
-}
 function addMonths(month, n) {
   const [y, m] = String(month).split('-').map(Number);
   const d = new Date(y, m - 1 + n, 1);
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
-}
-
-// 基于最近快照的月度净值变化（按快照间隔归一化为月均增量，取最近 6 段），
-// 反推达成目标净资产的月份。数据不足、已达成或趋势不增长时返回 null。
-function predictTarget() {
-  const target = state.netWorthTarget || 0;
-  if (target <= 0) return null;
-  const sorted = [...state.snapshots].sort((a, b) => a.month.localeCompare(b.month));
-  if (sorted.length < 2) return null;
-  const latest = sorted[sorted.length - 1];
-  const latestTotal = latest.totalCNY || 0;
-  if (latestTotal >= target) return null;
-  const deltas = [];
-  for (let i = 1; i < sorted.length; i++) {
-    const gap = monthDiff(sorted[i - 1].month, sorted[i].month);
-    if (gap > 0) deltas.push(((sorted[i].totalCNY || 0) - (sorted[i - 1].totalCNY || 0)) / gap);
-  }
-  const recent = deltas.slice(-6);
-  const avg = recent.reduce((s, d) => s + d, 0) / recent.length;
-  if (avg <= 0) return null;
-  const months = Math.ceil((target - latestTotal) / avg);
-  return { avg, months, targetMonth: addMonths(latest.month, months) };
-}
-
-function renderTargetPrediction() {
-  const el = document.getElementById('target-prediction');
-  if (!el) return;
-  const target = state.netWorthTarget || 0;
-  const sorted = [...state.snapshots].sort((a, b) => a.month.localeCompare(b.month));
-  const latest = sorted[sorted.length - 1];
-  if (!target) {
-    el.innerHTML = '<p class="text-xs mt-3" style="color:var(--muted);">设定目标金额后，将根据最近快照预测达成月份</p>';
-    return;
-  }
-  if (latest && (latest.totalCNY || 0) >= target) {
-    el.innerHTML = '<p class="text-xs mt-3" style="color:var(--verdigris);">当前净值已达成目标</p>';
-    return;
-  }
-  const pred = predictTarget();
-  if (sorted.length < 2) {
-    el.innerHTML = '<p class="text-xs mt-3" style="color:var(--muted);">记录 2 个月以上快照后，可预测达成目标的月份</p>';
-  } else if (pred) {
-    const targetLabel = pred.months > 240 ? '20 年以上' : monthLabel(pred.targetMonth);
-    el.innerHTML = `<p class="text-xs mt-3" style="color:var(--muted);">按最近快照月均增长 <span class="tabular" style="color:var(--verdigris);">${formatCNY(pred.avg)}</span>，预计 <span class="tabular font-medium" style="color:var(--fg);">${targetLabel}</span> 达成目标</p>`;
-  } else {
-    el.innerHTML = '<p class="text-xs mt-3" style="color:var(--muted);">近期净值未增长，按当前趋势无法预测达成时间</p>';
-  }
 }
 
 function renderCategories() {
