@@ -203,6 +203,23 @@ tailwind.config = {
   .tag-pill .tag-val { font-weight: 600; }
   .tag-pill.active { border-color: var(--accent); border-left-color: var(--accent); }
   .tag-pill:hover { filter: brightness(0.94); }
+  /* 表单内平铺标签选择器: 账页「虚线空栏 = 待选, 实心盖印 = 已选」; 颜色由 JS 以 --chip-* 变量注入 */
+  .tag-picker { display: flex; flex-wrap: wrap; gap: 6px; }
+  .tag-choice {
+    display: inline-flex; align-items: center;
+    padding: 3px 7px 3px 5px; border-radius: 4px; font-size: 12px;
+    font-weight: 500; font-family: 'IBM Plex Mono', monospace;
+    line-height: 1.5; white-space: nowrap; cursor: pointer;
+    background: transparent; color: var(--chip-fg);
+    border: 1px dashed var(--chip-border);
+    transition: background 0.15s, border-color 0.15s, box-shadow 0.15s, color 0.15s;
+  }
+  .tag-choice:hover { filter: brightness(0.95); }
+  .tag-choice[aria-pressed="true"] {
+    background: var(--chip-bg); color: var(--chip-fg);
+    border: 1px solid var(--chip-border);
+    box-shadow: 0 0 0 1.5px var(--chip-ring);
+  }
   .asset-row {
     display: grid; grid-template-columns: 2fr 1fr 1fr 1.5fr 1.5fr;
     align-items: center; padding: 14px 0; border-bottom: 1px solid var(--rule);
@@ -1548,6 +1565,44 @@ function renderCategories() {
   }).join('');
 }
 
+// ========== 平铺标签选择器（资产/消费表单共用）==========
+// 分类标签从下拉框改为平铺 chips: 「虚线空栏 = 待选, 实心盖印 = 已选」。
+// 选中值写入同 id 的 hidden input, saveAsset/saveExpense 读取逻辑与旧下拉完全一致。
+function renderTagPicker(section, cats, selectedFor, idPrefix, colorFn) {
+  section.innerHTML = cats.map(cat => {
+    const selected = selectedFor(cat) || '';
+    const chips = cat.tags.map(t => {
+      const c = colorFn(cat.id, t);
+      return `<button type="button" class="tag-choice" aria-pressed="${t === selected}" data-val="${esc(t)}" onclick="selectTagChoice(this)"
+        style="--chip-bg:${c.bg};--chip-fg:${c.fg};--chip-border:${c.border};--chip-ring:${hexToRgba(c.border, 0.45)};">${esc(t)}</button>`;
+    }).join('');
+    return `<div>
+      <label class="block text-xs font-medium mb-1.5" style="color:var(--muted);">${esc(cat.name)}</label>
+      <input type="hidden" id="${idPrefix}${cat.id}" value="${esc(selected)}">
+      <div class="tag-picker" data-target="${idPrefix}${cat.id}">${chips}</div>
+    </div>`;
+  }).join('');
+}
+
+// chips 单选切换: 写入同组 hidden input; 再点已选中项 = 取消选择（对应旧下拉的「请选择」）
+function selectTagChoice(btn) {
+  const picker = btn.closest('.tag-picker');
+  const input = picker && document.getElementById(picker.dataset.target);
+  if (!input) return;
+  if (input.value === btn.dataset.val) {
+    input.value = '';
+    picker.querySelectorAll('.tag-choice').forEach(b => b.setAttribute('aria-pressed', 'false'));
+    return;
+  }
+  input.value = btn.dataset.val;
+  picker.querySelectorAll('.tag-choice').forEach(b => b.setAttribute('aria-pressed', b === btn));
+}
+
+function hexToRgba(hex, a) {
+  const n = parseInt(hex.slice(1), 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
+}
+
 // ========== ASSET CRUD ==========
 function openAssetModal(editId) {
   const modal = document.getElementById('asset-modal');
@@ -1572,21 +1627,11 @@ function openAssetModal(editId) {
   }
 
   // render tag selectors (skip currency - auto-synced from the currency dropdown)
-  const section = document.getElementById('asset-tags-section');
-  section.innerHTML = state.categories.filter(cat => cat.id !== 'currency').map(cat => {
-    const asset = editId ? state.assets.find(x => x.id === editId) : null;
-    const selected = asset ? (asset.tags[cat.id] || '') : '';
-    const options = cat.tags.map(t =>
-      `<option value="${esc(t)}" ${t === selected ? 'selected' : ''}>${esc(t)}</option>`
-    ).join('');
-    return `<div>
-      <label class="block text-xs font-medium mb-1.5" style="color:var(--muted);">${esc(cat.name)}</label>
-      <select id="asset-tag-${cat.id}" class="w-full" required>
-        <option value="">请选择</option>
-        ${options}
-      </select>
-    </div>`;
-  }).join('');
+  const asset = editId ? state.assets.find(x => x.id === editId) : null;
+  renderTagPicker(document.getElementById('asset-tags-section'),
+    state.categories.filter(cat => cat.id !== 'currency'),
+    cat => asset ? (asset.tags[cat.id] || '') : '',
+    'asset-tag-', catColor);
 
   // 现金比例滑块初始同步（读数与填充段，新建=reset 后的 100，编辑=资产值）
   const crEl = document.getElementById('asset-cash-ratio');
@@ -3203,20 +3248,10 @@ function openExpenseModal(editId, prefillId) {
     document.getElementById('expense-note').value = source.note || '';
   }
 
-  const section = document.getElementById('expense-tags-section');
-  section.innerHTML = state.expenseCategories.map(cat => {
-    const selected = source ? (source.tags[cat.id] || '') : '';
-    const options = cat.tags.map(t =>
-      `<option value="${esc(t)}" ${t === selected ? 'selected' : ''}>${esc(t)}</option>`
-    ).join('');
-    return `<div>
-      <label class="block text-xs font-medium mb-1.5" style="color:var(--muted);">${esc(cat.name)}</label>
-      <select id="expense-tag-${cat.id}" class="w-full" required>
-        <option value="">请选择</option>
-        ${options}
-      </select>
-    </div>`;
-  }).join('');
+  renderTagPicker(document.getElementById('expense-tags-section'),
+    state.expenseCategories,
+    cat => source ? (source.tags[cat.id] || '') : '',
+    'expense-tag-', expenseCatColor);
 
   modal.style.display = '';
 }

@@ -90,13 +90,14 @@ interface Expense {
 ## 关键发现
 
 - **所有代码在单文件中** — 结构顺序：`<head>` (内联暗色脚本 + Tailwind config + `<style>` 自定义 CSS 变量) → `<body>` (HTML) → 末尾 `<script>` (全部 JS)。修改时保持此结构。
+- **平铺标签选择器** — 资产/消费录入表单的分类选择用 chips 而非下拉框：`renderTagPicker(section, cats, selectedFor, idPrefix, colorFn)` 渲染「虚线空栏=待选 / 实心盖印=已选（同色 ring）」按钮组，选中值写入同 id 的 hidden input（`asset-tag-<id>` / `expense-tag-<id>`），`saveAsset`/`saveExpense` 读取逻辑与旧下拉完全一致；`selectTagChoice` 负责单选互斥与再点取消（对应旧「请选择」）。颜色复用 `catColor`/`expenseCatColor`，亮暗主题自动适配。图表维度的分类筛选下拉（`fillCategorySelect`）不受影响。
 - **汇率字段含义已反转** — `state.rates` 存的是「1 外币 = X CNY」（`HKD: 1/cny.hkd`，`USD: 1/cny.usd`），所以 `toCNY(amount, cur) = amount * state.rates[cur]` 直接相乘即可。AGENTS 旧版描述的「取倒数」已体现在赋值处，调用方无需再处理。
 - **汇率刷新** — `fetchRates()` 用 `cny.json` 端点且 `cache: 'no-store'`（CDN 7 天缓存导致普通刷新拿不到新汇率）；`pageshow`（bfcache 恢复）与 `visibilitychange`（切回标签页、上次拉取超 1 小时）触发刷新并重渲染；拉取成功后调用 `refreshVisibleCharts()` 同步重绘当前可见图表。失败时回退保存的汇率并提示「使用缓存汇率」。
 - **图表统一重绘入口 `refreshVisibleCharts()`** — 汇率刷新与暗色切换共用，仅重绘当前可见 tab 的图表（隐藏 tab 下次进入时用新主题渲染）。
 - **标签关联清理** — 删除分类/标签或编辑分类标签列表时，必须同步清理 `assets[].tags`（资产）或 `expenses[].tags`（消费）中的无效引用。`migrateState()` 已含迁移期清理逻辑。
 - **ECharts 全局单例** — 五个实例变量：`chart`(资产旭日图)、`historyChart`(历史净值堆叠柱)、`incomeChart`(收入旭日图)、`expenseChart`(消费旭日图)、`expenseTrendChart`(支出趋势堆叠柱)。均用 `setOption(data, true)` 更新；`window resize` 在 `DOMContentLoaded` 顶层统一注册。`historyChartMode` 支持 `'value' | 'percent'`，`expenseTrendMode` 同理。
 - **颜色系统** — CSS 变量 (`--bg`, `--fg`, `--muted`, `--accent`, `--accent-ink`, `--verdigris`, `--down`, `--usd` 等) 控制主题；`--accent-ink` 为**金色文字专用**（亮 `#7f5c0e` / 暗 `#d9b25e`，AA 达标），`--accent` 只用于按钮/边框/填充；`--down` 为下跌/警示红（亮 `#a84943` / 暗 `#d98a86`），`--usd` 为货币构成条 USD 段（亮 `#86733f` / 暗 `#9a8758`），新代码优先用变量而非写死色值；`CATEGORY_COLORS` (10 色 `{bg,fg,border}` 数组) 为分类基础色，fg 全部 ≥4.5:1；`catColor(catId, tagName)` / `expenseCatColor(...)` 在同分类内按标签索引对 HSL 亮度做插值区分（共享 `pillColors(base, t, dark)` / `basePill(base, dark)`，**亮色浅底深字 / 暗色深底浅字**，暗色分支全色相扫描 ≥4.5:1）；旭日图另用 `CATEGORY_PALETTE` (10 色 `{base, shades[]}` 数组)。
-- **资产表单验证** — 非 `currency` 分类在每个下拉选择器中均 `required`，未选则报错；`expectedRateMin` 不能大于 `expectedRateMax`（空值会自动用另一值补齐）。金额输入用 `formatMoneyInput()`（oninput）实时千分位格式化，回填用 `moneyStr()`。
+- **资产表单验证** — 非 `currency` 分类用平铺标签 chips 选择（`renderTagPicker`，选中值写 hidden input），未选则报错；`expectedRateMin` 不能大于 `expectedRateMax`（空值会自动用另一值补齐）。金额输入用 `formatMoneyInput()`（oninput）实时千分位格式化，回填用 `moneyStr()`。
 - **美元/港币货币符号** — 代码中用 `HKD $` / `USD $` 区分，CNY 用 `formatCNY()` 输出 `¥`。
 - **三态排序** — 资产 `toggleSort(field)` 与消费 `toggleExpenseSort(field)` 均为三态循环（升序 → 降序 → 取消排序恢复自然顺序）。消费侧首击保留旧行为（`expenseSortTouched` 标记后进入三态循环）。主键相同时按 `id`（创建顺序）次级排序。
 - **资产拖拽排序** — `onAssetDragStart/DragOver/DragEnd/Drop` 拖拽调整 `state.assets` 顺序并保存，排序后自动清除 `sortBy` 恢复自然顺序。
