@@ -332,15 +332,12 @@ tailwind.config = {
   @media (max-width: 640px) {
     #expenses-list { overflow-x: auto; }
     #expenses-list .asset-row { min-width: 600px; }
-    /* 收益摘要三栏改纵向堆叠，避免窄屏挤爆 */
+    /* 收益摘要双 hero 改纵向堆叠，避免窄屏挤爆 */
     #income-summary .grid { grid-template-columns: 1fr; }
-    #income-summary .grid > div:nth-child(2),
-    #income-summary .grid > div:nth-child(5) {
+    #income-summary .grid > div { padding: 6px 0; }
+    #income-summary .grid > div:nth-child(2) {
       border-left: none !important;
-      border-right: none !important;
       border-top: 1px solid var(--rule);
-      border-bottom: 1px solid var(--rule);
-      padding: 14px 0;
     }
   }
   ::-webkit-scrollbar { width: 8px; height: 8px; }
@@ -348,12 +345,9 @@ tailwind.config = {
   ::-webkit-scrollbar-thumb { background: var(--rule); border-radius: 4px; }
   ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
 
-  /* ===== Masthead / net-worth hero ===== */
+  /* ===== Masthead / net-worth hero =====
+     签名语言是四角裁切标记（::after）——左缘渐变条是纯装饰、且最像模板式渐变强调，已移除。 */
   .masthead { position: relative; padding: 30px 28px 26px; border-radius: 12px; overflow: hidden; }
-  .masthead::before {
-    content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px;
-    background: linear-gradient(180deg, var(--accent-soft), var(--accent) 55%, var(--verdigris));
-  }
   .masthead-eyebrow {
     font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 0.22em;
     text-transform: uppercase; color: var(--muted); margin-bottom: 6px; display: flex; align-items: center; gap: 8px;
@@ -612,35 +606,22 @@ tailwind.config = {
       <div class="empty-action"><button onclick="switchTab('assets')" class="btn-ghost" style="padding:8px 20px;">去资产管理</button></div>
     </div>
     <div id="income-summary" class="card mb-6" style="display:none;">
-      <div class="grid grid-cols-3 text-center items-center" style="padding:4px 0;">
+      <div class="grid grid-cols-2 text-center items-center" style="padding:4px 0;">
         <div>
-          <p class="text-xs font-medium mb-1" style="color:var(--muted);letter-spacing:0.08em;">总收益 · 年</p>
-          <p id="income-annual" class="font-masthead tabular" style="font-size:30px;color:var(--verdigris);font-weight:500;">¥0</p>
-        </div>
-        <div style="border-left:1px solid var(--rule);border-right:1px solid var(--rule);">
           <p class="text-xs font-medium mb-1" style="color:var(--muted);letter-spacing:0.08em;">总收益 · 月</p>
           <p id="income-monthly" class="font-masthead tabular" style="font-size:30px;color:var(--verdigris);font-weight:500;">¥0</p>
         </div>
-        <div>
-          <p class="text-xs font-medium mb-1" style="color:var(--muted);letter-spacing:0.08em;">总收益 · 日</p>
-          <p id="income-daily" class="font-masthead tabular" style="font-size:30px;color:var(--verdigris);font-weight:500;">¥0</p>
-        </div>
-      </div>
-      <div class="grid grid-cols-3 text-center items-center" style="padding:4px 0;border-top:1px dashed var(--rule);">
-        <div>
-          <p class="text-xs font-medium mb-1" style="color:var(--muted);letter-spacing:0.08em;">现金收益 · 年</p>
-          <p id="income-cash-annual" class="font-masthead tabular" style="font-size:22px;color:var(--accent-ink);font-weight:500;">¥0</p>
-        </div>
-        <div style="border-left:1px solid var(--rule);border-right:1px solid var(--rule);">
+        <div style="border-left:1px solid var(--rule);">
           <p class="text-xs font-medium mb-1" style="color:var(--muted);letter-spacing:0.08em;">现金收益 · 月</p>
-          <p id="income-cash-monthly" class="font-masthead tabular" style="font-size:22px;color:var(--accent-ink);font-weight:500;">¥0</p>
-        </div>
-        <div>
-          <p class="text-xs font-medium mb-1" style="color:var(--muted);letter-spacing:0.08em;">现金收益占比</p>
-          <p id="income-cash-share" class="font-masthead tabular" style="font-size:22px;color:var(--accent-ink);font-weight:500;">—</p>
+          <p id="income-cash-monthly" class="font-masthead tabular" style="font-size:30px;color:var(--accent-ink);font-weight:500;">¥0</p>
         </div>
       </div>
-      <p id="income-summary-footer" class="text-xs text-center mt-3" style="color:var(--muted);"></p>
+      <div class="flex flex-wrap justify-center gap-x-6 gap-y-1 text-xs mt-3 pt-3" style="color:var(--muted);border-top:1px dashed var(--rule);">
+        <span>年 <span id="income-annual" class="tabular font-medium" style="color:var(--fg);opacity:0.85;">¥0</span></span>
+        <span>日 <span id="income-daily" class="tabular font-medium" style="color:var(--fg);opacity:0.85;">¥0</span></span>
+        <span>现金占比 <span id="income-cash-share" class="tabular font-medium" style="color:var(--accent-ink);">—</span></span>
+      </div>
+      <p id="income-summary-footer" class="text-xs text-center mt-2" style="color:var(--muted);"></p>
     </div>
     <div id="income-table-container" class="card" style="display:none;">
       <div id="income-rows"></div>
@@ -2520,11 +2501,10 @@ function renderIncomeTab() {
   const cashAnnual = incomes.filter(i => i.cashAnnual > 0).reduce((s, i) => s + i.cashAnnual, 0);
   const cashMonthly = cashAnnual / 12;
 
-  document.getElementById('income-annual').textContent = formatCNY(totalAnnual);
   document.getElementById('income-monthly').textContent = formatCNY(totalMonthly);
-  document.getElementById('income-daily').textContent = formatCNY(totalDaily);
-  document.getElementById('income-cash-annual').textContent = formatCNY(cashAnnual);
   document.getElementById('income-cash-monthly').textContent = formatCNY(cashMonthly);
+  document.getElementById('income-annual').textContent = formatCNY(totalAnnual);
+  document.getElementById('income-daily').textContent = formatCNY(totalDaily);
   document.getElementById('income-cash-share').textContent = totalAnnual > 0
     ? (cashAnnual / totalAnnual * 100).toFixed(0) + '%' : '—';
 
