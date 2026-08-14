@@ -233,6 +233,11 @@ tailwind.config = {
   .asset-row.drag-over { border-top: 2px solid var(--accent); }
   .drag-handle { cursor: grab; display: inline-flex; align-items: center; justify-content: center; color: var(--muted); font-size: 14px; }
   .drag-handle:active { cursor: grabbing; }
+  /* 行内金额快速编辑: 账页「铅笔批注」——悬停出现金色点线示意可改; 编辑态由 input 接管 */
+  .amount-cell { cursor: pointer; border-bottom: 1px dashed transparent; transition: border-bottom-color 0.15s; }
+  .amount-cell:hover { border-bottom-color: var(--accent-soft); }
+  .amount-cell:focus-within { border-bottom-color: transparent; cursor: text; }
+  .inline-edit-input { width: 100%; padding: 4px 8px; font-size: 14px; user-select: text; -webkit-user-select: text; }
   .asset-row:hover { background: var(--card-2); }
   .asset-row:last-child { border-bottom: none; }
   /* 表格列头: 账本收尾双线规则（粗于内容行细线），列头文字加字距 */
@@ -1290,6 +1295,7 @@ function renderAll() {
 }
 
 function renderAssets() {
+  commitInlineEdit(false); // 重绘前收尾未提交的行内编辑（不触发递归重绘）
   const rows = document.getElementById('assets-rows');
   const empty = document.getElementById('assets-empty');
   const list = document.getElementById('assets-list');
@@ -1348,7 +1354,7 @@ function renderAssets() {
       return `<div class="asset-row grid-wide" data-id="${esc(a.id)}">
         <div class="drag-handle" title="拖动排序" draggable="true" ondragstart="onAssetDragStart(event)" ondragend="onAssetDragEnd(event)">⠿</div>
         <div class="font-medium text-sm">${esc(a.name)}</div>
-        <div class="font-mono text-sm tabular">${a.amount.toLocaleString('zh-CN', {minimumFractionDigits:2, maximumFractionDigits:2})}</div>
+        <div class="font-mono text-sm tabular amount-cell" data-id="${esc(a.id)}" role="button" tabindex="0" title="点击快速更新金额" onclick="startInlineEdit('${jsAttr(a.id)}')" onkeydown="if(event.key==='Enter')startInlineEdit('${jsAttr(a.id)}')">${amountHtml(a)}</div>
         <div class="text-sm" style="color:var(--muted)">${a.currency}</div>
         <div class="font-mono text-xs tabular" style="color:var(--muted);">${formatCNY(cnyVal)}</div>
         <div class="text-sm tabular">${rateLabel}${cashTag}</div>
@@ -1585,6 +1591,91 @@ function hexToRgba(hex, a) {
 }
 
 // ========== ASSET CRUD ==========
+
+// 行内金额快速编辑（免开弹窗）: 点击金额单元格 → input 替换 → Enter 提交 / Esc 取消 / 失焦提交。
+// 编辑态为单例（_inlineEditId）; renderAssets 重绘前统一收尾, 避免 input 被销毁后未提交的改动丢失。
+let _inlineEditId = null;
+
+function amountHtml(a) {
+  return a.amount.toLocaleString('zh-CN', {minimumFractionDigits:2, maximumFractionDigits:2});
+}
+
+function startInlineEdit(id) {
+  if (_inlineEditId === id) return; // 已在编辑该行: 点击 input 移动光标时忽略冒泡, 不触发提交
+  commitInlineEdit(true); // 先收尾上一个编辑行
+  const a = state.assets.find(x => x.id === id);
+  const cell = document.querySelector(`#assets-rows .asset-row[data-id="${id}"] .amount-cell`);
+  if (!a || !cell) return;
+  _inlineEditId = id;
+  cell.innerHTML = `<input type="text" class="inline-edit-input" value="${moneyStr(a.amount)}" inputmode="decimal" autocomplete="off" oninput="formatMoneyInput(this)" onkeydown="onInlineEditKey(event,'${jsAttr(id)}')" onblur="commitInlineEdit()">`;
+  const inp = cell.querySelector('input');
+  if (inp) { inp.focus(); inp.select(); }
+}
+
+// 提交行内编辑。doRender=false 时仅更新 state 不重绘（renderAssets 开头调用, 重绘正在进行）;
+// 值非法/不变时恢复单元格文本, 不写 storage。返回 true=可继续（成功提交或无需提交）, false=值非法中止。
+function commitInlineEdit(doRender) {
+  doRender = doRender !== false;
+  if (!_inlineEditId) return true;
+  const id = _inlineEditId;
+  _inlineEditId = null; // 先清标记: Esc 取消或 input 被销毁时, 后续 onblur 不再生效
+  const a = state.assets.find(x => x.id === id);
+  const cell = document.querySelector(`#assets-rows .asset-row[data-id="${id}"] .amount-cell`);
+  if (!a || !cell) return true;
+  const inp = cell.querySelector('input');
+  if (!inp) { cell.innerHTML = amountHtml(a); return true; } // input 已销毁（重绘前收尾）, 直接恢复
+  const val = parseFloat(inp.value.replace(/,/g, ''));
+  if (isNaN(val) || val < 0) {
+    toast('金额无效，已恢复原值', 'error');
+    cell.innerHTML = amountHtml(a);
+    return false;
+  }
+  if (val === a.amount) { cell.innerHTML = amountHtml(a); return true; }
+  a.amount = val;
+  saveState();
+  if (doRender) {
+    if (sortBy) {
+      // 排序激活: 行位置需重排, 走完整重绘（blur 后立即点按钮的 click 可能丢失, 排序状态下少见）
+      renderAssets();
+    } else {
+      // 用户主动提交（blur/Enter/Tab）: 不整表重绘, 手动同步 cell/报头/图表,
+      // 保证 blur 后正在点击的按钮（编辑/删除）DOM 不被替换、click 正常触发
+      cell.innerHTML = amountHtml(a);
+      renderMasthead(state.assets.reduce((s, x) => s + toCNY(x.amount, x.currency), 0));
+    }
+    refreshVisibleCharts();
+  }
+  // doRender=false: renderAssets 重绘正在进行, 由渲染输出新值
+  return true;
+}
+
+// 行内编辑键盘: Enter 提交（blur 触发保存）, Esc 取消并恢复原值, Tab/Shift+Tab 提交并跳到下一/上一行
+function onInlineEditKey(e, id) {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    e.target.blur(); // 触发 onblur → commitInlineEdit
+  } else if (e.key === 'Escape') {
+    e.preventDefault();
+    _inlineEditId = null; // 取消: 阻止 onblur 提交
+    const a = state.assets.find(x => x.id === id);
+    const cell = e.target.closest('.amount-cell');
+    if (cell && a) {
+      cell.innerHTML = amountHtml(a);
+      cell.focus(); // 焦点还给单元格（tabindex=0）, Enter 可重新编辑 / Tab 继续
+    }
+  } else if (e.key === 'Tab') {
+    e.preventDefault();
+    // 值非法时 commit 已恢复原值并返回 false: 立即重回编辑态, 不打断流式录入
+    if (!commitInlineEdit(true)) { startInlineEdit(id); return; }
+    // 按渲染顺序跳转（DOM 顺序即视觉顺序, 排序激活/整表重绘后仍准确）
+    const rows = document.querySelectorAll('#assets-rows .asset-row');
+    let cur = null;
+    for (const r of rows) { if (r.dataset.id === id) { cur = r; break; } }
+    const next = cur && (e.shiftKey ? cur.previousElementSibling : cur.nextElementSibling);
+    if (next && next.dataset.id) startInlineEdit(next.dataset.id);
+  }
+}
+
 function openAssetModal(editId) {
   const modal = document.getElementById('asset-modal');
   const title = document.getElementById('asset-modal-title');
