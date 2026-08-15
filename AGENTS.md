@@ -113,7 +113,7 @@ interface Expense {
 - **报头 (masthead) 数字动画** — `renderMasthead()` 用 `requestAnimationFrame` 做缓动滚动数字；`prefers-reduced-motion` 时直接设值。masthead 另含货币构成条 (composition rule/legend) 与目标净资产进度面板。
 - **印刷账页细节** — 报头四角有裁切标记（register ticks，`.masthead::after` 八层渐变）、大数字带压印感 `text-shadow`（亮暗各一套）；卡片有纸张顶缘高光（`--card-edge`）；`.btn-gold` 为压印金属感（顶部受光 + 底部内阴影）；表格列头用 `.list-head` 双线规则（2px `--rule`）+ 0.05em 字距；货币构成条带 25/50/75% 刻度墨线（`--tick`，亮暗各一套）；图表 tooltip 统一账本卡片样式（`extraCssText` 圆角+阴影+内边距）；toast 与 `mo-badge` 同色系便条样式（亮暗各一套）；弹窗标题上带章节线（`.modal-title::before` 28×2px 金色短线）；空态有账本 SVG 图标（`.empty-state::before`，`currentColor` 跟随主题）；排序列头可键盘操作（`role="button"` + `tabindex` + Enter 触发排序）。
 - **旭日图只显示名称** — 数值和百分比在 tooltip 中，标签只展示分类/标签名称（formatter 只返回 `p.name`）。
-- **图表空态** — 所选维度全空或无可选数据时显示空态文案而非空白画布（资产/消费分布、历史净值、消费趋势均如此）。
+- **图表空态** — 所选维度全空或无可选数据时显示空态而非空白画布（资产/消费分布、历史净值、消费趋势均如此）；空态与列表空态共用 `.empty-state` 语言（账本图标 + 章节线 + 行动按钮，`btn-ghost` 安静邀请：去登记资产/记录快照/去记录消费），不喧宾夺主——主创建按钮始终由页面头部金色按钮承担。
 - **弹窗关闭** — `closeModal(id)` 统一关闭；ESC 键关闭最上层弹窗；点击遮罩空白处关闭（`mousedown` 记录目标 + overlay click 判断）。
 - **数据导入/导出** — `exportData()` 导出完整 `state` JSON，但剥离快照加工字段 `totalCNY`（可由 assets × currencyRates 重算，导入时 `migrateState()` 补全）；`importData()` 校验 `categories && assets` 字段后合并并走 `migrateState()`。
 - **示例数据** — 资产端 `loadDemoData()`、消费端 `loadExpenseDemoData()`，均先 `showConfirm` 二次确认后覆盖当前数据。资产示例含现金比例演示：存款/债/理财 100%，沪深300 指数 5~8% 利率 + 20% 现金（红利型指数）。快照内资产同样带 `cashRatio`（当前资产由最新快照深拷贝而来，缺失会导致演示现金比例失效）。
