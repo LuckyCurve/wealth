@@ -1232,31 +1232,10 @@ function renderAssets() {
     // sort
     let sorted = [...state.assets];
     if (sortBy) {
-      sorted.sort((a, b) => {
-        let va, vb;
-        if (sortBy === 'cny') {
-          // 金额(CNY) 是换算值, 非资产字段, 需按汇率实时计算
-          va = toCNY(a.amount, a.currency);
-          vb = toCNY(b.amount, b.currency);
-        } else {
-          va = a[sortBy];
-          vb = b[sortBy];
-        }
-        if (typeof va === 'string') va = va.toLowerCase();
-        if (typeof vb === 'string') vb = vb.toLowerCase();
-        if (va < vb) return sortDir === 'asc' ? -1 : 1;
-        if (va > vb) return sortDir === 'asc' ? 1 : -1;
-        return 0;
-      });
+      const getVal = sortBy === 'cny' ? (x) => toCNY(x.amount, x.currency) : null;
+      sorted.sort((a, b) => compareBy(a, b, sortBy, sortDir, getVal));
     }
-    // update sort indicators
-    ['name', 'amount', 'currency', 'cny'].forEach(f => {
-      const el = document.getElementById('sort-' + f);
-      if (el) {
-        el.textContent = sortBy === f ? (sortDir === 'asc' ? ' ▲' : ' ▼') : '';
-        el.className = 'sort-indicator' + (sortBy === f ? ' active' : '');
-      }
-    });
+    updateSortIndicators('sort-', ['name', 'amount', 'currency', 'cny'], sortBy, sortDir);
     rows.innerHTML = sorted.map(a => {
       // 跳过 currency 分类: 货币列已单独显示, 避免重复 pill 挤占标签列
       const tagHtml = state.categories.filter(cat => cat.id !== 'currency').map(cat => {
@@ -1265,12 +1244,9 @@ function renderAssets() {
         const c = catColor(cat.id, tagVal);
         return `<span class="tag-pill" style="background:${c.bg};color:${c.fg};border-left-color:${c.border};"><span class="tag-key">${esc(cat.name)}</span><span class="tag-val">${esc(tagVal)}</span></span>`;
       }).join(' ');
-      const rateLabel = a.expectedRateMin > 0 || a.expectedRateMax > 0
-        ? (a.expectedRateMin === a.expectedRateMax
-          ? `${a.expectedRateMin}%`
-          : `${a.expectedRateMin}-${a.expectedRateMax}%`)
-        : '<span style="color:var(--muted);font-size:11px;">未设置</span>';
-      const cashTag = (a.expectedRateMin > 0 || a.expectedRateMax > 0)
+      const rateText = rateLabelText(a);
+      const rateLabel = rateText || '<span style="color:var(--muted);font-size:11px;">未设置</span>';
+      const cashTag = rateText
         ? `<span style="color:var(--accent-ink);font-size:11px;"> · 现金 ${Math.round(getCashRatio(a) * 100)}%</span>`
         : '';
       const cnyVal = toCNY(a.amount, a.currency);
@@ -1517,7 +1493,7 @@ function hexToRgba(hex, a) {
 let _inlineEditId = null;
 
 function amountHtml(a) {
-  return a.amount.toLocaleString('zh-CN', {minimumFractionDigits:2, maximumFractionDigits:2});
+  return money2(a.amount);
 }
 
 function startInlineEdit(id) {
@@ -1883,6 +1859,119 @@ function chartTheme() {
 
 // 旭日图标签截断：长名称以省略号收尾，完整内容 hover 时由 tooltip 展示
 // 标签字体为等宽体（IBM Plex Mono + CJK 回退），按字符像素宽度估算：拉丁 0.6em、CJK 1em
+
+// ========== SHARED HELPERS ==========
+// 资产/消费两套逻辑共用的小工具：旭日图配置、分类配色、利率标签、排序、金额格式化、月份下拉、分段按钮。
+// 抽到这里避免三处旭日图、两处 catColor、四处利率标签等重复实现各自漂移。
+function buildSunburstOption(data, tooltipFormatter) {
+  const th = chartTheme();
+  return {
+    backgroundColor: 'transparent',
+    series: [{
+      type: 'sunburst',
+      data: data,
+      radius: ['12%', '90%'],
+      sort: null,
+      emphasis: { focus: 'ancestor' },
+      levels: [
+        {},
+        {
+          r0: '12%', r: '50%',
+          itemStyle: { borderWidth: 2, borderColor: th.card },
+          label: { rotate: 'tangential', fontSize: 13, fontWeight: 600, fontFamily: '"IBM Plex Mono", monospace', color: '#fff',
+            minAngle: 12, // 扇区小于 12°(≈3.3%) 时隐藏标签
+            formatter: function(p) { return truncateLabel(p.name, 13, 132); }
+          }
+        },
+        {
+          r0: '50%', r: '90%',
+          itemStyle: { borderWidth: 1, borderColor: th.card },
+          label: { rotate: 'radial', fontSize: 11, fontFamily: '"IBM Plex Mono", monospace', color: '#211b10',
+            minAngle: 8, // 扇区小于 8°(≈2.2%) 时隐藏标签
+            formatter: function(p) { return truncateLabel(p.name, 11, 96); }
+          }
+        }
+      ]
+    }],
+    tooltip: {
+      trigger: 'item',
+      backgroundColor: th.card,
+      borderColor: th.line,
+      borderWidth: 1,
+      textStyle: { color: th.fg, fontFamily: '"IBM Plex Mono", monospace', fontSize: 12 },
+      extraCssText: TOOLTIP_CSS,
+      formatter: tooltipFormatter
+    }
+  };
+}
+
+// 分类 pill 配色：资产/消费共用同一套逻辑, 仅分类集合不同
+function catColorImpl(cats, catId, tagName) {
+  const idx = cats.findIndex(c => c.id === catId);
+  const base = CATEGORY_COLORS[idx % CATEGORY_COLORS.length];
+  const dark = document.documentElement.classList.contains('dark');
+  const cat = cats.find(c => c.id === catId);
+  if (!tagName || !cat || cat.tags.length <= 1) return basePill(base, dark);
+  const ti = cat.tags.indexOf(tagName);
+  if (ti < 0) return basePill(base, dark);
+  return pillColors(base, ti / (cat.tags.length - 1), dark);
+}
+
+// 利率标签: 有利率返回 "min%-max%" 或单值 "x%", 无利率返回 null; digits 控制小数位
+function rateLabelText(a, digits) {
+  digits = digits || 0;
+  const min = a.expectedRateMin || 0;
+  const max = a.expectedRateMax || 0;
+  if (min <= 0 && max <= 0) return null;
+  const f = n => Number(n).toFixed(digits);
+  return min === max ? `${f(min)}%` : `${f(min)}-${f(max)}%`;
+}
+
+// 金额千分位 2 位格式化(与 formatCNY 区别: 不带 ¥ 符号)
+function money2(v) {
+  return Number(v).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+// 通用排序比较器: getVal 用于非字段值(如换算 CNY), secondary 提供主键相同时的次级排序(如 id)
+function compareBy(a, b, field, dir, getVal, secondary) {
+  let va = getVal ? getVal(a, field) : a[field];
+  let vb = getVal ? getVal(b, field) : b[field];
+  if (typeof va === 'string') va = va.toLowerCase();
+  if (typeof vb === 'string') vb = vb.toLowerCase();
+  if (va < vb) return dir === 'asc' ? -1 : 1;
+  if (va > vb) return dir === 'asc' ? 1 : -1;
+  if (secondary) return secondary(a, b);
+  return 0;
+}
+
+// 更新排序列头指示器(▲/▼ 与 active 态)
+function updateSortIndicators(prefix, fields, sortBy, sortDir) {
+  fields.forEach(f => {
+    const el = document.getElementById(prefix + f);
+    if (!el) return;
+    el.textContent = sortBy === f ? (sortDir === 'asc' ? ' ▲' : ' ▼') : '';
+    el.className = 'sort-indicator' + (sortBy === f ? ' active' : '');
+  });
+}
+
+// 月份下拉选项: 生成「全部时间」+ 倒序月份, 保留当前选中值; 返回 select 元素
+function fillMonthSelect(selId, months) {
+  const sel = document.getElementById(selId);
+  if (!sel) return sel;
+  const current = sel.value;
+  sel.innerHTML = '<option value="">全部时间</option>' +
+    months.map(m => `<option value="${m}">${monthLabel(m)}</option>`).join('');
+  if (current && sel.querySelector(`option[value="${current}"]`)) sel.value = current;
+  return sel;
+}
+
+// 切换一对分段按钮的 active 态并执行回调(图表模式/收益口径等共用)
+function setSegMode(idA, idB, mode, activeA, activeB, onChange) {
+  document.getElementById(idA).className = mode === activeA ? 'seg-btn active' : 'seg-btn';
+  document.getElementById(idB).className = mode === activeB ? 'seg-btn active' : 'seg-btn';
+  onChange();
+}
+
 // ========== CHART ==========
 // 分类下拉统一填充（资产/消费的 5 个图表分类下拉共用），保留当前选中值
 function fillCategorySelect(selId, cats) {
@@ -1939,50 +2028,13 @@ function renderChart() {
   const totalCNY = state.assets.reduce((s, a) => s + toCNY(a.amount, a.currency), 0);
 
   const th = chartTheme();
-  chart.setOption({
-    backgroundColor: 'transparent',
-    series: [{
-      type: 'sunburst',
-      data: data,
-      radius: ['12%', '90%'],
-      sort: null,
-      emphasis: { focus: 'ancestor' },
-      levels: [
-        {},
-        {
-          r0: '12%', r: '50%',
-          itemStyle: { borderWidth: 2, borderColor: th.card },
-          label: { rotate: 'tangential', fontSize: 13, fontWeight: 600, fontFamily: '"IBM Plex Mono", monospace', color: '#fff',
-            minAngle: 12, // 扇区小于 12°(≈3.3%) 时隐藏标签，避免碎片文字堆叠；hover 仍会显示
-            formatter: function(p) { return truncateLabel(p.name, 13, 132); }
-          }
-        },
-        {
-          r0: '50%', r: '90%',
-          itemStyle: { borderWidth: 1, borderColor: th.card },
-          label: { rotate: 'radial', fontSize: 11, fontFamily: '"IBM Plex Mono", monospace', color: '#211b10',
-            minAngle: 8, // 扇区小于 8°(≈2.2%) 时隐藏标签
-            formatter: function(p) { return truncateLabel(p.name, 11, 96); }
-          }
-        }
-      ]
-    }],
-    tooltip: {
-      trigger: 'item',
-      backgroundColor: th.card,
-      borderColor: th.line,
-      borderWidth: 1,
-      textStyle: { color: th.fg, fontFamily: '"IBM Plex Mono", monospace', fontSize: 12 },
-      extraCssText: TOOLTIP_CSS,
-      formatter: function(p) {
-        const pct = totalCNY > 0 ? ((p.value / totalCNY) * 100).toFixed(1) : '0.0';
-        const arrow = p.treePathInfo && p.treePathInfo.length > 2
-          ? p.treePathInfo[1].name + ' › '
-          : '';
-        return `<b>${arrow}${p.name}</b><br/><span style="color:${th.muted}">${formatCNY(p.value)} · ${pct}%</span>`;
-      }
-    }
-  }, true);
+  chart.setOption(buildSunburstOption(data, function(p) {
+    const pct = totalCNY > 0 ? ((p.value / totalCNY) * 100).toFixed(1) : '0.0';
+    const arrow = p.treePathInfo && p.treePathInfo.length > 2
+      ? p.treePathInfo[1].name + ' › '
+      : '';
+    return `<b>${arrow}${p.name}</b><br/><span style="color:${th.muted}">${formatCNY(p.value)} · ${pct}%</span>`;
+  }), true);
 }
 
 // ========== HISTORY SNAPSHOTS ==========
@@ -2084,14 +2136,10 @@ function viewSnapshot(month) {
         const c = catColor(catId, val);
         return `<span class="tag-pill" style="background:${c.bg};color:${c.fg};border-left-color:${c.border};"><span class="tag-key">${esc(cat.name)}</span><span class="tag-val">${esc(val)}</span></span>`;
       }).join(' ');
-      const snapRateMin = a.expectedRateMin ?? a.expectedRate ?? 0;
-      const snapRateMax = a.expectedRateMax ?? a.expectedRate ?? 0;
-      const snapRateLabel = snapRateMin > 0 || snapRateMax > 0
-        ? (snapRateMin === snapRateMax ? `${snapRateMin}%` : `${snapRateMin}-${snapRateMax}%`)
-        : '<span style="color:var(--muted);font-size:11px;">未设置</span>';
+      const snapRateLabel = rateLabelText(a) || '<span style="color:var(--muted);font-size:11px;">未设置</span>';
       return `<div class="asset-row">
         <div class="font-medium text-sm">${esc(a.name)}</div>
-        <div class="font-mono text-sm">${a.amount.toLocaleString('zh-CN', {minimumFractionDigits:2, maximumFractionDigits:2})}</div>
+        <div class="font-mono text-sm">${money2(a.amount)}</div>
         <div class="text-sm" style="color:var(--muted);">${a.currency}</div>
         <div class="text-sm">${snapRateLabel}</div>
         <div class="flex flex-wrap gap-1">${tagHtml}</div>
@@ -2176,7 +2224,7 @@ function renderCompareTable() {
   }
 
   const color = v => v > 0 ? 'var(--verdigris)' : (v < 0 ? 'var(--down)' : 'var(--muted)');
-  const fmt = v => v.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const fmt = v => money2(v);
   const maxAbs = Math.max(...rows.map(r => Math.abs(r.d)), 1);
   container.innerHTML = `
     <div class="asset-row list-head text-xs font-medium" style="color:var(--muted);grid-template-columns:2fr 1.2fr 1.2fr 1.5fr 1fr;">
@@ -2276,9 +2324,7 @@ function doLoadDemoData() {
 
 function setHistoryChartMode(mode) {
   historyChartMode = mode;
-  document.getElementById('hist-mode-value').className = mode === 'value' ? 'seg-btn active' : 'seg-btn';
-  document.getElementById('hist-mode-percent').className = mode === 'percent' ? 'seg-btn active' : 'seg-btn';
-  renderHistoryChart();
+  setSegMode('hist-mode-value', 'hist-mode-percent', mode, 'value', 'percent', renderHistoryChart);
 }
 
 function renderHistoryChart() {
@@ -2414,9 +2460,7 @@ function onIncomeSafetyInput() {
 
 function setIncomeMode(mode) {
   incomeMode = mode;
-  document.getElementById('income-mode-min').className = mode === 'min' ? 'seg-btn active' : 'seg-btn';
-  document.getElementById('income-mode-max').className = mode === 'max' ? 'seg-btn active' : 'seg-btn';
-  renderIncomeTab();
+  setSegMode('income-mode-min', 'income-mode-max', mode, 'min', 'max', renderIncomeTab);
 }
 
 function renderIncomeTab() {
@@ -2434,7 +2478,7 @@ function renderIncomeTab() {
     if (safetyRo) safetyRo.textContent = safetyEl.value + '%';
   }
 
-  const hasAnyRate = state.assets.some(a => (a.expectedRateMin ?? a.expectedRate ?? 0) > 0 || (a.expectedRateMax ?? a.expectedRate ?? 0) > 0);
+  const hasAnyRate = state.assets.some(a => (a.expectedRateMin || 0) > 0 || (a.expectedRateMax || 0) > 0);
   document.getElementById('income-mode-toggle').style.display = hasAnyRate ? '' : 'none';
 
   const assets = state.assets.filter(a => getAssetRate(a) > 0);
@@ -2498,15 +2542,11 @@ function renderIncomeTab() {
       const inc = calcAssetIncome(a);
       const hasRate = getAssetRate(a) > 0;
       const rowStyle = `grid-template-columns:1.8fr 1fr 0.8fr 0.8fr 1fr 1fr 1fr;${hasRate ? '' : ' opacity:0.4;'}`;
-      const rateLabel = (a.expectedRateMin > 0 || a.expectedRateMax > 0)
-        ? (a.expectedRateMin === a.expectedRateMax
-          ? `${a.expectedRateMin.toFixed(1)}%`
-          : `${a.expectedRateMin.toFixed(1)}-${a.expectedRateMax.toFixed(1)}%`)
-        : '<span style="color:var(--muted);">未设置</span>';
+      const rateLabel = rateLabelText(a, 1) || '<span style="color:var(--muted);">未设置</span>';
       const cashPct = Math.round(getCashRatio(a) * 100);
       return `<div class="asset-row" style="${rowStyle}">
         <div class="font-medium text-sm">${esc(a.name)}</div>
-        <div class="font-mono text-sm">${inc.cny.toLocaleString('zh-CN', {minimumFractionDigits:2, maximumFractionDigits:2})}</div>
+        <div class="font-mono text-sm">${money2(inc.cny)}</div>
         <div class="text-sm">${rateLabel}</div>
         <div class="text-sm tabular">${hasRate ? cashPct + '%' : '-'}</div>
         <div class="font-mono text-sm">${hasRate ? formatCNY(inc.annual) : '-'}</div>
@@ -2532,9 +2572,7 @@ let incomeChartMode = 'cash'; // 收益分布旭日图口径: 'cash' 现金收�
 
 function setIncomeChartMode(mode) {
   incomeChartMode = mode;
-  document.getElementById('income-chart-mode-cash').className = mode === 'cash' ? 'seg-btn active' : 'seg-btn';
-  document.getElementById('income-chart-mode-total').className = mode === 'total' ? 'seg-btn active' : 'seg-btn';
-  renderIncomeChart();
+  setSegMode('income-chart-mode-cash', 'income-chart-mode-total', mode, 'cash', 'total', renderIncomeChart);
 }
 
 function renderIncomeChart() {
@@ -2594,64 +2632,23 @@ function renderIncomeChart() {
   }
 
   const th = chartTheme();
-  incomeChart.setOption({
-    backgroundColor: 'transparent',
-    series: [{
-      type: 'sunburst',
-      data: data,
-      radius: ['12%', '90%'],
-      sort: null,
-      emphasis: { focus: 'ancestor' },
-      levels: [
-        {},
-        {
-          r0: '12%', r: '50%',
-          itemStyle: { borderWidth: 2, borderColor: th.card },
-          label: { rotate: 'tangential', fontSize: 13, fontWeight: 600, fontFamily: '"IBM Plex Mono", monospace', color: '#fff',
-            minAngle: 12, // 扇区小于 12°(≈3.3%) 时隐藏标签，避免碎片文字堆叠；hover 仍会显示
-            formatter: function(p) { return truncateLabel(p.name, 13, 132); }
-          }
-        },
-        {
-          r0: '50%', r: '90%',
-          itemStyle: { borderWidth: 1, borderColor: th.card },
-          label: { rotate: 'radial', fontSize: 11, fontFamily: '"IBM Plex Mono", monospace', color: '#211b10',
-            minAngle: 8, // 扇区小于 8°(≈2.2%) 时隐藏标签
-            formatter: function(p) { return truncateLabel(p.name, 11, 96); }
-          }
-        }
-      ]
-    }],
-    tooltip: {
-      trigger: 'item',
-      backgroundColor: th.card,
-      borderColor: th.line,
-      borderWidth: 1,
-      textStyle: { color: th.fg, fontFamily: '"IBM Plex Mono", monospace', fontSize: 12 },
-      extraCssText: TOOLTIP_CSS,
-      formatter: function(p) {
-        const pct = totalIncome > 0 ? ((p.value / totalIncome) * 100).toFixed(1) : '0.0';
-        // ECharts 不会把 data 上的自定义字段展开到 params 顶层, 必须从 p.data 取
-        const assetId = p.data && p.data._assetId;
-        if (assetId) {
-          const a = state.assets.find(x => x.id === assetId);
-          if (a) {
-            const inc = calcAssetIncome(a);
-            const rateRange = (a.expectedRateMin > 0 || a.expectedRateMax > 0)
-              ? (a.expectedRateMin === a.expectedRateMax
-                ? `${a.expectedRateMin.toFixed(1)}%`
-                : `${a.expectedRateMin.toFixed(1)}-${a.expectedRateMax.toFixed(1)}%`)
-              : '未设置';
-            return `<b>${esc(a.name)}</b><br/>月现金收益 ${formatCNY(inc.cashMonthly)} · 月总收益 ${formatCNY(inc.monthly)}<br/><span style="color:${th.muted}">利率 ${rateRange} · 现金 ${Math.round(getCashRatio(a) * 100)}% · 占比 ${pct}%</span>`;
-          }
-        }
-        const arrow = p.treePathInfo && p.treePathInfo.length > 2
-          ? p.treePathInfo[1].name + ' › '
-          : '';
-        return `<b>${arrow}${p.name}</b><br/><span style="color:${th.muted}">${modeLabel} ${formatCNY(p.value)} · 占比 ${pct}%</span>`;
+  incomeChart.setOption(buildSunburstOption(data, function(p) {
+    const pct = totalIncome > 0 ? ((p.value / totalIncome) * 100).toFixed(1) : '0.0';
+    // ECharts 不会把 data 上的自定义字段展开到 params 顶层, 必须从 p.data 取
+    const assetId = p.data && p.data._assetId;
+    if (assetId) {
+      const a = state.assets.find(x => x.id === assetId);
+      if (a) {
+        const inc = calcAssetIncome(a);
+        const rateRange = rateLabelText(a, 1) || '未设置';
+        return `<b>${esc(a.name)}</b><br/>月现金收益 ${formatCNY(inc.cashMonthly)} · 月总收益 ${formatCNY(inc.monthly)}<br/><span style="color:${th.muted}">利率 ${rateRange} · 现金 ${Math.round(getCashRatio(a) * 100)}% · 占比 ${pct}%</span>`;
       }
     }
-  }, true);
+    const arrow = p.treePathInfo && p.treePathInfo.length > 2
+      ? p.treePathInfo[1].name + ' › '
+      : '';
+    return `<b>${arrow}${p.name}</b><br/><span style="color:${th.muted}">${modeLabel} ${formatCNY(p.value)} · 占比 ${pct}%</span>`;
+  }), true);
 }
 
 // ========== DRAG REORDER ==========
@@ -2797,17 +2794,7 @@ const CATEGORY_COLORS = [
 ];
 
 function catColor(catId, tagName) {
-  const idx = state.categories.findIndex(c => c.id === catId);
-  const base = CATEGORY_COLORS[idx % CATEGORY_COLORS.length];
-  const dark = document.documentElement.classList.contains('dark');
-
-  const cat = state.categories.find(c => c.id === catId);
-  if (!tagName || !cat || cat.tags.length <= 1) return basePill(base, dark);
-
-  const ti = cat.tags.indexOf(tagName);
-  if (ti < 0) return basePill(base, dark);
-
-  return pillColors(base, ti / (cat.tags.length - 1), dark);
+  return catColorImpl(state.categories, catId, tagName);
 }
 function closeModal(id) {
   document.getElementById(id).style.display = 'none';
@@ -2897,13 +2884,8 @@ let expenseSearch = '';
 
 // 消费月份下拉：选项从数据自动生成（倒序），保留当前选择
 function populateExpenseMonthFilter() {
-  const sel = document.getElementById('expense-month-filter');
-  if (!sel) return;
-  const current = sel.value;
   const months = [...new Set(state.expenses.map(e => (e.date || '').slice(0, 7)).filter(Boolean))].sort().reverse();
-  sel.innerHTML = '<option value="">全部时间</option>' +
-    months.map(m => `<option value="${m}">${monthLabel(m)}</option>`).join('');
-  if (current && sel.querySelector(`option[value="${current}"]`)) sel.value = current;
+  fillMonthSelect('expense-month-filter', months);
 }
 
 // 空态「清除筛选」: 重置搜索框与月份下拉
@@ -2991,26 +2973,13 @@ function renderExpenses() {
     document.getElementById('expenses-empty-clear').style.display = 'none';
     let sorted = [...filtered];
     if (expenseSortBy) {
-      sorted.sort((a, b) => {
-        let va = a[expenseSortBy], vb = b[expenseSortBy];
-        if (typeof va === 'string') va = va.toLowerCase();
-        if (typeof vb === 'string') vb = vb.toLowerCase();
-        if (va < vb) return expenseSortDir === 'asc' ? -1 : 1;
-        if (va > vb) return expenseSortDir === 'asc' ? 1 : -1;
-        // 主键相同（如同一天）时，按 id 次级排序：降序时新记录在上，升序时旧记录在上
-        // genId() 以 Date.now() 为前缀，id 字典序即创建顺序
-        if (a.id < b.id) return expenseSortDir === 'asc' ? -1 : 1;
-        if (a.id > b.id) return expenseSortDir === 'asc' ? 1 : -1;
-        return 0;
-      });
+      // 主键相同（如同一天）时，按 id 次级排序：降序时新记录在上，升序时旧记录在上
+      // genId() 以 Date.now() 为前缀，id 字典序即创建顺序
+      const secondary = (a, b) => a.id < b.id ? (expenseSortDir === 'asc' ? -1 : 1)
+        : a.id > b.id ? (expenseSortDir === 'asc' ? 1 : -1) : 0;
+      sorted.sort((a, b) => compareBy(a, b, expenseSortBy, expenseSortDir, null, secondary));
     }
-    ['date', 'amount'].forEach(f => {
-      const el = document.getElementById('expense-sort-' + f);
-      if (el) {
-        el.textContent = expenseSortBy === f ? (expenseSortDir === 'asc' ? ' ▲' : ' ▼') : '';
-        el.className = 'sort-indicator' + (expenseSortBy === f ? ' active' : '');
-      }
-    });
+    updateSortIndicators('expense-sort-', ['date', 'amount'], expenseSortBy, expenseSortDir);
     rows.innerHTML = sorted.map(e => {
       const tagHtml = state.expenseCategories.map(cat => {
         const tagVal = e.tags[cat.id];
@@ -3020,7 +2989,7 @@ function renderExpenses() {
       }).join(' ');
       return `<div class="asset-row" style="grid-template-columns: 1fr 1fr 2fr 1.5fr 130px;">
         <div class="font-mono text-sm">${highlightMatch(e.date, q)}</div>
-        <div class="font-mono text-sm">${e.amount.toLocaleString('zh-CN', {minimumFractionDigits:2, maximumFractionDigits:2})}</div>
+        <div class="font-mono text-sm">${money2(e.amount)}</div>
         <div class="text-sm" style="color:var(--muted);">${e.note ? highlightMatch(e.note, q) : '—'}</div>
         <div class="flex flex-wrap gap-1">${tagHtml}</div>
         <div class="flex gap-2 justify-end">
@@ -3155,17 +3124,7 @@ function toggleExpenseSort(field) {
 
 // ========== EXPENSE CATEGORY CRUD ==========
 function expenseCatColor(catId, tagName) {
-  const idx = state.expenseCategories.findIndex(c => c.id === catId);
-  const base = CATEGORY_COLORS[idx % CATEGORY_COLORS.length];
-  const dark = document.documentElement.classList.contains('dark');
-
-  const cat = state.expenseCategories.find(c => c.id === catId);
-  if (!tagName || !cat || cat.tags.length <= 1) return basePill(base, dark);
-
-  const ti = cat.tags.indexOf(tagName);
-  if (ti < 0) return basePill(base, dark);
-
-  return pillColors(base, ti / (cat.tags.length - 1), dark);
+  return catColorImpl(state.expenseCategories, catId, tagName);
 }
 
 function renderExpenseCategories() {
@@ -3298,14 +3257,10 @@ let expenseChart = null;
 function populateExpenseChartSelects() {
   fillCategorySelect('expense-chart-category-select', state.expenseCategories);
 
-  const monthSel = document.getElementById('expense-chart-month-select');
-  const currentMonth = monthSel.value;
   const months = [...new Set(state.expenses.map(e => e.date.slice(0, 7)))].sort().reverse();
-  monthSel.innerHTML = '<option value="">全部时间</option>' +
-    months.map(m => `<option value="${m}">${monthLabel(m)}</option>`).join('');
-  if (currentMonth && monthSel.querySelector(`option[value="${currentMonth}"]`)) monthSel.value = currentMonth;
-  else if (months.length > 0) monthSel.value = months[0];
-  else monthSel.value = '';
+  const monthSel = fillMonthSelect('expense-chart-month-select', months);
+  // 无当前选择时默认取最近月份(与消费月份筛选「全部时间」的差异, 保持原行为)
+  if (monthSel && !monthSel.value && months.length > 0) monthSel.value = months[0];
 }
 
 function renderExpenseChart() {
@@ -3357,50 +3312,13 @@ function renderExpenseChart() {
   }
 
   const th = chartTheme();
-  expenseChart.setOption({
-    backgroundColor: 'transparent',
-    series: [{
-      type: 'sunburst',
-      data: data,
-      radius: ['12%', '90%'],
-      sort: null,
-      emphasis: { focus: 'ancestor' },
-      levels: [
-        {},
-        {
-          r0: '12%', r: '50%',
-          itemStyle: { borderWidth: 2, borderColor: th.card },
-          label: { rotate: 'tangential', fontSize: 13, fontWeight: 600, fontFamily: '"IBM Plex Mono", monospace', color: '#fff',
-            minAngle: 12, // 扇区小于 12°(≈3.3%) 时隐藏标签，避免碎片文字堆叠；hover 仍会显示
-            formatter: function(p) { return truncateLabel(p.name, 13, 132); }
-          }
-        },
-        {
-          r0: '50%', r: '90%',
-          itemStyle: { borderWidth: 1, borderColor: th.card },
-          label: { rotate: 'radial', fontSize: 11, fontFamily: '"IBM Plex Mono", monospace', color: '#211b10',
-            minAngle: 8, // 扇区小于 8°(≈2.2%) 时隐藏标签
-            formatter: function(p) { return truncateLabel(p.name, 11, 96); }
-          }
-        }
-      ]
-    }],
-    tooltip: {
-      trigger: 'item',
-      backgroundColor: th.card,
-      borderColor: th.line,
-      borderWidth: 1,
-      textStyle: { color: th.fg, fontFamily: '"IBM Plex Mono", monospace', fontSize: 12 },
-      extraCssText: TOOLTIP_CSS,
-      formatter: function(p) {
-        const pct = total > 0 ? ((p.value / total) * 100).toFixed(1) : '0.0';
-        const arrow = p.treePathInfo && p.treePathInfo.length > 2
-          ? p.treePathInfo[1].name + ' › '
-          : '';
-        return `<b>${arrow}${p.name}</b><br/><span style="color:${th.muted}">${formatCNY(p.value)} · ${pct}%</span>`;
-      }
-    }
-  }, true);
+  expenseChart.setOption(buildSunburstOption(data, function(p) {
+    const pct = total > 0 ? ((p.value / total) * 100).toFixed(1) : '0.0';
+    const arrow = p.treePathInfo && p.treePathInfo.length > 2
+      ? p.treePathInfo[1].name + ' › '
+      : '';
+    return `<b>${arrow}${p.name}</b><br/><span style="color:${th.muted}">${formatCNY(p.value)} · ${pct}%</span>`;
+  }), true);
 }
 
 // ========== EXPENSE TREND ==========
@@ -3408,9 +3326,7 @@ let expenseTrendChart = null;
 
 function setExpenseTrendMode(mode) {
   expenseTrendMode = mode;
-  document.getElementById('expense-trend-mode-value').className = mode === 'value' ? 'seg-btn active' : 'seg-btn';
-  document.getElementById('expense-trend-mode-percent').className = mode === 'percent' ? 'seg-btn active' : 'seg-btn';
-  renderExpenseTrendChart();
+  setSegMode('expense-trend-mode-value', 'expense-trend-mode-percent', mode, 'value', 'percent', renderExpenseTrendChart);
 }
 
 // ========== EXPECTATION (消费趋势参考线) ==========
@@ -3650,7 +3566,7 @@ function viewExpenseMonth(month) {
       }).join(' ');
       return `<div class="asset-row" style="grid-template-columns:1fr 1fr 2fr 1.5fr;">
         <div class="font-mono text-sm">${e.date}</div>
-        <div class="font-mono text-sm">${e.amount.toLocaleString('zh-CN', {minimumFractionDigits:2, maximumFractionDigits:2})}</div>
+        <div class="font-mono text-sm">${money2(e.amount)}</div>
         <div class="text-sm" style="color:var(--muted);">${e.note ? esc(e.note) : '—'}</div>
         <div class="flex flex-wrap gap-1">${tagHtml}</div>
       </div>`;
