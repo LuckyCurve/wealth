@@ -2383,8 +2383,20 @@ function renderHistoryChart() {
 
   const totals = sorted.map(s => s.totalCNY);
 
-  const series = cat.tags.map((tag, si) => {
-    const isLast = si === cat.tags.length - 1;
+  // 按各标签全部月份总和降序排列：大的放堆叠柱底部，小的在上（与消费趋势一致）
+  const tagTotals = {};
+  cat.tags.forEach(tag => { tagTotals[tag] = 0; });
+  sorted.forEach(snap => {
+    cat.tags.forEach(tag => {
+      tagTotals[tag] += (snap.assets || [])
+        .filter(a => (a.tags || {})[catId] === tag)
+        .reduce((s, a) => s + a.amount * ((snap.currencyRates || {})[a.currency] || 1), 0);
+    });
+  });
+  const sortedTags = [...cat.tags].sort((a, b) => tagTotals[b] - tagTotals[a]);
+
+  const series = sortedTags.map((tag, si) => {
+    const isLast = si === sortedTags.length - 1;
     const raw = sorted.map(snap => (snap.assets || [])
       .filter(a => (a.tags || {})[catId] === tag)
       .reduce((s, a) => s + a.amount * ((snap.currencyRates || {})[a.currency] || 1), 0)
@@ -2392,7 +2404,9 @@ function renderHistoryChart() {
     const data = historyChartMode === 'percent'
       ? percentSeriesData(raw, totals)
       : raw;
-    const pal = CATEGORY_PALETTE[si % CATEGORY_PALETTE.length];
+    // 颜色按标签在分类中的原始下标取色，保持稳定不随排序变化
+    const pi = cat.tags.indexOf(tag);
+    const pal = CATEGORY_PALETTE[pi % CATEGORY_PALETTE.length];
     return {
       name: tag, type: 'bar', stack: 'total', data,
       itemStyle: { color: pal.base },
