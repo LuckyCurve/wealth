@@ -321,6 +321,56 @@
     return dark ? pillColors(base, 0, true) : { ...base };
   }
 
+  // ========== 图表数据构造（纯，可单测）==========
+  // 旭日图 / 堆叠柱调色板：资产/收入/消费/历史/趋势五图共用同一套暖色配色。
+  // 原定义在 index.html，迁移至此处以便逻辑与单测共用同一份数据源。
+  const CATEGORY_PALETTE = [
+    { base: '#BF4A3A', shades: ['#D57262', '#E4988C', '#F2C2BA'] },
+    { base: '#4A8C6F', shades: ['#72A88E', '#97C3AE', '#C0DACE'] },
+    { base: '#E0A038', shades: ['#EABB69', '#F2D197', '#F8E6C5'] },
+    { base: '#4A7BA7', shades: ['#6B9DC5', '#8FB9DB', '#B5D3ED'] },
+    { base: '#B06A4B', shades: ['#C58D74', '#D8B09D', '#EBD1C4'] },
+    { base: '#7A6E9E', shades: ['#9B91BA', '#BAB3D3', '#D8D3E8'] },
+    { base: '#C0803C', shades: ['#D3A16A', '#E2BF98', '#F0DDC6'] },
+    { base: '#3D8A80', shades: ['#69A69B', '#92C1B8', '#BBDAD4'] },
+    { base: '#C75B39', shades: ['#D98367', '#E7A99A', '#F4CFC5'] },
+    { base: '#A0635A', shades: ['#B9877E', '#CEABA5', '#E3CDCA'] },
+  ];
+
+  // 旭日图数据构造（资产/收入/消费三图共用）：给定分类与「按标签分组的子项数组」，
+  // 统一套用 CATEGORY_PALETTE 配色。childValue(child) 决定扇区数值；
+  // child 可携带 extra 字段（如 _assetId）透传到 ECharts 节点。数值统一四舍五入两位。
+  function buildSunburstData(cat, groups, childValue) {
+    return cat.tags
+      .filter(t => (groups[t] || []).length > 0)
+      .map((tag, ti) => {
+        const pal = CATEGORY_PALETTE[ti % CATEGORY_PALETTE.length];
+        const children = (groups[tag] || []).map((child, ai) => {
+          const node = {
+            name: child.name,
+            value: Math.round(childValue(child) * 100) / 100,
+            itemStyle: { color: pal.shades[ai % pal.shades.length] },
+          };
+          if (child.extra) Object.assign(node, child.extra);
+          return node;
+        });
+        return { name: tag, itemStyle: { color: pal.base }, children };
+      });
+  }
+
+  // 占比百分比字符串（1 位小数），用于图表 tooltip / 标签；分母为 0 时返回 '0.0'
+  function pctStr(value, total) {
+    return total > 0 ? ((value / total) * 100).toFixed(1) : '0.0';
+  }
+
+  // 堆叠柱状图「占比模式」数据转换：保留原始金额(raw) 的同时给出百分比数值
+  function percentSeriesData(raw, totals) {
+    return raw.map((v, vi) => ({
+      value: totals[vi] > 0 ? +(v / totals[vi] * 100).toFixed(1) : 0,
+      raw: Math.round(v * 100) / 100,
+    }));
+  }
+
   return {
     toCNY, formatCNY,
     addMonths, getCurrentMonth, getLocalDateStr, getLocalMonthStr, monthLabel,
@@ -330,5 +380,6 @@
     esc, escRegExp, highlightMatch, moneyStr, jsAttr,
     truncateLabel,
     hexToHsl, hslToHex, pillColors, basePill,
+    CATEGORY_PALETTE, buildSunburstData, pctStr, percentSeriesData,
   };
 });

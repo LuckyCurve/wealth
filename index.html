@@ -1706,21 +1706,8 @@ function removeTag(catId, tagName) {
   removeTagGeneric('asset', catId, tagName);
 }
 
-// Warm, cozy palette — autumn afternoon vibes (shared between charts)
-const CATEGORY_PALETTE = [
-  { base: '#BF4A3A', shades: ['#D57262', '#E4988C', '#F2C2BA'] },
-  { base: '#4A8C6F', shades: ['#72A88E', '#97C3AE', '#C0DACE'] },
-  { base: '#E0A038', shades: ['#EABB69', '#F2D197', '#F8E6C5'] },
-  { base: '#4A7BA7', shades: ['#6B9DC5', '#8FB9DB', '#B5D3ED'] },
-  { base: '#B06A4B', shades: ['#C58D74', '#D8B09D', '#EBD1C4'] },
-  { base: '#7A6E9E', shades: ['#9B91BA', '#BAB3D3', '#D8D3E8'] },
-  { base: '#C0803C', shades: ['#D3A16A', '#E2BF98', '#F0DDC6'] },
-  { base: '#3D8A80', shades: ['#69A69B', '#92C1B8', '#BBDAD4'] },
-  { base: '#C75B39', shades: ['#D98367', '#E7A99A', '#F4CFC5'] },
-  { base: '#A0635A', shades: ['#B9877E', '#CEABA5', '#E3CDCA'] },
-];
-
 // 图表文字/线条随主题取色（ECharts canvas 不识别 CSS 变量, 需读取计算后的值）
+// 注：CATEGORY_PALETTE（旭日图 / 堆叠柱调色板）已迁移至 logic.js，浏览器下由全局注入，逻辑与单测共用同一份。
 const TOOLTIP_CSS = 'border-radius:6px;padding:10px 14px;box-shadow:0 6px 18px rgba(33,27,16,0.14);';
 
 // 图表/空态显隐切换：show=true 显示图表、隐藏空态；反之显示空态
@@ -2066,21 +2053,10 @@ function renderChart() {
   cat.tags.forEach(t => { groups[t] = []; });
   state.assets.forEach(a => {
     const tagVal = a.tags[catId];
-    if (tagVal && groups[tagVal]) {
-      groups[tagVal].push(a);
-    }
+    if (tagVal && groups[tagVal]) groups[tagVal].push(a);
   });
 
-  // Assign colors: each tag gets a base color, children get shades
-  const data = cat.tags.filter(t => groups[t].length > 0).map((tag, ti) => {
-    const pal = CATEGORY_PALETTE[ti % CATEGORY_PALETTE.length];
-    const children = groups[tag].map((a, ai) => ({
-      name: a.name,
-      value: Math.round(toCNY(a.amount, a.currency) * 100) / 100,
-      itemStyle: { color: pal.shades[ai % pal.shades.length] }
-    }));
-    return { name: tag, itemStyle: { color: pal.base }, children };
-  });
+  const data = buildSunburstData(cat, groups, a => toCNY(a.amount, a.currency));
 
   // 所选维度下所有分组均为空（如新建分类后资产尚未分配标签）时显示空态, 避免空白画布
   if (data.length === 0) { showChartOrEmpty(chartEl, emptyEl, false); return; }
@@ -2094,7 +2070,7 @@ function renderChart() {
 
   const th = chartTheme();
   chart.setOption(buildSunburstOption(data, function(p) {
-    const pct = totalCNY > 0 ? ((p.value / totalCNY) * 100).toFixed(1) : '0.0';
+    const pct = pctStr(p.value, totalCNY);
     const arrow = p.treePathInfo && p.treePathInfo.length > 2
       ? p.treePathInfo[1].name + ' › '
       : '';
@@ -2414,7 +2390,7 @@ function renderHistoryChart() {
       .reduce((s, a) => s + a.amount * ((snap.currencyRates || {})[a.currency] || 1), 0)
     );
     const data = historyChartMode === 'percent'
-      ? raw.map((v, vi) => ({ value: totals[vi] > 0 ? +(v / totals[vi] * 100).toFixed(1) : 0, raw: Math.round(v * 100) / 100 }))
+      ? percentSeriesData(raw, totals)
       : raw;
     const pal = CATEGORY_PALETTE[si % CATEGORY_PALETTE.length];
     return {
@@ -2454,7 +2430,7 @@ function renderHistoryChart() {
           const raw = p.data && p.data.raw != null ? p.data.raw : 0;
           return `<b>${d}</b><br/>${p.marker} ${p.seriesName}: ${p.value}% (${formatCNY(raw)})`;
         }
-        const pct = total > 0 ? ((p.value / total) * 100).toFixed(1) : '0.0';
+        const pct = pctStr(p.value, total);
         return `<b>${d}</b><br/>${p.marker} ${p.seriesName}: ${formatCNY(p.value)} (${pct}%)`;
       }
     },
@@ -2645,13 +2621,13 @@ function renderIncomeChart() {
   const cat = state.categories.find(c => c.id === catId);
   if (!cat) return;
 
-  // group by selected category's tags
+  // group by selected category's tags（子项携带 asset 引用与 _assetId 透传）
   const groups = {};
   cat.tags.forEach(t => { groups[t] = []; });
   rateAssets.forEach(a => {
     const tagVal = a.tags[catId];
     if (tagVal && groups[tagVal]) {
-      groups[tagVal].push(a);
+      groups[tagVal].push({ name: a.name, asset: a, extra: { _assetId: a.id } });
     }
   });
 
@@ -2665,19 +2641,9 @@ function renderIncomeChart() {
     return s + (incomeChartMode === 'cash' ? inc.cashMonthly : inc.monthly);
   }, 0);
 
-  const data = cat.tags.filter(t => groups[t].length > 0).map((tag, ti) => {
-    const pal = CATEGORY_PALETTE[ti % CATEGORY_PALETTE.length];
-    const children = groups[tag].map((a, ai) => {
-      const inc = calcAssetIncome(a);
-      const v = incomeChartMode === 'cash' ? inc.cashMonthly : inc.monthly;
-      return {
-        name: a.name,
-        value: Math.round(v * 100) / 100,
-        itemStyle: { color: pal.shades[ai % pal.shades.length] },
-        _assetId: a.id
-      };
-    });
-    return { name: tag, itemStyle: { color: pal.base }, children };
+  const data = buildSunburstData(cat, groups, ch => {
+    const inc = calcAssetIncome(ch.asset);
+    return incomeChartMode === 'cash' ? inc.cashMonthly : inc.monthly;
   });
 
   if (data.length === 0) {
@@ -2687,7 +2653,7 @@ function renderIncomeChart() {
 
   const th = chartTheme();
   incomeChart.setOption(buildSunburstOption(data, function(p) {
-    const pct = totalIncome > 0 ? ((p.value / totalIncome) * 100).toFixed(1) : '0.0';
+    const pct = pctStr(p.value, totalIncome);
     // ECharts 不会把 data 上的自定义字段展开到 params 顶层, 必须从 p.data 取
     const assetId = p.data && p.data._assetId;
     if (assetId) {
@@ -3238,27 +3204,20 @@ function renderExpenseChart() {
   if (!cat) return;
 
   const groups = {};
-  cat.tags.forEach(t => { groups[t] = {}; });
+  cat.tags.forEach(t => { groups[t] = []; });
   filtered.forEach(e => {
     const tagVal = e.tags[catId];
     if (tagVal && groups[tagVal]) {
       const key = e.note || e.date;
-      if (!groups[tagVal][key]) groups[tagVal][key] = 0;
-      groups[tagVal][key] += e.amount;
+      const existing = groups[tagVal].find(c => c.name === key);
+      if (existing) existing.value += e.amount;
+      else groups[tagVal].push({ name: key, value: e.amount });
     }
   });
 
   const total = filtered.reduce((s, e) => s + e.amount, 0);
 
-  const data = cat.tags.filter(t => Object.keys(groups[t]).length > 0).map((tag, ti) => {
-    const pal = CATEGORY_PALETTE[ti % CATEGORY_PALETTE.length];
-    const children = Object.entries(groups[tag]).map(([name, val], ai) => ({
-      name: name,
-      value: Math.round(val * 100) / 100,
-      itemStyle: { color: pal.shades[ai % pal.shades.length] }
-    }));
-    return { name: tag, itemStyle: { color: pal.base }, children };
-  });
+  const data = buildSunburstData(cat, groups, c => c.value);
 
   // 所选维度下所有分组均为空（如新建分类后消费尚未分配标签）时显示空态, 避免空白画布
   if (data.length === 0) { showChartOrEmpty(chartEl, emptyEl, false); return; }
@@ -3269,7 +3228,7 @@ function renderExpenseChart() {
 
   const th = chartTheme();
   expenseChart.setOption(buildSunburstOption(data, function(p) {
-    const pct = total > 0 ? ((p.value / total) * 100).toFixed(1) : '0.0';
+    const pct = pctStr(p.value, total);
     const arrow = p.treePathInfo && p.treePathInfo.length > 2
       ? p.treePathInfo[1].name + ' › '
       : '';
@@ -3364,7 +3323,7 @@ function renderExpenseTrendChart() {
   const tagSeries = sortedTags.map((tag) => {
     const raw = sorted.map(m => monthMap[m][tag] || 0);
     const data = expenseTrendMode === 'percent'
-      ? raw.map((v, vi) => ({ value: totals[vi] > 0 ? +(v / totals[vi] * 100).toFixed(1) : 0, raw: Math.round(v * 100) / 100 }))
+      ? percentSeriesData(raw, totals)
       : raw;
     // 颜色按标签在分类中的原始下标取色，保持稳定不随排序变化
     const si = cat.tags.indexOf(tag);
@@ -3463,10 +3422,10 @@ function renderExpenseTrendChart() {
         const total = totals[idx];
         if (expenseTrendMode === 'percent') {
           const raw = p.data && p.data.raw != null ? p.data.raw : 0;
-          const pct = total > 0 ? ((raw / total) * 100).toFixed(1) : '0.0';
+          const pct = pctStr(raw, total);
           return `<b>${d}</b><br/>${p.marker} ${p.seriesName}: ${formatCNY(raw)} (${pct}%)`;
         }
-        const pct = total > 0 ? ((p.value / total) * 100).toFixed(1) : '0.0';
+        const pct = pctStr(p.value, total);
         return `<b>${d}</b><br/>${p.marker} ${p.seriesName}: ${formatCNY(p.value)} (${pct}%)`;
       }
     },

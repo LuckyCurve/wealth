@@ -324,3 +324,89 @@ describe('颜色数学', () => {
     assert.notStrictEqual(L.basePill(base, true).bg, base.bg);
   });
 });
+
+// ========== 图表数据构造（旭日图 / 占比）==========
+describe('图表数据构造 buildSunburstData / pctStr / percentSeriesData', () => {
+  const cat = { id: 'c1', name: '分类', tags: ['T1', 'T2', 'T3'] };
+
+  test('buildSunburstData 按标签套用 CATEGORY_PALETTE 配色, 跳过空分组', () => {
+    const groups = {
+      T1: [{ name: 'A', value: 100 }, { name: 'B', value: 50 }],
+      T2: [],
+      T3: [{ name: 'C', value: 7 }],
+    };
+    const data = L.buildSunburstData(cat, groups, c => c.value);
+    assert.strictEqual(data.length, 2); // T2 空分组被跳过
+    assert.strictEqual(data[0].name, 'T1');
+    assert.strictEqual(data[0].itemStyle.color, L.CATEGORY_PALETTE[0].base);
+    assert.strictEqual(data[1].name, 'T3');
+    assert.strictEqual(data[1].itemStyle.color, L.CATEGORY_PALETTE[1].base); // 过滤后 ti=1
+    assert.strictEqual(data[0].children.length, 2);
+    assert.strictEqual(data[0].children[0].value, 100);
+    assert.strictEqual(data[0].children[0].itemStyle.color, L.CATEGORY_PALETTE[0].shades[0]);
+    assert.strictEqual(data[0].children[1].itemStyle.color, L.CATEGORY_PALETTE[0].shades[1]);
+  });
+
+  test('buildSunburstData childValue 决定数值, extra 透传, 四舍五入两位', () => {
+    const groups = { T1: [{ name: 'A', k: 3, extra: { _assetId: 'x' } }] };
+    const data = L.buildSunburstData(cat, groups, c => c.k * 1.23456); // 3.70368 → 3.7
+    assert.strictEqual(data[0].children[0].value, 3.7);
+    assert.strictEqual(data[0].children[0].name, 'A');
+    assert.strictEqual(data[0].children[0]._assetId, 'x');
+  });
+
+  test('buildSunburstData 空 groups 返回空数组', () => {
+    assert.deepStrictEqual(L.buildSunburstData(cat, {}, c => c.value), []);
+  });
+
+  test('CATEGORY_PALETTE 每项含 base 与 3 档 shades', () => {
+    assert.strictEqual(L.CATEGORY_PALETTE.length, 10);
+    L.CATEGORY_PALETTE.forEach(p => {
+      assert.match(p.base, /^#[0-9a-fA-F]{6}$/);
+      assert.strictEqual(p.shades.length, 3);
+    });
+  });
+
+  test('pctStr 占比字符串与分母为零兜底', () => {
+    assert.strictEqual(L.pctStr(50, 200), '25.0');
+    assert.strictEqual(L.pctStr(1, 3), '33.3');
+    assert.strictEqual(L.pctStr(0, 0), '0.0');
+    assert.strictEqual(L.pctStr(10, 0), '0.0');
+  });
+
+  test('percentSeriesData 保留 raw 并给出百分比数值, 分母为零兜底', () => {
+    const out = L.percentSeriesData([50, 150], [200, 200]);
+    assert.deepStrictEqual(out, [
+      { value: 25, raw: 50 },
+      { value: 75, raw: 150 },
+    ]);
+    const zero = L.percentSeriesData([10], [0]);
+    assert.strictEqual(zero[0].value, 0);
+    assert.strictEqual(zero[0].raw, 10);
+  });
+});
+
+// ========== 补充边界（既有函数）==========
+describe('补充边界', () => {
+  test('getAssetRate 兼容旧版 expectedRate 字段, 新字段优先', () => {
+    assert.strictEqual(L.getAssetRate({ expectedRate: 8 }, 'min'), 8);
+    assert.strictEqual(L.getAssetRate({ expectedRateMin: 5, expectedRate: 99 }, 'min'), 5);
+    assert.strictEqual(L.getAssetRate({}, 'max'), 0);
+  });
+  test('toCNY 汇率字段缺失按 1 兜底', () => {
+    globalThis.state = freshState({ rates: { CNY: 1, HKD: 0.9, USD: 7.2 } }); // 无 EUR
+    assert.strictEqual(L.toCNY(100, 'EUR'), 100);
+  });
+  test('moneyStr 负数 / 零 / 小数', () => {
+    assert.strictEqual(L.moneyStr(-1234.5), '-1,234.5');
+    assert.strictEqual(L.moneyStr(0), '0');
+    assert.strictEqual(L.moneyStr(1234.567), '1,234.567');
+  });
+  test('migrateState 保留已存在的 currency 内置分类', () => {
+    globalThis.state = freshState({ categories: [{ id: 'currency', name: '货币类型', builtin: true, tags: ['CNY', 'HKD', 'USD'] }] });
+    const before = state.categories.length;
+    L.migrateState();
+    assert.strictEqual(state.categories.length, before);
+    assert.strictEqual(state.categories.find(c => c.id === 'currency').tags.length, 3);
+  });
+});
