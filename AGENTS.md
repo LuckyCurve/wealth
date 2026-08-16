@@ -122,6 +122,15 @@ interface Expense {
 
 无构建步骤。修改后直接刷新浏览器即可生效。
 
+## 单元测试
+
+核心纯逻辑（货币换算、收益测算、数据迁移、日期/月份、文本/金额转义、颜色数学）已抽到 `logic.js`，通过 UMD 双端复用：浏览器由 `index.html` 的 `<script src="logic.js">` 加载（函数挂到全局，供内联脚本按原名调用），Node 下作为 CommonJS 被测试 `require`。
+
+- 运行：`node --test`（零依赖，仅用内置 `node:test` / `node:assert`）。
+- 测试文件：`test/logic.test.js`。
+- 依赖全局 `state` / `incomeMode` 的函数，在测试中通过 `globalThis.state` / `globalThis.incomeMode` 注入，与浏览器读取 `let` 全局的行为一致。
+- 新增/修改上述纯逻辑时，请同步更新 `logic.js` 与对应单测，保持单一数据来源。
+
 ## Git 提交风格
 
 Conventional Commits，中文描述：`feat:` / `fix:` / `refactor:` / `style:` / `docs:`
