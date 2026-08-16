@@ -1240,9 +1240,7 @@ function renderAssets() {
       // 跳过 currency 分类: 货币列已单独显示, 避免重复 pill 挤占标签列
       const tagHtml = state.categories.filter(cat => cat.id !== 'currency').map(cat => {
         const tagVal = a.tags[cat.id];
-        if (!tagVal) return '';
-        const c = catColor(cat.id, tagVal);
-        return `<span class="tag-pill" style="background:${c.bg};color:${c.fg};border-left-color:${c.border};"><span class="tag-key">${esc(cat.name)}</span><span class="tag-val">${esc(tagVal)}</span></span>`;
+        return tagVal ? tagPillHtml(cat, tagVal, catColor) : '';
       }).join(' ');
       const rateText = rateLabelText(a);
       const rateLabel = rateText || '<span style="color:var(--muted);font-size:11px;">未设置</span>';
@@ -1270,7 +1268,7 @@ function renderAssets() {
   }
 
   // masthead: net worth + currency composition + income hint
-  const total = state.assets.reduce((s, a) => s + toCNY(a.amount, a.currency), 0);
+  const total = totalAssetsCNY();
   renderMasthead(total);
 }
 
@@ -1421,31 +1419,7 @@ function clearTarget() {
 }
 
 function renderCategories() {
-  const container = document.getElementById('categories-list');
-  container.innerHTML = state.categories.map(cat => {
-    const tagPills = cat.tags.map(t => {
-      const c = catColor(cat.id, t);
-      return `<span class="tag-pill" style="background:${c.bg};color:${c.fg};border-left-color:${c.border};"><span class="tag-val">${esc(t)}</span>${!cat.builtin ? ` <button onclick="removeTag('${jsAttr(cat.id)}','${jsAttr(t)}')" style="margin-left:2px;cursor:pointer;font-size:10px;line-height:1;color:${c.fg};">✕</button>` : ''}</span>`;
-    }).join(' ');
-    return `<div class="card">
-      <div class="flex items-center justify-between mb-3">
-        <div class="flex items-center gap-2">
-          <h3 class="font-display" style="font-size:17px;font-weight:700;letter-spacing:-0.005em;">${esc(cat.name)}</h3>
-          ${cat.builtin ? '<span class="text-xs px-2 py-0.5 rounded" style="background:var(--bg-2);border:1px solid var(--border);color:var(--muted);">内置</span>' : ''}
-        </div>
-        <div class="flex gap-2">
-          ${!cat.builtin ? `<button onclick="editCategory('${jsAttr(cat.id)}')" class="row-btn edit">编辑</button>
-          <button onclick="deleteCategory('${jsAttr(cat.id)}')" class="row-btn danger">删除</button>` : ''}
-        </div>
-      </div>
-      <div class="flex flex-wrap gap-2 mb-3">${tagPills}</div>
-      ${cat.builtin ? '' : `
-      <div class="flex gap-2">
-        <input type="text" id="new-tag-${cat.id}" placeholder="新增标签" class="text-sm flex-1" style="padding:6px 10px;">
-        <button onclick="addTag('${jsAttr(cat.id)}')" class="btn-ghost" style="padding:6px 14px;">添加</button>
-      </div>`}
-    </div>`;
-  }).join('');
+  renderCategoryCards('asset');
 }
 
 // ========== 平铺标签选择器（资产/消费表单共用）==========
@@ -1545,7 +1519,7 @@ function commitInlineEdit(doRender) {
       // 用户主动提交（blur/Enter/Tab）: 不整表重绘, 手动同步 cell/报头/图表,
       // 保证 blur 后正在点击的按钮（编辑/删除）DOM 不被替换、click 正常触发
       cell.innerHTML = amountHtml(a);
-      renderMasthead(state.assets.reduce((s, x) => s + toCNY(x.amount, x.currency), 0));
+      renderMasthead(totalAssetsCNY());
     }
     refreshVisibleCharts();
   }
@@ -1614,10 +1588,7 @@ function openAssetModal(editId) {
     'asset-tag-', catColor);
 
   // 现金比例滑块初始同步（读数与填充段，新建=reset 后的 100，编辑=资产值）
-  const crEl = document.getElementById('asset-cash-ratio');
-  syncScaleFill(crEl);
-  const crRo = document.getElementById('asset-cash-ratio-readout');
-  if (crRo) crRo.textContent = crEl.value + '%';
+  setScaleValue(document.getElementById('asset-cash-ratio'), 'asset-cash-ratio-readout');
 
   modal.style.display = '';
 }
@@ -1693,17 +1664,12 @@ function editAsset(id) {
 function setCashRatioPreset(v) {
   const el = document.getElementById('asset-cash-ratio');
   el.value = String(v);
-  syncScaleFill(el);
-  const readout = document.getElementById('asset-cash-ratio-readout');
-  if (readout) readout.textContent = el.value + '%';
+  setScaleValue(el, 'asset-cash-ratio-readout');
 }
 
 // 现金比例滑块拖动: 实时同步读数/填充段（保存时 saveAsset 读取滑块值）
 function onCashRatioInput() {
-  const el = document.getElementById('asset-cash-ratio');
-  syncScaleFill(el);
-  const readout = document.getElementById('asset-cash-ratio-readout');
-  if (readout) readout.textContent = el.value + '%';
+  setScaleValue(document.getElementById('asset-cash-ratio'), 'asset-cash-ratio-readout');
 }
 
 function deleteAsset(id) {
@@ -1717,59 +1683,11 @@ function deleteAsset(id) {
 
 // ========== CATEGORY CRUD ==========
 function openCategoryModal(editId) {
-  const modal = document.getElementById('category-modal');
-  const title = document.getElementById('category-modal-title');
-  const form = document.getElementById('category-form');
-  form.reset();
-  document.getElementById('cat-edit-id').value = editId || '';
-
-  if (editId) {
-    title.textContent = '编辑分类';
-    const c = state.categories.find(x => x.id === editId);
-    if (c) {
-      document.getElementById('cat-name').value = c.name;
-      document.getElementById('cat-tags').value = c.tags.join(', ');
-    }
-  } else {
-    title.textContent = '新增分类';
-  }
-  modal.style.display = '';
+  openCategoryModalGeneric('asset', editId);
 }
 
 function saveCategory(e) {
-  e.preventDefault();
-  const editId = document.getElementById('cat-edit-id').value;
-  const name = document.getElementById('cat-name').value.trim();
-  const tagsStr = document.getElementById('cat-tags').value.trim();
-  const tags = tagsStr.split(/[,，]/).map(s => s.trim()).filter(Boolean);
-
-  if (tags.length === 0) {
-    toast('至少需要一个标签', 'error');
-    return;
-  }
-
-  if (editId) {
-    const idx = state.categories.findIndex(c => c.id === editId);
-    if (idx >= 0) {
-      state.categories[idx] = { ...state.categories[idx], name, tags };
-      // update assets referencing renamed/removed tags
-      state.assets.forEach(a => {
-        if (a.tags[editId]) {
-          if (!tags.includes(a.tags[editId])) {
-            delete a.tags[editId];
-          }
-        }
-      });
-    }
-  } else {
-    state.categories.push({ id: genId(), name, builtin: false, tags });
-  }
-
-  saveState();
-  renderCategories();
-  renderAssets();
-  closeModal('category-modal');
-  toast(editId ? '分类已更新' : '分类已创建', 'success');
+  saveCategoryGeneric('asset', e);
 }
 
 function editCategory(id) {
@@ -1777,47 +1695,15 @@ function editCategory(id) {
 }
 
 function deleteCategory(id) {
-  const cat = state.categories.find(c => c.id === id);
-  if (cat && cat.builtin) return;
-  showConfirm(`确认删除分类「${cat.name}」？该分类下资产的标签关联也会被移除。`, () => {
-    state.categories = state.categories.filter(c => c.id !== id);
-    state.assets.forEach(a => { delete a.tags[id]; });
-    saveState();
-    renderCategories();
-    renderAssets();
-    toast('分类已删除', 'success');
-  });
+  deleteCategoryGeneric('asset', id);
 }
 
 function addTag(catId) {
-  const input = document.getElementById(`new-tag-${catId}`);
-  const val = input.value.trim();
-  if (!val) return;
-  const cat = state.categories.find(c => c.id === catId);
-  if (cat.builtin) { toast('内置分类不可修改', 'error'); return; }
-  if (cat.tags.includes(val)) { toast('标签已存在', 'error'); return; }
-  cat.tags.push(val);
-  saveState();
-  renderCategories();
-  renderAssets();
-  input.value = '';
-  toast('标签已添加', 'success');
+  addTagGeneric('asset', catId);
 }
 
 function removeTag(catId, tagName) {
-  const cat = state.categories.find(c => c.id === catId);
-  if (!cat) return;
-  if (cat.builtin) { toast('内置分类不可修改', 'error'); return; }
-  if (cat.tags.length <= 1) { toast('至少保留一个标签', 'error'); return; }
-  cat.tags = cat.tags.filter(t => t !== tagName);
-  // clean up assets
-  state.assets.forEach(a => {
-    if (a.tags[catId] === tagName) delete a.tags[catId];
-  });
-  saveState();
-  renderCategories();
-  renderAssets();
-  toast('标签已移除', 'success');
+  removeTagGeneric('asset', catId, tagName);
 }
 
 // Warm, cozy palette — autumn afternoon vibes (shared between charts)
@@ -1932,6 +1818,185 @@ function money2(v) {
   return Number(v).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+// 总资产折算 CNY（资产/收益/报头多处复用同一公式，集中避免漂移）
+function totalAssetsCNY() {
+  return state.assets.reduce((s, a) => s + toCNY(a.amount, a.currency), 0);
+}
+
+// 统一的分类标签 pill 渲染（资产/消费/快照列表共用），避免六处重复的内联 HTML 漂移
+// opts: { showKey:false 不显示分类名, keyHtml/valHtml 自定义内部 HTML（如搜索高亮）, removeFn: 'removeTag' 渲染删除按钮 }
+function tagPillHtml(cat, tagVal, colorFn, opts) {
+  opts = opts || {};
+  const c = colorFn(cat.id, tagVal);
+  const key = opts.showKey === false ? '' : `<span class="tag-key">${opts.keyHtml != null ? opts.keyHtml : esc(cat.name)}</span>`;
+  const val = `<span class="tag-val">${opts.valHtml != null ? opts.valHtml : esc(tagVal)}</span>`;
+  const rm = opts.removeFn ? ` <button onclick="${opts.removeFn}('${jsAttr(cat.id)}','${jsAttr(tagVal)}')" style="margin-left:2px;cursor:pointer;font-size:10px;line-height:1;color:${c.fg};">✕</button>` : '';
+  return `<span class="tag-pill" style="background:${c.bg};color:${c.fg};border-left-color:${c.border};">${key}${val}${rm}</span>`;
+}
+
+// 比例尺滑块：同步填充段与等宽读数（现金比例/安全边际两处共用）
+function setScaleValue(el, readoutId) {
+  el.style.setProperty('--fill', el.value + '%');
+  const readout = document.getElementById(readoutId);
+  if (readout) readout.textContent = el.value + '%';
+}
+
+// ========== 分类管理（资产 / 消费共用）==========
+// 两套分类的 CRUD 仅数据集合与文案不同，逻辑完全一致，统一到 CAT_SIDES 配置 + 通用函数。
+const CAT_SIDES = {
+  asset: {
+    cats: () => state.categories,
+    items: () => state.assets,
+    renderItems: renderAssets,
+    newTagPrefix: 'new-tag-',
+    removeTag: 'removeTag', addTag: 'addTag', edit: 'editCategory', del: 'deleteCategory',
+    colorFn: catColor,
+    listId: 'categories-list',
+    noun: '资产',
+    savedUpdated: '分类已更新', savedCreated: '分类已创建',
+    modal: { id: 'category-modal', title: 'category-modal-title', form: 'category-form', editId: 'cat-edit-id', name: 'cat-name', tags: 'cat-tags', editTitle: '编辑分类', newTitle: '新增分类' },
+  },
+  expense: {
+    cats: () => state.expenseCategories,
+    items: () => state.expenses,
+    renderItems: renderExpenses,
+    newTagPrefix: 'expense-new-tag-',
+    removeTag: 'removeExpenseTag', addTag: 'addExpenseTag', edit: 'editExpenseCategory', del: 'deleteExpenseCategory',
+    colorFn: expenseCatColor,
+    listId: 'expense-categories-list',
+    noun: '消费记录',
+    savedUpdated: '消费分类已更新', savedCreated: '消费分类已创建',
+    modal: { id: 'expense-category-modal', title: 'expense-category-modal-title', form: 'expense-category-form', editId: 'expense-cat-edit-id', name: 'expense-cat-name', tags: 'expense-cat-tags', editTitle: '编辑消费分类', newTitle: '新增消费分类' },
+  },
+};
+
+function renderCategoryCards(side) {
+  const cfg = CAT_SIDES[side];
+  const container = document.getElementById(cfg.listId);
+  container.innerHTML = cfg.cats().map(cat => {
+    const tagPills = cat.tags.map(t => tagPillHtml(cat, t, cfg.colorFn, { showKey: false, removeFn: cfg.removeTag })).join(' ');
+    return `<div class="card">
+      <div class="flex items-center justify-between mb-3">
+        <div class="flex items-center gap-2">
+          <h3 class="font-display" style="font-size:17px;font-weight:700;letter-spacing:-0.005em;">${esc(cat.name)}</h3>
+          ${cat.builtin ? '<span class="text-xs px-2 py-0.5 rounded" style="background:var(--bg-2);border:1px solid var(--border);color:var(--muted);">内置</span>' : ''}
+        </div>
+        <div class="flex gap-2">
+          ${!cat.builtin ? `<button onclick="${cfg.edit}('${jsAttr(cat.id)}')" class="row-btn edit">编辑</button>
+          <button onclick="${cfg.del}('${jsAttr(cat.id)}')" class="row-btn danger">删除</button>` : ''}
+        </div>
+      </div>
+      <div class="flex flex-wrap gap-2 mb-3">${tagPills}</div>
+      ${cat.builtin ? '' : `
+      <div class="flex gap-2">
+        <input type="text" id="${cfg.newTagPrefix}${cat.id}" placeholder="新增标签" class="text-sm flex-1" style="padding:6px 10px;">
+        <button onclick="${cfg.addTag}('${jsAttr(cat.id)}')" class="btn-ghost" style="padding:6px 14px;">添加</button>
+      </div>`}
+    </div>`;
+  }).join('');
+}
+
+function openCategoryModalGeneric(side, editId) {
+  const m = CAT_SIDES[side].modal;
+  const modal = document.getElementById(m.id);
+  const title = document.getElementById(m.title);
+  const form = document.getElementById(m.form);
+  form.reset();
+  document.getElementById(m.editId).value = editId || '';
+  if (editId) {
+    title.textContent = m.editTitle;
+    const c = CAT_SIDES[side].cats().find(x => x.id === editId);
+    if (c) {
+      document.getElementById(m.name).value = c.name;
+      document.getElementById(m.tags).value = c.tags.join(', ');
+    }
+  } else {
+    title.textContent = m.newTitle;
+  }
+  modal.style.display = '';
+}
+
+function saveCategoryGeneric(side, e) {
+  e.preventDefault();
+  const cfg = CAT_SIDES[side];
+  const m = cfg.modal;
+  const editId = document.getElementById(m.editId).value;
+  const name = document.getElementById(m.name).value.trim();
+  const tagsStr = document.getElementById(m.tags).value.trim();
+  const tags = tagsStr.split(/[,，]/).map(s => s.trim()).filter(Boolean);
+
+  if (tags.length === 0) {
+    toast('至少需要一个标签', 'error');
+    return;
+  }
+
+  const cats = cfg.cats();
+  if (editId) {
+    const idx = cats.findIndex(c => c.id === editId);
+    if (idx >= 0) {
+      cats[idx] = { ...cats[idx], name, tags };
+      // 清理被重命名/移除的标签引用
+      cfg.items().forEach(it => {
+        if (it.tags[editId] && !tags.includes(it.tags[editId])) delete it.tags[editId];
+      });
+    }
+  } else {
+    cats.push({ id: genId(), name, builtin: false, tags });
+  }
+
+  saveState();
+  renderCategoryCards(side);
+  cfg.renderItems();
+  closeModal(m.id);
+  toast(editId ? cfg.savedUpdated : cfg.savedCreated, 'success');
+}
+
+function deleteCategoryGeneric(side, id) {
+  const cfg = CAT_SIDES[side];
+  const cat = cfg.cats().find(c => c.id === id);
+  if (cat && cat.builtin) return;
+  showConfirm(`确认删除分类「${cat.name}」？该分类下${cfg.noun}的标签关联也会被移除。`, () => {
+    const newCats = cfg.cats().filter(c => c.id !== id);
+    if (side === 'asset') state.categories = newCats; else state.expenseCategories = newCats;
+    cfg.items().forEach(it => { delete it.tags[id]; });
+    saveState();
+    renderCategoryCards(side);
+    cfg.renderItems();
+    toast('分类已删除', 'success');
+  });
+}
+
+function addTagGeneric(side, catId) {
+  const cfg = CAT_SIDES[side];
+  const input = document.getElementById(cfg.newTagPrefix + catId);
+  const val = input.value.trim();
+  if (!val) return;
+  const cat = cfg.cats().find(c => c.id === catId);
+  if (!cat) return;
+  if (cat.builtin) { toast('内置分类不可修改', 'error'); return; }
+  if (cat.tags.includes(val)) { toast('标签已存在', 'error'); return; }
+  cat.tags.push(val);
+  saveState();
+  renderCategoryCards(side);
+  cfg.renderItems();
+  input.value = '';
+  toast('标签已添加', 'success');
+}
+
+function removeTagGeneric(side, catId, tagName) {
+  const cfg = CAT_SIDES[side];
+  const cat = cfg.cats().find(c => c.id === catId);
+  if (!cat) return;
+  if (cat.builtin) { toast('内置分类不可修改', 'error'); return; }
+  if (cat.tags.length <= 1) { toast('至少保留一个标签', 'error'); return; }
+  cat.tags = cat.tags.filter(t => t !== tagName);
+  cfg.items().forEach(it => { if (it.tags[catId] === tagName) delete it.tags[catId]; });
+  saveState();
+  renderCategoryCards(side);
+  cfg.renderItems();
+  toast('标签已移除', 'success');
+}
+
 // 通用排序比较器: getVal 用于非字段值(如换算 CNY), secondary 提供主键相同时的次级排序(如 id)
 function compareBy(a, b, field, dir, getVal, secondary) {
   let va = getVal ? getVal(a, field) : a[field];
@@ -2025,7 +2090,7 @@ function renderChart() {
   }
 
   // compute total for percentage
-  const totalCNY = state.assets.reduce((s, a) => s + toCNY(a.amount, a.currency), 0);
+  const totalCNY = totalAssetsCNY();
 
   const th = chartTheme();
   chart.setOption(buildSunburstOption(data, function(p) {
@@ -2059,7 +2124,7 @@ function confirmSnapshot(overwrite) {
   const snap = {
     month,
     note: note || '',
-    totalCNY: state.assets.reduce((s, a) => s + toCNY(a.amount, a.currency), 0),
+    totalCNY: totalAssetsCNY(),
     currencyRates: { ...state.rates },
     assets: JSON.parse(JSON.stringify(state.assets)),
     updatedAt: new Date().toISOString(),
@@ -2132,9 +2197,7 @@ function viewSnapshot(month) {
     ${(snap.assets || []).map(a => {
       const tagHtml = Object.entries(a.tags || {}).map(([catId, val]) => {
         const cat = state.categories.find(c => c.id === catId);
-        if (!cat) return '';
-        const c = catColor(catId, val);
-        return `<span class="tag-pill" style="background:${c.bg};color:${c.fg};border-left-color:${c.border};"><span class="tag-key">${esc(cat.name)}</span><span class="tag-val">${esc(val)}</span></span>`;
+        return cat ? tagPillHtml(cat, val, catColor) : '';
       }).join(' ');
       const snapRateLabel = rateLabelText(a) || '<span style="color:var(--muted);font-size:11px;">未设置</span>';
       return `<div class="asset-row">
@@ -2439,22 +2502,15 @@ function renderHistoryTab() {
 }
 
 // 比例尺滑块: 同步填充段 (--fill) 与等宽读数
-function syncScaleFill(el) {
-  el.style.setProperty('--fill', el.value + '%');
-}
-
 function onIncomeSafetyInput() {
   const el = document.getElementById('income-safety-input');
   const v = parseFloat(el.value);
-  syncScaleFill(el);
-  const readout = document.getElementById('income-safety-readout');
-  if (readout) readout.textContent = v + '%';
+  setScaleValue(el, 'income-safety-readout');
   if (v !== state.incomeSafetyFactor) {
     state.incomeSafetyFactor = v;
     saveState();
     renderIncomeTab();
-    const total = state.assets.reduce((s, a) => s + toCNY(a.amount, a.currency), 0);
-    renderMasthead(total);
+    renderMasthead(totalAssetsCNY());
   }
 }
 
@@ -2473,9 +2529,7 @@ function renderIncomeTab() {
   const safetyEl = document.getElementById('income-safety-input');
   if (document.activeElement !== safetyEl) {
     if (safetyEl.value !== String(state.incomeSafetyFactor)) safetyEl.value = String(state.incomeSafetyFactor);
-    syncScaleFill(safetyEl);
-    const safetyRo = document.getElementById('income-safety-readout');
-    if (safetyRo) safetyRo.textContent = safetyEl.value + '%';
+    setScaleValue(safetyEl, 'income-safety-readout');
   }
 
   const hasAnyRate = state.assets.some(a => (a.expectedRateMin || 0) > 0 || (a.expectedRateMax || 0) > 0);
@@ -2500,7 +2554,7 @@ function renderIncomeTab() {
   const totalAnnual = incomes.filter(i => i.annual > 0).reduce((s, i) => s + i.annual, 0);
   const totalMonthly = totalAnnual / 12;
   const totalDaily = totalAnnual / 365;
-  const totalCNY = state.assets.reduce((s, a) => s + toCNY(a.amount, a.currency), 0);
+  const totalCNY = totalAssetsCNY();
   const cashAnnual = incomes.filter(i => i.cashAnnual > 0).reduce((s, i) => s + i.cashAnnual, 0);
   const cashMonthly = cashAnnual / 12;
 
@@ -2983,9 +3037,7 @@ function renderExpenses() {
     rows.innerHTML = sorted.map(e => {
       const tagHtml = state.expenseCategories.map(cat => {
         const tagVal = e.tags[cat.id];
-        if (!tagVal) return '';
-        const c = expenseCatColor(cat.id, tagVal);
-        return `<span class="tag-pill" style="background:${c.bg};color:${c.fg};border-left-color:${c.border};"><span class="tag-key">${highlightMatch(cat.name, q)}</span><span class="tag-val">${highlightMatch(tagVal, q)}</span></span>`;
+        return tagVal ? tagPillHtml(cat, tagVal, expenseCatColor, { keyHtml: highlightMatch(cat.name, q), valHtml: highlightMatch(tagVal, q) }) : '';
       }).join(' ');
       return `<div class="asset-row" style="grid-template-columns: 1fr 1fr 2fr 1.5fr 130px;">
         <div class="font-mono text-sm">${highlightMatch(e.date, q)}</div>
@@ -3128,83 +3180,15 @@ function expenseCatColor(catId, tagName) {
 }
 
 function renderExpenseCategories() {
-  const container = document.getElementById('expense-categories-list');
-  container.innerHTML = state.expenseCategories.map(cat => {
-    const tagPills = cat.tags.map(t => {
-      const c = expenseCatColor(cat.id, t);
-      return `<span class="tag-pill" style="background:${c.bg};color:${c.fg};border-left-color:${c.border};"><span class="tag-val">${esc(t)}</span>${!cat.builtin ? ` <button onclick="removeExpenseTag('${jsAttr(cat.id)}','${jsAttr(t)}')" style="margin-left:2px;cursor:pointer;font-size:10px;line-height:1;color:${c.fg};">✕</button>` : ''}</span>`;
-    }).join(' ');
-    return `<div class="card">
-      <div class="flex items-center justify-between mb-3">
-        <div class="flex items-center gap-2">
-          <h3 class="font-display" style="font-size:17px;font-weight:700;letter-spacing:-0.005em;">${esc(cat.name)}</h3>
-          ${cat.builtin ? '<span class="text-xs px-2 py-0.5 rounded" style="background:var(--bg-2);border:1px solid var(--border);color:var(--muted);">内置</span>' : ''}
-        </div>
-        <div class="flex gap-2">
-          ${!cat.builtin ? `<button onclick="editExpenseCategory('${jsAttr(cat.id)}')" class="row-btn edit">编辑</button>
-          <button onclick="deleteExpenseCategory('${jsAttr(cat.id)}')" class="row-btn danger">删除</button>` : ''}
-        </div>
-      </div>
-      <div class="flex flex-wrap gap-2 mb-3">${tagPills}</div>
-      <div class="flex gap-2">
-        <input type="text" id="expense-new-tag-${cat.id}" placeholder="新增标签" class="text-sm flex-1" style="padding:6px 10px;">
-        <button onclick="addExpenseTag('${jsAttr(cat.id)}')" class="btn-ghost" style="padding:6px 14px;">添加</button>
-      </div>
-    </div>`;
-  }).join('');
+  renderCategoryCards('expense');
 }
 
 function openExpenseCategoryModal(editId) {
-  const modal = document.getElementById('expense-category-modal');
-  const title = document.getElementById('expense-category-modal-title');
-  const form = document.getElementById('expense-category-form');
-  form.reset();
-  document.getElementById('expense-cat-edit-id').value = editId || '';
-
-  if (editId) {
-    title.textContent = '编辑消费分类';
-    const c = state.expenseCategories.find(x => x.id === editId);
-    if (c) {
-      document.getElementById('expense-cat-name').value = c.name;
-      document.getElementById('expense-cat-tags').value = c.tags.join(', ');
-    }
-  } else {
-    title.textContent = '新增消费分类';
-  }
-  modal.style.display = '';
+  openCategoryModalGeneric('expense', editId);
 }
 
 function saveExpenseCategory(e) {
-  e.preventDefault();
-  const editId = document.getElementById('expense-cat-edit-id').value;
-  const name = document.getElementById('expense-cat-name').value.trim();
-  const tagsStr = document.getElementById('expense-cat-tags').value.trim();
-  const tags = tagsStr.split(/[,，]/).map(s => s.trim()).filter(Boolean);
-
-  if (tags.length === 0) {
-    toast('至少需要一个标签', 'error');
-    return;
-  }
-
-  if (editId) {
-    const idx = state.expenseCategories.findIndex(c => c.id === editId);
-    if (idx >= 0) {
-      state.expenseCategories[idx] = { ...state.expenseCategories[idx], name, tags };
-      state.expenses.forEach(e => {
-        if (e.tags[editId] && !tags.includes(e.tags[editId])) {
-          delete e.tags[editId];
-        }
-      });
-    }
-  } else {
-    state.expenseCategories.push({ id: genId(), name, builtin: false, tags });
-  }
-
-  saveState();
-  renderExpenseCategories();
-  renderExpenses();
-  closeModal('expense-category-modal');
-  toast(editId ? '消费分类已更新' : '消费分类已创建', 'success');
+  saveCategoryGeneric('expense', e);
 }
 
 function editExpenseCategory(id) {
@@ -3212,43 +3196,15 @@ function editExpenseCategory(id) {
 }
 
 function deleteExpenseCategory(id) {
-  const cat = state.expenseCategories.find(c => c.id === id);
-  showConfirm(`确认删除分类「${cat.name}」？该分类下消费记录的标签关联也会被移除。`, () => {
-    state.expenseCategories = state.expenseCategories.filter(c => c.id !== id);
-    state.expenses.forEach(e => { delete e.tags[id]; });
-    saveState();
-    renderExpenseCategories();
-    renderExpenses();
-    toast('消费分类已删除', 'success');
-  });
+  deleteCategoryGeneric('expense', id);
 }
 
 function addExpenseTag(catId) {
-  const input = document.getElementById(`expense-new-tag-${catId}`);
-  const val = input.value.trim();
-  if (!val) return;
-  const cat = state.expenseCategories.find(c => c.id === catId);
-  if (cat.tags.includes(val)) { toast('标签已存在', 'error'); return; }
-  cat.tags.push(val);
-  saveState();
-  renderExpenseCategories();
-  renderExpenses();
-  input.value = '';
-  toast('标签已添加', 'success');
+  addTagGeneric('expense', catId);
 }
 
 function removeExpenseTag(catId, tagName) {
-  const cat = state.expenseCategories.find(c => c.id === catId);
-  if (!cat) return;
-  if (cat.tags.length <= 1) { toast('至少保留一个标签', 'error'); return; }
-  cat.tags = cat.tags.filter(t => t !== tagName);
-  state.expenses.forEach(e => {
-    if (e.tags[catId] === tagName) delete e.tags[catId];
-  });
-  saveState();
-  renderExpenseCategories();
-  renderExpenses();
-  toast('标签已移除', 'success');
+  removeTagGeneric('expense', catId, tagName);
 }
 
 // ========== EXPENSE CHART ==========
@@ -3560,9 +3516,7 @@ function viewExpenseMonth(month) {
     ${expenses.map(e => {
       const tagHtml = state.expenseCategories.map(cat => {
         const tagVal = e.tags[cat.id];
-        if (!tagVal) return '';
-        const c = expenseCatColor(cat.id, tagVal);
-        return `<span class="tag-pill" style="background:${c.bg};color:${c.fg};border-left-color:${c.border};"><span class="tag-key">${esc(cat.name)}</span><span class="tag-val">${esc(tagVal)}</span></span>`;
+        return tagVal ? tagPillHtml(cat, tagVal, expenseCatColor) : '';
       }).join(' ');
       return `<div class="asset-row" style="grid-template-columns:1fr 1fr 2fr 1.5fr;">
         <div class="font-mono text-sm">${e.date}</div>
