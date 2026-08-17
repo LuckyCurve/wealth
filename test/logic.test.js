@@ -140,6 +140,28 @@ describe('消费月度聚合 / 环比', () => {
   });
 });
 
+describe('expenseMonthTagTotals 按标签聚合', () => {
+  const expenses = [
+    { date: '2024-03-05', amount: 100, tags: { c1: '餐饮' } },
+    { date: '2024-03-10', amount: 50, tags: { c1: '交通' } },
+    { date: '2024-03-12', amount: 200, tags: { c1: '餐饮' } },
+    { date: '2024-04-01', amount: 80, tags: { c1: '餐饮' } },
+    { date: '2024-04-02', amount: 30, tags: { c2: '微信' } }, // 不同维度
+    { date: '2024-05-01', amount: 10, tags: { c1: '餐饮' } }, // 不同月
+  ];
+  test('按维度+标签聚合指定月', () => {
+    assert.deepStrictEqual(L.expenseMonthTagTotals('2024-03', 'c1', expenses), { '餐饮': 300, '交通': 50 });
+  });
+  test('忽略其他月/其他维度', () => {
+    assert.deepStrictEqual(L.expenseMonthTagTotals('2024-04', 'c1', expenses), { '餐饮': 80 });
+    assert.deepStrictEqual(L.expenseMonthTagTotals('2024-03', 'c2', expenses), {});
+  });
+  test('无数据返回 {}', () => {
+    assert.deepStrictEqual(L.expenseMonthTagTotals('2099-01', 'c1', expenses), {});
+    assert.deepStrictEqual(L.expenseMonthTagTotals('2024-03', 'cX', expenses), {});
+  });
+});
+
 // ========== 收益测算 ==========
 describe('收益测算', () => {
   const asset = () => ({

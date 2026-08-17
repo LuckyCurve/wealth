@@ -97,6 +97,18 @@
     return { diff, pct, up };
   }
 
+  // 按「分类维度 + 标签」聚合某月消费（CNY），返回 { tag: total }；用于消费两月对比弹窗的逐标签拆分
+  function expenseMonthTagTotals(month, catId, expenses) {
+    const map = {};
+    (expenses || []).forEach(e => {
+      if (String(e && e.date || '').slice(0, 7) !== month) return;
+      const tag = e.tags && e.tags[catId];
+      if (!tag) return;
+      map[tag] = (map[tag] || 0) + (Number(e.amount) || 0);
+    });
+    return map;
+  }
+
   // ========== 收益测算（依赖 incomeMode / state）==========
   function getAssetRate(a, mode) {
     mode = mode || incomeMode;
@@ -405,7 +417,7 @@
     toCNY, formatCNY,
     addMonths, getCurrentMonth, getLocalDateStr, getLocalMonthStr, monthLabel,
     findMonthSnapshot, getPrevSnapshot,
-    monthlyExpenseTotals, prevExpenseMonthOf, expenseMoM,
+    monthlyExpenseTotals, prevExpenseMonthOf, expenseMoM, expenseMonthTagTotals,
     getAssetRate, getSafetyFactor, getCashRatio, calcAssetIncome,
     migrateState,
     esc, escRegExp, highlightMatch, moneyStr, jsAttr,
