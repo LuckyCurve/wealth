@@ -67,6 +67,36 @@
       .sort((a, b) => b.month.localeCompare(a.month))[0] || null;
   }
 
+  // ========== 消费月度聚合（纯函数，不依赖全局）==========
+  // 按 'YYYY-MM' 聚合消费记录，返回升序 [{ month, total, count }]
+  function monthlyExpenseTotals(expenses) {
+    const map = {};
+    (expenses || []).forEach(e => {
+      const m = String(e && e.date || '').slice(0, 7);
+      if (!m) return;
+      if (!map[m]) map[m] = { month: m, total: 0, count: 0 };
+      map[m].total += Number(e.amount) || 0;
+      map[m].count++;
+    });
+    return Object.keys(map).sort().map(m => map[m]);
+  }
+
+  // 取指定月份之前、最近一个有数据的月份（自动跳过空月份，等价于资产快照的 getPrevSnapshot）
+  // months: monthlyExpenseTotals 的升序输出；无更早月份时返回 null
+  function prevExpenseMonthOf(month, months) {
+    const prevs = (months || []).filter(x => x.month < month).map(x => x.month);
+    return prevs.length ? prevs.sort().pop() : null;
+  }
+
+  // 环比：curr 与 prev 月度总额对比，返回 { diff, pct, up }
+  // up = curr >= prev（花费「上涨」）；prev 为 0 时 pct 归 0（避免 Infinity）
+  function expenseMoM(curr, prev) {
+    const diff = (Number(curr) || 0) - (Number(prev) || 0);
+    const pct = prev ? diff / prev * 100 : 0;
+    const up = diff >= 0;
+    return { diff, pct, up };
+  }
+
   // ========== 收益测算（依赖 incomeMode / state）==========
   function getAssetRate(a, mode) {
     mode = mode || incomeMode;
@@ -375,6 +405,7 @@
     toCNY, formatCNY,
     addMonths, getCurrentMonth, getLocalDateStr, getLocalMonthStr, monthLabel,
     findMonthSnapshot, getPrevSnapshot,
+    monthlyExpenseTotals, prevExpenseMonthOf, expenseMoM,
     getAssetRate, getSafetyFactor, getCashRatio, calcAssetIncome,
     migrateState,
     esc, escRegExp, highlightMatch, moneyStr, jsAttr,

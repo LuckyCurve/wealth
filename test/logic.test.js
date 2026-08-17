@@ -92,6 +92,54 @@ describe('快照查询', () => {
   });
 });
 
+describe('消费月度聚合 / 环比', () => {
+  const expenses = [
+    { date: '2024-01-15', amount: 100 },
+    { date: '2024-01-20', amount: 50 },
+    { date: '2024-03-05', amount: 300 }, // 2 月无记录（空月份）
+    { date: '2024-03-10', amount: 100 },
+    { date: '2024-04-01', amount: 250 },
+  ];
+
+  test('monthlyExpenseTotals 按月聚合并升序', () => {
+    assert.deepStrictEqual(L.monthlyExpenseTotals(expenses), [
+      { month: '2024-01', total: 150, count: 2 },
+      { month: '2024-03', total: 400, count: 2 },
+      { month: '2024-04', total: 250, count: 1 },
+    ]);
+  });
+
+  test('monthlyExpenseTotals 空输入返回 []', () => {
+    assert.deepStrictEqual(L.monthlyExpenseTotals([]), []);
+    assert.deepStrictEqual(L.monthlyExpenseTotals(null), []);
+  });
+
+  test('prevExpenseMonthOf 跳过空月份', () => {
+    const months = L.monthlyExpenseTotals(expenses);
+    // 2024-03 之前最近的是 2024-01（跳过无记录的 2024-02）
+    assert.strictEqual(L.prevExpenseMonthOf('2024-03', months), '2024-01');
+    assert.strictEqual(L.prevExpenseMonthOf('2024-04', months), '2024-03');
+    assert.strictEqual(L.prevExpenseMonthOf('2024-01', months), null);
+  });
+
+  test('expenseMoM 环比涨跌与百分比', () => {
+    const a = L.expenseMoM(400, 150);
+    assert.strictEqual(a.diff, 250);
+    assert.ok(approx(a.pct, 250 / 150 * 100));
+    assert.strictEqual(a.up, true);
+
+    const b = L.expenseMoM(250, 400);
+    assert.strictEqual(b.diff, -150);
+    assert.strictEqual(b.pct, -37.5);
+    assert.strictEqual(b.up, false);
+
+    // 持平：up 为 true，pct 为 0
+    assert.deepStrictEqual(L.expenseMoM(200, 200), { diff: 0, pct: 0, up: true });
+    // 上月为 0：pct 归 0 避免 Infinity
+    assert.deepStrictEqual(L.expenseMoM(100, 0), { diff: 100, pct: 0, up: true });
+  });
+});
+
 // ========== 收益测算 ==========
 describe('收益测算', () => {
   const asset = () => ({

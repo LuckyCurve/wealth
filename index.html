@@ -2458,6 +2458,22 @@ function renderHistoryChart() {
   }, true);
 }
 
+// 月度环比徽章 / 对比行（资产快照与消费趋势共用，单一来源）：
+// curr/prev 为数值，prev=null 表示无上月（首月），prev=0 表示新增；
+// goodWhenUp=true 时「上涨=好=绿」（资产净值），false 时「上涨=坏=红」（消费支出）
+function momCompareHtml(curr, prev, goodWhenUp) {
+  if (prev == null) return { badge: '<span class="mo-badge first">首月</span>', diffLine: '' };
+  if (prev === 0) return { badge: '<span class="mo-badge up">新增</span>', diffLine: '' };
+  var m = expenseMoM(curr, prev);
+  var sign = m.up ? '+' : '';
+  var good = goodWhenUp ? m.up : !m.up;
+  var badgeClass = good ? 'up' : 'down';
+  var color = good ? 'var(--verdigris)' : 'var(--down)';
+  var badge = '<span class="mo-badge ' + badgeClass + '" title="较上月 ' + sign + formatCNY(m.diff) + '（' + sign + m.pct.toFixed(1) + '%）">' + (m.up ? '▲' : '▼') + ' ' + sign + m.pct.toFixed(1) + '%</span>';
+  var diffLine = '<span style="color:' + color + ';">较上月 ' + sign + formatCNY(m.diff) + '</span>';
+  return { badge: badge, diffLine: diffLine };
+}
+
 // 找指定月份之前的最近一个快照（环比基准，实时计算不存储）
 function renderHistoryTab() {
   renderHistoryHeader();
@@ -2465,19 +2481,7 @@ function renderHistoryTab() {
   if (state.snapshots.length === 0) { list.innerHTML = ''; return; }
   list.innerHTML = [...state.snapshots].sort((a, b) => b.month.localeCompare(a.month)).map(s => {
     const prev = getPrevSnapshot(s.month);
-    let badge = '', diffLine = '';
-    if (!prev) {
-      badge = '<span class="mo-badge first">首月</span>';
-    } else if ((prev.totalCNY || 0) === 0) {
-      badge = '<span class="mo-badge up">新增</span>';
-    } else {
-      const diff = (s.totalCNY || 0) - (prev.totalCNY || 0);
-      const pct = diff / prev.totalCNY * 100;
-      const up = diff >= 0;
-      const sign = up ? '+' : '';
-      badge = `<span class="mo-badge ${up ? 'up' : 'down'}" title="较上月 ${sign}${formatCNY(diff)}（${sign}${pct.toFixed(1)}%）">${up ? '▲' : '▼'} ${sign}${pct.toFixed(1)}%</span>`;
-      diffLine = `<span style="color:${up ? 'var(--verdigris)' : 'var(--down)'};">较上月 ${sign}${formatCNY(diff)}</span>`;
-    }
+    const { badge, diffLine } = momCompareHtml(s.totalCNY, prev ? prev.totalCNY : null, true);
     return `<div class="card card-interactive flex items-center justify-between">
       <div class="flex-1" onclick="viewSnapshot('${jsAttr(s.month)}')">
         <div class="flex items-center gap-2">
@@ -3456,21 +3460,21 @@ function renderExpenseTrendChart() {
 
 function renderExpenseTrendList() {
   const list = document.getElementById('expense-trend-list');
-  // aggregate expenses by month
-  const monthMap = {};
-  state.expenses.forEach(e => {
-    const m = e.date.slice(0, 7);
-    if (!monthMap[m]) monthMap[m] = { total: 0, count: 0 };
-    monthMap[m].total += e.amount;
-    monthMap[m].count++;
-  });
-  const months = Object.keys(monthMap).sort().reverse();
+  // 按月聚合（升序）并取「此前最近的有数据月份」做环比，逻辑对齐资产快照列表
+  const months = monthlyExpenseTotals(state.expenses);
   if (months.length === 0) { list.innerHTML = ''; return; }
-  list.innerHTML = months.map(m => {
+  list.innerHTML = [...months].reverse().map(({ month, total, count }) => {
+    // 环比：取此前最近一个有数据的月份（自动跳过空月份），徽章/对比行与资产快照共用 momCompareHtml
+    const prevMonth = prevExpenseMonthOf(month, months);
+    const prevTotal = prevMonth ? months.find(x => x.month === prevMonth).total : null;
+    const { badge, diffLine } = momCompareHtml(total, prevTotal, false);
     return `<div class="card card-interactive flex items-center justify-between">
-      <div class="flex-1" onclick="viewExpenseMonth('${jsAttr(m)}')">
-        <div class="font-medium text-sm">${monthLabel(m)}</div>
-        <div class="text-xs" style="color:var(--muted);">${formatCNY(monthMap[m].total)} · ${monthMap[m].count} 条消费记录</div>
+      <div class="flex-1" onclick="viewExpenseMonth('${jsAttr(month)}')">
+        <div class="flex items-center gap-2">
+          <span class="font-medium text-sm">${monthLabel(month)}</span>
+          ${badge}
+        </div>
+        <div class="text-xs mt-0.5" style="color:var(--muted);">${formatCNY(total)} · ${count} 条消费记录${diffLine ? ' · ' + diffLine : ''}</div>
       </div>
     </div>`;
   }).join('');
