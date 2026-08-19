@@ -11,8 +11,12 @@ permissions:
 
 jobs:
   test:
-    name: 运行单元测试 (node --test)
-    runs-on: ubuntu-latest
+    name: 运行单元测试 (node --test · ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
     steps:
       - name: 检出代码
         uses: actions/checkout@v7
