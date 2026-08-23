@@ -50,6 +50,15 @@
     return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
   }
 
+  // 两个 'YYYY-MM-DD' 相差天数（b - a），用于自动备份节流与新鲜度提醒；
+  // 手动拆解避免 new Date('YYYY-MM-DD') 按 UTC 解析的时区偏移；非法输入返回 null
+  function daysBetweenStr(a, b) {
+    const pa = String(a || '').split('-').map(Number);
+    const pb = String(b || '').split('-').map(Number);
+    if (pa.length !== 3 || pb.length !== 3 || pa.some(isNaN) || pb.some(isNaN)) return null;
+    return Math.round((new Date(pb[0], pb[1] - 1, pb[2]) - new Date(pa[0], pa[1] - 1, pa[2])) / 86400000);
+  }
+
   function monthLabel(month) {
     // 手动拆解避免 new Date('YYYY-MM-01') 按 UTC 解析, 西半球时区（UTC-11/-12）会错月/年
     const [y, m] = String(month || '').split('-');
@@ -195,6 +204,12 @@
       if (state.rates.HKD == null) state.rates.HKD = 1;
       if (state.rates.USD == null) state.rates.USD = 1;
     }
+    // 备份设置（旧数据/导入文件可能缺失）：默认每天自动下载，'off' 表示关闭；
+    // lastBackup 含手动导出（新鲜度提醒用），lastAutoDownload 仅节流自动下载
+    if (!state.backup || typeof state.backup !== 'object') state.backup = {};
+    state.backup.autoFreq = normalizeBackupFreq(state.backup.autoFreq);
+    if (!state.backup.lastBackup) state.backup.lastBackup = null;
+    if (!state.backup.lastAutoDownload) state.backup.lastAutoDownload = null;
     // 用户设置字段（旧数据可能缺失）
     if (state.expenseExpectation == null) state.expenseExpectation = 0;
     if (state.netWorthTarget == null) state.netWorthTarget = 0;
@@ -413,9 +428,52 @@
     }));
   }
 
+  // ========== 数据防丢备份决策（接收显式 state 参数，保持纯净可测）==========
+  // 提醒阈值：距上次备份超过该天数视为「久未备份」
+  const BACKUP_STALE_DAYS = 7;
+
+  // 是否有值得备份的数据（assets/expenses/snapshots 任一非空；字段缺失按空处理）
+  function hasAnyBackupWorthyData(s) {
+    s = s || {};
+    return (s.assets || []).length > 0 ||
+           (s.expenses || []).length > 0 ||
+           (s.snapshots || []).length > 0;
+  }
+
+  // 频率白名单归一：合法值原样返回，其余（含 undefined/null/非法字符串）归 'daily'。
+  // migrateState 兑底与弹窗 setBackupFreq 共用，保证单一数据来源
+  function normalizeBackupFreq(v) {
+    return ['daily', 'weekly', 'off'].includes(v) ? v : 'daily';
+  }
+
+  // 方案 A 决策：今天是否应触发自动下载备份。
+  // off / 无数据 → 否；从未下载或历史日期损坏(gap==null) → 是；
+  // daily 当天已下过(gap<=0) → 否；weekly 不足 7 天(gap<7) → 否。
+  // backup 对象缺失时按默认 daily + 从未下载处理（与 migrateState 兑底一致）
+  function shouldAutoBackup(s, today) {
+    const b = (s && s.backup) || {};
+    if (b.autoFreq === 'off' || !hasAnyBackupWorthyData(s)) return false;
+    const gap = b.lastAutoDownload ? daysBetweenStr(b.lastAutoDownload, today) : null;
+    if (gap == null) return true;
+    return b.autoFreq === 'daily' ? gap > 0 : gap >= 7;
+  }
+
+  // 方案 C 决策：返回超期天数（严格大于 BACKUP_STALE_DAYS），无需提醒返回 null。
+  // 无数据 / 从未备份 / 历史日期损坏均返回 null —— 从未备份时首次自动下载马上会补上，不叠加打扰
+  function backupStaleDays(s, today) {
+    if (!hasAnyBackupWorthyData(s)) return null;
+    const last = s && s.backup && s.backup.lastBackup;
+    if (!last) return null;
+    const gap = daysBetweenStr(last, today);
+    return gap != null && gap > BACKUP_STALE_DAYS ? gap : null;
+  }
+
   return {
     toCNY, formatCNY,
     addMonths, getCurrentMonth, getLocalDateStr, getLocalMonthStr, monthLabel,
+    daysBetweenStr,
+    BACKUP_STALE_DAYS, normalizeBackupFreq, hasAnyBackupWorthyData, shouldAutoBackup, backupStaleDays,
+    findMonthSnapshot, getPrevSnapshot,
     findMonthSnapshot, getPrevSnapshot,
     monthlyExpenseTotals, prevExpenseMonthOf, expenseMoM, expenseMonthTagTotals,
     getAssetRate, getSafetyFactor, getCashRatio, calcAssetIncome,

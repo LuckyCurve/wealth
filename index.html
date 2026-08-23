@@ -948,11 +948,24 @@ tailwind.config = {
 <!-- Import/Export Modal -->
 <div id="io-modal" class="modal-overlay" style="display:none;">
   <div class="modal-content">
-    <h3 class="font-display modal-title mb-6">导入 / 导出</h3>
+    <h3 class="font-display modal-title mb-6">备份与导入</h3>
     <div class="space-y-5">
       <div>
         <p class="text-sm mb-3" style="color:var(--muted);">导出当前所有数据为 JSON 文件</p>
         <button onclick="exportData()" class="btn-gold">导出数据</button>
+        <span id="backup-last-text" class="text-xs ml-3" style="color:var(--muted);"></span>
+      </div>
+      <hr style="border-color: var(--border);">
+      <div>
+        <div class="flex items-center justify-between mb-1.5">
+          <p class="text-sm">自动备份</p>
+          <select id="backup-auto-freq" onchange="setBackupFreq(this.value)">
+            <option value="daily">每天</option>
+            <option value="weekly">每周</option>
+            <option value="off">关闭</option>
+          </select>
+        </div>
+        <p class="text-xs" style="color:var(--muted);">打开页面时自动下载一份带日期的备份到浏览器「下载」文件夹，日积月累即是版本历史。建议把浏览器下载目录设为网盘同步文件夹（OneDrive / iCloud 等），电脑损坏后也能找回。</p>
       </div>
       <hr style="border-color: var(--border);">
       <div>
@@ -1065,7 +1078,7 @@ tailwind.config = {
 <script>
 // ========== STATE ==========
 const LS_KEY = 'wealth-manager-data';
-let state = { categories: [], assets: [], snapshots: [], rates: { CNY: 1, HKD: 1, USD: 1, fetchedAt: null }, expenseExpectation: 0, netWorthTarget: 0, incomeSafetyFactor: 100 };
+let state = { categories: [], assets: [], snapshots: [], rates: { CNY: 1, HKD: 1, USD: 1, fetchedAt: null }, expenseExpectation: 0, netWorthTarget: 0, incomeSafetyFactor: 100, backup: { autoFreq: 'daily', lastBackup: null, lastAutoDownload: null } };
 let chart = null;
 let historyChart = null;
 let historyChartMode = 'value';
@@ -1099,6 +1112,10 @@ let sortDir = 'asc';
     if (document.fonts && document.fonts.ready) {
       document.fonts.ready.then(() => refreshVisibleCharts());
     }
+    // 备份守护：先进新鲜度提醒（方案 C），再按需触发当日自动下载（方案 A）；
+    // 自动下载在 maybeAutoBackup 内部延迟数秒，避开首屏渲染高峰
+    checkBackupStale();
+    maybeAutoBackup();
   });
 
   // 从 bfcache 恢复（后退/前进、恢复标签页）时，DOMContentLoaded 不会再次触发，
@@ -2811,12 +2828,21 @@ function refreshVisibleCharts() {
 
 // ========== IMPORT/EXPORT ==========
 function showImportExport() {
+  renderBackupPanel(); // 打开弹窗时同步「上次备份」与频率选择
   document.getElementById('io-modal').style.display = '';
 }
 
-function exportData() {
-  // 导出纯原始数据：剥离快照中的加工字段 totalCNY（保存时页面计算的 CNY 总净值）。
-  // 该值可由快照的 assets × currencyRates 重新计算, 导入时由 migrateState 补全。
+// ========== BACKUP (自动备份 + 新鲜度提醒) ==========
+// 方案 A：当天首次打开页面时，静默触发一次 JSON 下载到浏览器默认「下载」目录
+// （<a download> 无需任何授权 API）。带日期的文件按日堆积即版本历史；建议用户
+// 把浏览器下载目录指向网盘同步文件夹，即可获得异地容灾。
+// 方案 C：距上次备份超过 7 天且已有数据时，进页面温和提醒。
+// 决策逻辑（shouldAutoBackup / backupStaleDays / hasAnyBackupWorthyData）在 logic.js，
+// 此处只保留 DOM 副作用（下载、toast、storage 写入），保证分支可被 node --test 覆盖
+
+// 触发一次浏览器下载（纯原始数据格式：剥离快照中的加工字段 totalCNY，
+// 该值可由快照 assets × currencyRates 重算，导入时由 migrateState 补全）
+function downloadBackupJSON() {
   const clean = JSON.parse(JSON.stringify(state));
   (clean.snapshots || []).forEach(s => { delete s.totalCNY; });
   const blob = new Blob([JSON.stringify(clean, null, 2)], { type: 'application/json' });
@@ -2824,8 +2850,62 @@ function exportData() {
   const a = document.createElement('a');
   a.href = url;
   a.download = `wealth-data-${getLocalDateStr()}.json`;
+  document.body.appendChild(a);
   a.click();
-  URL.revokeObjectURL(url);
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function markBackedUp(today) {
+  state.backup.lastBackup = today;
+}
+
+// 方案 A 入口：是否触发由 logic.js 的 shouldAutoBackup 判定，此处延迟数秒执行
+// （避开首屏渲染；非手势单次下载 Chrome/Edge 通常放行，被拦截时静默跳过仍可手动导出）
+function maybeAutoBackup() {
+  if (!shouldAutoBackup(state, getLocalDateStr())) return;
+  setTimeout(() => {
+    try {
+      downloadBackupJSON();
+      const t = getLocalDateStr();
+      state.backup.lastAutoDownload = t;
+      markBackedUp(t);
+      saveState();
+      toast('已自动备份到「下载」文件夹', 'success');
+    } catch (e) { /* 忽略 */ }
+  }, 4000);
+}
+
+// 方案 C：超期未备份提醒（toast 略延迟弹出，避开首屏渲染瞬间）；
+// 是否提醒/超期天数由 logic.js 的 backupStaleDays 判定
+function checkBackupStale() {
+  const staleDays = backupStaleDays(state, getLocalDateStr());
+  if (staleDays != null) {
+    setTimeout(() => toast(`距上次备份已 ${staleDays} 天，记得导出一份`, 'error'), 1500);
+  }
+}
+
+// 弹窗内「上次备份 / 频率」回填（showImportExport 与手动导出后调用）
+function renderBackupPanel() {
+  const el = document.getElementById('backup-last-text');
+  if (!el) return;
+  const last = state.backup.lastBackup;
+  el.textContent = last ? `上次备份 ${last}${last === getLocalDateStr() ? '（今天）' : ''}` : '尚未备份过';
+  const sel = document.getElementById('backup-auto-freq');
+  if (sel) sel.value = state.backup.autoFreq || 'daily';
+}
+
+function setBackupFreq(v) {
+  state.backup.autoFreq = normalizeBackupFreq(v); // 白名单归一与 migrateState 同源（logic.js）
+  saveState();
+  toast(state.backup.autoFreq === 'off' ? '已关闭自动备份' : `自动备份：${state.backup.autoFreq === 'daily' ? '每天' : '每周'}`, 'success');
+}
+
+function exportData() {
+  downloadBackupJSON();
+  markBackedUp(getLocalDateStr());
+  saveState();
+  renderBackupPanel(); // 弹窗内点击导出时，同步「上次备份」显示
   toast('数据已导出', 'success');
 }
 

@@ -40,6 +40,11 @@ interface AppState {
   rates: { CNY: 1, HKD: number, USD: number, fetchedAt: string | null };
   expenseExpectation: number;    // 预期月消费 (CNY)，消费趋势参考线，0=未设置
   netWorthTarget: number;        // 目标净资产 (CNY)，masthead 进度条，0=未设置
+  backup: {                      // 备份设置（migrateState 兜底，随导出走 JSON）
+    autoFreq: 'daily' | 'weekly' | 'off';  // 自动下载频率，默认 daily
+    lastBackup: string | null;   // 最近一次备份日期 'YYYY-MM-DD'（含手动导出），新鲜度提醒用
+    lastAutoDownload: string | null;  // 最近一次自动下载日期，仅用于节流（与 lastBackup 分离）
+  };
 }
 
 interface Asset {
@@ -83,6 +88,7 @@ interface Expense {
 - 缺失 `categories`/`assets`/`expenses`/`expenseCategories` 数组兜底
 - `currency` 内置分类缺失时自动创建；`rates` 缺失/损坏时重置，补全 `HKD`/`USD`
 - 用户设置字段缺失时补 0：`expenseExpectation`、`netWorthTarget`
+- `backup` 设置缺失时兜底：`autoFreq` 归 `'daily'`（非法值同）、两个日期字段归 `null`
 - `expectedRate` → `expectedRateMin/Max` 迁移并 `delete`；利率/金额字符串统一 `Number()` 转数字（导入数据防御）
 - 资产 `cashRatio` 缺失时默认 100（全额现金，与旧版「全部收益视为收入」行为一致），越界钳制 0~100
 - 移除内置 `expense-type` 消费分类 + 清理 `expenses[].tags` 孤立引用
@@ -116,6 +122,7 @@ interface Expense {
 - **图表空态** — 所选维度全空或无可选数据时显示空态而非空白画布（资产/消费分布、历史净值、消费趋势均如此）；空态与列表空态共用 `.empty-state` 语言（账本图标 + 章节线 + 行动按钮，`btn-ghost` 安静邀请：去登记资产/记录快照/去记录消费），不喧宾夺主——主创建按钮始终由页面头部金色按钮承担。
 - **弹窗关闭** — `closeModal(id)` 统一关闭；ESC 键关闭最上层弹窗；点击遮罩空白处关闭（`mousedown` 记录目标 + overlay click 判断）。
 - **数据导入/导出** — `exportData()` 导出完整 `state` JSON，但剥离快照加工字段 `totalCNY`（可由 assets × currencyRates 重算，导入时 `migrateState()` 补全）；`importData()` 校验 `categories && assets` 字段后合并并走 `migrateState()`。
+- **数据防丢备份（方案 A+C）** — 纯本地无后端的两层防线：①「自动备份」（`maybeAutoBackup()`，DOMContentLoaded 尾部调用）：当天首次打开页面时静默触发一次 `<a download>` 下载到浏览器默认下载目录（复用手动导出格式，文件名带日期堆积即版本历史；延迟 4s 避开首屏、非手势单次下载 Chrome/Edge 通常放行、失败静默跳过）；仅当 assets/expenses/snapshots 任一非空才执行，按 `backup.autoFreq` 节流（daily 当天已下过跳过 / weekly 不足 7 天跳过 / off 关闭）。②新鲜度提醒（`checkBackupStale()`）：距 `lastBackup` 超 7 天且已有数据时进页面 toast 温和提醒（从未备份不提醒，等首次自动下载补上）。手动 `exportData()` 也刷新 `lastBackup`；「导入/导出」弹窗已改名「备份与导入」，含上次备份时间与频率下拉（`renderBackupPanel()`/`setBackupFreq()`）。**决策纯函数在 logic.js**（index.html 只留 DOM 副作用，分支可 node --test 覆盖）：`daysBetweenStr()` 判日期距、`normalizeBackupFreq()` 频率白名单归一（migrateState 兑底与 setBackupFreq 同源）、`hasAnyBackupWorthyData()` / `shouldAutoBackup(state, today)` / `backupStaleDays(state, today)`、阈值常量 `BACKUP_STALE_DAYS=7`。用户侧建议：把浏览器下载目录设为网盘同步文件夹即获异地容灾。
 - **示例数据** — 资产端 `loadDemoData()`、消费端 `loadExpenseDemoData()`，均先 `showConfirm` 二次确认后覆盖当前数据。资产示例含现金比例演示：存款/债/理财 100%，沪深300 指数 5~8% 利率 + 20% 现金（红利型指数）。快照内资产同样带 `cashRatio`（当前资产由最新快照深拷贝而来，缺失会导致演示现金比例失效）。
 
 ## 开发

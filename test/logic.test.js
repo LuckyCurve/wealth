@@ -480,3 +480,115 @@ describe('补充边界', () => {
     assert.strictEqual(state.categories.find(c => c.id === 'currency').tags.length, 3);
   });
 });
+
+describe('备份 daysBetweenStr / backup 设置兜底', () => {
+  test('daysBetweenStr 同日 / 正负差', () => {
+    assert.strictEqual(L.daysBetweenStr('2024-05-01', '2024-05-01'), 0);
+    assert.strictEqual(L.daysBetweenStr('2024-05-01', '2024-05-08'), 7);
+    assert.strictEqual(L.daysBetweenStr('2024-05-08', '2024-05-01'), -7);
+  });
+  test('daysBetweenStr 跨月 / 跨年边界', () => {
+    assert.strictEqual(L.daysBetweenStr('2024-02-28', '2024-03-01'), 2); // 2024 闰年
+    assert.strictEqual(L.daysBetweenStr('2023-12-31', '2024-01-01'), 1);
+  });
+  test('daysBetweenStr 非法输入返回 null', () => {
+    assert.strictEqual(L.daysBetweenStr('', '2024-05-01'), null);
+    assert.strictEqual(L.daysBetweenStr('2024-05-01', 'bad'), null);
+    assert.strictEqual(L.daysBetweenStr(null, null), null);
+  });
+  test('migrateState 补全缺失的 backup 设置（默认每天）', () => {
+    globalThis.state = freshState({}); // 无 backup 字段
+    L.migrateState();
+    assert.deepStrictEqual(state.backup, { autoFreq: 'daily', lastBackup: null, lastAutoDownload: null });
+  });
+  test('migrateState 非法频率归位 daily，合法值保留', () => {
+    globalThis.state = freshState({ backup: { autoFreq: 'monthly' } });
+    L.migrateState();
+    assert.strictEqual(state.backup.autoFreq, 'daily');
+    globalThis.state = freshState({ backup: { autoFreq: 'weekly' } });
+    L.migrateState();
+    assert.strictEqual(state.backup.autoFreq, 'weekly');
+    globalThis.state = freshState({ backup: { autoFreq: 'off' } });
+    L.migrateState();
+    assert.strictEqual(state.backup.autoFreq, 'off');
+  });
+  test('daysBetweenStr 宽容单数字月日（行为锁定）', () => {
+    assert.strictEqual(L.daysBetweenStr('2024-5-1', '2024-5-2'), 1);
+  });
+});
+
+describe('备份决策 normalizeBackupFreq / hasAnyBackupWorthyData / shouldAutoBackup / backupStaleDays', () => {
+  // 带一条资产与指定备份设置的 state 工厂（保证「有数据」前提，便于聚焦频率分支）
+  const withBackup = (backup, extra = {}) =>
+    freshState(Object.assign({ assets: [{ amount: 100, currency: 'CNY' }], backup }, extra));
+
+  test('阈值常量契约：提醒阈值为 7 天', () => {
+    assert.strictEqual(L.BACKUP_STALE_DAYS, 7);
+  });
+
+  test('normalizeBackupFreq 白名单归一', () => {
+    assert.strictEqual(L.normalizeBackupFreq('daily'), 'daily');
+    assert.strictEqual(L.normalizeBackupFreq('weekly'), 'weekly');
+    assert.strictEqual(L.normalizeBackupFreq('off'), 'off');
+    assert.strictEqual(L.normalizeBackupFreq('monthly'), 'daily'); // 非法字符串
+    assert.strictEqual(L.normalizeBackupFreq(undefined), 'daily');
+    assert.strictEqual(L.normalizeBackupFreq(null), 'daily');
+    assert.strictEqual(L.normalizeBackupFreq(''), 'daily');
+  });
+
+  test('hasAnyBackupWorthyData：任一数据源非空即真，全空/缺字段为假', () => {
+    assert.strictEqual(L.hasAnyBackupWorthyData(freshState({})), false);
+    assert.strictEqual(L.hasAnyBackupWorthyData({}), false);
+    assert.strictEqual(L.hasAnyBackupWorthyData(), false);
+    assert.strictEqual(L.hasAnyBackupWorthyData(freshState({ assets: [{}] })), true);
+    assert.strictEqual(L.hasAnyBackupWorthyData(freshState({ expenses: [{ amount: 5 }] })), true);
+    assert.strictEqual(L.hasAnyBackupWorthyData(freshState({ snapshots: [{ month: '2024-01' }] })), true);
+    assert.strictEqual(
+      L.hasAnyBackupWorthyData(freshState({ assets: [], expenses: [], snapshots: [] })), false);
+  });
+
+  test('shouldAutoBackup：关闭或无数据恒否', () => {
+    assert.strictEqual(L.shouldAutoBackup(withBackup({ autoFreq: 'off' }), '2024-05-01'), false);
+    assert.strictEqual(
+      L.shouldAutoBackup(freshState({ backup: { autoFreq: 'daily' } }), '2024-05-01'), false);
+  });
+
+  test('shouldAutoBackup daily：从未→是；当天已下→否；隔天→是', () => {
+    assert.strictEqual(L.shouldAutoBackup(withBackup({ autoFreq: 'daily' }), '2024-05-01'), true);
+    assert.strictEqual(
+      L.shouldAutoBackup(withBackup({ autoFreq: 'daily', lastAutoDownload: '2024-05-01' }), '2024-05-01'), false);
+    assert.strictEqual(
+      L.shouldAutoBackup(withBackup({ autoFreq: 'daily', lastAutoDownload: '2024-04-30' }), '2024-05-01'), true);
+  });
+
+  test('shouldAutoBackup weekly：不足 7 天否，满 7 天是', () => {
+    const wk = (last) => withBackup({ autoFreq: 'weekly', lastAutoDownload: last });
+    assert.strictEqual(L.shouldAutoBackup(wk('2024-04-25'), '2024-05-01'), false); // 恰好 6 天
+    assert.strictEqual(L.shouldAutoBackup(wk('2024-04-24'), '2024-05-01'), true);  // 恰好 7 天
+  });
+
+  test('shouldAutoBackup：历史日期损坏视为需要备份；缺 backup 对象按默认 daily+从未下载', () => {
+    assert.strictEqual(
+      L.shouldAutoBackup(withBackup({ autoFreq: 'daily', lastAutoDownload: 'garbage' }), '2024-05-01'), true);
+    const noBackupObj = freshState({ assets: [{ amount: 1 }] });
+    assert.strictEqual(L.shouldAutoBackup(noBackupObj, '2024-05-01'), true);
+    noBackupObj.backup = { autoFreq: 'daily', lastAutoDownload: '2024-05-01' };
+    assert.strictEqual(L.shouldAutoBackup(noBackupObj, '2024-05-01'), false);
+  });
+
+  test('backupStaleDays：恰好 7 天不提醒，8 天提醒并返回天数', () => {
+    assert.strictEqual(
+      L.backupStaleDays(withBackup({ autoFreq: 'daily', lastBackup: '2024-04-24' }), '2024-05-01'), null);
+    assert.strictEqual(
+      L.backupStaleDays(withBackup({ autoFreq: 'daily', lastBackup: '2024-04-23' }), '2024-05-01'), 8);
+  });
+
+  test('backupStaleDays：无数据 / 从未备份 / 日期损坏 → null 不打扰', () => {
+    assert.strictEqual(
+      L.backupStaleDays(freshState({ backup: { autoFreq: 'daily', lastBackup: '2020-01-01' } }), '2024-05-01'), null);
+    assert.strictEqual(
+      L.backupStaleDays(withBackup({ autoFreq: 'daily', lastBackup: null }), '2024-05-01'), null);
+    assert.strictEqual(
+      L.backupStaleDays(withBackup({ autoFreq: 'daily', lastBackup: 'bad-date' }), '2024-05-01'), null);
+  });
+});
