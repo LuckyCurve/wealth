@@ -172,3 +172,34 @@ describe('UI 接线契约：共享层单一来源（防重复实现各自漂移�
       '直接 getElementById 的弹窗打开应改走 openModal');
   });
 });
+
+describe('UI 接线契约：堆叠柱下钻与图例记忆', () => {
+  test('点击下钻接线单一来源 wireStackedBarDrill，两图各接一次，内联 chart.on(click) 不回潮', () => {
+    assert.match(html, /function wireStackedBarDrill\(/, 'helper 定义存在');
+    assert.strictEqual(count(/wireStackedBarDrill\(/g), 3, '定义一处 + 两图 init 各一次');
+    assert.strictEqual(count(/\.on\('click'/g), 1, 'chart click 仅允许 wireStackedBarDrill 内一处，不得散落内联注册');
+    assert.match(fnSource('renderHistoryChart'), /viewHistorySegment/, '历史图下钻到资产构成');
+    assert.match(fnSource('renderExpenseTrendChart'), /viewExpenseSegment/, '趋势图下钻到消费记录');
+  });
+
+  test('下钻弹窗复用 snapshot-modal 且走 openModal 通用路径', () => {
+    for (const fn of ['viewHistorySegment', 'viewExpenseSegment']) {
+      const src = fnSource(fn);
+      assert.match(src, /openModal\('snapshot-modal'\)/, fn + ' 复用快照弹窗');
+      assert.match(src, /pctStr\(/, fn + ' 占比列与图表 tooltip 同一来源');
+    }
+    assert.strictEqual(count(/snapshot-modal-title..\.textContent/g), 4, '快照/月明细/两个下钻四用途共用同一标题元素');
+  });
+
+  test('图例选中态经 legendselectchanged 记忆、经 pruneLegendSelected 回灌 barChartBase', () => {
+    assert.strictEqual(count(/\.on\('legendselectchanged'/g), 2, '两图各注册一次（注释字样不计）');
+    assert.match(
+      fnSource('renderHistoryChart'),
+      /barChartBase\(th, dates, historyChartMode, sortedTags, pruneLegendSelected\(histLegendSel/,
+      '历史图重绘时回灌图例选中态');
+    assert.match(
+      fnSource('renderExpenseTrendChart'),
+      /barChartBase\(th, dates, expenseTrendMode, sortedTags, pruneLegendSelected\(trendLegendSel/,
+      '趋势图重绘时回灌图例选中态');
+  });
+});

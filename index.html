@@ -610,6 +610,7 @@ tailwind.config = {
     </div>
     <div class="card mb-6">
       <div id="history-chart" style="width:100%; height:420px;"></div>
+      <p class="text-xs mt-2" style="color:var(--muted);">点击柱中色块，可展开该月该标签的构成明细</p>
       <div id="history-empty" class="empty-state" style="display:none;">
         <div class="empty-rule"></div>
         <p class="empty-title">还没有月度快照</p>
@@ -783,6 +784,7 @@ tailwind.config = {
       </div>
       <div class="card mb-6">
         <div id="expense-trend-chart" style="width:100%; height:420px;"></div>
+        <p class="text-xs mt-2" style="color:var(--muted);">点击柱中色块，可展开该月该标签的构成明细</p>
         <div id="expense-trend-empty" class="empty-state" style="display:none;">
           <div class="empty-rule"></div>
           <p class="empty-title">还没有消费记录</p>
@@ -1123,6 +1125,12 @@ let state = { categories: [], assets: [], snapshots: [], rates: { CNY: 1, HKD: 1
 let chart = null;
 let historyChart = null;
 let historyChartMode = 'value';
+// 堆叠柱下钻与图例记忆（历史净值）：
+// histLegendSel 由原生 legendselectchanged 维护，重绘时经 pruneLegendSelected 清理后回灌
+//（非破坏性：原始映射不回写，切换分类再切回可恢复原选中态）；
+// histDrillMeta 存当前渲染上下文，供 wireStackedBarDrill 反查「月份 × 标签」
+let histLegendSel = {};
+let histDrillMeta = null;
 let expenseSortBy = 'date';
 let expenseSortDir = 'desc';
 let expenseTrendMode = 'value';
@@ -1821,19 +1829,38 @@ function chartTooltipBase(th) {
 
 // 堆叠柱状图共用底座（历史净值 / 消费趋势单一来源，原先两处逐字重复）：
 // legend/grid/xAxis/yAxis；mode='percent' 时 y 轴固定 0~100 并带 % 后缀。
-// legendData 可选：消费趋势需显式传入标签序列以控制图例顺序
-function barChartBase(th, dates, mode, legendData) {
+// legendData 可选：显式传入标签序列以控制图例顺序；
+// legendSelected 可选：回灌图例选中态（legendselectchanged 记住、经 pruneLegendSelected 清理），
+// 使切模式/切主题/汇率刷新等重绘不丢失用户的图例隐藏状态
+function barChartBase(th, dates, mode, legendData, legendSelected) {
   return {
     backgroundColor: 'transparent',
     legend: Object.assign(
       { show: true, type: 'scroll', bottom: 0, textStyle: { color: th.fg } },
-      legendData ? { data: legendData } : {}),
+      legendData ? { data: legendData } : {},
+      legendSelected && Object.keys(legendSelected).length ? { selected: legendSelected } : {}),
     grid: { left: '3%', right: '4%', bottom: '22%', top: '10%', containLabel: true },
     xAxis: { type: 'category', data: dates, axisLine: { lineStyle: { color: th.line } }, axisLabel: { color: th.muted, fontFamily: '"IBM Plex Mono", monospace', fontSize: 11 } },
     yAxis: mode === 'percent'
       ? { type: 'value', max: 100, axisLabel: { color: th.muted, fontFamily: '"IBM Plex Mono", monospace', fontSize: 11, formatter: '{value}%' }, splitLine: { lineStyle: { color: th.split } } }
       : { type: 'value', axisLabel: { color: th.muted, fontFamily: '"IBM Plex Mono", monospace', fontSize: 11, formatter: v => v.toLocaleString('zh-CN', {minimumFractionDigits:0, maximumFractionDigits:0}) }, splitLine: { lineStyle: { color: th.split } } },
   };
+}
+
+// 堆叠柱点击下钻接线单一来源（历史净值/消费趋势共用，原先两处内联 handler 各自漂移）：
+// metaGetter() 返回当前渲染上下文 { catId, months, tags }（图表未就绪/早退时返回 null）；
+// 点击色块按 seriesIndex→标签、dataIndex→月份 反查后回调 openSegment(month, catId, tag)。
+// '__total__' 为消费趋势透明合计承载系列（其 markLine 点击同源），统一忽略；历史图无此系列，无害
+function wireStackedBarDrill(chartObj, metaGetter, openSegment) {
+  chartObj.on('click', p => {
+    if (p.seriesName === '__total__') return;
+    const meta = metaGetter();
+    if (!meta) return;
+    const tag = meta.tags[p.seriesIndex];
+    const month = meta.months[p.dataIndex];
+    if (tag == null || !month) return;
+    openSegment(month, meta.catId, tag);
+  });
 }
 
 // 对比弹窗顶部「总变动」hero + 上下文行（资产快照对比 / 消费月对比共用，原先两段逐字重复）。
@@ -2328,6 +2355,40 @@ function viewSnapshot(month) {
   openModal('snapshot-modal');
 }
 
+// ========== SEGMENT DRILL-DOWN ==========
+// 堆叠柱下钻：点击「历史净值/消费趋势」中某月某标签的色块，
+// 在快照弹窗中展开该色块的组成明细。金额口径与图表一致：
+// 历史按快照当时 currencyRates 折算 CNY；消费直接用记录金额。
+function viewHistorySegment(month, catId, tag) {
+  const snap = state.snapshots.find(s => s.month === month);
+  const cat = state.categories.find(c => c.id === catId);
+  if (!snap || !cat) return;
+  const rates = snap.currencyRates || {};
+  const items = (snap.assets || [])
+    .filter(a => (a.tags || {})[catId] === tag)
+    .map(a => Object.assign({}, a, { cny: amountAtRates(a.amount, a.currency, rates) }))
+    .sort((a, b) => b.cny - a.cny);
+  if (items.length === 0) return;
+  const segTotal = items.reduce((s, a) => s + a.cny, 0);
+  const cols = 'grid-template-columns:2fr 1fr 0.7fr 1.3fr 0.7fr;';
+  document.getElementById('snapshot-modal-title').textContent = monthLabel(month) + ' · ' + tag + '构成';
+  document.getElementById('snapshot-detail-content').innerHTML = `
+    <p class="text-sm mb-4" style="color:var(--muted);">${esc(cat.name)} › ${esc(tag)} | ${items.length} 项资产 | 合计 <strong>${formatCNY(segTotal)}</strong></p>
+    <div class="asset-row list-head text-xs font-medium" style="color:var(--muted);${cols}">
+      <div>名称</div><div>金额</div><div>货币</div><div>折算 CNY</div><div>占比</div>
+    </div>
+    ${items.map(a => `
+      <div class="asset-row" style="${cols}">
+        <div class="font-medium text-sm">${esc(a.name)}</div>
+        <div class="font-mono text-sm">${money2(a.amount)}</div>
+        <div class="text-sm" style="color:var(--muted);">${a.currency}</div>
+        <div class="font-mono text-sm">${formatCNY(a.cny)}</div>
+        <div class="font-mono text-sm" style="color:var(--muted);">${pctStr(a.cny, segTotal)}%</div>
+      </div>`).join('')}
+  `;
+  openModal('snapshot-modal');
+}
+
 // ========== SNAPSHOT COMPARE ==========
 // 对比基准默认取「一年前或更早的最近一个快照」，弱化相邻月波动、突出长期跨度；
 // 快照数据不足一年时退回最早快照（最长可用跨度）。
@@ -2363,7 +2424,7 @@ function renderCompareTable() {
   const heroEl = document.getElementById('compare-hero');
   const ctxEl = document.getElementById('compare-context');
 
-  const cnyAt = (snap, a) => (a.amount || 0) * ((snap.currencyRates || {})[a.currency] || 1);
+  const cnyAt = (snap, a) => amountAtRates(a.amount, a.currency, snap.currencyRates || {});
   const baseTotal = baseSnap.totalCNY || baseSnap.assets.reduce((s, a) => s + cnyAt(baseSnap, a), 0);
   const compTotal = compSnap.totalCNY || compSnap.assets.reduce((s, a) => s + cnyAt(compSnap, a), 0);
   const diff = compTotal - baseTotal;
@@ -2475,7 +2536,7 @@ function doLoadDemoData() {
         expectedRateMin: d.rMin, expectedRateMax: d.rMax, cashRatio: d.cash,
       };
     });
-    const totalCNY = snapAssets.reduce((s, a) => s + a.amount * (state.rates[a.currency] || 1), 0);
+    const totalCNY = snapAssets.reduce((s, a) => s + amountAtRates(a.amount, a.currency, state.rates), 0);
     return { month, note: notes[mi], totalCNY, currencyRates: { ...state.rates }, assets: snapAssets, updatedAt: month + '-15T12:00:00.000Z' };
   });
   const latest = state.snapshots[state.snapshots.length - 1];
@@ -2495,11 +2556,11 @@ function renderHistoryChart() {
   const chartEl = document.getElementById('history-chart');
   const emptyEl = document.getElementById('history-empty');
 
-  if (state.snapshots.length < 2) { showChartOrEmpty(chartEl, emptyEl, false); return; }
+  if (state.snapshots.length < 2) { histDrillMeta = null; showChartOrEmpty(chartEl, emptyEl, false); return; }
   showChartOrEmpty(chartEl, emptyEl, true);
 
   const cat = state.categories.find(c => c.id === catId);
-  if (!cat) return;
+  if (!cat) { histDrillMeta = null; return; }
 
   const th = chartTheme();
   const sorted = [...state.snapshots].sort((a, b) => a.month.localeCompare(b.month));
@@ -2514,16 +2575,23 @@ function renderHistoryChart() {
     cat.tags.forEach(tag => {
       tagTotals[tag] += (snap.assets || [])
         .filter(a => (a.tags || {})[catId] === tag)
-        .reduce((s, a) => s + a.amount * ((snap.currencyRates || {})[a.currency] || 1), 0);
+        .reduce((s, a) => s + amountAtRates(a.amount, a.currency, snap.currencyRates), 0);
     });
   });
   const sortedTags = [...cat.tags].sort((a, b) => tagTotals[b] - tagTotals[a]);
+
+  // 下钻上下文：click 事件据 seriesIndex/dataIndex 反查「月份 × 标签」
+  histDrillMeta = {
+    catId: catId,
+    months: sorted.map(s => s.month),
+    tags: sortedTags,
+  };
 
   const series = sortedTags.map((tag, si) => {
     const isLast = si === sortedTags.length - 1;
     const raw = sorted.map(snap => (snap.assets || [])
       .filter(a => (a.tags || {})[catId] === tag)
-      .reduce((s, a) => s + a.amount * ((snap.currencyRates || {})[a.currency] || 1), 0)
+      .reduce((s, a) => s + amountAtRates(a.amount, a.currency, snap.currencyRates), 0)
     );
     const data = historyChartMode === 'percent'
       ? percentSeriesData(raw, totals)
@@ -2549,10 +2617,15 @@ function renderHistoryChart() {
 
   if (!historyChart) {
     historyChart = echarts.init(chartEl);
+    // 图例选中态记忆：用户点击图例隐藏/显示系列时保存，重绘后回灌（切模式/切主题不丢）
+    historyChart.on('legendselectchanged', p => { histLegendSel = p.selected; });
+    // 点击色块下钻：展开该月该标签的资产构成明细
+    wireStackedBarDrill(historyChart, () => histDrillMeta, viewHistorySegment);
   }
 
   historyChart.setOption({
-    ...barChartBase(th, dates, historyChartMode),
+    // 回灌前清理失效项（局部副本，不回写存储）
+    ...barChartBase(th, dates, historyChartMode, sortedTags, pruneLegendSelected(histLegendSel, sortedTags)),
     tooltip: {
       ...chartTooltipBase(th),
       formatter: function(p) {
@@ -3471,6 +3544,12 @@ function renderExpenseChart() {
 
 // ========== EXPENSE TREND ==========
 let expenseTrendChart = null;
+// 堆叠柱下钻与图例记忆（消费趋势），与历史净值同构：
+// trendLegendSel 由原生 legendselectchanged 维护，重绘时经 pruneLegendSelected 清理后回灌
+//（非破坏性：原始映射不回写，切换分类再切回可恢复原选中态）；
+// trendDrillMeta 存当前渲染上下文，供 wireStackedBarDrill 反查「月份 × 标签」
+let trendLegendSel = {};
+let trendDrillMeta = null;
 
 function setExpenseTrendMode(mode) {
   expenseTrendMode = mode;
@@ -3520,7 +3599,7 @@ function renderExpenseTrendChart() {
 
   const cat = state.expenseCategories.find(c => c.id === catId);
 
-  if (state.expenses.length === 0 || !cat) { showChartOrEmpty(chartEl, emptyEl, false); return; }
+  if (state.expenses.length === 0 || !cat) { trendDrillMeta = null; showChartOrEmpty(chartEl, emptyEl, false); return; }
   showChartOrEmpty(chartEl, emptyEl, true);
 
   const th = chartTheme();
@@ -3552,6 +3631,13 @@ function renderExpenseTrendChart() {
     cat.tags.forEach(tag => { tagTotals[tag] += monthMap[m][tag] || 0; });
   });
   const sortedTags = [...cat.tags].sort((a, b) => tagTotals[b] - tagTotals[a]);
+
+  // 下钻上下文：click 事件据 seriesIndex/dataIndex 反查「月份 × 标签」
+  trendDrillMeta = {
+    catId: catId,
+    months: sorted,
+    tags: sortedTags,
+  };
 
   const tagSeries = sortedTags.map((tag) => {
     const raw = sorted.map(m => monthMap[m][tag] || 0);
@@ -3624,10 +3710,15 @@ function renderExpenseTrendChart() {
 
   if (!expenseTrendChart) {
     expenseTrendChart = echarts.init(chartEl);
+    // 图例选中态记忆：用户点击图例隐藏/显示系列时保存，重绘后回灌（切模式/切主题不丢）
+    expenseTrendChart.on('legendselectchanged', p => { trendLegendSel = p.selected; });
+    // 点击色块下钻：展开该月该标签的消费记录构成明细
+    wireStackedBarDrill(expenseTrendChart, () => trendDrillMeta, viewExpenseSegment);
   }
 
   expenseTrendChart.setOption({
-    ...barChartBase(th, dates, expenseTrendMode, sortedTags),
+    // 回灌前清理失效项（局部副本，不回写存储）
+    ...barChartBase(th, dates, expenseTrendMode, sortedTags, pruneLegendSelected(trendLegendSel, sortedTags)),
     tooltip: {
       ...chartTooltipBase(th),
       confine: true,
@@ -3779,6 +3870,32 @@ function viewExpenseMonth(month) {
         <div class="flex flex-wrap gap-1">${tagHtml}</div>
       </div>`;
     }).join('')}
+  `;
+  openModal('snapshot-modal');
+}
+// 某分类某标签在某月的消费记录构成（消费趋势图点击色块下钻）
+function viewExpenseSegment(month, catId, tag) {
+  const cat = state.expenseCategories.find(c => c.id === catId);
+  if (!cat) return;
+  const items = state.expenses
+    .filter(e => e.date.slice(0, 7) === month && (e.tags || {})[catId] === tag)
+    .sort((a, b) => b.date.localeCompare(a.date));
+  if (items.length === 0) return;
+  const segTotal = items.reduce((s, e) => s + e.amount, 0);
+  const cols = 'grid-template-columns:1fr 1fr 0.8fr 2.6fr;';
+  document.getElementById('snapshot-modal-title').textContent = monthLabel(month) + ' · ' + tag + '构成';
+  document.getElementById('snapshot-detail-content').innerHTML = `
+    <p class="text-sm mb-4" style="color:var(--muted);">${esc(cat.name)} › ${esc(tag)} | ${items.length} 笔记录 | 合计 <strong>${formatCNY(segTotal)}</strong></p>
+    <div class="asset-row list-head text-xs font-medium" style="color:var(--muted);${cols}">
+      <div>日期</div><div>金额</div><div>占比</div><div>备注</div>
+    </div>
+    ${items.map(e => `
+      <div class="asset-row" style="${cols}">
+        <div class="font-mono text-sm">${e.date}</div>
+        <div class="font-mono text-sm">${money2(e.amount)}</div>
+        <div class="font-mono text-sm" style="color:var(--muted);">${pctStr(e.amount, segTotal)}%</div>
+        <div class="text-sm" style="color:var(--muted);">${e.note ? esc(e.note) : '—'}</div>
+      </div>`).join('')}
   `;
   openModal('snapshot-modal');
 }

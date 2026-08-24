@@ -454,6 +454,22 @@ describe('图表数据构造 buildSunburstData / pctStr / percentSeriesData', ()
     assert.strictEqual(zero[0].value, 0);
     assert.strictEqual(zero[0].raw, 10);
   });
+
+  test('pruneLegendSelected 只保留当前存在的系列名，不改入参', () => {
+    const sel = { 股票: false, 债券: true, 现金: true, 旧分类标签: false };
+    const out = L.pruneLegendSelected(sel, ['股票', '债券', '现金']);
+    assert.deepStrictEqual(out, { 股票: false, 债券: true, 现金: true });
+    // 不修改入参
+    assert.strictEqual(sel['旧分类标签'], false);
+    assert.deepStrictEqual(Object.keys(sel).sort(), ['债券', '旧分类标签', '现金', '股票'].sort());
+  });
+
+  test('pruneLegendSelected 兼容缺失/非法入参，保留 false 值', () => {
+    assert.deepStrictEqual(L.pruneLegendSelected(null, ['a']), {});
+    assert.deepStrictEqual(L.pruneLegendSelected({ a: false }, null), {});
+    assert.deepStrictEqual(L.pruneLegendSelected(undefined, undefined), {});
+    assert.deepStrictEqual(L.pruneLegendSelected({ a: false }, ['a']), { a: false });
+  });
 });
 
 // ========== 补充边界（既有函数）==========
@@ -466,6 +482,14 @@ describe('补充边界', () => {
   test('toCNY 汇率字段缺失按 1 兜底', () => {
     globalThis.state = freshState({ rates: { CNY: 1, HKD: 0.9, USD: 7.2 } }); // 无 EUR
     assert.strictEqual(L.toCNY(100, 'EUR'), 100);
+  });
+  test('amountAtRates 显式汇率表折算：缺失兑底/非法金额归零，与图表色块同口径', () => {
+    assert.strictEqual(L.amountAtRates(100, 'HKD', { HKD: 0.9 }), 90);
+    assert.strictEqual(L.amountAtRates(100, 'USD', { CNY: 1 }), 100); // 币种不在表中按 1
+    assert.strictEqual(L.amountAtRates(100, 'HKD', null), 100);       // 汇率表缺失按 1
+    assert.strictEqual(L.amountAtRates(null, 'HKD', { HKD: 0.9 }), 0); // 金额缺失归零
+    assert.strictEqual(L.amountAtRates('50', 'HKD', { HKD: 0.8 }), 40); // 字符串金额转数字
+    assert.strictEqual(L.amountAtRates(NaN, 'HKD', { HKD: 0.9 }), 0);   // NaN 防御
   });
   test('moneyStr 负数 / 零 / 小数', () => {
     assert.strictEqual(L.moneyStr(-1234.5), '-1,234.5');

@@ -29,6 +29,14 @@
     return '¥' + val.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
 
+  // 按给定汇率表把外币金额折算为 CNY（rates/币种缺失按 1 兑底、金额非法归零）。
+  // 与全局 toCNY 的区别：汇率表由调用方显式传入（快照用 snapshot.currencyRates，
+  // 实时用 state.rates），保持纯净可测；堆叠柱聚合、快照对比、下钻明细共用此口径，
+  // 防止图表色块值与弹窗明细各自漂移
+  function amountAtRates(amount, currency, rates) {
+    return (Number(amount) || 0) * (((rates || {})[currency]) || 1);
+  }
+
   // ========== 月份 / 日期 ==========
   function addMonths(month, n) {
     const [y, m] = String(month).split('-').map(Number);
@@ -453,6 +461,18 @@
     return total > 0 ? ((value / total) * 100).toFixed(1) : '0.0';
   }
 
+  // 堆叠柱状图图例选中态清理（历史净值/消费趋势共用）：
+  // 只保留当前仍存在的系列名——切换分类/数据集后，旧分类的隐藏项不应误伤新系列。
+  // 返回新对象不修改入参；selected 缺失或 validNames 非数组时安全兜底为空对象
+  function pruneLegendSelected(selected, validNames) {
+    const out = {};
+    const names = Array.isArray(validNames) ? validNames : [];
+    Object.keys(selected || {}).forEach(name => {
+      if (names.indexOf(name) >= 0) out[name] = selected[name];
+    });
+    return out;
+  }
+
   // 堆叠柱状图「占比模式」数据转换：保留原始金额(raw) 的同时给出百分比数值
   function percentSeriesData(raw, totals) {
     return raw.map((v, vi) => ({
@@ -533,6 +553,6 @@
     esc, escRegExp, highlightMatch, moneyStr, jsAttr,
     truncateLabel,
     hexToRgba, hexToHsl, hslToHex, pillColors, basePill,
-    CATEGORY_PALETTE, buildSunburstData, pctStr, percentSeriesData,
+    CATEGORY_PALETTE, buildSunburstData, pctStr, percentSeriesData, pruneLegendSelected, amountAtRates,
   };
 });
