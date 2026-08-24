@@ -65,6 +65,26 @@
     return y && m ? y + '年' + parseInt(m, 10) + '月' : String(month || '');
   }
 
+  // ========== 排序状态机（纯）==========
+  // 三态循环：同列点击 升序 → 降序 → 取消排序（恢复自然/拖拽顺序）；换列则重置为新列升序。
+  // 资产 toggleSort 与消费 toggleExpenseSort 共用同一状态机；
+  // flipSticky=true 表达消费侧「首次点击保留旧行为」的粘性翻转（仅翻转方向、不进入循环），
+  // 由调用方负责翻回 touched 标记。返回新 {by, dir}，不修改入参
+  function nextSortState(by, dir, field, flipSticky) {
+    if (by === field) {
+      if (flipSticky) return { by: by, dir: dir === 'asc' ? 'desc' : 'asc' };
+      if (dir === 'asc') return { by: by, dir: 'desc' };
+      return { by: '', dir: 'asc' };
+    }
+    return { by: field, dir: 'asc' };
+  }
+
+  // 消费记录出现过的月份列表（去重、降序）：月份筛选下拉与趋势图维度下拉共用。
+  // 防御缺失/空 date 的脏记录（filter(Boolean)），两处推导原先一份防御一份不防御，现统一单一来源
+  function expenseMonths(expenses) {
+    return [...new Set((expenses || []).map(e => (e.date || '').slice(0, 7)).filter(Boolean))].sort().reverse();
+  }
+
   // ========== 快照查询（依赖 state.snapshots）==========
   function findMonthSnapshot(month) {
     return state.snapshots.find(s => s.month === month);
@@ -296,6 +316,12 @@
     return int.replace(/\B(?=(\d{3})+(?!\d))/g, ',') + (dec != null ? '.' + dec : '');
   }
 
+  // 金额千分位 2 位格式化（与 formatCNY 区别: 不带 ¥ 符号；与 moneyStr 区别: 恒为两位小数的展示态，
+  // 用于表格/对比/tooltip 等只读场景）。原先内联在 index.html，与 formatCNY/moneyStr 同族归此集中
+  function money2(v) {
+    return Number(v).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
   // 用于行内事件属性（onclick="fn('...')"）里的 JS 字符串参数：
   // 先 JS 字符串转义（\\ → \\, ' → \'），再做 HTML 属性转义（& "）。
   function jsAttr(str) {
@@ -325,6 +351,13 @@
   }
 
   // ========== 颜色数学（纯）==========
+  // #RRGGBB → rgba() 字符串（chips 选中 ring 等半透明描边用）。与 HSL 家族同属颜色数学，
+  // 原先散在 index.html，现归拢到此处统一单测
+  function hexToRgba(hex, a) {
+    const n = parseInt(hex.slice(1), 16);
+    return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
+  }
+
   function hexToHsl(hex) {
     let r = parseInt(hex.slice(1, 3), 16) / 255;
     let g = parseInt(hex.slice(3, 5), 16) / 255;
@@ -475,11 +508,23 @@
     return gap != null && gap > BACKUP_STALE_DAYS ? gap : null;
   }
 
+  // ========== 汇率刷新提示决策 ==========
+  // 拉取失败时的便条文案与类型：有缓存可回退 → info「使用缓存汇率」（中性金墨边注，注意但不报警）；
+  // 连缓存都没有 → error「汇率获取失败」（报警红）。fetchRates 的 catch 只做 DOM 副作用，
+  // 分支决策抽在此保持纯净可测
+  function rateFallbackNotice(hasCache) {
+    return hasCache
+      ? { msg: '使用缓存汇率', type: 'info' }
+      : { msg: '汇率获取失败', type: 'error' };
+  }
+
   return {
-    toCNY, formatCNY,
+    toCNY, formatCNY, money2,
     addMonths, getCurrentMonth, getLocalDateStr, getLocalMonthStr, monthLabel,
     daysBetweenStr,
     BACKUP_STALE_DAYS, normalizeBackupFreq, backupNoteText, hasAnyBackupWorthyData, shouldAutoBackup, backupStaleDays,
+    rateFallbackNotice,
+    nextSortState, expenseMonths,
     findMonthSnapshot, getPrevSnapshot,
     findMonthSnapshot, getPrevSnapshot,
     monthlyExpenseTotals, prevExpenseMonthOf, expenseMoM, expenseMonthTagTotals,
@@ -487,7 +532,7 @@
     migrateState,
     esc, escRegExp, highlightMatch, moneyStr, jsAttr,
     truncateLabel,
-    hexToHsl, hslToHex, pillColors, basePill,
+    hexToRgba, hexToHsl, hslToHex, pillColors, basePill,
     CATEGORY_PALETTE, buildSunburstData, pctStr, percentSeriesData,
   };
 });

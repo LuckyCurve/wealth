@@ -601,3 +601,89 @@ describe('备份决策 normalizeBackupFreq / hasAnyBackupWorthyData / shouldAuto
       L.backupStaleDays(withBackup({ autoFreq: 'daily', lastBackup: 'bad-date' }), '2024-05-01'), null);
   });
 });
+
+describe('汇率刷新提示决策 rateFallbackNotice（统一提示便条）', () => {
+  test('有缓存可回退 → 中性便条 info「使用缓存汇率」（注意但不报警）', () => {
+    assert.deepStrictEqual(L.rateFallbackNotice(true), { msg: '使用缓存汇率', type: 'info' });
+  });
+
+  test('连缓存都没有 → 报警便条 error「汇率获取失败」', () => {
+    assert.deepStrictEqual(L.rateFallbackNotice(false), { msg: '汇率获取失败', type: 'error' });
+  });
+
+  test('返回对象形状稳定：msg + type 两字段，供 fetchRates 直接展开给 toast', () => {
+    for (const v of [true, false]) {
+      const n = L.rateFallbackNotice(v);
+      assert.strictEqual(typeof n.msg, 'string');
+      assert.ok(n.msg.length > 0);
+      assert.ok(['info', 'error'].includes(n.type));
+      assert.strictEqual(Object.keys(n).length, 2);
+    }
+    // 两种分支的 type 必须不同，否则语义色失去区分意义
+    assert.notStrictEqual(L.rateFallbackNotice(true).type, L.rateFallbackNotice(false).type);
+  });
+});
+
+describe('金额格式化 money2（从 index.html 下沉，表格/对比/tooltip 展示态共用）', () => {
+  test('千分位 + 恒两位小数，与 formatCNY 差异仅在无 ¥ 符号', () => {
+    assert.strictEqual(L.money2(1234.5), '1,234.50');
+    assert.strictEqual(L.money2(1234567.891), '1,234,567.89');
+    assert.strictEqual(L.money2(0), '0.00');
+    assert.strictEqual(L.money2(-9876.5), '-9,876.50');
+  });
+
+  test('字符串数字与非法输入的防御：走 Number() 强转（null→0）', () => {
+    assert.strictEqual(L.money2('1234.5'), '1,234.50');
+    assert.strictEqual(L.money2(null), '0.00');
+  });
+});
+
+describe('颜色数学 hexToRgba（从 index.html 下沉，chips ring 半透明描边用）', () => {
+  test('#RRGGBB + alpha → rgba() 四段整数', () => {
+    assert.strictEqual(L.hexToRgba('#ff0000', 0.45), 'rgba(255,0,0,0.45)');
+    assert.strictEqual(L.hexToRgba('#00bfff', 1), 'rgba(0,191,255,1)');
+    assert.strictEqual(L.hexToRgba('#B4841A', 0), 'rgba(180,132,26,0)');
+  });
+});
+
+describe('消费月份列表 expenseMonths（月份筛选与趋势维度下拉共用）', () => {
+  test('去重、降序、按 YYYY-MM 截取', () => {
+    const exps = [
+      { date: '2024-03-15' }, { date: '2024-01-02' },
+      { date: '2024-03-20' }, { date: '2024-12-31' },
+    ];
+    assert.deepStrictEqual(L.expenseMonths(exps), ['2024-12', '2024-03', '2024-01']);
+  });
+
+  test('防御缺失/空 date 的脏记录（原先图表下拉那份不防御会抛异常）', () => {
+    assert.deepStrictEqual(L.expenseMonths([{ date: '' }, {}, { date: '2024-05-01' }]), ['2024-05']);
+    assert.deepStrictEqual(L.expenseMonths([]), []);
+    assert.deepStrictEqual(L.expenseMonths(null), []);
+    assert.deepStrictEqual(L.expenseMonths(undefined), []);
+  });
+});
+
+describe('三态排序状态机 nextSortState（资产/消费列表共用）', () => {
+  const cycle = (by, dir, field, flipSticky) => L.nextSortState(by, dir, field, flipSticky);
+
+  test('同列点击循环：升序 → 降序 → 取消（恢复自然顺序）', () => {
+    assert.deepStrictEqual(cycle('amount', 'asc', 'amount', false), { by: 'amount', dir: 'desc' });
+    assert.deepStrictEqual(cycle('amount', 'desc', 'amount', false), { by: '', dir: 'asc' });
+  });
+
+  test('换列重置为新列升序', () => {
+    assert.deepStrictEqual(cycle('name', 'desc', 'amount', false), { by: 'amount', dir: 'asc' });
+  });
+
+  test('消费侧粘性翻转（flipSticky=true）：仅翻转方向、不进入取消分支，不修改入参对象', () => {
+    assert.deepStrictEqual(cycle('date', 'desc', 'date', true), { by: 'date', dir: 'asc' });
+    assert.deepStrictEqual(cycle('date', 'asc', 'date', true), { by: 'date', dir: 'desc' });
+    const before = { by: 'date', dir: 'desc' };
+    cycle(before.by, before.dir, 'date', true);
+    assert.deepStrictEqual(before, { by: 'date', dir: 'desc' }, '入参保持不变（纯函数）');
+  });
+
+  test('flipSticky 只对同列生效：换列时等价于普通切换', () => {
+    assert.deepStrictEqual(cycle('date', 'desc', 'amount', true), { by: 'amount', dir: 'asc' });
+  });
+});

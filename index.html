@@ -249,17 +249,25 @@ tailwind.config = {
   .dark .asset-row.editing { background: rgba(230, 201, 130, 0.08); }
   /* 表格列头: 账本收尾双线规则（粗于内容行细线），列头文字加字距 */
   .list-head { border-bottom: 2px solid var(--rule); letter-spacing: 0.05em; }
+  /* 统一提示便条: 全站唯一出口在右下角。#toast-area 竖排堆叠（新便条贴角、旧便条上移，
+     容器以 bottom 锚定向上生长）；容器 pointer-events:none 穿透不挡角落点击，便条自身恢复 */
+  #toast-area { position: fixed; right: 24px; bottom: 24px; z-index: 200; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; pointer-events: none; }
   .toast {
-    position: fixed; bottom: 24px; right: 24px; z-index: 200;
+    position: static; max-width: min(360px, calc(100vw - 48px));
     padding: 12px 24px; border-radius: 8px; font-size: 13px;
     animation: slideUp 0.25s ease; box-shadow: 0 4px 20px rgba(0,0,0,0.1);
     font-family: 'IBM Plex Mono', monospace; border: 1px solid;
+    pointer-events: auto; transition: opacity 0.3s ease, transform 0.3s ease;
   }
-  /* 与 mo-badge 同色系: 提示即一张盖在账页上的便条 */
+  .toast.leaving { opacity: 0; transform: translateY(6px); }
+  /* 与 mo-badge 同色系: 提示即一张盖在账页上的便条。三种墨色=三种语义:
+     绿=操作已落账 / 红=出错待处理 / 金墨边注(info)=系统自己的中性知会，注意但不报警 */
   .toast-success { background: #e8f5ec; color: #3d7a52; border-color: #b8dfc4; }
   .toast-error { background: #fce8e0; color: var(--down); border-color: #f0c8b8; }
+  .toast-info { background: #f8f1de; color: var(--accent-ink); border-color: #e3d3a3; }
   .dark .toast-success { background: #1c2a20; color: #7ba995; border-color: #2d4435; }
   .dark .toast-error { background: #2a1c1a; color: #d98a86; border-color: #4a2c2a; }
+  .dark .toast-info { background: #292214; color: var(--accent-ink); border-color: #453a20; }
   .tab-btn {
     padding: 10px 22px; font-size: 13px; border: none; background: transparent;
     color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent;
@@ -477,7 +485,6 @@ tailwind.config = {
       </div>
     </div>
     <div class="flex items-center gap-3">
-      <span id="rate-status" class="text-xs" style="color: var(--muted); min-width: 88px; text-align: right; flex-shrink: 0;"></span>
       <button onclick="showSettings()" class="btn-ghost text-xs">设置</button>
     </div>
   </div>
@@ -1105,6 +1112,9 @@ tailwind.config = {
   </div>
 </div>
 
+<!-- 统一提示便条容器: 右下角堆叠（aria-live 让读屏器也能听到系统知会） -->
+<div id="toast-area" aria-live="polite"></div>
+
 <script src="logic.js"></script>
 <script>
 // ========== STATE ==========
@@ -1194,7 +1204,6 @@ function saveState() {
 
 // ========== RATES ==========
 async function fetchRates() {
-  const statusEl = document.getElementById('rate-status');
   try {
     // CDN 对 @latest 响应带 Cache-Control: max-age=604800（7 天），
     // fetch 默认复用浏览器缓存，导致普通刷新拿不到新汇率（Ctrl+Shift+R 才行）。
@@ -1212,21 +1221,15 @@ async function fetchRates() {
       fetchedAt: new Date().toISOString()
     };
     saveState();
-    statusEl.textContent = '汇率已更新';
-    statusEl.style.color = '#2d5a3d';
-    setTimeout(() => { statusEl.textContent = ''; statusEl.style.color = ''; }, 3000);
     renderAssets();
     // 资产分布/收益测算等使用当前汇率换算的图表需要同步重绘（历史净值用快照时点汇率不受影响, 消费均为 CNY）
     refreshVisibleCharts();
+    // 与其他操作提示统一走右下角便条；info=系统中性知会（金墨边注），不打断当前操作
+    toast('汇率已更新', 'info');
   } catch(e) {
-    // use saved rates if available
-    if (state.rates.fetchedAt) {
-      statusEl.textContent = '使用缓存汇率';
-      statusEl.style.color = '';
-    } else {
-      statusEl.textContent = '汇率获取失败';
-      statusEl.style.color = '#8b2e2b';
-    }
+    // use saved rates if available（文案与类型由 logic.js 纯函数决策）
+    const n = rateFallbackNotice(!!state.rates.fetchedAt);
+    toast(n.msg, n.type);
   }
 }
 
@@ -1474,7 +1477,7 @@ function renderMasthead(total) {
 // ========== NET WORTH TARGET ==========
 function openTargetModal() {
   document.getElementById('target-input').value = moneyStr(state.netWorthTarget);
-  document.getElementById('target-modal').style.display = '';
+  openModal('target-modal');
   setTimeout(() => document.getElementById('target-input').focus(), 100);
 }
 function saveTarget() {
@@ -1532,10 +1535,7 @@ function selectTagChoice(btn) {
   picker.querySelectorAll('.tag-choice').forEach(b => b.setAttribute('aria-pressed', b === btn));
 }
 
-function hexToRgba(hex, a) {
-  const n = parseInt(hex.slice(1), 16);
-  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
-}
+// hexToRgba / money2 已下沉 logic.js（颜色数学与金额格式化归位），此处直接用全局
 
 // ========== ASSET CRUD ==========
 
@@ -1667,7 +1667,7 @@ function openAssetModal(editId) {
   // 现金比例滑块初始同步（读数与填充段，新建=reset 后的 100，编辑=资产值）
   setScaleValue(document.getElementById('asset-cash-ratio'), 'asset-cash-ratio-readout');
 
-  modal.style.display = '';
+  openModal('asset-modal');
 }
 
 function saveAsset(e) {
@@ -1807,6 +1807,72 @@ function chartTheme() {
   };
 }
 
+// tooltip 账本卡片底座（五张图共用：三旭日 + 两堆叠柱）；formatter/position 等由各图自带
+function chartTooltipBase(th) {
+  return {
+    trigger: 'item',
+    backgroundColor: th.card,
+    borderColor: th.line,
+    borderWidth: 1,
+    textStyle: { color: th.fg, fontFamily: '"IBM Plex Mono", monospace', fontSize: 12 },
+    extraCssText: TOOLTIP_CSS,
+  };
+}
+
+// 堆叠柱状图共用底座（历史净值 / 消费趋势单一来源，原先两处逐字重复）：
+// legend/grid/xAxis/yAxis；mode='percent' 时 y 轴固定 0~100 并带 % 后缀。
+// legendData 可选：消费趋势需显式传入标签序列以控制图例顺序
+function barChartBase(th, dates, mode, legendData) {
+  return {
+    backgroundColor: 'transparent',
+    legend: Object.assign(
+      { show: true, type: 'scroll', bottom: 0, textStyle: { color: th.fg } },
+      legendData ? { data: legendData } : {}),
+    grid: { left: '3%', right: '4%', bottom: '22%', top: '10%', containLabel: true },
+    xAxis: { type: 'category', data: dates, axisLine: { lineStyle: { color: th.line } }, axisLabel: { color: th.muted, fontFamily: '"IBM Plex Mono", monospace', fontSize: 11 } },
+    yAxis: mode === 'percent'
+      ? { type: 'value', max: 100, axisLabel: { color: th.muted, fontFamily: '"IBM Plex Mono", monospace', fontSize: 11, formatter: '{value}%' }, splitLine: { lineStyle: { color: th.split } } }
+      : { type: 'value', axisLabel: { color: th.muted, fontFamily: '"IBM Plex Mono", monospace', fontSize: 11, formatter: v => v.toLocaleString('zh-CN', {minimumFractionDigits:0, maximumFractionDigits:0}) }, splitLine: { lineStyle: { color: th.split } } },
+  };
+}
+
+// 对比弹窗顶部「总变动」hero + 上下文行（资产快照对比 / 消费月对比共用，原先两段逐字重复）。
+// goodWhenUp=true 时上涨绿（资产净值），false 时上涨红（消费支出），与 compareColor/momCompareHtml 同语义
+function renderCompareHero(heroEl, ctxEl, diff, baseTotal, compTotal, baseLabel, compLabel, goodWhenUp) {
+  const up = diff >= 0;
+  const sign = up ? '+' : '-';
+  if (diff === 0) {
+    heroEl.style.color = 'var(--muted)';
+    heroEl.innerHTML = `±${formatCNY(0)} (0.00%)`;
+  } else {
+    const pct = baseTotal > 0
+      ? `<span style="font-family:'IBM Plex Mono',monospace;font-size:14px;color:var(--muted);font-weight:400;"> (${sign}${(Math.abs(diff) / baseTotal * 100).toFixed(2)}%)</span>`
+      : '';
+    heroEl.style.color = compareColor(diff, goodWhenUp);
+    heroEl.innerHTML = `${up ? '▲' : '▼'} ${sign}${formatCNY(Math.abs(diff))}${pct}`;
+  }
+  ctxEl.textContent = `${baseLabel} ${formatCNY(baseTotal)} → ${compLabel} ${formatCNY(compTotal)}`;
+}
+
+// 对比表「变动 %」单元格（资产快照对比 / 消费月对比共用）：无基数 —、零变动 0.00%、否则带符号着色
+function cmpPctCell(d, p, colorFn) {
+  const s = d >= 0 ? '+' : '';
+  return p == null ? '<span style="color:var(--muted);">—</span>'
+    : d === 0 ? '<span style="color:var(--muted);">0.00%</span>'
+    : `<span class="tabular" style="color:${colorFn(d)};">${s}${p.toFixed(1)}%</span>`;
+}
+
+// 对比表变动列下的迷你量条（宽度按两表内最大 |变动| 归一，最小 3% 保证可见）
+function cmpBar(d, maxAbs, colorFn) {
+  if (d === 0) return '';
+  return `<div class="cmp-bar-track"><div class="cmp-bar" style="width:${Math.max(3, Math.abs(d) / maxAbs * 100).toFixed(1)}%;background:${colorFn(d)};"></div></div>`;
+}
+
+// 弹窗打开统一入口（与 closeModal 成对）：此前十餘处各自 style.display=''，现单一来源
+function openModal(id) {
+  document.getElementById(id).style.display = '';
+}
+
 // 旭日图标签截断：长名称以省略号收尾，完整内容 hover 时由 tooltip 展示
 // 标签字体为等宽体（IBM Plex Mono + CJK 回退），按字符像素宽度估算：拉丁 0.6em、CJK 1em
 
@@ -1877,10 +1943,7 @@ function rateLabelText(a, digits) {
   return min === max ? `${f(min)}%` : `${f(min)}-${f(max)}%`;
 }
 
-// 金额千分位 2 位格式化(与 formatCNY 区别: 不带 ¥ 符号)
-function money2(v) {
-  return Number(v).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
+// money2 在 logic.js（与 formatCNY/moneyStr 同族）
 
 // 总资产折算 CNY（资产/收益/报头多处复用同一公式，集中避免漂移）
 function totalAssetsCNY() {
@@ -1977,7 +2040,7 @@ function openCategoryModalGeneric(side, editId) {
   } else {
     title.textContent = m.newTitle;
   }
-  modal.style.display = '';
+  openModal(m.id);
 }
 
 function saveCategoryGeneric(side, e) {
@@ -2139,7 +2202,7 @@ function renderChart() {
   if (data.length === 0) { showChartOrEmpty(chartEl, emptyEl, false); return; }
 
   if (!chart) {
-    chart = echarts.init(chartEl, null, { renderer: 'canvas' });
+    chart = echarts.init(chartEl);
   }
 
   // compute total for percentage
@@ -2158,7 +2221,7 @@ function renderChart() {
 // ========== HISTORY SNAPSHOTS ==========
 function takeSnapshot() {
   document.getElementById('snapshot-note-input').value = '';
-  document.getElementById('snapshot-note-modal').style.display = '';
+  openModal('snapshot-note-modal');
   setTimeout(() => document.getElementById('snapshot-note-input').focus(), 100);
 }
 
@@ -2262,7 +2325,7 @@ function viewSnapshot(month) {
       </div>`;
     }).join('')}
   `;
-  document.getElementById('snapshot-modal').style.display = '';
+  openModal('snapshot-modal');
 }
 
 // ========== SNAPSHOT COMPARE ==========
@@ -2288,7 +2351,7 @@ function openCompareModal() {
   // 保留上次选择（有效且两月不同时），否则默认最近 vs 一年前（数据不足一年则取最早快照，即最长可用跨度）
   baseSel.value = (months.includes(prevBase) && prevBase !== prevTarget) ? prevBase : defaultCompareBaseMonth(sorted);
   targetSel.value = (months.includes(prevTarget) && prevTarget !== baseSel.value) ? prevTarget : sorted[sorted.length - 1].month;
-  document.getElementById('compare-modal').style.display = '';
+  openModal('compare-modal');
   renderCompareTable();
 }
 
@@ -2304,19 +2367,7 @@ function renderCompareTable() {
   const baseTotal = baseSnap.totalCNY || baseSnap.assets.reduce((s, a) => s + cnyAt(baseSnap, a), 0);
   const compTotal = compSnap.totalCNY || compSnap.assets.reduce((s, a) => s + cnyAt(compSnap, a), 0);
   const diff = compTotal - baseTotal;
-  const up = diff >= 0;
-  const sign = up ? '+' : '-';
-  if (diff === 0) {
-    heroEl.style.color = 'var(--muted)';
-    heroEl.innerHTML = `±${formatCNY(0)} (0.00%)`;
-  } else {
-    const heroPct = baseTotal > 0
-      ? `<span style="font-family:'IBM Plex Mono',monospace;font-size:14px;color:var(--muted);font-weight:400;"> (${sign}${(Math.abs(diff) / baseTotal * 100).toFixed(2)}%)</span>`
-      : '';
-    heroEl.style.color = compareColor(diff, true);
-    heroEl.innerHTML = `${up ? '▲' : '▼'} ${sign}${formatCNY(Math.abs(diff))}${heroPct}`;
-  }
-  ctxEl.textContent = `${monthLabel(baseSnap.month)} ${formatCNY(baseTotal)} → ${monthLabel(compSnap.month)} ${formatCNY(compTotal)}`;
+  renderCompareHero(heroEl, ctxEl, diff, baseTotal, compTotal, monthLabel(baseSnap.month), monthLabel(compSnap.month), true);
 
   const baseMap = new Map((baseSnap.assets || []).map(a => [a.id, a]));
   const compMap = new Map((compSnap.assets || []).map(a => [a.id, a]));
@@ -2350,12 +2401,8 @@ function renderCompareTable() {
       const badge = r.status === 'new' ? '<span class="mo-badge up">新增</span>'
         : r.status === 'gone' ? '<span class="mo-badge down">移除</span>' : '';
       const s = r.d >= 0 ? '+' : '';
-      const pctCell = r.p == null ? '<span style="color:var(--muted);">—</span>'
-        : r.d === 0 ? '<span style="color:var(--muted);">0.00%</span>'
-        : `<span class="tabular" style="color:${color(r.d)};">${s}${r.p.toFixed(1)}%</span>`;
-      const bar = r.d !== 0
-        ? `<div class="cmp-bar-track"><div class="cmp-bar" style="width:${Math.max(3, Math.abs(r.d) / maxAbs * 100).toFixed(1)}%;background:${color(r.d)};"></div></div>`
-        : '';
+      const pctCell = cmpPctCell(r.d, r.p, color);
+      const bar = cmpBar(r.d, maxAbs, color);
       return `<div class="asset-row" style="grid-template-columns:2fr 1.2fr 1.2fr 1.5fr 1fr;">
         <div class="font-medium text-sm flex items-center gap-2">${esc(r.name)}<span class="text-xs" style="color:var(--muted);">${r.cur}</span>${badge}</div>
         <div class="font-mono text-sm tabular" ${r.status === 'new' ? 'style="color:var(--muted);"' : ''}>${r.av > 0 ? fmt(r.av) : '—'}</div>
@@ -2505,14 +2552,9 @@ function renderHistoryChart() {
   }
 
   historyChart.setOption({
-    backgroundColor: 'transparent',
+    ...barChartBase(th, dates, historyChartMode),
     tooltip: {
-      trigger: 'item',
-      backgroundColor: th.card,
-      borderColor: th.line,
-      borderWidth: 1,
-      textStyle: { color: th.fg, fontFamily: '"IBM Plex Mono", monospace', fontSize: 12 },
-      extraCssText: TOOLTIP_CSS,
+      ...chartTooltipBase(th),
       formatter: function(p) {
         const idx = p.dataIndex;
         const d = dates[idx];
@@ -2525,12 +2567,6 @@ function renderHistoryChart() {
         return `<b>${d}</b><br/>${p.marker} ${p.seriesName}: ${formatCNY(p.value)} (${pct}%)`;
       }
     },
-    legend: { show: true, type: 'scroll', bottom: 0, textStyle: { color: th.fg } },
-    grid: { left: '3%', right: '4%', bottom: '22%', top: '10%', containLabel: true },
-    xAxis: { type: 'category', data: dates, axisLine: { lineStyle: { color: th.line } }, axisLabel: { color: th.muted, fontFamily: '"IBM Plex Mono", monospace', fontSize: 11 } },
-    yAxis: historyChartMode === 'percent'
-      ? { type: 'value', max: 100, axisLabel: { color: th.muted, fontFamily: '"IBM Plex Mono", monospace', fontSize: 11, formatter: '{value}%' }, splitLine: { lineStyle: { color: th.split } } }
-      : { type: 'value', axisLabel: { color: th.muted, fontFamily: '"IBM Plex Mono", monospace', fontSize: 11, formatter: v => v.toLocaleString('zh-CN', {minimumFractionDigits:0, maximumFractionDigits:0}) }, splitLine: { lineStyle: { color: th.split } } },
     series
   }, true);
 }
@@ -2818,18 +2854,10 @@ function onAssetDrop(e) {
 
 // ========== SORT ==========
 function toggleSort(field) {
-  // 三态循环: 升序 → 降序 → 取消排序（恢复自然/拖拽顺序）
-  if (sortBy === field) {
-    if (sortDir === 'asc') {
-      sortDir = 'desc';
-    } else if (sortDir === 'desc') {
-      sortBy = '';
-      sortDir = 'asc';
-    }
-  } else {
-    sortBy = field;
-    sortDir = 'asc';
-  }
+  // 三态循环: 升序 → 降序 → 取消排序（恢复自然/拖拽顺序）；状态机纯函数在 logic.js，与消费侧共用
+  const r = nextSortState(sortBy, sortDir, field, false);
+  sortBy = r.by;
+  sortDir = r.dir;
   renderAssets();
 }
 
@@ -2863,7 +2891,7 @@ function setTheme(dark) {
 function showSettings() {
   syncThemeSeg();
   syncBackupControls();
-  document.getElementById('settings-modal').style.display = '';
+  openModal('settings-modal');
 }
 
 // 重绘当前可见的图表（汇率刷新、暗色切换共用）
@@ -2878,7 +2906,7 @@ function refreshVisibleCharts() {
 // ========== IMPORT/EXPORT ==========
 function showImportExport() {
   syncBackupControls(); // 打开弹窗时同步「上次备份」与频率选择
-  document.getElementById('io-modal').style.display = '';
+  openModal('io-modal');
 }
 
 // ========== BACKUP (自动备份 + 新鲜度提醒) ==========
@@ -3020,7 +3048,7 @@ let _confirmCallback = null;
 function showConfirm(msg, onOk, title) {
   document.getElementById('confirm-msg').textContent = msg;
   document.getElementById('confirm-title').textContent = title || '确认操作';
-  document.getElementById('confirm-modal').style.display = '';
+  openModal('confirm-modal');
   _confirmCallback = onOk;
   document.getElementById('confirm-ok-btn').focus();
 }
@@ -3084,12 +3112,32 @@ function formatMoneyInput(el) {
   }
 }
 
+// 统一提示便条：全站唯一的瞬时反馈出口（右下角 #toast-area 堆叠）。
+// type 三态：success=操作成功（绿）/ error=出错待处理（红）/ info=系统中性知会（金墨边注）。
+// 末尾同文案同类型且未在退场时只重置计时不再堆叠——自动触发的知会（汇率刷新、备份提醒）
+// 撞上用户操作时不会糊成重复便条
 function toast(msg, type) {
+  const area = document.getElementById('toast-area');
+  const prev = area.lastElementChild;
+  if (prev && !prev.classList.contains('leaving') && prev.dataset.msg === msg && prev.dataset.type === String(type)) {
+    clearTimeout(prev._hideTimer);
+    armToastHide(prev);
+    return;
+  }
   const t = document.createElement('div');
   t.className = `toast toast-${type}`;
   t.textContent = msg;
-  document.body.appendChild(t);
-  setTimeout(() => { t.style.opacity = '0'; t.style.transition = 'opacity 0.3s'; setTimeout(() => t.remove(), 300); }, 2500);
+  t.dataset.msg = msg;
+  t.dataset.type = String(type);
+  area.appendChild(t); // 新便条贴最靠角处，旧便条自然上移（容器 bottom 锚定向上生长）
+  armToastHide(t);
+}
+
+function armToastHide(t) {
+  t._hideTimer = setTimeout(() => {
+    t.classList.add('leaving');
+    setTimeout(() => t.remove(), 300);
+  }, 2500);
 }
 
 // ========== EXPENSE CRUD ==========
@@ -3099,8 +3147,7 @@ let expenseSearch = '';
 
 // 消费月份下拉：选项从数据自动生成（倒序），保留当前选择
 function populateExpenseMonthFilter() {
-  const months = [...new Set(state.expenses.map(e => (e.date || '').slice(0, 7)).filter(Boolean))].sort().reverse();
-  fillMonthSelect('expense-month-filter', months);
+  fillMonthSelect('expense-month-filter', expenseMonths(state.expenses));
 }
 
 // 空态「清除筛选」: 重置搜索框与月份下拉
@@ -3255,7 +3302,7 @@ function openExpenseModal(editId, prefillId) {
     cat => source ? (source.tags[cat.id] || '') : '',
     'expense-tag-', expenseCatColor);
 
-  modal.style.display = '';
+  openModal('expense-modal');
 }
 
 function saveExpense(e) {
@@ -3316,22 +3363,13 @@ function deleteExpense(id) {
 let expenseSortTouched = false;
 
 function toggleExpenseSort(field) {
-  // 三态循环: 升序 → 降序 → 取消排序（恢复创建顺序）
-  // 消费列表默认即日期降序（最新在前），首次点击保留旧行为（切升序），之后才进入三态循环
-  if (expenseSortBy === field) {
-    if (!expenseSortTouched) {
-      expenseSortDir = expenseSortDir === 'asc' ? 'desc' : 'asc';
-      expenseSortTouched = true;
-    } else if (expenseSortDir === 'asc') {
-      expenseSortDir = 'desc';
-    } else {
-      expenseSortBy = '';
-      expenseSortDir = 'asc';
-    }
-  } else {
-    expenseSortBy = field;
-    expenseSortDir = 'asc';
-  }
+  // 三态循环（状态机在 logic.js，与资产侧共用）：消费列表默认即日期降序（最新在前），
+  // 首次点击保留旧行为（粘性翻转方向、不进入循环），此后才走标准三态循环
+  const sticky = expenseSortBy === field && !expenseSortTouched;
+  const r = nextSortState(expenseSortBy, expenseSortDir, field, sticky);
+  expenseSortBy = r.by;
+  expenseSortDir = r.dir;
+  if (sticky) expenseSortTouched = true;
   renderExpenses();
 }
 
@@ -3374,7 +3412,7 @@ let expenseChart = null;
 function populateExpenseChartSelects() {
   fillCategorySelect('expense-chart-category-select', state.expenseCategories);
 
-  const months = [...new Set(state.expenses.map(e => e.date.slice(0, 7)))].sort().reverse();
+  const months = expenseMonths(state.expenses);
   const monthSel = fillMonthSelect('expense-chart-month-select', months);
   // 无当前选择时默认取最近月份(与消费月份筛选「全部时间」的差异, 保持原行为)
   if (monthSel && !monthSel.value && months.length > 0) monthSel.value = months[0];
@@ -3442,7 +3480,7 @@ function setExpenseTrendMode(mode) {
 // ========== EXPECTATION (消费趋势参考线) ==========
 function openExpectationModal() {
   document.getElementById('expectation-input').value = moneyStr(state.expenseExpectation);
-  document.getElementById('expectation-modal').style.display = '';
+  openModal('expectation-modal');
   setTimeout(() => document.getElementById('expectation-input').focus(), 100);
 }
 function saveExpectation() {
@@ -3589,15 +3627,10 @@ function renderExpenseTrendChart() {
   }
 
   expenseTrendChart.setOption({
-    backgroundColor: 'transparent',
+    ...barChartBase(th, dates, expenseTrendMode, sortedTags),
     tooltip: {
-      trigger: 'item',
+      ...chartTooltipBase(th),
       confine: true,
-      backgroundColor: th.card,
-      borderColor: th.line,
-      borderWidth: 1,
-      textStyle: { color: th.fg, fontFamily: '"IBM Plex Mono", monospace', fontSize: 12 },
-      extraCssText: TOOLTIP_CSS,
       // 始终置于鼠标下方偏右，避免遮挡堆叠柱顶部的合计 label
       position: function(point, params, dom, rect, size) {
         const w = dom.offsetWidth, h = dom.offsetHeight;
@@ -3624,12 +3657,6 @@ function renderExpenseTrendChart() {
         return `<b>${d}</b><br/>${p.marker} ${p.seriesName}: ${formatCNY(p.value)} (${pct}%)`;
       }
     },
-    legend: { show: true, type: 'scroll', bottom: 0, data: sortedTags, textStyle: { color: th.fg } },
-    grid: { left: '3%', right: '4%', bottom: '22%', top: '10%', containLabel: true },
-    xAxis: { type: 'category', data: dates, axisLine: { lineStyle: { color: th.line } }, axisLabel: { color: th.muted, fontFamily: '"IBM Plex Mono", monospace', fontSize: 11 } },
-    yAxis: expenseTrendMode === 'percent'
-      ? { type: 'value', max: 100, axisLabel: { color: th.muted, fontFamily: '"IBM Plex Mono", monospace', fontSize: 11, formatter: '{value}%' }, splitLine: { lineStyle: { color: th.split } } }
-      : { type: 'value', axisLabel: { color: th.muted, fontFamily: '"IBM Plex Mono", monospace', fontSize: 11, formatter: v => v.toLocaleString('zh-CN', {minimumFractionDigits:0, maximumFractionDigits:0}) }, splitLine: { lineStyle: { color: th.split } } },
     series
   }, true);
   renderExpenseTrendList();
@@ -3672,7 +3699,7 @@ function openExpenseCompareModal() {
   targetSel.innerHTML = monthStrs.map(m => `<option value="${m}">${monthLabel(m)}</option>`).join('');
   baseSel.value = monthStrs[monthStrs.length - 2];
   targetSel.value = monthStrs[monthStrs.length - 1];
-  document.getElementById('expense-compare-modal').style.display = '';
+  openModal('expense-compare-modal');
   renderExpenseCompareTable();
 }
 
@@ -3690,21 +3717,8 @@ function renderExpenseCompareTable() {
   const baseTotal = (months.find(m => m.month === base) || { total: 0 }).total;
   const compTotal = (months.find(m => m.month === target) || { total: 0 }).total;
   const diff = compTotal - baseTotal;
-  const up = diff >= 0;
-  const sign = up ? '+' : '-';
   // 消费语义：上涨=红(警示)、下降=绿(良好)，与 momCompareHtml(goodWhenUp=false) 一致
-  const heroColor = compareColor(diff, false);
-  if (diff === 0) {
-    heroEl.style.color = 'var(--muted)';
-    heroEl.innerHTML = `±${formatCNY(0)} (0.00%)`;
-  } else {
-    const pct = baseTotal > 0
-      ? `<span style="font-family:'IBM Plex Mono',monospace;font-size:14px;color:var(--muted);font-weight:400;"> (${sign}${(Math.abs(diff) / baseTotal * 100).toFixed(2)}%)</span>`
-      : '';
-    heroEl.style.color = heroColor;
-    heroEl.innerHTML = `${up ? '▲' : '▼'} ${sign}${formatCNY(Math.abs(diff))}${pct}`;
-  }
-  ctxEl.textContent = `${monthLabel(base)} ${formatCNY(baseTotal)} → ${monthLabel(target)} ${formatCNY(compTotal)}`;
+  renderCompareHero(heroEl, ctxEl, diff, baseTotal, compTotal, monthLabel(base), monthLabel(target), false);
 
   const baseMap = expenseMonthTagTotals(base, catId, state.expenses);
   const compMap = expenseMonthTagTotals(target, catId, state.expenses);
@@ -3728,12 +3742,8 @@ function renderExpenseCompareTable() {
     </div>
     ${rows.map(r => {
       const s = r.d >= 0 ? '+' : '';
-      const pctCell = r.p == null ? '<span style="color:var(--muted);">—</span>'
-        : r.d === 0 ? '<span style="color:var(--muted);">0.00%</span>'
-        : `<span class="tabular" style="color:${color(r.d)};">${s}${r.p.toFixed(1)}%</span>`;
-      const bar = r.d !== 0
-        ? `<div class="cmp-bar-track"><div class="cmp-bar" style="width:${Math.max(3, Math.abs(r.d) / maxAbs * 100).toFixed(1)}%;background:${color(r.d)};"></div></div>`
-        : '';
+      const pctCell = cmpPctCell(r.d, r.p, color);
+      const bar = cmpBar(r.d, maxAbs, color);
       return `<div class="asset-row" style="grid-template-columns:2fr 1.2fr 1.2fr 1.5fr 1fr;">
         <div class="font-medium text-sm flex items-center gap-2">${tagPillHtml(cat, r.tag, expenseCatColor, { showKey: false })}</div>
         <div class="font-mono text-sm tabular">${fmt(r.av)}</div>
@@ -3770,7 +3780,7 @@ function viewExpenseMonth(month) {
       </div>`;
     }).join('')}
   `;
-  document.getElementById('snapshot-modal').style.display = '';
+  openModal('snapshot-modal');
 }
 function loadExpenseDemoData() {
   if (state.expenses.length > 0) {
