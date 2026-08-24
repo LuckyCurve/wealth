@@ -1333,7 +1333,7 @@ function renderAssets() {
       const rateText = rateLabelText(a);
       const rateLabel = rateText || '<span style="color:var(--muted);font-size:11px;">未设置</span>';
       const cashTag = rateText
-        ? `<span style="color:var(--accent-ink);font-size:11px;"> · 现金 ${Math.round(getCashRatio(a) * 100)}%</span>`
+        ? `<span style="color:var(--accent-ink);font-size:11px;"> · 现金 ${cashRatioPct(a)}%</span>`
         : '';
       const cnyVal = toCNY(a.amount, a.currency);
       return `<div class="asset-row grid-wide" data-id="${esc(a.id)}">
@@ -1454,7 +1454,7 @@ function renderMasthead(total) {
   // sub line: 资产数 + 月收益/现金 双口径平齐展示（任一资产设置利率后出现）
   // 设置了预期月消费时, 每个口径后内联其与预期的差额: 盈余绿 / 缺口红
   const count = state.assets.length;
-  const hasRate = state.assets.some(a => (a.expectedRateMin ?? 0) > 0 || (a.expectedRateMax ?? 0) > 0);
+  const hasRate = hasAnyRatedAsset(state.assets); // 纯函数在 logic.js（与收益 Tab 共用同一判定）
   const expectation = state.expenseExpectation || 0;
   let subText = `<span>${count} 项资产</span>`;
   if (hasRate) {
@@ -1850,10 +1850,11 @@ function barChartBase(th, dates, mode, legendData, legendSelected) {
 // 堆叠柱点击下钻接线单一来源（历史净值/消费趋势共用，原先两处内联 handler 各自漂移）：
 // metaGetter() 返回当前渲染上下文 { catId, months, tags }（图表未就绪/早退时返回 null）；
 // 点击色块按 seriesIndex→标签、dataIndex→月份 反查后回调 openSegment(month, catId, tag)。
-// '__total__' 为消费趋势透明合计承载系列（其 markLine 点击同源），统一忽略；历史图无此系列，无害
+// TOTAL_SERIES_NAME 为消费趋势透明合计承载系列（其 markLine 点击同源），统一忽略；历史图无此系列，无害
+const TOTAL_SERIES_NAME = '__total__';
 function wireStackedBarDrill(chartObj, metaGetter, openSegment) {
   chartObj.on('click', p => {
-    if (p.seriesName === '__total__') return;
+    if (p.seriesName === TOTAL_SERIES_NAME) return;
     const meta = metaGetter();
     if (!meta) return;
     const tag = meta.tags[p.seriesIndex];
@@ -2453,9 +2454,10 @@ function renderCompareTable() {
 
   const color = v => compareColor(v, true);
   const fmt = v => money2(v);
+  const cols = 'grid-template-columns:2fr 1.2fr 1.2fr 1.5fr 1fr;'; // 表头/数据行共用同一列宽
   const maxAbs = Math.max(...rows.map(r => Math.abs(r.d)), 1);
   container.innerHTML = `
-    <div class="asset-row list-head text-xs font-medium" style="color:var(--muted);grid-template-columns:2fr 1.2fr 1.2fr 1.5fr 1fr;">
+    <div class="asset-row list-head text-xs font-medium" style="color:var(--muted);${cols}">
       <div>资产</div><div>期初</div><div>期末</div><div>变动</div><div>变动 %</div>
     </div>
     ${rows.map(r => {
@@ -2464,7 +2466,7 @@ function renderCompareTable() {
       const s = r.d >= 0 ? '+' : '';
       const pctCell = cmpPctCell(r.d, r.p, color);
       const bar = cmpBar(r.d, maxAbs, color);
-      return `<div class="asset-row" style="grid-template-columns:2fr 1.2fr 1.2fr 1.5fr 1fr;">
+      return `<div class="asset-row" style="${cols}">
         <div class="font-medium text-sm flex items-center gap-2">${esc(r.name)}<span class="text-xs" style="color:var(--muted);">${r.cur}</span>${badge}</div>
         <div class="font-mono text-sm tabular" ${r.status === 'new' ? 'style="color:var(--muted);"' : ''}>${r.av > 0 ? fmt(r.av) : '—'}</div>
         <div class="font-mono text-sm tabular" ${r.status === 'gone' ? 'style="color:var(--muted);"' : ''}>${r.bv > 0 ? fmt(r.bv) : '—'}</div>
@@ -2668,7 +2670,6 @@ function compareColor(v, goodWhenUp) {
   return good ? 'var(--verdigris)' : 'var(--down)';
 }
 
-// 找指定月份之前的最近一个快照（环比基准，实时计算不存储）
 function renderHistoryTab() {
   renderHistoryHeader();
   const list = document.getElementById('snapshots-list');
@@ -2720,7 +2721,7 @@ function renderIncomeTab() {
     setScaleValue(safetyEl, 'income-safety-readout');
   }
 
-  const hasAnyRate = state.assets.some(a => (a.expectedRateMin || 0) > 0 || (a.expectedRateMax || 0) > 0);
+  const hasAnyRate = hasAnyRatedAsset(state.assets); // 与 masthead 同一判定（logic.js）
   document.getElementById('income-mode-toggle').style.display = hasAnyRate ? '' : 'none';
 
   const assets = state.assets.filter(a => getAssetRate(a) > 0);
@@ -2785,7 +2786,7 @@ function renderIncomeTab() {
       const hasRate = getAssetRate(a) > 0;
       const rowStyle = `grid-template-columns:1.8fr 1fr 0.8fr 0.8fr 1fr 1fr 1fr;${hasRate ? '' : ' opacity:0.4;'}`;
       const rateLabel = rateLabelText(a, 1) || '<span style="color:var(--muted);">未设置</span>';
-      const cashPct = Math.round(getCashRatio(a) * 100);
+      const cashPct = cashRatioPct(a);
       return `<div class="asset-row" style="${rowStyle}">
         <div class="font-medium text-sm">${esc(a.name)}</div>
         <div class="font-mono text-sm">${money2(inc.cny)}</div>
@@ -2873,7 +2874,7 @@ function renderIncomeChart() {
       if (a) {
         const inc = calcAssetIncome(a);
         const rateRange = rateLabelText(a, 1) || '未设置';
-        return `<b>${esc(a.name)}</b><br/>月现金收益 ${formatCNY(inc.cashMonthly)} · 月总收益 ${formatCNY(inc.monthly)}<br/><span style="color:${th.muted}">利率 ${rateRange} · 现金 ${Math.round(getCashRatio(a) * 100)}% · 占比 ${pct}%</span>`;
+        return `<b>${esc(a.name)}</b><br/>月现金收益 ${formatCNY(inc.cashMonthly)} · 月总收益 ${formatCNY(inc.monthly)}<br/><span style="color:${th.muted}">利率 ${rateRange} · 现金 ${cashRatioPct(a)}% · 占比 ${pct}%</span>`;
       }
     }
     const arrow = p.treePathInfo && p.treePathInfo.length > 2
@@ -3244,6 +3245,11 @@ function renderExpenses() {
   const empty = document.getElementById('expenses-empty');
   const list = document.getElementById('expenses-list');
 
+  // 先重建下拉选项（fillMonthSelect 会保留仍有效的选中值；选中月份的最后一条记录
+  // 被删除后选项消失、自动回落「全部时间」），再同步筛选状态——若先读后重建，
+  // 变量会持有已从 DOM 消失的旧月份，出现「下拉=全部时间 / 空态=该月无记录」的自相矛盾中间态
+  populateExpenseMonthFilter();
+
   // 同步月份筛选状态（下拉 onchange 仅触发 renderExpenses, 需从控件读取选中值）
   const monthSel = document.getElementById('expense-month-filter');
   if (monthSel) expenseMonthFilter = monthSel.value;
@@ -3251,8 +3257,6 @@ function renderExpenses() {
   // 同步搜索状态（输入框 oninput 仅触发 renderExpenses）
   const searchInput = document.getElementById('expense-search');
   if (searchInput) expenseSearch = searchInput.value;
-
-  populateExpenseMonthFilter();
 
   // 月份筛选 + 关键词搜索（互相独立，可叠加）
   const q = expenseSearch.trim().toLowerCase();
@@ -3659,7 +3663,7 @@ function renderExpenseTrendChart() {
   // 不占高度、不参与图例，随 legend 选中状态实时重算
   // 金额模式下叠加「预期消费」水平参考线, 超线月份的柱顶 label 标红加 ▲
   const totalSeries = expenseTrendMode === 'value' ? [{
-    name: '__total__', type: 'bar', stack: 'total',
+    name: TOTAL_SERIES_NAME, type: 'bar', stack: 'total',
     data: sorted.map(() => 0),
     itemStyle: { color: 'transparent' },
     emphasis: { disabled: true },
@@ -3735,7 +3739,7 @@ function renderExpenseTrendChart() {
       // item 模式下只在 hover 到柱子实体时触发（空白处不弹），
       // 只展示当前项名称、数值与百分比
       formatter: function(p) {
-        if (!p || p.seriesName === '__total__') return ''; // 透明承载系列不响应
+        if (!p || p.seriesName === TOTAL_SERIES_NAME) return ''; // 透明承载系列不响应
         const idx = p.dataIndex;
         const d = dates[idx];
         const total = totals[idx];
@@ -3826,16 +3830,17 @@ function renderExpenseCompareTable() {
 
   const color = v => compareColor(v, false);
   const fmt = v => money2(v);
+  const cols = 'grid-template-columns:2fr 1.2fr 1.2fr 1.5fr 1fr;'; // 表头/数据行共用同一列宽
   const maxAbs = Math.max(...rows.map(r => Math.abs(r.d)), 1);
   container.innerHTML = `
-    <div class="asset-row list-head text-xs font-medium" style="color:var(--muted);grid-template-columns:2fr 1.2fr 1.2fr 1.5fr 1fr;">
+    <div class="asset-row list-head text-xs font-medium" style="color:var(--muted);${cols}">
       <div>分类标签</div><div>期初月</div><div>期末月</div><div>变动</div><div>变动 %</div>
     </div>
     ${rows.map(r => {
       const s = r.d >= 0 ? '+' : '';
       const pctCell = cmpPctCell(r.d, r.p, color);
       const bar = cmpBar(r.d, maxAbs, color);
-      return `<div class="asset-row" style="grid-template-columns:2fr 1.2fr 1.2fr 1.5fr 1fr;">
+      return `<div class="asset-row" style="${cols}">
         <div class="font-medium text-sm flex items-center gap-2">${tagPillHtml(cat, r.tag, expenseCatColor, { showKey: false })}</div>
         <div class="font-mono text-sm tabular">${fmt(r.av)}</div>
         <div class="font-mono text-sm tabular">${fmt(r.bv)}</div>

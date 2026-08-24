@@ -167,6 +167,20 @@
     return isFinite(r) ? Math.min(100, Math.max(0, r)) / 100 : 1;
   }
 
+  // 任一资产的预期年化（Min 或 Max）> 0。「设了利率才显示月收益」的判定原先在
+  // masthead 与收益 Tab 各写一份（?? 与 || 两种写法各自漂移），现收敛单一来源。
+  // 注：?? 与 || 对 ''/NaN/0 等假值结果一致，收敛不改变行为
+  function hasAnyRatedAsset(assets) {
+    return (assets || []).some(a =>
+      (a.expectedRateMin ?? 0) > 0 || (a.expectedRateMax ?? 0) > 0);
+  }
+
+  // 现金比例展示值（0~100 整数）：资产列表「· 现金 N%」、收益表格「现金比例」列、
+  // 收益旭日图 tooltip 三处共用的同一舍入口径，防止一处取整一处截断
+  function cashRatioPct(a) {
+    return Math.round(getCashRatio(a) * 100);
+  }
+
   // 收益拆分: annual/monthly/daily 为总资产收益（现有口径）；cash* 为其中现金收益（能付账单的部分）
   function calcAssetIncome(a, mode) {
     mode = mode || incomeMode;
@@ -546,9 +560,8 @@
     rateFallbackNotice,
     nextSortState, expenseMonths,
     findMonthSnapshot, getPrevSnapshot,
-    findMonthSnapshot, getPrevSnapshot,
     monthlyExpenseTotals, prevExpenseMonthOf, expenseMoM, expenseMonthTagTotals,
-    getAssetRate, getSafetyFactor, getCashRatio, calcAssetIncome,
+    getAssetRate, getSafetyFactor, getCashRatio, calcAssetIncome, hasAnyRatedAsset, cashRatioPct,
     migrateState,
     esc, escRegExp, highlightMatch, moneyStr, jsAttr,
     truncateLabel,

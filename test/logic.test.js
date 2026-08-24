@@ -687,6 +687,36 @@ describe('消费月份列表 expenseMonths（月份筛选与趋势维度下拉�
   });
 });
 
+describe("hasAnyRatedAsset / cashRatioPct（从 index.html 下沉，「设了利率才显示」判定与现金比例展示单一来源）", () => {
+  test('hasAnyRatedAsset：任一资产 Min/Max > 0 即真', () => {
+    assert.strictEqual(L.hasAnyRatedAsset([
+      { expectedRateMin: 0, expectedRateMax: 0 },
+      { expectedRateMin: 2.5, expectedRateMax: 4 },
+    ]), true);
+  });
+
+  test('hasAnyRatedAsset：全未设置/空表/缺失入参为假', () => {
+    assert.strictEqual(L.hasAnyRatedAsset([{ expectedRateMin: 0, expectedRateMax: null }]), false);
+    assert.strictEqual(L.hasAnyRatedAsset([]), false);
+    assert.strictEqual(L.hasAnyRatedAsset(null), false);
+    assert.strictEqual(L.hasAnyRatedAsset(undefined), false);
+  });
+
+  test('hasAnyRatedAsset：脏值行为与旧内联实现一致', () => {
+    // '' 与 NaN 不误报
+    assert.strictEqual(L.hasAnyRatedAsset([{ expectedRateMin: '', expectedRateMax: NaN }]), false);
+    // 数字字符串按关系比较隐式转数字（'3' > 0 === true），与下沉前两份内联实现行为一致，锁定防漂移
+    assert.strictEqual(L.hasAnyRatedAsset([{ expectedRateMin: '3', expectedRateMax: 0 }]), true);
+  });
+
+  test('cashRatioPct：取整展示值与钳制边界', () => {
+    assert.strictEqual(L.cashRatioPct({ cashRatio: 20 }), 20);
+    assert.strictEqual(L.cashRatioPct({ cashRatio: 33.3 }), 33); // 四舍五入取整
+    assert.strictEqual(L.cashRatioPct({ cashRatio: 150 }), 100); // 越界钳制
+    assert.strictEqual(L.cashRatioPct({}), 100);                 // 缺失默认全额现金
+  });
+});
+
 describe('三态排序状态机 nextSortState（资产/消费列表共用）', () => {
   const cycle = (by, dir, field, flipSticky) => L.nextSortState(by, dir, field, flipSticky);
 

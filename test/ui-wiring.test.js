@@ -173,6 +173,27 @@ describe('UI 接线契约：共享层单一来源（防重复实现各自漂移�
   });
 });
 
+describe('UI 接线契约：logic.js 导出清单与筛选同步时序', () => {
+  const logic = fs.readFileSync(path.join(__dirname, '..', 'logic.js'), 'utf8');
+
+  test('logic.js 导出清单无重复条目（编辑残留即报错）', () => {
+    // 锚定 2 空格缩进的工厂导出块（函数内部的 return 缩进 ≥4 空格，不会误匹配）
+    const m = logic.match(/\n  return \{([\s\S]*?)\n  \};/);
+    assert.ok(m, '导出块存在');
+    const tokens = m[1].split(',').map(s => s.trim()).filter(Boolean);
+    assert.strictEqual(new Set(tokens).size, tokens.length,
+      '导出标识符应唯一，重复行如 findMonthSnapshot, getPrevSnapshot, 连写两次属编辑残留');
+  });
+
+  test('renderExpenses 先重建月份下拉再读筛选值（防「下拉=全部时间 / 空态=旧月份」脱节）', () => {
+    const src = fnSource('renderExpenses');
+    const build = src.indexOf('populateExpenseMonthFilter()');
+    const read = src.indexOf('expenseMonthFilter = monthSel.value');
+    assert.ok(build >= 0 && read >= 0, '两步都存在');
+    assert.ok(build < read, 'populateExpenseMonthFilter 必须先于 expenseMonthFilter 同步：删除选中月最后一条记录后选项消失、下拉回落全部时间，若先读后建变量会持有已从 DOM 消失的旧月份');
+  });
+});
+
 describe('UI 接线契约：堆叠柱下钻与图例记忆', () => {
   test('点击下钻接线单一来源 wireStackedBarDrill，两图各接一次，内联 chart.on(click) 不回潮', () => {
     assert.match(html, /function wireStackedBarDrill\(/, 'helper 定义存在');
