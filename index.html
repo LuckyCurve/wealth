@@ -272,6 +272,14 @@ tailwind.config = {
   .seg-btn { border: none; background: transparent; color: var(--muted); font-size: 12px; font-family: 'IBM Plex Mono', monospace; padding: 5px 18px; border-radius: 6px; cursor: pointer; transition: background 0.15s, color 0.15s; }
   .seg-btn:hover { color: var(--fg); }
   .seg-btn.active { background: linear-gradient(180deg, #d9b25e, #b4841a); color: #211b10; font-weight: 600; box-shadow: inset 0 1px 0 rgba(255,255,255,0.25), 0 1px 2px var(--shadow); }
+  /* ===== 设置弹窗: 账本「凡例」页 —— 每条设置如一条目录, 标签居左、控件居右、发丝线分章 ===== */
+  .setting-row { display: flex; align-items: center; justify-content: space-between; gap: 14px 24px; flex-wrap: wrap; }
+  .setting-info { flex: 1 1 260px; min-width: 200px; }
+  .setting-label { font-size: 14px; font-weight: 600; }
+  .setting-desc { font-size: 12px; color: var(--muted); margin-top: 4px; line-height: 1.7; }
+  /* 边注状态行: 金墨点引导, 与 masthead live-dot / 章节线同语言 */
+  .setting-note { display: inline-flex; align-items: center; gap: 7px; margin-top: 10px; font-size: 11px; letter-spacing: 0.04em; color: var(--muted); }
+  .setting-note::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: var(--accent-soft); flex-shrink: 0; }
   /* 安全边际因子: 与 seg-control 同语言的参数条, 账页边注式 */
   .safety-control { display: inline-flex; align-items: center; gap: 10px; padding: 5px 10px; border-radius: 8px; background: var(--bg-2); border: 1px solid var(--border); }
   .safety-label { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--muted); letter-spacing: 0.08em; }
@@ -470,8 +478,7 @@ tailwind.config = {
     </div>
     <div class="flex items-center gap-3">
       <span id="rate-status" class="text-xs" style="color: var(--muted); min-width: 88px; text-align: right; flex-shrink: 0;"></span>
-      <button onclick="showImportExport()" class="btn-ghost text-xs">导入 / 导出</button>
-      <button onclick="toggleDark()" id="dark-toggle" class="btn-ghost text-xs" style="min-width:36px;" aria-label="切换暗色模式">☀</button>
+      <button onclick="showSettings()" class="btn-ghost text-xs">设置</button>
     </div>
   </div>
 </header>
@@ -957,18 +964,6 @@ tailwind.config = {
       </div>
       <hr style="border-color: var(--border);">
       <div>
-        <div class="flex items-center justify-between mb-1.5">
-          <p class="text-sm">自动备份</p>
-          <select id="backup-auto-freq" onchange="setBackupFreq(this.value)">
-            <option value="daily">每天</option>
-            <option value="weekly">每周</option>
-            <option value="off">关闭</option>
-          </select>
-        </div>
-        <p class="text-xs" style="color:var(--muted);">打开页面时自动下载一份带日期的备份到浏览器「下载」文件夹，日积月累即是版本历史。建议把浏览器下载目录设为网盘同步文件夹（OneDrive / iCloud 等），电脑损坏后也能找回。</p>
-      </div>
-      <hr style="border-color: var(--border);">
-      <div>
         <p class="text-sm mb-3" style="color:var(--muted);">从 JSON 文件导入数据（将覆盖当前数据）</p>
         <label for="import-file" class="btn-gold" style="display:inline-block; cursor:pointer;">选择文件</label>
         <input type="file" id="import-file" accept=".json" onchange="importData(event)" style="display:none;">
@@ -1074,6 +1069,42 @@ tailwind.config = {
   </div>
 </div>
 
+<!-- Settings Modal (设置 · 账本凡例: 外观 + 自动备份) -->
+<div id="settings-modal" class="modal-overlay" style="display:none;">
+  <div class="modal-content" style="max-width:480px;">
+    <h3 class="font-display modal-title mb-6">设置</h3>
+    <div>
+      <div class="setting-row">
+        <div class="setting-info">
+          <p class="setting-label">外观</p>
+          <p class="setting-desc">切换日间纸页与夜间墨底，立即生效并记住选择</p>
+        </div>
+        <div class="seg-control" role="group" aria-label="外观主题">
+          <button id="theme-seg-light" onclick="setTheme(false)" class="seg-btn" aria-pressed="false">☀ 日间</button>
+          <button id="theme-seg-dark" onclick="setTheme(true)" class="seg-btn" aria-pressed="false">☾ 夜间</button>
+        </div>
+      </div>
+      <hr style="border-color: var(--border);">
+      <div class="setting-row">
+        <div class="setting-info">
+          <p class="setting-label">自动备份</p>
+          <p class="setting-desc">打开页面时自动下载一份带日期的备份到浏览器「下载」文件夹，日积月累即是版本历史。建议把下载目录设为网盘同步文件夹（OneDrive / iCloud 等），电脑损坏后也能找回。</p>
+          <p id="settings-backup-note" class="setting-note"></p>
+        </div>
+        <div class="seg-control" role="group" aria-label="自动备份频率">
+          <button id="backup-freq-daily" onclick="setBackupFreq('daily')" class="seg-btn" aria-pressed="false">每天</button>
+          <button id="backup-freq-weekly" onclick="setBackupFreq('weekly')" class="seg-btn" aria-pressed="false">每周</button>
+          <button id="backup-freq-off" onclick="setBackupFreq('off')" class="seg-btn" aria-pressed="false">关闭</button>
+        </div>
+      </div>
+    </div>
+    <div class="flex justify-between items-center mt-8 gap-3">
+      <button type="button" onclick="closeModal('settings-modal');showImportExport();" class="btn-ghost text-xs">备份与导入…</button>
+      <button type="button" onclick="closeModal('settings-modal')" class="btn-ghost">关闭</button>
+    </div>
+  </div>
+</div>
+
 <script src="logic.js"></script>
 <script>
 // ========== STATE ==========
@@ -1103,10 +1134,7 @@ let sortDir = 'asc';
       if (expenseChart) expenseChart.resize();
       if (expenseTrendChart) expenseTrendChart.resize();
     });
-    // dark class 已在 <head> 内联脚本提前设置（避免暗色用户首屏闪烁），这里只需同步图标
-    if (document.documentElement.classList.contains('dark')) {
-      document.getElementById('dark-toggle').textContent = '☾';
-    }
+    // dark class 已在 <head> 内联脚本提前设置（避免暗色用户首屏闪烁）；主题切换入口唯一在设置弹窗
     // 字体 CSS 是异步加载（media=print 技巧），canvas 图表初次渲染可能用了回退字体；
     // 字体就绪后重绘当前可见图表，保证标签/数字渲染一致。
     if (document.fonts && document.fonts.ready) {
@@ -2805,16 +2833,37 @@ function toggleSort(field) {
   renderAssets();
 }
 
-// ========== DARK MODE ==========
-function toggleDark() {
-  document.documentElement.classList.toggle('dark');
-  const isDark = document.documentElement.classList.contains('dark');
-  localStorage.setItem('dark-mode', isDark ? '1' : '');
-  document.getElementById('dark-toggle').textContent = isDark ? '☾' : '☀';
-  // 分类 pill 颜色随主题重绘（pillColors 暗色分支；图表随后统一重绘）
+// ========== THEME (日间/夜间，入口唯一：设置弹窗「外观」) ==========
+// 切换主题（设置弹窗「外观」seg 唯一入口）：目标与当前一致时不动、不重绘。
+// 落地：DOM class + localStorage['dark-mode']（首次访问的初始主题由 <head> 内联脚本处理，不走这里）；
+// 随后重绘分类 pill（pillColors 暗色分支）与当前可见图表
+// 设置弹窗内的主题 seg 回显（元素未渲染过则跳过）
+function syncThemeSeg() {
+  const lightBtn = document.getElementById('theme-seg-light');
+  if (!lightBtn) return;
+  const dark = document.documentElement.classList.contains('dark');
+  lightBtn.classList.toggle('active', !dark);
+  lightBtn.setAttribute('aria-pressed', String(!dark));
+  const darkBtn = document.getElementById('theme-seg-dark');
+  darkBtn.classList.toggle('active', dark);
+  darkBtn.setAttribute('aria-pressed', String(dark));
+}
+
+function setTheme(dark) {
+  dark = !!dark;
+  if (dark === document.documentElement.classList.contains('dark')) return;
+  document.documentElement.classList.toggle('dark', dark);
+  localStorage.setItem('dark-mode', dark ? '1' : '');
+  syncThemeSeg(); // 回显 seg 状态
   renderAll();
-  // 图表文字/线条颜色随主题重绘（仅当前可见的图表; 隐藏 tab 的图表会在下次进入时用新主题渲染）
   refreshVisibleCharts();
+}
+
+// 设置弹窗入口：打开前回显主题 seg 与备份控件
+function showSettings() {
+  syncThemeSeg();
+  syncBackupControls();
+  document.getElementById('settings-modal').style.display = '';
 }
 
 // 重绘当前可见的图表（汇率刷新、暗色切换共用）
@@ -2828,7 +2877,7 @@ function refreshVisibleCharts() {
 
 // ========== IMPORT/EXPORT ==========
 function showImportExport() {
-  renderBackupPanel(); // 打开弹窗时同步「上次备份」与频率选择
+  syncBackupControls(); // 打开弹窗时同步「上次备份」与频率选择
   document.getElementById('io-modal').style.display = '';
 }
 
@@ -2885,19 +2934,27 @@ function checkBackupStale() {
   }
 }
 
-// 弹窗内「上次备份 / 频率」回填（showImportExport 与手动导出后调用）
-function renderBackupPanel() {
-  const el = document.getElementById('backup-last-text');
-  if (!el) return;
-  const last = state.backup.lastBackup;
-  el.textContent = last ? `上次备份 ${last}${last === getLocalDateStr() ? '（今天）' : ''}` : '尚未备份过';
-  const sel = document.getElementById('backup-auto-freq');
-  if (sel) sel.value = state.backup.autoFreq || 'daily';
+// 统一同步备份控件：设置弹窗（频率 seg + 边注）与 io-modal 的上次备份文案。
+// 打开任一弹窗、setBackupFreq、手动导出后调用——单一入口，杜绝多 UI 失同步
+function syncBackupControls() {
+  const freq = normalizeBackupFreq(state.backup.autoFreq);       // 白名单归一，单一来源
+  const noteText = backupNoteText(state.backup.lastBackup, getLocalDateStr()); // 文案纯函数在 logic.js
+  const lastEl = document.getElementById('backup-last-text');
+  if (lastEl) lastEl.textContent = noteText;
+  ['daily', 'weekly', 'off'].forEach(v => {
+    const btn = document.getElementById('backup-freq-' + v);
+    if (!btn) return;
+    btn.classList.toggle('active', v === freq);
+    btn.setAttribute('aria-pressed', String(v === freq));
+  });
+  const noteEl = document.getElementById('settings-backup-note');
+  if (noteEl) noteEl.textContent = noteText;
 }
 
 function setBackupFreq(v) {
   state.backup.autoFreq = normalizeBackupFreq(v); // 白名单归一与 migrateState 同源（logic.js）
   saveState();
+  syncBackupControls(); // 两处弹窗控件同源刷新
   toast(state.backup.autoFreq === 'off' ? '已关闭自动备份' : `自动备份：${state.backup.autoFreq === 'daily' ? '每天' : '每周'}`, 'success');
 }
 
@@ -2905,7 +2962,7 @@ function exportData() {
   downloadBackupJSON();
   markBackedUp(getLocalDateStr());
   saveState();
-  renderBackupPanel(); // 弹窗内点击导出时，同步「上次备份」显示
+  syncBackupControls(); // 两处「上次备份」显示同源刷新
   toast('数据已导出', 'success');
 }
 

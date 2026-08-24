@@ -446,6 +446,13 @@
     return ['daily', 'weekly', 'off'].includes(v) ? v : 'daily';
   }
 
+  // 备份状态文案：「上次备份 X（今天）」/「尚未备份过」。
+  // 「备份与导入」弹窗与设置弹窗共用，避免两处文案漂移；参数显式传入保持纯净可测
+  function backupNoteText(lastBackup, today) {
+    if (!lastBackup) return '尚未备份过';
+    return `上次备份 ${lastBackup}${lastBackup === today ? '（今天）' : ''}`;
+  }
+
   // 方案 A 决策：今天是否应触发自动下载备份。
   // off / 无数据 → 否；从未下载或历史日期损坏(gap==null) → 是；
   // daily 当天已下过(gap<=0) → 否；weekly 不足 7 天(gap<7) → 否。
@@ -472,7 +479,7 @@
     toCNY, formatCNY,
     addMonths, getCurrentMonth, getLocalDateStr, getLocalMonthStr, monthLabel,
     daysBetweenStr,
-    BACKUP_STALE_DAYS, normalizeBackupFreq, hasAnyBackupWorthyData, shouldAutoBackup, backupStaleDays,
+    BACKUP_STALE_DAYS, normalizeBackupFreq, backupNoteText, hasAnyBackupWorthyData, shouldAutoBackup, backupStaleDays,
     findMonthSnapshot, getPrevSnapshot,
     findMonthSnapshot, getPrevSnapshot,
     monthlyExpenseTotals, prevExpenseMonthOf, expenseMoM, expenseMonthTagTotals,

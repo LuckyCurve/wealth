@@ -114,7 +114,8 @@ interface Expense {
 - **目标净资产** — `netWorthTarget` 在 masthead 显示进度条（`openTargetModal`/`saveTarget`/`clearTarget`），90%+ 变强调色、达成显示「目标已达成」徽章；总资产为 0 时不显示进度避免误报。masthead 副行同时展示「N 项资产」与预估月收益（任一资产设了利率即出现）。
 - **消费记录** — 排序状态 `expenseSortBy`/`expenseSortDir`；「复制」操作 `duplicateExpense(id)` 打开新增窗口预填金额/备注/标签、日期改为今天；月份筛选 `expenseMonthFilter`（下拉由 `populateExpenseMonthFilter()` 生成）；搜索框 `expenseSearch`（`oninput` 触发 `renderExpenses()`，匹配备注/日期/分类名/标签值，不区分大小写，与月份筛选叠加）；搜索交互：命中片段以「金笔划线」`mark.search-hit` 高亮（`highlightMatch()` 先 esc 转义再大小写不敏感替换，保留原文大小写）、输入框内 ×（`clearExpenseSearch()`，仅清搜索保留月份）与 ESC 清空、空态标题带搜索词并给「换个关键词」指引、合计标签双筛选时显示「月份 匹配」；空态按「完全无数据 / 搜索无结果 / 月份无记录」区分文案，「清除筛选」`clearExpenseFilters()` 重置两类筛选。趋势图按月聚合，与历史净值柱状图风格一致。
 - **消费趋势** — `expenseExpectation` 设定后作为水平参考线，超线月份的柱顶 label 标红加 ▲；按钮状态化显示「设定预期 / 预期 ¥X」；透明「合计」系列不占高度、随 legend 选中实时重算。趋势下方按月列表 `viewExpenseMonth()` 查看当月明细。
-- **暗色模式** — `toggleDark()` 写 `localStorage['dark-mode']`（`'1'`=暗色、`''`=亮色、`null`=未设置），通过 `document.documentElement.classList.toggle('dark')` 切换 `:root.dark` 下的 CSS 变量；切换后调用 `renderAll()` 重绘分类 pill（暗色分支取色）再 `refreshVisibleCharts()` 重绘图表。`<head>` 内联脚本在渲染前设置主题：首次访问跟随系统 `prefers-color-scheme`，显式切换后以存储值为准（避免首屏闪烁）。
+- **暗色模式** — 主题切换入口唯一在设置弹窗「外观」（页头无快捷开关）：`setTheme(dark)` 幂等守卫后落地（`localStorage['dark-mode']`：`'1'`=暗色、`''`=亮色、`null`=未设置；`document.documentElement.classList.toggle('dark')` 切换 `:root.dark` 下的 CSS 变量），再调用 `renderAll()` 重绘分类 pill（暗色分支取色）并 `refreshVisibleCharts()` 重绘图表。`<head>` 内联脚本在渲染前设置初始主题：首次访问跟随系统 `prefers-color-scheme`，显式切换后以存储值为准（避免首屏闪烁）。
+- **设置弹窗** — 页头右侧仅一个「设置」按钮打开 `settings-modal`（导入/导出与明暗快捷开关已从页头移除，设置是唯一入口；账本「凡例」隐喻：每条设置一条目录——标签居左 `.setting-info`、控件居右、发丝线分章；金墨点边注 `.setting-note` 呼应 masthead live-dot）：①「外观」日间/夜间 seg-control，`setTheme(dark)` 见暗色模式条目，`syncThemeSeg()` 回显 active 与 aria-pressed；②「自动备份」每天/每周/关闭 seg-control（频率选择全站唯一入口），直接调 `setBackupFreq()`。底部「备份与导入…」跨弹窗直达 io-modal（先关设置再打开）。ESC/遮罩关闭走通用 `.modal-overlay` 路径无需额外注册。
 - **品牌标记** — 页头 logo 与 favicon 为「孔方铜钱」：金渐变圆币（`--gold` 同源色）内挖方孔（`fill-rule='evenodd'` 镂空，透出页面背景），方孔四角带**裁切标记**（与 masthead 同语言，默色 = 财富、裁切 = 账页签名）；页头版为裸 SVG 无伪外框，裁切标记用 `var(--fg)` 适配亮暗主题（favicon 版因 data URI 无法取变量，硬编码深墨）；无独立容器背景，靠 `drop-shadow` 轻微离纸。
 - **报头 (masthead) 数字动画** — `renderMasthead()` 用 `requestAnimationFrame` 做缓动滚动数字；`prefers-reduced-motion` 时直接设值。masthead 另含货币构成条 (composition rule/legend) 与目标净资产进度面板。
 - **印刷账页细节** — 报头四角有裁切标记（register ticks，`.masthead::after` 八层渐变）、大数字带压印感 `text-shadow`（亮暗各一套）；卡片有纸张顶缘高光（`--card-edge`）；`.btn-gold` 为压印金属感（顶部受光 + 底部内阴影）；表格列头用 `.list-head` 双线规则（2px `--rule`）+ 0.05em 字距；货币构成条带 25/50/75% 刻度墨线（`--tick`，亮暗各一套）；图表 tooltip 统一账本卡片样式（`extraCssText` 圆角+阴影+内边距）；toast 与 `mo-badge` 同色系便条样式（亮暗各一套）；弹窗标题上带章节线（`.modal-title::before` 28×2px 金色短线）；空态有账本 SVG 图标（`.empty-state::before`，`currentColor` 跟随主题）；排序列头可键盘操作（`role="button"` + `tabindex` + Enter 触发排序）。
@@ -122,7 +123,7 @@ interface Expense {
 - **图表空态** — 所选维度全空或无可选数据时显示空态而非空白画布（资产/消费分布、历史净值、消费趋势均如此）；空态与列表空态共用 `.empty-state` 语言（账本图标 + 章节线 + 行动按钮，`btn-ghost` 安静邀请：去登记资产/记录快照/去记录消费），不喧宾夺主——主创建按钮始终由页面头部金色按钮承担。
 - **弹窗关闭** — `closeModal(id)` 统一关闭；ESC 键关闭最上层弹窗；点击遮罩空白处关闭（`mousedown` 记录目标 + overlay click 判断）。
 - **数据导入/导出** — `exportData()` 导出完整 `state` JSON，但剥离快照加工字段 `totalCNY`（可由 assets × currencyRates 重算，导入时 `migrateState()` 补全）；`importData()` 校验 `categories && assets` 字段后合并并走 `migrateState()`。
-- **数据防丢备份（方案 A+C）** — 纯本地无后端的两层防线：①「自动备份」（`maybeAutoBackup()`，DOMContentLoaded 尾部调用）：当天首次打开页面时静默触发一次 `<a download>` 下载到浏览器默认下载目录（复用手动导出格式，文件名带日期堆积即版本历史；延迟 4s 避开首屏、非手势单次下载 Chrome/Edge 通常放行、失败静默跳过）；仅当 assets/expenses/snapshots 任一非空才执行，按 `backup.autoFreq` 节流（daily 当天已下过跳过 / weekly 不足 7 天跳过 / off 关闭）。②新鲜度提醒（`checkBackupStale()`）：距 `lastBackup` 超 7 天且已有数据时进页面 toast 温和提醒（从未备份不提醒，等首次自动下载补上）。手动 `exportData()` 也刷新 `lastBackup`；「导入/导出」弹窗已改名「备份与导入」，含上次备份时间与频率下拉（`renderBackupPanel()`/`setBackupFreq()`）。**决策纯函数在 logic.js**（index.html 只留 DOM 副作用，分支可 node --test 覆盖）：`daysBetweenStr()` 判日期距、`normalizeBackupFreq()` 频率白名单归一（migrateState 兑底与 setBackupFreq 同源）、`hasAnyBackupWorthyData()` / `shouldAutoBackup(state, today)` / `backupStaleDays(state, today)`、阈值常量 `BACKUP_STALE_DAYS=7`。用户侧建议：把浏览器下载目录设为网盘同步文件夹即获异地容灾。
+- **数据防丢备份（方案 A+C）** — 纯本地无后端的两层防线：①「自动备份」（`maybeAutoBackup()`，DOMContentLoaded 尾部调用）：当天首次打开页面时静默触发一次 `<a download>` 下载到浏览器默认下载目录（复用手动导出格式，文件名带日期堆积即版本历史；延迟 4s 避开首屏、非手势单次下载 Chrome/Edge 通常放行、失败静默跳过）；仅当 assets/expenses/snapshots 任一非空才执行，按 `backup.autoFreq` 节流（daily 当天已下过跳过 / weekly 不足 7 天跳过 / off 关闭）。②新鲜度提醒（`checkBackupStale()`）：距 `lastBackup` 超 7 天且已有数据时进页面 toast 温和提醒（从未备份不提醒，等首次自动下载补上）。手动 `exportData()` 也刷新 `lastBackup`；「导入/导出」弹窗已改名「备份与导入」，仅含手动导出/导入与上次备份文案（自动备份频率选择已移至设置弹窗，io-modal 不再有该区块）；两处上次备份文案由 `syncBackupControls()` 统一同步（`setBackupFreq()` 共用写入路径，文案用 logic.js 纯函数 `backupNoteText()`）。**决策纯函数在 logic.js**（index.html 只留 DOM 副作用，分支可 node --test 覆盖）：`daysBetweenStr()` 判日期距、`normalizeBackupFreq()` 频率白名单归一（migrateState 兑底与 setBackupFreq 同源）、`backupNoteText()` 上次备份文案（两处弹窗共用防漂移）、`hasAnyBackupWorthyData()` / `shouldAutoBackup(state, today)` / `backupStaleDays(state, today)`、阈值常量 `BACKUP_STALE_DAYS=7`。用户侧建议：把浏览器下载目录设为网盘同步文件夹即获异地容灾。
 - **示例数据** — 资产端 `loadDemoData()`、消费端 `loadExpenseDemoData()`，均先 `showConfirm` 二次确认后覆盖当前数据。资产示例含现金比例演示：存款/债/理财 100%，沪深300 指数 5~8% 利率 + 20% 现金（红利型指数）。快照内资产同样带 `cashRatio`（当前资产由最新快照深拷贝而来，缺失会导致演示现金比例失效）。
 
 ## 开发
@@ -134,7 +135,9 @@ interface Expense {
 核心纯逻辑（货币换算、收益测算、数据迁移、日期/月份、文本/金额转义、颜色数学）已抽到 `logic.js`，通过 UMD 双端复用：浏览器由 `index.html` 的 `<script src="logic.js">` 加载（函数挂到全局，供内联脚本按原名调用），Node 下作为 CommonJS 被测试 `require`。
 
 - 运行：`node --test`（零依赖，仅用内置 `node:test` / `node:assert`）。
-- 测试文件：`test/logic.test.js`。
+- 测试文件：
+  - `test/logic.test.js` — 纯逻辑（货币换算、收益测算、数据迁移、日期/月份、备份决策与文案、颜色数学）。
+  - `test/ui-wiring.test.js` — UI 接线契约：对 `index.html` 文本断言「设置=唯一入口」「io-modal 不含自动备份」「setTheme/setBackupFreq 接线各一处」等架构约束，防止单文件改动时接线被误改或旧入口回潮。
 - 依赖全局 `state` / `incomeMode` 的函数，在测试中通过 `globalThis.state` / `globalThis.incomeMode` 注入，与浏览器读取 `let` 全局的行为一致。
 - 新增/修改上述纯逻辑时，请同步更新 `logic.js` 与对应单测，保持单一数据来源。
 

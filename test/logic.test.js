@@ -536,6 +536,15 @@ describe('备份决策 normalizeBackupFreq / hasAnyBackupWorthyData / shouldAuto
     assert.strictEqual(L.normalizeBackupFreq(''), 'daily');
   });
 
+  test('backupNoteText 上次备份文案（「备份与导入」与设置弹窗共用）', () => {
+    assert.strictEqual(L.backupNoteText(null, '2024-05-01'), '尚未备份过');
+    assert.strictEqual(L.backupNoteText(undefined, '2024-05-01'), '尚未备份过');
+    assert.strictEqual(L.backupNoteText('', '2024-05-01'), '尚未备份过');
+    // 当天备份：带「今天」后缀；历史日期：仅日期本身
+    assert.strictEqual(L.backupNoteText('2024-05-01', '2024-05-01'), '上次备份 2024-05-01（今天）');
+    assert.strictEqual(L.backupNoteText('2024-04-20', '2024-05-01'), '上次备份 2024-04-20');
+  });
+
   test('hasAnyBackupWorthyData：任一数据源非空即真，全空/缺字段为假', () => {
     assert.strictEqual(L.hasAnyBackupWorthyData(freshState({})), false);
     assert.strictEqual(L.hasAnyBackupWorthyData({}), false);
