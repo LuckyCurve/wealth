@@ -195,6 +195,34 @@
     return { cny, annual, monthly, daily, cashAnnual, cashMonthly };
   }
 
+  // ========== 食利线（现金收益覆盖预期月消费的标尺）==========
+  // 覆盖率（%）: cashMonthly ÷ expectation × 100。
+  // expectation 未设/非法（<=0）→ null（无法计量, UI 显示「设定预期」邀请态）；
+  // cashMonthly 非法/负数 → 0（防御, 覆盖率从零起量而非 NaN）
+  function coveragePct(cashMonthly, expectation) {
+    const e = Number(expectation);
+    if (!isFinite(e) || e <= 0) return null;
+    const c = Number(cashMonthly);
+    if (!isFinite(c) || c < 0) return 0;
+    return c / e * 100;
+  }
+
+  // 收益−预期差额口径（报头 gapSuffix 与食利线读数共用, 防盈余/缺口金额两处各算漂移）。
+  // 返回 { ok, word, amt, pct }: ok=gap>=0（打平算盈余）; amt=差额取整; pct=差额占预期百分比。
+  // expectation 未设/非法 → null（调用方回退邀请态/空后缀）; amount 非法按 0 参与差额不产出 NaN
+  function incomeGap(amount, expectation) {
+    const e = Number(expectation);
+    if (!isFinite(e) || e <= 0) return null;
+    const a = Number(amount);
+    const gap = (isFinite(a) ? a : 0) - e;
+    return {
+      ok: gap >= 0,
+      word: gap >= 0 ? '盈余' : '缺口',
+      amt: Math.round(Math.abs(gap)),
+      pct: Math.abs(gap) / e * 100,
+    };
+  }
+
   // ========== 数据迁移 / 兜底（依赖全局 state，原地修改）==========
   // loadState（本地加载）与 importData（JSON 导入）共用，保证旧版数据导入后行为一致
   function migrateState() {
@@ -561,7 +589,7 @@
     nextSortState, expenseMonths,
     findMonthSnapshot, getPrevSnapshot,
     monthlyExpenseTotals, prevExpenseMonthOf, expenseMoM, expenseMonthTagTotals,
-    getAssetRate, getSafetyFactor, getCashRatio, calcAssetIncome, hasAnyRatedAsset, cashRatioPct,
+    getAssetRate, getSafetyFactor, getCashRatio, calcAssetIncome, hasAnyRatedAsset, cashRatioPct, coveragePct, incomeGap,
     migrateState,
     esc, escRegExp, highlightMatch, moneyStr, jsAttr,
     truncateLabel,

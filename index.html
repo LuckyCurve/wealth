@@ -440,6 +440,26 @@ tailwind.config = {
   .target-panel { background: var(--card-2); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; }
   .target-progress { height: 10px; border-radius: 4px; background: repeating-linear-gradient(90deg, var(--border) 0 1px, transparent 1px 25%), var(--bg-2); border: 1px solid var(--border); overflow: hidden; }
   .target-progress-fill { height: 100%; border-radius: 3px; transition: width 0.4s ease; }
+  /* ===== 食利线标尺: 现金收益对预期月消费的覆盖测量 =====
+     实心 verdigris 填充 = 已被利息养起的部分; 虚线发丝 = 尚未走到的地方(标签空栏同语言);
+     25/50/75% 刻度与货币构成条/比例尺同语言; 菱形站点标记呼应比例尺拇指与报头裁切标记 */
+  .cov-section { margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--rule); }
+  .cov-label-row { display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 14px; }
+  .cov-label { font-size: 11px; font-weight: 500; color: var(--muted); letter-spacing: 0.08em; }
+  .cov-track { position: relative; height: 9px; margin: 0 4px; }
+  .cov-track::before { content: ''; position: absolute; left: 0; right: 0; top: 50%; border-top: 1px dashed var(--border); }
+  .cov-fill { position: absolute; left: 0; top: 50%; transform: translateY(-50%); width: 0; height: 3px; background: var(--verdigris); border-radius: 2px; transition: width 0.25s ease; }
+  .cov-tick { position: absolute; top: -2px; bottom: -2px; width: 1px; background: var(--tick); pointer-events: none; }
+  .cov-tick-end { left: 100%; transform: translateX(-1px); }
+  .cov-marker {
+    position: absolute; left: 0; top: 50%; width: 9px; height: 9px; border-radius: 1px;
+    background: var(--accent); border: 1.5px solid var(--card); box-shadow: 0 1px 3px var(--shadow);
+    transform: translate(-50%, -50%) rotate(45deg); transition: left 0.25s ease;
+  }
+  .cov-anchors { display: flex; justify-content: space-between; gap: 12px; margin-top: 8px; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .cov-anchors span { font-weight: 500; color: var(--fg); opacity: 0.85; }
+  .cov-reading { text-align: center; margin-top: 10px; font-size: 13px; color: var(--muted); }
+  @media (prefers-reduced-motion: reduce) { .cov-fill, .cov-marker { transition: none; } }
   /* 快照对比：每行变动量条（账本刻度语言, 一眼看出谁推动了净值变化） */
   .cmp-bar-track { height: 3px; border-radius: 2px; background: var(--bg-2); margin-top: 4px; overflow: hidden; }
   .cmp-bar { height: 100%; border-radius: 2px; }
@@ -662,6 +682,28 @@ tailwind.config = {
         <span>年 <span id="income-annual" class="tabular font-medium" style="color:var(--fg);opacity:0.85;">¥0</span></span>
         <span>日 <span id="income-daily" class="tabular font-medium" style="color:var(--fg);opacity:0.85;">¥0</span></span>
         <span>现金占比 <span id="income-cash-share" class="tabular font-medium" style="color:var(--accent-ink);">—</span></span>
+      </div>
+      <!-- 食利线: 未设预期消费时显示邀请, 已设则显示覆盖标尺（骨架静态存在, JS 只同步宽度与文案,
+           保证安全边际滑块拖动时填充/菱形以过渡动画伸缩） -->
+      <div id="cov-invite" class="text-xs text-center mt-3 pt-3" style="display:none;color:var(--muted);border-top:1px dashed var(--rule);">
+        设个预期月消费，量一量离食利线的距离<button type="button" onclick="openExpectationModal()" class="btn-ghost" style="padding:2px 10px;font-size:11px;margin-left:8px;">设定</button>
+      </div>
+      <div id="cov-section" class="cov-section" style="display:none;">
+        <div class="cov-label-row">
+          <p class="cov-label">食利线 · 现金收益 ÷ 预期月消费</p>
+          <!-- 设定后的唯一再入口: 重开预期弹窗, 修改与清除均在弹窗内完成 -->
+          <button type="button" onclick="openExpectationModal()" class="btn-ghost" style="padding:2px 8px;font-size:10px;">修改</button>
+        </div>
+        <div class="cov-track">
+          <div class="cov-fill" id="cov-fill"></div>
+          <span class="cov-tick" style="left:25%;"></span><span class="cov-tick" style="left:50%;"></span><span class="cov-tick" style="left:75%;"></span><span class="cov-tick cov-tick-end"></span>
+          <div class="cov-marker" id="cov-marker"></div>
+        </div>
+        <div class="cov-anchors">
+          <span id="cov-anchor-cash">—</span>
+          <span id="cov-anchor-expense">—</span>
+        </div>
+        <p class="cov-reading" id="cov-reading"></p>
       </div>
       <p id="income-summary-footer" class="text-xs text-center mt-2" style="color:var(--muted);"></p>
     </div>
@@ -1466,12 +1508,9 @@ function renderMasthead(total) {
       cashMonthly += inc.cashMonthly;
     });
     const gapSuffix = (amount) => {
-      if (expectation <= 0) return '';
-      const gap = amount - expectation;
-      const ok = gap >= 0;
-      const amt = Math.round(Math.abs(gap)).toLocaleString('zh-CN');
-      const pct = Math.abs(gap) / expectation * 100;
-      return ` <span style="color:${ok ? 'var(--verdigris)' : 'var(--down)'}">（${ok ? '盈余' : '缺口'} ¥${amt} · ${pct.toFixed(1)}%）</span>`;
+      const g = incomeGap(amount, expectation); // 差额口径单一来源（logic.js）, 食利线读数共用
+      if (!g) return '';
+      return ` <span style="color:${g.ok ? 'var(--verdigris)' : 'var(--down)'}">（${g.word} ¥${g.amt.toLocaleString('zh-CN')} · ${g.pct.toFixed(1)}%）</span>`;
     };
     if (expectation > 0) {
       subText += ` · <span style="color:var(--muted);">预期月消费 <span class="tabular font-medium" style="color:var(--fg);opacity:0.85;">${formatCNY(expectation)}</span></span>`;
@@ -2708,6 +2747,47 @@ function setIncomeMode(mode) {
   setSegMode('income-mode-min', 'income-mode-max', mode, 'min', 'max', renderIncomeTab);
 }
 
+// ========== 食利线（现金收益覆盖预期月消费的标尺）==========
+// 骨架静态存在, 此处只同步宽度与文案 —— 安全边际滑块拖动时填充/菱形以过渡动画伸缩。
+// 覆盖率口径在 logic.js coveragePct()（单一来源）; 三种状态:
+// 未设预期 → 邀请行 / 现金流为零 → 指引句 / 正常 → 读数行（达标附「息可养支」印徽）
+function renderCoverageMeter(cashMonthly) {
+  const invite = document.getElementById('cov-invite');
+  const section = document.getElementById('cov-section');
+  if (!invite || !section) return;
+  const expectation = state.expenseExpectation || 0;
+  if (!(expectation > 0)) {
+    invite.style.display = '';
+    section.style.display = 'none';
+    return;
+  }
+  invite.style.display = 'none';
+  section.style.display = '';
+
+  document.getElementById('cov-anchor-cash').textContent = formatCNY(cashMonthly);
+  document.getElementById('cov-anchor-expense').textContent = formatCNY(expectation);
+
+  // expectation > 0 已保证, coveragePct 不返回 null
+  const pct = coveragePct(cashMonthly, expectation);
+  const covered = Math.min(100, Math.max(0, pct));
+  document.getElementById('cov-fill').style.width = covered + '%';
+  document.getElementById('cov-marker').style.left = covered + '%';
+
+  const reading = document.getElementById('cov-reading');
+  if (cashMonthly <= 0) {
+    reading.textContent = '当前组合没有现金流收益——调高资产的现金比例后，这里开始计量';
+    return;
+  }
+  const ok = pct >= 100;
+  // 差额口径与报头 gapSuffix 同源（logic.js incomeGap）; expectation > 0 已保证非 null
+  const g = incomeGap(cashMonthly, expectation);
+  const diffColor = g.ok ? 'var(--verdigris)' : 'var(--down)';
+  reading.innerHTML =
+    `<span>覆盖 <span class="tabular" style="font-weight:600;color:${ok ? 'var(--verdigris)' : 'var(--fg)'};opacity:${ok ? '1' : '0.85'};">${pct.toFixed(1)}%</span></span>` +
+    ` · <span>${g.word} <span class="tabular" style="font-weight:600;color:${diffColor};">¥${g.amt.toLocaleString('zh-CN')}</span>/月</span>` +
+    (ok ? ` <span class="mo-badge up" title="现金收益已完全覆盖预期月消费">息可养支</span>` : '');
+}
+
 function renderIncomeTab() {
   const empty = document.getElementById('income-empty');
   const summary = document.getElementById('income-summary');
@@ -2771,6 +2851,9 @@ function renderIncomeTab() {
   document.getElementById('income-summary-footer').textContent =
     `加权平均利率 ${avgRate}% · 平均现金收益率 ${avgCashRate}% · 总资产 ${formatCNY(totalCNY)}` +
     (discounted ? ` · 已按 ${safetyPct}% 安全边际折算` : '');
+
+  // 食利线标尺（覆盖率口径在 logic.js coveragePct）
+  renderCoverageMeter(cashMonthly);
 
   // --- Table ---
   const sorted = [...state.assets].sort((a, b) => {
@@ -3575,6 +3658,9 @@ function saveExpectation() {
   closeModal('expectation-modal');
   renderExpenseTrendChart();
   renderAssets(); // 报头收益 vs 预期消费徽章依赖该值
+  // 收益 Tab 可见时才同步刷新食利线（必须带可见性守卫: renderIncomeTab 尾部会 renderIncomeChart,
+  // 对从未显示过的容器 echarts.init 会缓存 0×0 实例, 之后进 Tab 图表空白; 与 refreshVisibleCharts 同惯例)
+  if (document.getElementById('tab-income').style.display !== 'none') renderIncomeTab();
   toast(hadValue ? '预期消费已更新' : '预期消费已设置', 'success');
 }
 function clearExpectation() {
@@ -3583,6 +3669,8 @@ function clearExpectation() {
   closeModal('expectation-modal');
   renderExpenseTrendChart();
   renderAssets();
+  // 可见性守卫同 saveExpectation（防隐藏容器 echarts 0 尺寸初始化）; 隐藏时下次进 Tab 由 switchTab 重渲染
+  if (document.getElementById('tab-income').style.display !== 'none') renderIncomeTab();
   toast('已清除预期消费', 'success');
 }
 

@@ -717,6 +717,66 @@ describe("hasAnyRatedAsset / cashRatioPct（从 index.html 下沉，「设了利
   });
 });
 
+describe('coveragePct（食利线：现金收益 ÷ 预期月消费）', () => {
+  test('常规换算，可超过 100%', () => {
+    assert.ok(approx(L.coveragePct(6240, 10000), 62.4));
+    assert.ok(approx(L.coveragePct(12500, 10000), 125));
+    assert.ok(approx(L.coveragePct(10000, 10000), 100));
+    // 字符串数字防御（导入数据同源口径）
+    assert.ok(approx(L.coveragePct('624', '1000'), 62.4));
+  });
+
+  test('未设/非法预期 → null（无法计量, UI 显示邀请态）', () => {
+    assert.strictEqual(L.coveragePct(5000, 0), null);
+    assert.strictEqual(L.coveragePct(5000, null), null);
+    assert.strictEqual(L.coveragePct(5000, undefined), null);
+    assert.strictEqual(L.coveragePct(5000, -100), null);
+    assert.strictEqual(L.coveragePct(5000, 'abc'), null);
+  });
+
+  test('现金收益非法/负值归 0 而非 NaN（防御）', () => {
+    assert.strictEqual(L.coveragePct(0, 10000), 0);
+    assert.strictEqual(L.coveragePct(null, 10000), 0);
+    assert.strictEqual(L.coveragePct(NaN, 10000), 0);
+    assert.strictEqual(L.coveragePct(undefined, 10000), 0);
+    assert.strictEqual(L.coveragePct(-5, 10000), 0);
+  });
+});
+
+describe('incomeGap（收益−预期差额口径：报头 gapSuffix 与食利线读数共用）', () => {
+  test('盈余分支：ok=true / word=盈余 / 差额取整', () => {
+    const g = L.incomeGap(12500, 10000);
+    assert.strictEqual(g.ok, true);
+    assert.strictEqual(g.word, '盈余');
+    assert.strictEqual(g.amt, 2500);
+    assert.ok(approx(g.pct, 25));
+  });
+
+  test('缺口分支：ok=false / word=缺口', () => {
+    const g = L.incomeGap(6240, 10000);
+    assert.strictEqual(g.ok, false);
+    assert.strictEqual(g.word, '缺口');
+    assert.strictEqual(g.amt, 3760);
+    assert.ok(approx(g.pct, 37.6));
+  });
+
+  test('恰好打平算盈余（gap >= 0），差额为 0', () => {
+    const g = L.incomeGap(10000, 10000);
+    assert.strictEqual(g.ok, true);
+    assert.strictEqual(g.amt, 0);
+    assert.strictEqual(g.pct, 0);
+  });
+
+  test('非法预期 → null（调用方回退邀请态）；NaN 金额归 0 不产出 NaN 字符串', () => {
+    assert.strictEqual(L.incomeGap(5000, 0), null);
+    assert.strictEqual(L.incomeGap(5000, null), null);
+    assert.strictEqual(L.incomeGap(5000, 'abc'), null);
+    const g = L.incomeGap(NaN, 10000);
+    assert.strictEqual(g.ok, false);
+    assert.strictEqual(g.amt, 10000, 'NaN 金额按 0 参与差额，不产出 NaN');
+  });
+});
+
 describe('三态排序状态机 nextSortState（资产/消费列表共用）', () => {
   const cycle = (by, dir, field, flipSticky) => L.nextSortState(by, dir, field, flipSticky);
 

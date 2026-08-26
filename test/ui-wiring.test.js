@@ -113,7 +113,7 @@ describe('UI 接线契约：共享层单一来源（防重复实现各自漂移�
   const logic = fs.readFileSync(path.join(__dirname, '..', 'logic.js'), 'utf8');
 
   test('纯函数下沉 logic.js，index.html 不再保留本地副本', () => {
-    for (const fn of ['money2', 'hexToRgba', 'nextSortState', 'expenseMonths']) {
+    for (const fn of ['money2', 'hexToRgba', 'nextSortState', 'expenseMonths', 'incomeGap']) {
       assert.match(logic, new RegExp(`function ${fn}\\(`), `${fn} 应在 logic.js`);
       assert.strictEqual(
         count(new RegExp(`function ${fn}\\(`, 'g')), 0, `index.html 不应再定义 ${fn}`);
@@ -222,5 +222,60 @@ describe('UI 接线契约：堆叠柱下钻与图例记忆', () => {
       fnSource('renderExpenseTrendChart'),
       /barChartBase\(th, dates, expenseTrendMode, sortedTags, pruneLegendSelected\(trendLegendSel/,
       '趋势图重绘时回灌图例选中态');
+  });
+});
+
+describe('UI 接线契约：食利线（现金收益覆盖预期月消费标尺）', () => {
+  const logic = fs.readFileSync(path.join(__dirname, '..', 'logic.js'), 'utf8');
+
+  test('骨架单一来源：邀请行与标尺各一份，邀请复用既有预期消费弹窗', () => {
+    assert.strictEqual(count(/id="cov-invite"/g), 1);
+    assert.strictEqual(count(/id="cov-section"/g), 1);
+    const invite = html.match(/id="cov-invite"[\s\S]*?id="cov-section"/);
+    assert.ok(invite, '邀请行应在标尺之前');
+    assert.match(invite[0], /onclick="openExpectationModal\(\)"/,
+      '邀请按钮复用预期消费弹窗，不得新开第二套录入通道');
+  });
+
+  test('设定后标尺仍提供「修改」再入口（否则收益 Tab 内无法改预期）', () => {
+    const section = html.match(/id="cov-section"[\s\S]*?id="income-summary-footer"/);
+    assert.ok(section, '标尺区存在');
+    assert.match(section[0], /onclick="openExpectationModal\(\)"/, '标签行修改按钮应重开预期弹窗');
+  });
+
+  test('覆盖率口径在 logic.js coveragePct，内联脚本不重复计算百分比', () => {
+    assert.match(logic, /function coveragePct\(/, '决策纯函数在 logic.js');
+    const src = fnSource('renderCoverageMeter');
+    assert.match(src, /coveragePct\(/, '渲染层从 logic.js 取口径');
+    assert.doesNotMatch(src, /\/\s*expectation\s*\*|cashMonthly\s*\/\s*expectation/, '覆盖率算式不得在内联脚本重写');
+  });
+
+  test('差额口径单一来源 incomeGap：报头 gapSuffix 与食利线读数共用，内联算法不回潮', () => {
+    assert.match(logic, /function incomeGap\(/);
+    for (const fn of ['renderMasthead', 'renderCoverageMeter']) {
+      assert.match(fnSource(fn), /incomeGap\(/, `${fn} 应使用 incomeGap 取盈余/缺口口径`);
+    }
+    assert.doesNotMatch(fnSource('renderMasthead'), /Math\.round\(Math\.abs\(gap\)\)/, '报头不再内联差额取整');
+    assert.doesNotMatch(fnSource('renderCoverageMeter'), /cashMonthly\s*-\s*expectation/, '食利线不再内联差额计算');
+  });
+
+  test('renderCoverageMeter 定义一次、renderIncomeTab 调用一次（骨架静态只同步宽度文案）', () => {
+    assert.strictEqual(count(/\brenderCoverageMeter\(/g), 2, '定义一处 + renderIncomeTab 调用一处');
+    assert.match(fnSource('renderIncomeTab'), /renderCoverageMeter\(cashMonthly\)/);
+  });
+
+  test('预期保存/清除仅在收益 Tab 可见时刷新（守卫防隐藏容器 echarts 0 尺寸初始化）', () => {
+    for (const fn of ['saveExpectation', 'clearExpectation']) {
+      const src = fnSource(fn);
+      // 调用语法正则锁定完整守卫形态，裸关键词计数会把注释字样也算进去
+      assert.match(
+        src,
+        /tab-income'\)\.style\.display !== 'none'\) renderIncomeTab\(\)/,
+        `${fn} 必须带可见性守卫调 renderIncomeTab（与 refreshVisibleCharts 同惯例）`);
+    }
+  });
+
+  test('达标印徽复用 mo-badge.up 语义色（与目标净资产「已达成」同语言），不另造徽章样式', () => {
+    assert.match(fnSource('renderCoverageMeter'), /mo-badge up/);
   });
 });
