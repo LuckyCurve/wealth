@@ -195,16 +195,31 @@
     return { cny, annual, monthly, daily, cashAnnual, cashMonthly };
   }
 
-  // ========== 食利线（现金收益覆盖预期月消费的标尺）==========
-  // 覆盖率（%）: cashMonthly ÷ expectation × 100。
+  // ========== 食利线（收益覆盖预期月消费的标尺）==========
+  // 覆盖率（%）: 分子月收益 ÷ expectation × 100（分子由调用方按口径选现金或总收益）。
   // expectation 未设/非法（<=0）→ null（无法计量, UI 显示「设定预期」邀请态）；
-  // cashMonthly 非法/负数 → 0（防御, 覆盖率从零起量而非 NaN）
+  // 月收益非法/负数 → 0（防御, 覆盖率从零起量而非 NaN）
   function coveragePct(cashMonthly, expectation) {
     const e = Number(expectation);
     if (!isFinite(e) || e <= 0) return null;
     const c = Number(cashMonthly);
     if (!isFinite(c) || c < 0) return 0;
     return c / e * 100;
+  }
+
+  // 两口径收益合计（报头副行/收益摘要/食利线共用, 防多处各算漂移）。
+  // 返回 { annual, cashAnnual, monthly, daily, cashMonthly }, 衍生值与单资产算法同式除法;
+  // 未设利率资产贡献 0, 空表/缺失入参归零不产出 NaN。
+  // 语义约定: 全量累加含负收益资产（表单允许负利率、导入亦不鴴制）——
+  // 与报头口径一致; 旧收益摘要曾 filter(annual>0) 剔除负值属口径分裂, 勿回潮
+  function sumAssetIncomes(assets) {
+    let annual = 0, cashAnnual = 0;
+    (assets || []).forEach(a => {
+      const inc = calcAssetIncome(a);
+      annual += inc.annual;
+      cashAnnual += inc.cashAnnual;
+    });
+    return { annual, cashAnnual, monthly: annual / 12, daily: annual / 365, cashMonthly: cashAnnual / 12 };
   }
 
   // 收益−预期差额口径（报头 gapSuffix 与食利线读数共用, 防盈余/缺口金额两处各算漂移）。
@@ -589,7 +604,7 @@
     nextSortState, expenseMonths,
     findMonthSnapshot, getPrevSnapshot,
     monthlyExpenseTotals, prevExpenseMonthOf, expenseMoM, expenseMonthTagTotals,
-    getAssetRate, getSafetyFactor, getCashRatio, calcAssetIncome, hasAnyRatedAsset, cashRatioPct, coveragePct, incomeGap,
+    getAssetRate, getSafetyFactor, getCashRatio, calcAssetIncome, hasAnyRatedAsset, cashRatioPct, coveragePct, incomeGap, sumAssetIncomes,
     migrateState,
     esc, escRegExp, highlightMatch, moneyStr, jsAttr,
     truncateLabel,

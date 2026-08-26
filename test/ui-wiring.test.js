@@ -118,6 +118,12 @@ describe('UI 接线契约：共享层单一来源（防重复实现各自漂移�
       assert.strictEqual(
         count(new RegExp(`function ${fn}\\(`, 'g')), 0, `index.html 不应再定义 ${fn}`);
     }
+    // 两口径收益合计单一来源：报头副行与收益摘要都改走 sumAssetIncomes（逐资产展示值的
+    // 表格行/图表切片仍各自 calcAssetIncome，属合法用途不在此约束）
+    assert.match(logic, /function sumAssetIncomes\(/);
+    for (const fn of ['renderMasthead', 'renderIncomeTab']) {
+      assert.match(fnSource(fn), /sumAssetIncomes\(state\.assets\)/, `${fn} 应使用 sumAssetIncomes`);
+    }
   });
 
   test('消费月份列表单一来源 expenseMonths，两处内联 Set 推导消失', () => {
@@ -259,9 +265,19 @@ describe('UI 接线契约：食利线（现金收益覆盖预期月消费标尺�
     assert.doesNotMatch(fnSource('renderCoverageMeter'), /cashMonthly\s*-\s*expectation/, '食利线不再内联差额计算');
   });
 
-  test('renderCoverageMeter 定义一次、renderIncomeTab 调用一次（骨架静态只同步宽度文案）', () => {
-    assert.strictEqual(count(/\brenderCoverageMeter\(/g), 2, '定义一处 + renderIncomeTab 调用一处');
-    assert.match(fnSource('renderIncomeTab'), /renderCoverageMeter\(cashMonthly\)/);
+  test('renderCoverageMeter 定义一次、renderIncomeTab 调用一次（骨架静态只同步宽度文案，自足计算两口径合计）', () => {
+    assert.strictEqual(count(/\brenderCoverageMeter\(/g), 3, '定义一处 + renderIncomeTab 调用一处 + setCoverageMode 回调一处');
+    assert.match(fnSource('renderIncomeTab'), /renderCoverageMeter\(\)/);
+    assert.match(fnSource('renderCoverageMeter'), /sumAssetIncomes\(state\.assets\)/, '两口径合计与报头同源，不重复聚合');
+  });
+
+  test('分子口径切换：默认现金、双按钮各接线一次、走 setSegMode 单一来源', () => {
+    assert.match(html, /let coverageMode = 'cash';/, '默认现金口径（不动本金的严格口径），与 incomeChartMode 同惯例不持久化');
+    assert.strictEqual(count(/onclick="setCoverageMode\('cash'\)"/g), 1);
+    assert.strictEqual(count(/onclick="setCoverageMode\('total'\)"/g), 1);
+    assert.match(fnSource('setCoverageMode'), /setSegMode\('cov-mode-cash', 'cov-mode-total'/);
+    // 指引分支仅现金口径有意义
+    assert.match(fnSource('renderCoverageMeter'), /coverageMode === 'cash' && cashMonthly <= 0/);
   });
 
   test('预期保存/清除仅在收益 Tab 可见时刷新（守卫防隐藏容器 echarts 0 尺寸初始化）', () => {

@@ -777,6 +777,52 @@ describe('incomeGap（收益−预期差额口径：报头 gapSuffix 与食利�
   });
 });
 
+describe('sumAssetIncomes（两口径收益合计：报头副行/收益摘要/食利线共用）', () => {
+  test('多资产合计含安全边际与现金拆分，衍生月/日值与单资产算法同式', () => {
+    const s = L.sumAssetIncomes([
+      { amount: 1200, currency: 'CNY', expectedRateMin: 5, expectedRateMax: 10, cashRatio: 50 },
+      { amount: 800, currency: 'CNY', expectedRateMin: 5, expectedRateMax: 10, cashRatio: 100 },
+    ]);
+    // max 口径: 年化分别 120 + 80 = 200; 现金 60 + 80 = 140
+    assert.ok(approx(s.annual, 200));
+    assert.ok(approx(s.cashAnnual, 140));
+    assert.ok(approx(s.monthly, 200 / 12));
+    assert.ok(approx(s.daily, 200 / 365));
+    assert.ok(approx(s.cashMonthly, 140 / 12));
+  });
+
+  test('未设利率/空表/缺失入参均归零，不产出 NaN', () => {
+    const zero = L.sumAssetIncomes([{ amount: 500, currency: 'CNY', expectedRateMin: 0, expectedRateMax: 0 }]);
+    assert.strictEqual(zero.annual, 0);
+    assert.strictEqual(zero.cashMonthly, 0);
+    for (const key of ['annual', 'cashAnnual', 'monthly', 'daily', 'cashMonthly']) {
+      assert.strictEqual(L.sumAssetIncomes([])[key], 0);
+      assert.strictEqual(L.sumAssetIncomes(null)[key], 0);
+    }
+  });
+
+  test('随 incomeMode 切换口径（读全局 let，与浏览器行为一致）', () => {
+    const assets = [{ amount: 1200, currency: 'CNY', expectedRateMin: 5, expectedRateMax: 10 }];
+    globalThis.incomeMode = 'min';
+    const minRun = L.sumAssetIncomes(assets);
+    globalThis.incomeMode = 'max';
+    const maxRun = L.sumAssetIncomes(assets);
+    assert.ok(approx(minRun.annual, 60));
+    assert.ok(approx(maxRun.annual, 120));
+  });
+
+  test('负收益资产计入合计（统一为报头口径，不再像旧摘要 filter 掉）', () => {
+    // 表单允许输负利率（仅校验 min<=max 顺序）、导入数据亦不鍴制——
+    // 旧 renderIncomeTab 曾 filter(i.annual>0) 把负值剔除，与报头各算各的；现统一为全量累加
+    const s = L.sumAssetIncomes([
+      { amount: 1000, currency: 'CNY', expectedRateMin: 8, expectedRateMax: 8 },
+      { amount: 1000, currency: 'CNY', expectedRateMin: -2, expectedRateMax: -2, cashRatio: 100 },
+    ]);
+    assert.ok(approx(s.annual, 80 - 20));
+    assert.ok(approx(s.cashAnnual, 80 - 20));
+  });
+});
+
 describe('三态排序状态机 nextSortState（资产/消费列表共用）', () => {
   const cycle = (by, dir, field, flipSticky) => L.nextSortState(by, dir, field, flipSticky);
 
