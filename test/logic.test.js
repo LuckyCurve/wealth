@@ -743,7 +743,7 @@ describe('coveragePct（食利线：现金收益 ÷ 预期月消费）', () => {
   });
 });
 
-describe('incomeGap（收益−预期差额口径：报头 gapSuffix 与食利线读数共用）', () => {
+describe('incomeGap（收益−预期差额口径：食利线读数单一来源）', () => {
   test('盈余分支：ok=true / word=盈余 / 差额取整', () => {
     const g = L.incomeGap(12500, 10000);
     assert.strictEqual(g.ok, true);

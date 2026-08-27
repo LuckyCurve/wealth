@@ -1503,7 +1503,7 @@ function renderMasthead(total) {
   }
 
   // sub line: 资产数 + 月收益/现金 双口径平齐展示（任一资产设置利率后出现）
-  // 设置了预期月消费时, 每个口径后内联其与预期的差额: 盈余绿 / 缺口红
+  // 覆盖率差额叙述已完整收归食利线标尺, 报头只保留收入金额与预期锚点, 不再重复叙述
   const count = state.assets.length;
   const hasRate = hasAnyRatedAsset(state.assets); // 纯函数在 logic.js（与收益 Tab 共用同一判定）
   const expectation = state.expenseExpectation || 0;
@@ -1511,16 +1511,11 @@ function renderMasthead(total) {
   if (hasRate) {
     // 两口径合计单一来源（logic.js sumAssetIncomes, 与收益摘要/食利线共用）
     const { monthly, cashMonthly } = sumAssetIncomes(state.assets);
-    const gapSuffix = (amount) => {
-      const g = incomeGap(amount, expectation); // 差额口径单一来源（logic.js）, 食利线读数共用
-      if (!g) return '';
-      return ` <span style="color:${g.ok ? 'var(--verdigris)' : 'var(--down)'}">（${g.word} ¥${g.amt.toLocaleString('zh-CN')} · ${g.pct.toFixed(1)}%）</span>`;
-    };
     if (expectation > 0) {
       subText += ` · <span style="color:var(--muted);">预期月消费 <span class="tabular font-medium" style="color:var(--fg);opacity:0.85;">${formatCNY(expectation)}</span></span>`;
     }
-    subText += ` · <span>预估月收益 <span class="tabular font-medium" style="color:var(--verdigris);">${formatCNY(monthly)}</span>${gapSuffix(monthly)}</span>`;
-    subText += ` · <span>现金收益 <span class="tabular font-medium" style="color:var(--accent-ink);">${formatCNY(cashMonthly)}</span>${gapSuffix(cashMonthly)}</span>`;
+    subText += ` · <span>预估月收益 <span class="tabular font-medium" style="color:var(--verdigris);">${formatCNY(monthly)}</span></span>`;
+    subText += ` · <span>现金收益 <span class="tabular font-medium" style="color:var(--accent-ink);">${formatCNY(cashMonthly)}</span></span>`;
   }
   subEl.innerHTML = subText;
 }
@@ -2788,7 +2783,7 @@ function renderCoverageMeter() {
     reading.textContent = '当前组合没有现金流收益——调高资产的现金比例后，这里开始计量';
     return;
   }
-  // 差额与打平判定同源（logic.js incomeGap）, 与报头 gapSuffix 共用同一真值源
+  // 差额与打平判定同源（logic.js incomeGap, 食利线为盈余/缺口唯一渲染出口, 报头已不再重复渲染）
   const g = incomeGap(numerator, expectation);
   const ok = g.ok;
   const diffColor = g.ok ? 'var(--verdigris)' : 'var(--down)';

@@ -256,13 +256,14 @@ describe('UI 接线契约：食利线（现金收益覆盖预期月消费标尺�
     assert.doesNotMatch(src, /\/\s*expectation\s*\*|cashMonthly\s*\/\s*expectation/, '覆盖率算式不得在内联脚本重写');
   });
 
-  test('差额口径单一来源 incomeGap：报头 gapSuffix 与食利线读数共用，内联算法不回潮', () => {
+  test('差额口径单一来源 incomeGap：盈余/缺口叙事收归食利线，报头不再重复渲染', () => {
     assert.match(logic, /function incomeGap\(/);
-    for (const fn of ['renderMasthead', 'renderCoverageMeter']) {
-      assert.match(fnSource(fn), /incomeGap\(/, `${fn} 应使用 incomeGap 取盈余/缺口口径`);
-    }
-    assert.doesNotMatch(fnSource('renderMasthead'), /Math\.round\(Math\.abs\(gap\)\)/, '报头不再内联差额取整');
+    // 食利线（renderCoverageMeter）是盈余/缺口的唯一渲染出口, 口径单一来源
+    assert.match(fnSource('renderCoverageMeter'), /incomeGap\(/, '食利线应使用 incomeGap 取盈余/缺口口径');
     assert.doesNotMatch(fnSource('renderCoverageMeter'), /cashMonthly\s*-\s*expectation/, '食利线不再内联差额计算');
+    // 报头副行只保留收入金额与预期锚点, 盈余/缺口差额已收归食利线标尺（不调用 incomeGap、不内联差额取整）
+    assert.doesNotMatch(fnSource('renderMasthead'), /incomeGap\(/, '报头不再调用 incomeGap 渲染差额');
+    assert.doesNotMatch(fnSource('renderMasthead'), /Math\.round\(Math\.abs\(gap\)\)/, '报头不再内联差额取整');
   });
 
   test('renderCoverageMeter 定义一次、renderIncomeTab 调用一次（骨架静态只同步宽度文案，自足计算两口径合计）', () => {

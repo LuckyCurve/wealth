@@ -222,7 +222,7 @@
     return { annual, cashAnnual, monthly: annual / 12, daily: annual / 365, cashMonthly: cashAnnual / 12 };
   }
 
-  // 收益−预期差额口径（报头 gapSuffix 与食利线读数共用, 防盈余/缺口金额两处各算漂移）。
+  // 收益−预期差额口径（食利线读数单一来源; 报头不再重复渲染差额, 防盈余/缺口金额两处各算漂移）。
   // 返回 { ok, word, amt, pct }: ok=gap>=0（打平算盈余）; amt=差额取整; pct=差额占预期百分比。
   // expectation 未设/非法 → null（调用方回退邀请态/空后缀）; amount 非法按 0 参与差额不产出 NaN
   function incomeGap(amount, expectation) {
