@@ -296,3 +296,32 @@ describe('UI 接线契约：食利线（现金收益覆盖预期月消费标尺�
     assert.match(fnSource('renderCoverageMeter'), /mo-badge up/);
   });
 });
+
+describe('UI 接线契约：自动备份等待汇率拉取完成再导出', () => {
+  test('DOMContentLoaded 捕获 fetchRates() 的 promise 并传给 maybeAutoBackup', () => {
+    assert.match(html, /const ratePromise = fetchRates\(\);/, '应捕获本次启动的汇率拉取 promise 复用同一笔请求');
+    assert.match(html, /maybeAutoBackup\(ratePromise\);/, '应把 promise 传给 maybeAutoBackup（而非无参调用）');
+    assert.strictEqual(count(/maybeAutoBackup\(\)/g), 0, '不应再有无参调用，否则会抢在汇率刷新前导出拿到过期汇率');
+  });
+
+  test('maybeAutoBackup 先 await 汇率 promise 再 downloadBackupJSON', () => {
+    assert.match(html, /async function maybeAutoBackup\(ratePromise\)/, '应为 async 且接收 ratePromise 参数');
+    const src = fnSource('maybeAutoBackup');
+    assert.match(src, /if \(ratePromise\) await ratePromise;/, '下载前应 await 汇率拉取完成（含空值守卫）');
+    assert.match(src, /downloadBackupJSON\(\)/, 'await 之后才执行下载');
+    // 顺序保证：await 必须排在 downloadBackupJSON 之前，否则导出拿到旧汇率
+    assert.ok(
+      src.indexOf('await ratePromise') < src.indexOf('downloadBackupJSON()'),
+      'await ratePromise 必须排在 downloadBackupJSON 之前');
+  });
+
+  test('汇率拉取失败时不阻塞备份：await 包在独立 try/catch 且 catch 不 return，下载在后续独立 try 块', () => {
+    const src = fnSource('maybeAutoBackup');
+    // await 的 catch 不得提前 return 中断备份流程
+    assert.doesNotMatch(src, /catch \(e\) \{[^}]*return/, 'await 的 catch 不应 return 中断备份');
+    // 下载逻辑位于 await 的 catch 闭合之后、独立的 try 块内，失败也照常执行
+    const awaitCatchEnd = src.indexOf('用缓存汇率继续备份');
+    const dlIdx = src.indexOf('downloadBackupJSON()');
+    assert.ok(awaitCatchEnd > 0 && dlIdx > awaitCatchEnd, '下载块应在 await 的 catch 之后，失败仍继续备份');
+  });
+});

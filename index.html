@@ -1192,7 +1192,9 @@ let sortDir = 'asc';
 // ========== INIT ==========
   document.addEventListener('DOMContentLoaded', () => {
     loadState();
-    fetchRates();
+    // 捕获本次启动的汇率拉取 promise，交给 maybeAutoBackup 复用同一笔请求、
+    // 等汇率更新完毕后再导出，避免备份拿到过期汇率（见 maybeAutoBackup）
+    const ratePromise = fetchRates();
     renderAll();
     // 图表统一 resize：必须在顶层注册（原代码嵌在 renderChart 首次 init 里，
     // 导致从未进入「资产分布」tab 时其他图表在窗口缩放后不跟随调整）
@@ -1212,7 +1214,7 @@ let sortDir = 'asc';
     // 备份守护：先进新鲜度提醒（方案 C），再按需触发当日自动下载（方案 A）；
     // 自动下载在 maybeAutoBackup 内部延迟数秒，避开首屏渲染高峰
     checkBackupStale();
-    maybeAutoBackup();
+    maybeAutoBackup(ratePromise);
   });
 
   // 从 bfcache 恢复（后退/前进、恢复标签页）时，DOMContentLoaded 不会再次触发，
@@ -3109,9 +3111,15 @@ function markBackedUp(today) {
 
 // 方案 A 入口：是否触发由 logic.js 的 shouldAutoBackup 判定，此处延迟数秒执行
 // （避开首屏渲染；非手势单次下载 Chrome/Edge 通常放行，被拦截时静默跳过仍可手动导出）
-function maybeAutoBackup() {
+// ratePromise 为本次启动 DOMContentLoaded 中那笔 fetchRates 的 promise：
+// 导出前先 await 它，确保 state.rates 已更新（成功写入新汇率 / 失败回退缓存）再下载，
+// 避免备份抢在汇率刷新前落盘拿到过期汇率。失败也不阻塞备份，用缓存汇率继续。
+async function maybeAutoBackup(ratePromise) {
   if (!shouldAutoBackup(state, getLocalDateStr())) return;
-  setTimeout(() => {
+  setTimeout(async () => {
+    try {
+      if (ratePromise) await ratePromise;
+    } catch (e) { /* 汇率拉取失败也无妨，用缓存汇率继续备份 */ }
     try {
       downloadBackupJSON();
       const t = getLocalDateStr();
