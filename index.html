@@ -15,6 +15,9 @@
 </script>
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/zh.js"></script>
 <!-- 字体走 Google 官方大陆端点 fonts.googleapis.cn / fonts.gstatic.cn（国内 CDN，比直连 gstatic.com 快且稳）。
      子集化按 unicode-range 按需下载，仅取页面实际用到的字重；display=swap 保证字体未就绪时先用系统字体渲染。
      media=print + onload 让字体 CSS 不阻塞首屏——CDN 再慢页面也会立即显示。 -->
@@ -152,6 +155,120 @@ tailwind.config = {
   }
   input:focus, select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(180,132,26,0.14); }
   .dark input, .dark select { background: var(--bg-2); }
+  /* Flatpickr 日期选择器 — 账本主题定制 */
+  .flatpickr-calendar {
+    font-family: 'IBM Plex Mono', monospace !important;
+    border-radius: 10px !important;
+    border: 1px solid var(--border) !important;
+    box-shadow: 0 8px 32px var(--shadow), 0 2px 8px rgba(0,0,0,0.06) !important;
+    background: var(--card) !important;
+    overflow: hidden;
+  }
+  .flatpickr-months .flatpickr-month {
+    background: var(--card-2) !important;
+    border-bottom: 1px solid var(--border);
+    height: 40px !important;
+    line-height: 40px !important;
+  }
+  .flatpickr-current-month {
+    font-family: 'IBM Plex Mono', monospace !important;
+    font-size: 13px !important;
+    font-weight: 600 !important;
+    color: var(--fg) !important;
+    padding-top: 0 !important;
+  }
+  .flatpickr-current-month .flatpickr-monthDropdown-months,
+  .flatpickr-current-month input.cur-year {
+    font-family: 'IBM Plex Mono', monospace !important;
+    font-weight: 600 !important;
+    color: var(--fg) !important;
+    background: transparent !important;
+    border: none !important;
+  }
+  .flatpickr-current-month .flatpickr-monthDropdown-months:hover,
+  .flatpickr-current-month input.cur-year:hover {
+    color: var(--accent-ink) !important;
+  }
+  span.flatpickr-weekday {
+    font-family: 'IBM Plex Mono', monospace !important;
+    font-size: 11px !important;
+    font-weight: 500 !important;
+    color: var(--muted) !important;
+    background: transparent !important;
+    padding: 8px 0 4px !important;
+  }
+  .flatpickr-day {
+    font-family: 'IBM Plex Mono', monospace !important;
+    font-size: 13px !important;
+    font-weight: 400 !important;
+    color: var(--fg) !important;
+    border-radius: 6px !important;
+    border: none !important;
+    max-width: 36px !important;
+    height: 34px !important;
+    line-height: 34px !important;
+    margin: 1px !important;
+    transition: background 0.12s, color 0.12s, box-shadow 0.12s;
+  }
+  .flatpickr-day:hover {
+    background: var(--card-2) !important;
+    color: var(--fg) !important;
+    border-color: transparent !important;
+  }
+  .flatpickr-day.today {
+    border-color: var(--accent) !important;
+    color: var(--accent-ink) !important;
+    font-weight: 600 !important;
+  }
+  .flatpickr-day.selected, .flatpickr-day.selected:hover {
+    background: var(--accent) !important;
+    color: var(--fg) !important;
+    border-color: var(--accent) !important;
+    box-shadow: 0 2px 8px rgba(180,132,26,0.3) !important;
+    font-weight: 600 !important;
+  }
+  .flatpickr-day.prevMonthDay, .flatpickr-day.nextMonthDay {
+    color: var(--muted) !important;
+    opacity: 0.5;
+  }
+  .flatpickr-day.prevMonthDay:hover, .flatpickr-day.nextMonthDay:hover {
+    opacity: 0.8;
+  }
+  .flatpickr-day.inRange {
+    box-shadow: none !important;
+    background: var(--accent-soft) !important;
+    border-color: transparent !important;
+  }
+  .flatpickr-months .flatpickr-prev-month,
+  .flatpickr-months .flatpickr-next-month {
+    fill: var(--muted) !important;
+    transition: fill 0.15s;
+  }
+  .flatpickr-months .flatpickr-prev-month:hover,
+  .flatpickr-months .flatpickr-next-month:hover {
+    fill: var(--accent-ink) !important;
+  }
+  .flatpickr-months .flatpickr-prev-month svg,
+  .flatpickr-months .flatpickr-next-month svg {
+    width: 14px !important;
+    height: 14px !important;
+  }
+  .flatpickr-months .flatpickr-prev-month,
+  .flatpickr-months .flatpickr-next-month {
+    padding: 8px !important;
+  }
+  /* 暗色模式微调 */
+  .dark .flatpickr-calendar {
+    border-color: var(--border) !important;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5), 0 2px 8px rgba(0,0,0,0.3) !important;
+  }
+  .dark .flatpickr-day.selected, .dark .flatpickr-day.selected:hover {
+    color: var(--bg) !important;
+    box-shadow: 0 2px 8px rgba(217,178,94,0.35) !important;
+  }
+  .dark .flatpickr-day.inRange {
+    background: rgba(230,201,130,0.15) !important;
+  }
   /* 搜索框: 放大镜以墨色线条内嵌, 同表单控件的账页语言 */
   .search-wrap { position: relative; display: inline-block; }
   .search-wrap svg { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); width: 13px; height: 13px; color: var(--muted); pointer-events: none; }
@@ -1196,6 +1313,21 @@ let sortDir = 'asc';
     // 等汇率更新完毕后再导出，避免备份拿到过期汇率（见 maybeAutoBackup）
     const ratePromise = fetchRates();
     renderAll();
+    // 初始化 Flatpickr 日期选择器（消费表单）
+    if (typeof flatpickr !== 'undefined') {
+      flatpickr('#expense-date', {
+        locale: 'zh',
+        dateFormat: 'Y-m-d',
+        defaultDate: getLocalDateStr(),
+        disableMobile: true,
+        animate: true,
+        weekNumbers: false,
+        showMonths: 1,
+        onChange: function(selectedDates, dateStr) {
+          document.getElementById('expense-date').value = dateStr;
+        }
+      });
+    }
     // 图表统一 resize：必须在顶层注册（原代码嵌在 renderChart 首次 init 里，
     // 导致从未进入「资产分布」tab 时其他图表在窗口缩放后不跟随调整）
     window.addEventListener('resize', () => {
@@ -3319,6 +3451,12 @@ function armToastHide(t) {
 }
 
 // ========== EXPENSE CRUD ==========
+// 设置消费日期值（兼容 Flatpickr 实例存在/不存在两种情况）
+function setExpenseDate(dateStr) {
+  const el = document.getElementById('expense-date');
+  const fp = el._flatpickr;
+  if (fp) { fp.setDate(dateStr, true); } else { el.value = dateStr; }
+}
 // ====== EXPENSE MONTH FILTER ======
 let expenseMonthFilter = '';
 let expenseSearch = '';
@@ -3457,7 +3595,7 @@ function openExpenseModal(editId, prefillId) {
   const form = document.getElementById('expense-form');
   form.reset();
   document.getElementById('expense-edit-id').value = editId || '';
-  document.getElementById('expense-date').value = getLocalDateStr();
+  setExpenseDate(getLocalDateStr());
 
   // 数据来源: 编辑取原记录（含原日期）; 复制取源记录但日期改为今天
   const source = editId
@@ -3473,7 +3611,7 @@ function openExpenseModal(editId, prefillId) {
   }
 
   if (source) {
-    document.getElementById('expense-date').value = editId ? source.date : getLocalDateStr();
+    setExpenseDate(editId ? source.date : getLocalDateStr());
     document.getElementById('expense-amount').value = moneyStr(source.amount);
     document.getElementById('expense-note').value = source.note || '';
   }

@@ -325,3 +325,39 @@ describe('UI 接线契约：自动备份等待汇率拉取完成再导出', () =
     assert.ok(awaitCatchEnd > 0 && dlIdx > awaitCatchEnd, '下载块应在 await 的 catch 之后，失败仍继续备份');
   });
 });
+
+describe('UI 接线契约：Flatpickr 日期选择器', () => {
+  test('Flatpickr CDN 三件套引入（CSS + JS + 中文 locale）', () => {
+    assert.match(html, /flatpickr\/dist\/flatpickr\.min\.css/, 'Flatpickr CSS 存在');
+    assert.match(html, /flatpickr\/dist\/l10n\/zh\.js/, '中文 locale 存在');
+    assert.strictEqual(count(/flatpickr\.min\.js/g), 0, '不应引用 flatpickr.min.js（主包已含）');
+  });
+
+  test('DOMContentLoaded 初始化 Flatpickr，locale zh + disableMobile', () => {
+    assert.match(html, /flatpickr\('#expense-date'/, '应初始化 #expense-date');
+    const initBlock = html.match(/flatpickr\('#expense-date'[\s\S]*?\}\);/);
+    assert.ok(initBlock, '初始化块存在');
+    assert.match(initBlock[0], /locale: 'zh'/, '中文 locale');
+    assert.match(initBlock[0], /disableMobile: true/, '移动端禁用原生日历，统一桌面样式');
+  });
+
+  test('setExpenseDate 是日期设置的单一来源，openExpenseModal 不再内联 _flatpickr 检测', () => {
+    assert.match(html, /function setExpenseDate\(/, 'helper 定义存在');
+    const helperSrc = fnSource('setExpenseDate');
+    assert.match(helperSrc, /\._flatpickr/, 'helper 内部检测 Flatpickr 实例');
+    assert.match(helperSrc, /fp\.setDate\(/, 'helper 走 fp.setDate');
+    // openExpenseModal 不再各自检测 _flatpickr
+    const modalSrc = fnSource('openExpenseModal');
+    assert.doesNotMatch(modalSrc, /\._flatpickr/, 'openExpenseModal 不应内联 _flatpickr 检测');
+    assert.match(modalSrc, /setExpenseDate\(/, 'openExpenseModal 应调用 setExpenseDate');
+    // 不应有直接赋值 .value 的日期设置
+    assert.doesNotMatch(modalSrc, /expense-date\]\.value =/, 'openExpenseModal 不应直接赋值 expense-date.value');
+  });
+
+  test('selected 日期颜色用 CSS 变量而非硬编码色值', () => {
+    assert.doesNotMatch(html, /\.flatpickr-day\.selected[^}]*#211b10/, '亮色选中不应硬编码 #211b10');
+    assert.doesNotMatch(html, /\.dark \.flatpickr-day\.selected[^}]*#15110a/, '暗色选中不应硬编码 #15110a');
+    assert.match(html, /\.flatpickr-day\.selected[^}]*var\(--fg\)/, '亮色选中应走 var(--fg)');
+    assert.match(html, /\.dark \.flatpickr-day\.selected[^}]*var\(--bg\)/, '暗色选中应走 var(--bg)');
+  });
+});
