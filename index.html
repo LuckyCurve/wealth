@@ -871,6 +871,8 @@ tailwind.config = {
             <button type="button" id="expense-search-clear" class="search-clear" onclick="clearExpenseSearch()" tabindex="-1" aria-label="清除搜索" style="display:none;">×</button>
           </span>
           <select id="expense-month-filter" onchange="renderExpenses()" class="text-sm" style="min-width:130px;"></select>
+          <select id="expense-tag-cat-filter" onchange="onExpenseTagCatChange()" class="text-sm" style="min-width:120px;"></select>
+          <select id="expense-tag-filter" onchange="renderExpenses()" class="text-sm" style="min-width:120px;"></select>
           <button onclick="openExpenseModal()" class="btn-gold">＋ 记录消费</button>
         </div>
       </div>
@@ -3460,18 +3462,58 @@ function setExpenseDate(dateStr) {
 // ====== EXPENSE MONTH FILTER ======
 let expenseMonthFilter = '';
 let expenseSearch = '';
+let expenseTagCatFilter = '';
+let expenseTagFilter = '';
 
 // 消费月份下拉：选项从数据自动生成（倒序），保留当前选择
 function populateExpenseMonthFilter() {
   fillMonthSelect('expense-month-filter', expenseMonths(state.expenses));
 }
 
-// 空态「清除筛选」: 重置搜索框与月份下拉
+// 消费标签分类下拉：从 expenseCategories 生成，保留当前选择
+function populateExpenseTagCatFilter() {
+  const sel = document.getElementById('expense-tag-cat-filter');
+  if (!sel) return;
+  const current = sel.value;
+  sel.innerHTML = '<option value="">全部类别</option>' +
+    state.expenseCategories.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
+  if (current && sel.querySelector(`option[value="${current}"]`)) sel.value = current;
+  else { sel.value = ''; expenseTagCatFilter = ''; }
+}
+
+// 消费标签下拉：按所选分类动态生成标签选项，保留当前选择
+function populateExpenseTagFilter() {
+  const sel = document.getElementById('expense-tag-filter');
+  if (!sel) return;
+  const current = sel.value;
+  const cat = state.expenseCategories.find(c => c.id === expenseTagCatFilter);
+  const tags = cat ? (cat.tags || []) : [];
+  sel.innerHTML = '<option value="">全部标签</option>' +
+    tags.map(t => `<option value="${esc(t)}">${esc(t)}</option>`).join('');
+  if (current && tags.includes(current)) sel.value = current;
+  else { sel.value = ''; expenseTagFilter = ''; }
+}
+
+// 类别下拉切换：重置标签筛选并重建标签下拉
+function onExpenseTagCatChange() {
+  const catSel = document.getElementById('expense-tag-cat-filter');
+  expenseTagCatFilter = catSel ? catSel.value : '';
+  expenseTagFilter = '';
+  populateExpenseTagFilter();
+  renderExpenses();
+}
+
+// 空态「清除筛选」: 重置搜索框、月份下拉与标签筛选
 function clearExpenseFilters() {
   const monthSel = document.getElementById('expense-month-filter');
   if (monthSel) monthSel.value = '';
   const searchInput = document.getElementById('expense-search');
   if (searchInput) searchInput.value = '';
+  const catSel = document.getElementById('expense-tag-cat-filter');
+  if (catSel) catSel.value = '';
+  expenseTagCatFilter = '';
+  expenseTagFilter = '';
+  populateExpenseTagFilter();
   renderExpenses();
 }
 
@@ -3491,16 +3533,24 @@ function renderExpenses() {
   // 被删除后选项消失、自动回落「全部时间」），再同步筛选状态——若先读后重建，
   // 变量会持有已从 DOM 消失的旧月份，出现「下拉=全部时间 / 空态=该月无记录」的自相矛盾中间态
   populateExpenseMonthFilter();
+  populateExpenseTagCatFilter();
+  populateExpenseTagFilter();
 
   // 同步月份筛选状态（下拉 onchange 仅触发 renderExpenses, 需从控件读取选中值）
   const monthSel = document.getElementById('expense-month-filter');
   if (monthSel) expenseMonthFilter = monthSel.value;
 
+  // 同步标签筛选状态
+  const tagCatSel = document.getElementById('expense-tag-cat-filter');
+  if (tagCatSel) expenseTagCatFilter = tagCatSel.value;
+  const tagSel = document.getElementById('expense-tag-filter');
+  if (tagSel) expenseTagFilter = tagSel.value;
+
   // 同步搜索状态（输入框 oninput 仅触发 renderExpenses）
   const searchInput = document.getElementById('expense-search');
   if (searchInput) expenseSearch = searchInput.value;
 
-  // 月份筛选 + 关键词搜索（互相独立，可叠加）
+  // 月份筛选 + 标签筛选 + 关键词搜索（互相独立，可叠加）
   const q = expenseSearch.trim().toLowerCase();
   const searchClear = document.getElementById('expense-search-clear');
   if (searchClear) searchClear.style.display = q ? '' : 'none';
@@ -3508,6 +3558,9 @@ function renderExpenses() {
   let filtered = state.expenses;
   if (expenseMonthFilter) {
     filtered = filtered.filter(e => (e.date || '').slice(0, 7) === expenseMonthFilter);
+  }
+  if (expenseTagCatFilter && expenseTagFilter) {
+    filtered = filtered.filter(e => e.tags && e.tags[expenseTagCatFilter] === expenseTagFilter);
   }
   if (q) {
     // 匹配：备注 / 日期 / 分类名 / 标签值（不区分大小写）
@@ -3527,7 +3580,7 @@ function renderExpenses() {
     document.getElementById('expenses-empty-clear').style.display = 'none';
     // 区分「完全无数据」「搜索无结果」与「月份无记录」; 无结果时给出方向而非只报错
     const hasAny = state.expenses.length > 0;
-    const hasFilter = !!(q || expenseMonthFilter);
+    const hasFilter = !!(q || expenseMonthFilter || (expenseTagCatFilter && expenseTagFilter));
     const rawQ = expenseSearch.trim();
     const titleEl = document.getElementById('expenses-empty-title');
     const subEl = document.getElementById('expenses-empty-sub');
@@ -3537,14 +3590,17 @@ function renderExpenses() {
       subEl.style.display = '';
       subEl.textContent = '点击「记录消费」或导入示例数据开始';
       demoBtn.style.display = '';
-    } else if (q) {
-      titleEl.textContent = `没有匹配「${rawQ}」的消费记录`;
-      subEl.style.display = '';
-      subEl.textContent = '换个关键词试试，或清除筛选';
-      demoBtn.style.display = 'none';
     } else {
-      titleEl.textContent = '该月份暂无消费记录';
-      subEl.style.display = 'none';
+      // 按筛选维度拼接提示：搜索 > 标签 > 月份
+      const filterParts = [];
+      if (q) filterParts.push(`匹配「${rawQ}」`);
+      if (expenseTagCatFilter && expenseTagFilter) filterParts.push(expenseTagFilter);
+      if (expenseMonthFilter) filterParts.push(monthLabel(expenseMonthFilter));
+      titleEl.textContent = filterParts.length
+        ? `${filterParts.join(' · ')}暂无消费记录`
+        : '暂无消费记录';
+      subEl.style.display = q ? '' : 'none';
+      subEl.textContent = '换个关键词试试，或清除筛选';
       demoBtn.style.display = 'none';
     }
     document.getElementById('expenses-empty-clear').style.display = hasFilter ? '' : 'none';
@@ -3580,11 +3636,14 @@ function renderExpenses() {
     }).join('');
   }
 
-  // 合计跟随筛选变化: 默认「合计」, 月份筛选后显示月份名, 仅搜索时显示「匹配」, 双筛选显示「月份 匹配」
+  // 合计跟随筛选变化：多筛选维度拼接标签名
   const total = filtered.reduce((s, e) => s + e.amount, 0);
-  const totalLabel = expenseMonthFilter
-    ? monthLabel(expenseMonthFilter) + (q ? ' 匹配' : '')
-    : (q ? '匹配' : '合计');
+  const tagLabel = (expenseTagCatFilter && expenseTagFilter) ? expenseTagFilter : '';
+  const parts = [];
+  if (expenseMonthFilter) parts.push(monthLabel(expenseMonthFilter));
+  if (tagLabel) parts.push(tagLabel);
+  if (q) parts.push('匹配');
+  const totalLabel = parts.length ? parts.join(' ') : '合计';
   document.getElementById('expense-total-line').innerHTML =
     `${totalLabel} · <span class="tabular font-medium" style="color:var(--accent-ink);">${formatCNY(total)}</span> · ${filtered.length} 笔`;
 }

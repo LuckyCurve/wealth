@@ -361,3 +361,144 @@ describe('UI 接线契约：Flatpickr 日期选择器', () => {
     assert.match(html, /\.dark \.flatpickr-day\.selected[^}]*var\(--bg\)/, '暗色选中应走 var(--bg)');
   });
 });
+
+describe('UI 接线契约：消费标签筛选（级联双下拉）', () => {
+  test('两个筛选下拉元素存在且接线正确', () => {
+    assert.strictEqual(count(/id="expense-tag-cat-filter"/g), 1, '标签分类下拉应唯一');
+    assert.strictEqual(count(/id="expense-tag-filter"/g), 1, '标签值下拉应唯一');
+    assert.match(html, /id="expense-tag-cat-filter"[^>]*onchange="onExpenseTagCatChange\(\)"/, '分类下拉 onchange 接 onExpenseTagCatChange');
+    assert.match(html, /id="expense-tag-filter"[^>]*onchange="renderExpenses\(\)"/, '标签下拉 onchange 接 renderExpenses');
+  });
+
+  test('筛选状态变量存在且初始为空', () => {
+    assert.match(html, /let expenseTagCatFilter = '';/, '分类筛选变量存在');
+    assert.match(html, /let expenseTagFilter = '';/, '标签筛选变量存在');
+  });
+
+  test('populateExpenseTagCatFilter 从 expenseCategories 生成分类选项', () => {
+    assert.match(html, /function populateExpenseTagCatFilter\(/, '分类下拉填充函数存在');
+    const src = fnSource('populateExpenseTagCatFilter');
+    assert.match(src, /expenseCategories\.map/, '选项来源于 expenseCategories');
+    assert.match(src, /全部类别/, '首项为「全部类别」');
+    assert.match(src, /sel\.value = ''/, '无效选中值回落为空');
+  });
+
+  test('populateExpenseTagFilter 按所选分类动态生成标签选项', () => {
+    assert.match(html, /function populateExpenseTagFilter\(/, '标签下拉填充函数存在');
+    const src = fnSource('populateExpenseTagFilter');
+    assert.match(src, /expenseCategories\.find/, '按 expenseTagCatFilter 查找分类');
+    assert.match(src, /cat\.tags/, '选项来源于分类的 tags 数组');
+    assert.match(src, /全部标签/, '首项为「全部标签」');
+    assert.match(src, /tags\.includes\(current\)/, '保留有效选中值（用 includes 判定）');
+  });
+
+  test('onExpenseTagCatChange 切换类别时重置标签筛选并重建下拉', () => {
+    assert.match(html, /function onExpenseTagCatChange\(/, '切换处理函数存在');
+    const src = fnSource('onExpenseTagCatChange');
+    assert.match(src, /expenseTagFilter = ''/, '切换类别时标签筛选归空');
+    assert.match(src, /populateExpenseTagFilter\(\)/, '重建标签下拉');
+    assert.match(src, /renderExpenses\(\)/, '触发列表重绘');
+  });
+
+  test('renderExpenses 先填充分类下拉再填充标签下拉再同步状态（防脱节）', () => {
+    const src = fnSource('renderExpenses');
+    const buildCat = src.indexOf('populateExpenseTagCatFilter()');
+    const buildTag = src.indexOf('populateExpenseTagFilter()');
+    const readCat = src.indexOf('expenseTagCatFilter = tagCatSel.value');
+    const readTag = src.indexOf('expenseTagFilter = tagSel.value');
+    assert.ok(buildCat >= 0 && buildTag >= 0 && readCat >= 0 && readTag >= 0, '四步都存在');
+    assert.ok(buildCat < readCat, '分类下拉填充必须先于分类状态同步');
+    assert.ok(buildTag < readTag, '标签下拉填充必须先于标签状态同步');
+  });
+
+  test('renderExpenses 包含标签筛选逻辑：分类+标签同时选中才过滤', () => {
+    const src = fnSource('renderExpenses');
+    assert.match(src, /expenseTagCatFilter && expenseTagFilter/, '标签筛选要求分类和标签同时选中');
+    assert.match(src, /e\.tags\[expenseTagCatFilter\] === expenseTagFilter/, '精确匹配标签值');
+  });
+
+  test('clearExpenseFilters 重置标签筛选状态并重建标签下拉', () => {
+    const src = fnSource('clearExpenseFilters');
+    assert.match(src, /expenseTagCatFilter = ''/, '清除分类筛选状态');
+    assert.match(src, /expenseTagFilter = ''/, '清除标签筛选状态');
+    assert.match(src, /expense-tag-cat-filter/, '重置分类下拉 DOM 值');
+    assert.match(src, /populateExpenseTagFilter\(\)/, '重建标签下拉（分类已清空，标签选项归空）');
+  });
+
+  test('空态提示区分标签筛选：有筛选时拼接筛选维度文案', () => {
+    const src = fnSource('renderExpenses');
+    // 空态分支应检查标签筛选
+    assert.match(src, /expenseTagCatFilter && expenseTagFilter/, '空态 hasFilter 包含标签筛选条件');
+    assert.match(src, /filterParts/, '空态文案用 filterParts 数组拼接');
+    assert.match(src, /expenseTagFilter/, '空态文案包含标签筛选值');
+  });
+
+  test('合计行标签包含筛选维度：月份+标签+搜索任意组合', () => {
+    const src = fnSource('renderExpenses');
+    assert.match(src, /tagLabel/, '合计行引用标签筛选值');
+    assert.match(src, /parts\.length/, '合计文案用 parts 数组拼接');
+    // 合计行应包含所有三种筛选维度
+    assert.match(src, /monthLabel\(expenseMonthFilter\)/, '合计包含月份维度');
+    assert.match(src, /expenseTagFilter/, '合计包含标签维度');
+  });
+
+  test('标签分类下拉与月份下拉、搜索框同级排列在筛选栏内', () => {
+    // 筛选栏是 tab-expenses 内的 flex 容器，包含搜索框、月份下拉、标签分类下拉、标签下拉
+    const expTab = html.match(/id="tab-expenses"[\s\S]*?<\/section>/);
+    assert.ok(expTab, '消费 Tab 区域存在');
+    const bar = expTab[0];
+    assert.ok(bar.includes('expense-search'), '搜索框在消费筛选栏内');
+    assert.ok(bar.includes('expense-month-filter'), '月份下拉在筛选栏内');
+    assert.ok(bar.includes('expense-tag-cat-filter'), '分类下拉在筛选栏内');
+    assert.ok(bar.includes('expense-tag-filter'), '标签下拉在筛选栏内');
+  });
+
+  test('populateExpenseTagCatFilter 仅在 renderExpenses 中调用（单一来源）', () => {
+    assert.strictEqual(count(/populateExpenseTagCatFilter\(/g), 2, '定义一处 + renderExpenses 调用一处');
+  });
+
+  test('populateExpenseTagFilter 在三处调用：onExpenseTagCatChange / clearExpenseFilters / renderExpenses', () => {
+    assert.strictEqual(count(/populateExpenseTagFilter\(/g), 4, '定义一处 + 三处调用');
+  });
+
+  test('标签筛选仅在分类和标签同时选中时生效（AND 逻辑）', () => {
+    const src = fnSource('renderExpenses');
+    // 筛选条件必须同时检查 catFilter 和 tagFilter
+    assert.match(src, /expenseTagCatFilter && expenseTagFilter/, '筛选条件为 AND 逻辑');
+    assert.doesNotMatch(src, /expenseTagCatFilter \|\| expenseTagFilter/, '不应是 OR 逻辑');
+  });
+
+  test('onExpenseTagCatChange 先清空标签状态再重建下拉再重绘（顺序正确）', () => {
+    const src = fnSource('onExpenseTagCatChange');
+    const clearIdx = src.indexOf("expenseTagFilter = ''");
+    const buildIdx = src.indexOf('populateExpenseTagFilter()');
+    const renderIdx = src.indexOf('renderExpenses()');
+    assert.ok(clearIdx >= 0 && buildIdx >= 0 && renderIdx >= 0, '三步都存在');
+    assert.ok(clearIdx < buildIdx, '清空必须先于重建');
+    assert.ok(buildIdx < renderIdx, '重建必须先于重绘');
+  });
+
+  test('populateExpenseTagFilter 在分类无 tags 时只显示「全部标签」', () => {
+    const src = fnSource('populateExpenseTagFilter');
+    // 当 cat 不存在或 tags 为空时，tags 变量应为 []
+    assert.match(src, /cat \? \(cat\.tags \|\| \[\]\) : \[\]/, '分类缺失或无 tags 时归空数组');
+    // 空数组 map 只产出首项
+    assert.match(src, /全部标签/, '首项始终为「全部标签」');
+  });
+
+  test('populateExpenseTagCatFilter 在分类被删除时回落为空（防陈旧选中）', () => {
+    const src = fnSource('populateExpenseTagCatFilter');
+    assert.match(src, /sel\.value = ''/, '无效选中值回落为空');
+    assert.match(src, /expenseTagCatFilter = ''/, '同步清空状态变量');
+  });
+
+  test('renderExpenses 筛选顺序：月份 → 标签 → 搜索（逐层缩小）', () => {
+    const src = fnSource('renderExpenses');
+    const monthIdx = src.indexOf('expenseMonthFilter)');
+    const tagIdx = src.indexOf('expenseTagCatFilter && expenseTagFilter)');
+    const searchIdx = src.indexOf('if (q)');
+    assert.ok(monthIdx >= 0 && tagIdx >= 0 && searchIdx >= 0, '三步筛选都存在');
+    assert.ok(monthIdx < tagIdx, '月份筛选在标签筛选之前');
+    assert.ok(tagIdx < searchIdx, '标签筛选在搜索匹配之前');
+  });
+});
