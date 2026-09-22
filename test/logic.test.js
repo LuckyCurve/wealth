@@ -687,6 +687,57 @@ describe('消费月份列表 expenseMonths（月份筛选与趋势维度下拉�
   });
 });
 
+describe('消费标签筛选下拉（类别作不可选分组头）tagFilterValue / parseTagFilter / expenseTagFilterGroups / hasTagFilterOption', () => {
+  test('编码与解码互逆：选中值 = catId + 分隔符 + tag', () => {
+    assert.deepStrictEqual(L.parseTagFilter(L.tagFilterValue('c1', '餐饮')), { catId: 'c1', tag: '餐饮' });
+    assert.deepStrictEqual(L.parseTagFilter(L.tagFilterValue('1726-a', '交通·地铁')), { catId: '1726-a', tag: '交通·地铁' });
+  });
+
+  test('标签含分隔符/HTML 特殊字符时解码无损（解析取首个分隔符，tag 保尾）', () => {
+    const weird = 'a\u0001b"\'<&>';
+    assert.deepStrictEqual(L.parseTagFilter(L.tagFilterValue('c1', weird)), { catId: 'c1', tag: weird });
+    assert.deepStrictEqual(L.parseTagFilter(L.tagFilterValue('c1', '含分隔符\u0001')), { catId: 'c1', tag: '含分隔符\u0001' });
+  });
+
+  test('空值/缺分隔符/空分类 id/空标签一律解码为 null（视作未筛选）', () => {
+    assert.strictEqual(L.parseTagFilter(''), null);
+    assert.strictEqual(L.parseTagFilter(null), null);
+    assert.strictEqual(L.parseTagFilter(undefined), null);
+    assert.strictEqual(L.parseTagFilter('餐饮'), null, '缺分隔符');
+    assert.strictEqual(L.parseTagFilter('\u0001餐饮'), null, '分类 id 为空');
+    assert.strictEqual(L.parseTagFilter('c1\u0001'), null, '标签为空');
+  });
+
+  test('expenseTagFilterGroups 保持分类顺序、tags 深拷贝、缺失归空数组', () => {
+    const cats = [
+      { id: 'a', name: '餐饮', tags: ['早餐'] },
+      { id: 'b', name: '交通' },
+      { id: 'c', name: '购物', tags: null },
+    ];
+    const groups = L.expenseTagFilterGroups(cats);
+    assert.deepStrictEqual(groups.map(g => g.id), ['a', 'b', 'c'], '顺序保留');
+    assert.deepStrictEqual(groups.map(g => g.tags), [['早餐'], [], []], 'tags 缺失/null 归空数组');
+    groups[0].tags.push('改写分组');
+    assert.deepStrictEqual(cats[0].tags, ['早餐'], '分组持有拷贝，不反向污染 state');
+    assert.deepStrictEqual(L.expenseTagFilterGroups(null), []);
+    assert.deepStrictEqual(L.expenseTagFilterGroups(undefined), []);
+  });
+
+  test('hasTagFilterOption：有效选中为真，分类被删/标签改名后为假', () => {
+    const groups = L.expenseTagFilterGroups([
+      { id: 'a', name: '餐饮', tags: ['早餐', '外卖'] },
+      { id: 'b', name: '交通', tags: ['地铁'] },
+    ]);
+    assert.strictEqual(L.hasTagFilterOption(groups, L.tagFilterValue('b', '地铁')), true);
+    assert.strictEqual(L.hasTagFilterOption(groups, L.tagFilterValue('gone', '早餐')), false, '分类已删');
+    assert.strictEqual(L.hasTagFilterOption(groups, L.tagFilterValue('a', '午餐')), false, '标签已改名/移出');
+    assert.strictEqual(L.hasTagFilterOption(groups, ''), false, '「全部标签」不算选项');
+    assert.strictEqual(L.hasTagFilterOption(groups, 'no-sep'), false, '非编码值');
+    assert.strictEqual(L.hasTagFilterOption(null, L.tagFilterValue('a', '早餐')), false);
+    assert.strictEqual(L.hasTagFilterOption([{ id: 'x', name: 'X', tags: null }], L.tagFilterValue('x', 't')), false, 'tags 为 null 不抛异常');
+  });
+});
+
 describe("hasAnyRatedAsset / cashRatioPct（从 index.html 下沉，「设了利率才显示」判定与现金比例展示单一来源）", () => {
   test('hasAnyRatedAsset：任一资产 Min/Max > 0 即真', () => {
     assert.strictEqual(L.hasAnyRatedAsset([

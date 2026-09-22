@@ -146,6 +146,43 @@
     return map;
   }
 
+  // ========== 消费标签筛选（分组下拉，纯函数）==========
+  // 下拉形态：类别作 optgroup 分组头（不可选），标签为可选项。选中值编码 catId + SEP + tag，
+  // 由 parseTagFilter 解回 { catId, tag }，DOM 侧不自行拼/拆口径（防两处漂移）。
+  // 分隔符取控制字符：分类 id 由 genId() 生成、标签为用户输入，均不含 \u0001；
+  // 解析取首个分隔符，标签自身即使含分隔符也会原样保留在 tag 里
+  const TAG_FILTER_SEP = '\u0001';
+
+  function tagFilterValue(catId, tag) {
+    return String(catId == null ? '' : catId) + TAG_FILTER_SEP + String(tag == null ? '' : tag);
+  }
+
+  // 空值 / 缺分隔符 / 空分类 id（分隔符在首位）/ 空标签 → null，视作未筛选
+  function parseTagFilter(value) {
+    const v = String(value == null ? '' : value);
+    const i = v.indexOf(TAG_FILTER_SEP);
+    if (i <= 0) return null;
+    const tag = v.slice(i + 1);
+    if (!tag) return null;
+    return { catId: v.slice(0, i), tag: tag };
+  }
+
+  // 分类列表 → 下拉分组结构（保持分类顺序；tags 缺失归空数组），index.html 据此渲染 optgroup
+  function expenseTagFilterGroups(categories) {
+    return (categories || []).map(c => ({
+      id: c.id,
+      name: c.name,
+      tags: ((c || {}).tags || []).slice(),
+    }));
+  }
+
+  // 选中值仍是有效选项吗：分类被删 / 标签被改名或移出后据此回落「全部标签」
+  function hasTagFilterOption(groups, value) {
+    const p = parseTagFilter(value);
+    if (!p) return false;
+    return (groups || []).some(g => g.id === p.catId && ((g || {}).tags || []).indexOf(p.tag) >= 0);
+  }
+
   // ========== 收益测算（依赖 incomeMode / state）==========
   function getAssetRate(a, mode) {
     mode = mode || incomeMode;
@@ -602,6 +639,7 @@
     BACKUP_STALE_DAYS, normalizeBackupFreq, backupNoteText, hasAnyBackupWorthyData, shouldAutoBackup, backupStaleDays,
     rateFallbackNotice,
     nextSortState, expenseMonths,
+    tagFilterValue, parseTagFilter, expenseTagFilterGroups, hasTagFilterOption,
     findMonthSnapshot, getPrevSnapshot,
     monthlyExpenseTotals, prevExpenseMonthOf, expenseMoM, expenseMonthTagTotals,
     getAssetRate, getSafetyFactor, getCashRatio, calcAssetIncome, hasAnyRatedAsset, cashRatioPct, coveragePct, incomeGap, sumAssetIncomes,

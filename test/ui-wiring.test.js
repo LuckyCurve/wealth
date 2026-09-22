@@ -362,53 +362,64 @@ describe('UI 接线契约：Flatpickr 日期选择器', () => {
   });
 });
 
-describe('UI 接线契约：消费标签筛选（级联双下拉）', () => {
-  test('两个筛选下拉元素存在且接线正确', () => {
-    assert.strictEqual(count(/id="expense-tag-cat-filter"/g), 1, '标签分类下拉应唯一');
-    assert.strictEqual(count(/id="expense-tag-filter"/g), 1, '标签值下拉应唯一');
-    assert.match(html, /id="expense-tag-cat-filter"[^>]*onchange="onExpenseTagCatChange\(\)"/, '分类下拉 onchange 接 onExpenseTagCatChange');
-    assert.match(html, /id="expense-tag-filter"[^>]*onchange="renderExpenses\(\)"/, '标签下拉 onchange 接 renderExpenses');
+describe('UI 接线契约：消费标签筛选（单下拉分组，类别作不可选分组头）', () => {
+  test('只保留一个标签筛选下拉，级联双下拉与旧切换函数不回潮', () => {
+    assert.strictEqual(count(/id="expense-tag-filter"/g), 1, '标签筛选下拉应唯一');
+    assert.strictEqual(count(/id="expense-tag-cat-filter"/g), 0, '旧「分类下拉」应移除');
+    assert.strictEqual(count(/onExpenseTagCatChange/g), 0, '级联切换处理函数应移除');
+    assert.strictEqual(count(/populateExpenseTagCatFilter/g), 0, '分类下拉填充函数应移除');
+    assert.match(html, /id="expense-tag-filter"[^>]*onchange="renderExpenses\(\)"/, '下拉 onchange 接 renderExpenses');
   });
 
-  test('筛选状态变量存在且初始为空', () => {
+  test('筛选状态变量仍在（分类+标签由选中值解析而来）', () => {
     assert.match(html, /let expenseTagCatFilter = '';/, '分类筛选变量存在');
     assert.match(html, /let expenseTagFilter = '';/, '标签筛选变量存在');
   });
 
-  test('populateExpenseTagCatFilter 从 expenseCategories 生成分类选项', () => {
-    assert.match(html, /function populateExpenseTagCatFilter\(/, '分类下拉填充函数存在');
-    const src = fnSource('populateExpenseTagCatFilter');
-    assert.match(src, /expenseCategories\.map/, '选项来源于 expenseCategories');
-    assert.match(src, /全部类别/, '首项为「全部类别」');
-    assert.match(src, /sel\.value = ''/, '无效选中值回落为空');
-  });
-
-  test('populateExpenseTagFilter 按所选分类动态生成标签选项', () => {
-    assert.match(html, /function populateExpenseTagFilter\(/, '标签下拉填充函数存在');
+  test('populateExpenseTagFilter 用 optgroup 按分类分组，类别不可选、标签才是选项', () => {
     const src = fnSource('populateExpenseTagFilter');
-    assert.match(src, /expenseCategories\.find/, '按 expenseTagCatFilter 查找分类');
-    assert.match(src, /cat\.tags/, '选项来源于分类的 tags 数组');
+    assert.match(src, /expenseTagFilterGroups\(state\.expenseCategories\)/, '分组结构来自 logic.js 纯函数');
+    assert.match(src, /<optgroup label="\$\{esc\(g\.name\)\}"/, '类别渲染为 optgroup 分组头（不可选），分类名经 esc 转义');
     assert.match(src, /全部标签/, '首项为「全部标签」');
-    assert.match(src, /tags\.includes\(current\)/, '保留有效选中值（用 includes 判定）');
+    assert.match(src, /g\.tags\.map/, '可选项只来自分类 tags（组头本身不产出 option）');
+    assert.match(src, /tagFilterValue\(g\.id, t\)/, '选项 value 走 logic.js 编码（分类+标签）');
+    assert.match(src, /（暂无标签）/, '空分类给 disabled 占位项，保住分组可见');
   });
 
-  test('onExpenseTagCatChange 切换类别时重置标签筛选并重建下拉', () => {
-    assert.match(html, /function onExpenseTagCatChange\(/, '切换处理函数存在');
-    const src = fnSource('onExpenseTagCatChange');
-    assert.match(src, /expenseTagFilter = ''/, '切换类别时标签筛选归空');
-    assert.match(src, /populateExpenseTagFilter\(\)/, '重建标签下拉');
-    assert.match(src, /renderExpenses\(\)/, '触发列表重绘');
+  test('选中值编码/解码下沉 logic.js，内联脚本不自拼口径', () => {
+    assert.match(html, /parseTagFilter\(/, '同步时用 parseTagFilter 解码');
+    assert.match(html, /tagFilterValue\(/, '生成选项时用 tagFilterValue 编码');
+    assert.doesNotMatch(html, /function tagFilterValue/, '编码不得在 index.html 重定义');
+    assert.doesNotMatch(html, /function parseTagFilter/, '解码不得在 index.html 重定义');
+    assert.doesNotMatch(html, /function expenseTagFilterGroups/, '分组结构不得在 index.html 重定义');
+    assert.doesNotMatch(html, /function hasTagFilterOption/, '有效性判定不得在 index.html 重定义');
   });
 
-  test('renderExpenses 先填充分类下拉再填充标签下拉再同步状态（防脱节）', () => {
+  test('选中值有效则保留，分类被删/标签改名后回落「全部标签」', () => {
+    const src = fnSource('populateExpenseTagFilter');
+    assert.match(src, /hasTagFilterOption\(groups, current\)/, '有效性判定走 logic.js 纯函数');
+    assert.match(src, /sel\.value = ''/, '无效选中值回落为空（全部标签）');
+  });
+
+  test('syncExpenseTagFilter 是标签筛选状态的唯一同步口', () => {
+    assert.match(html, /function syncExpenseTagFilter\(/, '同步函数存在');
+    const src = fnSource('syncExpenseTagFilter');
+    assert.match(src, /parseTagFilter\(/, '从选中值解码');
+    assert.match(src, /expenseTagCatFilter = /, '写回分类状态');
+    assert.match(src, /expenseTagFilter = /, '写回标签状态');
+    assert.strictEqual(count(/syncExpenseTagFilter\(/g), 2, '定义一处 + renderExpenses 调用一处');
+    // 除声明外，状态变量只允许在同步口内被赋值（防止绕过同步口直读 DOM 写状态）
+    assert.strictEqual(count(/expenseTagCatFilter = /g), 2, '分类状态只在声明与同步口内赋值');
+    assert.strictEqual(count(/expenseTagFilter = /g), 2, '标签状态只在声明与同步口内赋值');
+  });
+
+  test('renderExpenses 先重建标签下拉再同步状态（防脱节）', () => {
     const src = fnSource('renderExpenses');
-    const buildCat = src.indexOf('populateExpenseTagCatFilter()');
-    const buildTag = src.indexOf('populateExpenseTagFilter()');
-    const readCat = src.indexOf('expenseTagCatFilter = tagCatSel.value');
-    const readTag = src.indexOf('expenseTagFilter = tagSel.value');
-    assert.ok(buildCat >= 0 && buildTag >= 0 && readCat >= 0 && readTag >= 0, '四步都存在');
-    assert.ok(buildCat < readCat, '分类下拉填充必须先于分类状态同步');
-    assert.ok(buildTag < readTag, '标签下拉填充必须先于标签状态同步');
+    const build = src.indexOf('populateExpenseTagFilter()');
+    const sync = src.indexOf('syncExpenseTagFilter()');
+    assert.ok(build >= 0 && sync >= 0, '两步都存在');
+    assert.ok(build < sync, '重建必须先于状态同步');
+    assert.strictEqual(src.indexOf('tagCatSel'), -1, '旧的分类下拉直读不再存在');
   });
 
   test('renderExpenses 包含标签筛选逻辑：分类+标签同时选中才过滤', () => {
@@ -417,12 +428,11 @@ describe('UI 接线契约：消费标签筛选（级联双下拉）', () => {
     assert.match(src, /e\.tags\[expenseTagCatFilter\] === expenseTagFilter/, '精确匹配标签值');
   });
 
-  test('clearExpenseFilters 重置标签筛选状态并重建标签下拉', () => {
+  test('clearExpenseFilters 把标签下拉归「全部标签」再重绘（状态由 renderExpenses 同步）', () => {
     const src = fnSource('clearExpenseFilters');
-    assert.match(src, /expenseTagCatFilter = ''/, '清除分类筛选状态');
-    assert.match(src, /expenseTagFilter = ''/, '清除标签筛选状态');
-    assert.match(src, /expense-tag-cat-filter/, '重置分类下拉 DOM 值');
-    assert.match(src, /populateExpenseTagFilter\(\)/, '重建标签下拉（分类已清空，标签选项归空）');
+    assert.match(src, /expense-tag-filter/, '重置标签下拉 DOM 值');
+    assert.match(src, /tagSel\.value = ''/, '选中值归空');
+    assert.match(src, /renderExpenses\(\)/, '触发重绘：重建下拉并重新同步状态');
   });
 
   test('空态提示区分标签筛选：有筛选时拼接筛选维度文案', () => {
@@ -442,23 +452,19 @@ describe('UI 接线契约：消费标签筛选（级联双下拉）', () => {
     assert.match(src, /expenseTagFilter/, '合计包含标签维度');
   });
 
-  test('标签分类下拉与月份下拉、搜索框同级排列在筛选栏内', () => {
-    // 筛选栏是 tab-expenses 内的 flex 容器，包含搜索框、月份下拉、标签分类下拉、标签下拉
+  test('标签筛选下拉与月份下拉、搜索框同级排列在筛选栏内', () => {
+    // 筛选栏是 tab-expenses 内的 flex 容器，包含搜索框、月份下拉与分组标签下拉
     const expTab = html.match(/id="tab-expenses"[\s\S]*?<\/section>/);
     assert.ok(expTab, '消费 Tab 区域存在');
     const bar = expTab[0];
     assert.ok(bar.includes('expense-search'), '搜索框在消费筛选栏内');
     assert.ok(bar.includes('expense-month-filter'), '月份下拉在筛选栏内');
-    assert.ok(bar.includes('expense-tag-cat-filter'), '分类下拉在筛选栏内');
     assert.ok(bar.includes('expense-tag-filter'), '标签下拉在筛选栏内');
+    assert.ok(!bar.includes('expense-tag-cat-filter'), '旧分类下拉不在筛选栏内');
   });
 
-  test('populateExpenseTagCatFilter 仅在 renderExpenses 中调用（单一来源）', () => {
-    assert.strictEqual(count(/populateExpenseTagCatFilter\(/g), 2, '定义一处 + renderExpenses 调用一处');
-  });
-
-  test('populateExpenseTagFilter 在三处调用：onExpenseTagCatChange / clearExpenseFilters / renderExpenses', () => {
-    assert.strictEqual(count(/populateExpenseTagFilter\(/g), 4, '定义一处 + 三处调用');
+  test('populateExpenseTagFilter 仅在 renderExpenses 中调用（单一来源）', () => {
+    assert.strictEqual(count(/populateExpenseTagFilter\(/g), 2, '定义一处 + renderExpenses 调用一处');
   });
 
   test('标签筛选仅在分类和标签同时选中时生效（AND 逻辑）', () => {
@@ -466,30 +472,6 @@ describe('UI 接线契约：消费标签筛选（级联双下拉）', () => {
     // 筛选条件必须同时检查 catFilter 和 tagFilter
     assert.match(src, /expenseTagCatFilter && expenseTagFilter/, '筛选条件为 AND 逻辑');
     assert.doesNotMatch(src, /expenseTagCatFilter \|\| expenseTagFilter/, '不应是 OR 逻辑');
-  });
-
-  test('onExpenseTagCatChange 先清空标签状态再重建下拉再重绘（顺序正确）', () => {
-    const src = fnSource('onExpenseTagCatChange');
-    const clearIdx = src.indexOf("expenseTagFilter = ''");
-    const buildIdx = src.indexOf('populateExpenseTagFilter()');
-    const renderIdx = src.indexOf('renderExpenses()');
-    assert.ok(clearIdx >= 0 && buildIdx >= 0 && renderIdx >= 0, '三步都存在');
-    assert.ok(clearIdx < buildIdx, '清空必须先于重建');
-    assert.ok(buildIdx < renderIdx, '重建必须先于重绘');
-  });
-
-  test('populateExpenseTagFilter 在分类无 tags 时只显示「全部标签」', () => {
-    const src = fnSource('populateExpenseTagFilter');
-    // 当 cat 不存在或 tags 为空时，tags 变量应为 []
-    assert.match(src, /cat \? \(cat\.tags \|\| \[\]\) : \[\]/, '分类缺失或无 tags 时归空数组');
-    // 空数组 map 只产出首项
-    assert.match(src, /全部标签/, '首项始终为「全部标签」');
-  });
-
-  test('populateExpenseTagCatFilter 在分类被删除时回落为空（防陈旧选中）', () => {
-    const src = fnSource('populateExpenseTagCatFilter');
-    assert.match(src, /sel\.value = ''/, '无效选中值回落为空');
-    assert.match(src, /expenseTagCatFilter = ''/, '同步清空状态变量');
   });
 
   test('renderExpenses 筛选顺序：月份 → 标签 → 搜索（逐层缩小）', () => {
