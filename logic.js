@@ -232,19 +232,20 @@
     return { cny, annual, monthly, daily, cashAnnual, cashMonthly };
   }
 
-  // ========== 食利线（收益覆盖预期月消费的标尺）==========
+  // ========== 覆盖标尺（月收益对预期月消费的覆盖率）==========
   // 覆盖率（%）: 分子月收益 ÷ expectation × 100（分子由调用方按口径选现金或总收益）。
   // expectation 未设/非法（<=0）→ null（无法计量, UI 显示「设定预期」邀请态）；
   // 月收益非法/负数 → 0（防御, 覆盖率从零起量而非 NaN）
-  function coveragePct(cashMonthly, expectation) {
+  // 形参名 amount 口径无关: 分子可为现金收益或总收益（默认口径为 total）, 勿命名成 cashMonthly 误导调用方
+  function coveragePct(amount, expectation) {
     const e = Number(expectation);
     if (!isFinite(e) || e <= 0) return null;
-    const c = Number(cashMonthly);
+    const c = Number(amount);
     if (!isFinite(c) || c < 0) return 0;
     return c / e * 100;
   }
 
-  // 两口径收益合计（报头副行/收益摘要/食利线共用, 防多处各算漂移）。
+  // 两口径收益合计（报头副行/收益摘要/覆盖标尺共用, 防多处各算漂移）。
   // 返回 { annual, cashAnnual, monthly, daily, cashMonthly }, 衍生值与单资产算法同式除法;
   // 未设利率资产贡献 0, 空表/缺失入参归零不产出 NaN。
   // 语义约定: 全量累加含负收益资产（表单允许负利率、导入亦不鴴制）——
@@ -259,7 +260,7 @@
     return { annual, cashAnnual, monthly: annual / 12, daily: annual / 365, cashMonthly: cashAnnual / 12 };
   }
 
-  // 收益−预期差额口径（食利线读数单一来源; 报头不再重复渲染差额, 防盈余/缺口金额两处各算漂移）。
+  // 收益−预期差额口径（覆盖标尺读数单一来源; 报头不再重复渲染差额, 防盈余/缺口金额两处各算漂移）。
   // 返回 { ok, word, amt, pct }: ok=gap>=0（打平算盈余）; amt=差额取整; pct=差额占预期百分比。
   // expectation 未设/非法 → null（调用方回退邀请态/空后缀）; amount 非法按 0 参与差额不产出 NaN
   function incomeGap(amount, expectation) {

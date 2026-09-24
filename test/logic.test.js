@@ -768,7 +768,11 @@ describe("hasAnyRatedAsset / cashRatioPct（从 index.html 下沉，「设了利
   });
 });
 
-describe('coveragePct（食利线：现金收益 ÷ 预期月消费）', () => {
+describe('coveragePct（覆盖标尺：分子月收益 ÷ 预期月消费，口径无关）', () => {
+  test('形参名 amount：分子可为现金或总收益（默认口径 total），不得命名成 cashMonthly 误导调用方', () => {
+    assert.match(L.coveragePct.toString(), /function coveragePct\(amount, expectation\)/);
+  });
+
   test('常规换算，可超过 100%', () => {
     assert.ok(approx(L.coveragePct(6240, 10000), 62.4));
     assert.ok(approx(L.coveragePct(12500, 10000), 125));
@@ -794,7 +798,7 @@ describe('coveragePct（食利线：现金收益 ÷ 预期月消费）', () => {
   });
 });
 
-describe('incomeGap（收益−预期差额口径：食利线读数单一来源）', () => {
+describe('incomeGap（收益−预期差额口径：覆盖标尺读数单一来源）', () => {
   test('盈余分支：ok=true / word=盈余 / 差额取整', () => {
     const g = L.incomeGap(12500, 10000);
     assert.strictEqual(g.ok, true);
@@ -828,7 +832,7 @@ describe('incomeGap（收益−预期差额口径：食利线读数单一来源�
   });
 });
 
-describe('sumAssetIncomes（两口径收益合计：报头副行/收益摘要/食利线共用）', () => {
+describe('sumAssetIncomes（两口径收益合计：报头副行/收益摘要/覆盖标尺共用）', () => {
   test('多资产合计含安全边际与现金拆分，衍生月/日值与单资产算法同式', () => {
     const s = L.sumAssetIncomes([
       { amount: 1200, currency: 'CNY', expectedRateMin: 5, expectedRateMax: 10, cashRatio: 50 },

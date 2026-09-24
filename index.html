@@ -557,7 +557,7 @@ tailwind.config = {
   .target-panel { background: var(--card-2); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; }
   .target-progress { height: 10px; border-radius: 4px; background: repeating-linear-gradient(90deg, var(--border) 0 1px, transparent 1px 25%), var(--bg-2); border: 1px solid var(--border); overflow: hidden; }
   .target-progress-fill { height: 100%; border-radius: 3px; transition: width 0.4s ease; }
-  /* ===== 食利线标尺: 现金收益对预期月消费的覆盖测量 =====
+  /* ===== 覆盖标尺: 收益对预期月消费的覆盖测量 =====
      实心 verdigris 填充 = 已被利息养起的部分; 虚线发丝 = 尚未走到的地方(标签空栏同语言);
      25/50/75% 刻度与货币构成条/比例尺同语言; 菱形站点标记呼应比例尺拇指与报头裁切标记 */
   .cov-section { margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--rule); }
@@ -803,18 +803,17 @@ tailwind.config = {
         <span>日 <span id="income-daily" class="tabular font-medium" style="color:var(--fg);opacity:0.85;">¥0</span></span>
         <span>现金占比 <span id="income-cash-share" class="tabular font-medium" style="color:var(--accent-ink);">—</span></span>
       </div>
-      <!-- 食利线: 未设预期消费时显示邀请, 已设则显示覆盖标尺（骨架静态存在, JS 只同步宽度与文案,
+      <!-- 覆盖标尺: 未设预期消费时显示邀请, 已设则显示覆盖标尺（骨架静态存在, JS 只同步宽度与文案,
            保证安全边际滑块拖动时填充/菱形以过渡动画伸缩） -->
       <div id="cov-invite" class="text-xs text-center mt-3 pt-3" style="display:none;color:var(--muted);border-top:1px dashed var(--rule);">
-        设个预期月消费，量一量离食利线的距离<button type="button" onclick="openExpectationModal()" class="btn-ghost" style="padding:2px 10px;font-size:11px;margin-left:8px;">设定</button>
+        设定预期月消费，看看收益能否覆盖日常开销<button type="button" onclick="openExpectationModal()" class="btn-ghost" style="padding:2px 10px;font-size:11px;margin-left:8px;">设定</button>
       </div>
       <div id="cov-section" class="cov-section" style="display:none;">
         <div class="cov-label-row">
-          <p class="cov-label">食利线</p>
           <!-- 分子口径内嵌在公式里: 切换即换算式主语 -->
           <div class="seg-control">
-            <button type="button" id="cov-mode-total" onclick="setCoverageMode('total')" class="seg-btn">总收益</button>
-            <button type="button" id="cov-mode-cash" onclick="setCoverageMode('cash')" class="seg-btn active">现金收益</button>
+            <button type="button" id="cov-mode-total" onclick="setCoverageMode('total')" class="seg-btn active">总收益</button>
+            <button type="button" id="cov-mode-cash" onclick="setCoverageMode('cash')" class="seg-btn">现金收益</button>
           </div>
           <p class="cov-label">÷ 预期月消费</p>
           <!-- 设定后的唯一再入口: 重开预期弹窗, 修改与清除均在弹窗内完成 -->
@@ -1638,13 +1637,13 @@ function renderMasthead(total) {
   }
 
   // sub line: 资产数 + 月收益/现金 双口径平齐展示（任一资产设置利率后出现）
-  // 覆盖率差额叙述已完整收归食利线标尺, 报头只保留收入金额与预期锚点, 不再重复叙述
+  // 覆盖率差额叙述已完整收归覆盖标尺, 报头只保留收入金额与预期锚点, 不再重复叙述
   const count = state.assets.length;
   const hasRate = hasAnyRatedAsset(state.assets); // 纯函数在 logic.js（与收益 Tab 共用同一判定）
   const expectation = state.expenseExpectation || 0;
   let subText = `<span>${count} 项资产</span>`;
   if (hasRate) {
-    // 两口径合计单一来源（logic.js sumAssetIncomes, 与收益摘要/食利线共用）
+    // 两口径合计单一来源（logic.js sumAssetIncomes, 与收益摘要/覆盖标尺共用）
     const { monthly, cashMonthly } = sumAssetIncomes(state.assets);
     if (expectation > 0) {
       subText += ` · <span style="color:var(--muted);">预期月消费 <span class="tabular font-medium" style="color:var(--fg);opacity:0.85;">${formatCNY(expectation)}</span></span>`;
@@ -2881,12 +2880,12 @@ function setIncomeMode(mode) {
   setSegMode('income-mode-min', 'income-mode-max', mode, 'min', 'max', renderIncomeTab);
 }
 
-// ========== 食利线（收益覆盖预期月消费的标尺）==========
+// ========== 覆盖标尺（月收益对预期月消费的覆盖率）==========
 // 骨架静态存在, 此处只同步宽度与文案 —— 安全边际滑块拖动时填充/菱形以过渡动画伸缩。
 // 分子口径 coverageMode 可切换（'cash' 现金=不动本金的严格口径 / 'total' 总收益=含增值宽松口径）,
-// 默认现金、不持久化（与 incomeChartMode 同惯例）; 切换控件内嵌标签行公式。
+// 默认总收益、不持久化（与 incomeChartMode 同惯例）; 切换控件内嵌标签行公式。
 // 覆盖率/差额口径在 logic.js coveragePct()/incomeGap()（单一来源）; 三种状态:
-// 未设预期 → 邀请行 / 现金口径下现金流为零 → 指引句 / 正常 → 读数行（达标附「息可养支」印徽）
+// 未设预期 → 邀请行 / 现金口径下现金流为零 → 指引句 / 正常 → 读数行（达标附「已覆盖」印徽）
 function renderCoverageMeter() {
   const invite = document.getElementById('cov-invite');
   const section = document.getElementById('cov-section');
@@ -2918,17 +2917,17 @@ function renderCoverageMeter() {
     reading.textContent = '当前组合没有现金流收益——调高资产的现金比例后，这里开始计量';
     return;
   }
-  // 差额与打平判定同源（logic.js incomeGap, 食利线为盈余/缺口唯一渲染出口, 报头已不再重复渲染）
+  // 差额与打平判定同源（logic.js incomeGap, 覆盖标尺为盈余/缺口唯一渲染出口, 报头已不再重复渲染）
   const g = incomeGap(numerator, expectation);
   const ok = g.ok;
   const diffColor = g.ok ? 'var(--verdigris)' : 'var(--down)';
   reading.innerHTML =
     `<span>覆盖 <span class="tabular" style="font-weight:600;color:${ok ? 'var(--verdigris)' : 'var(--fg)'};opacity:${ok ? '1' : '0.85'};">${pct.toFixed(1)}%</span></span>` +
     ` · <span>${g.word} <span class="tabular" style="font-weight:600;color:${diffColor};">¥${g.amt.toLocaleString('zh-CN')}</span>/月</span>` +
-    (ok ? ` <span class="mo-badge up" title="${coverageMode === 'total' ? '总收益' : '现金收益'}已完全覆盖预期月消费">息可养支</span>` : '');
+    (ok ? ` <span class="mo-badge up" title="${coverageMode === 'total' ? '总收益' : '现金收益'}已完全覆盖预期月消费">已覆盖</span>` : '');
 }
 
-let coverageMode = 'cash'; // 食利线分子口径, 默认现金（不动本金的严格口径）; 不持久化与 incomeChartMode 同惯例
+let coverageMode = 'total'; // 覆盖标尺分子口径, 默认总收益（含增值宽松口径）; 不持久化与 incomeChartMode 同惯例
 function setCoverageMode(mode) {
   if (mode !== 'cash' && mode !== 'total') return;
   coverageMode = mode;
@@ -2966,7 +2965,7 @@ function renderIncomeTab() {
   chartContainer.style.display = assets.length > 0 ? '' : 'none';
 
   // --- Summary ---
-  // 两口径合计单一来源（logic.js sumAssetIncomes, 与报头副行/食利线共用）
+  // 两口径合计单一来源（logic.js sumAssetIncomes, 与报头副行/覆盖标尺共用）
   const sums = sumAssetIncomes(state.assets);
   const totalAnnual = sums.annual;
   const totalMonthly = sums.monthly;
@@ -3000,7 +2999,7 @@ function renderIncomeTab() {
     `加权平均利率 ${avgRate}% · 平均现金收益率 ${avgCashRate}% · 总资产 ${formatCNY(totalCNY)}` +
     (discounted ? ` · 已按 ${safetyPct}% 安全边际折算` : '');
 
-  // 食利线标尺（覆盖率/差额口径在 logic.js coveragePct/incomeGap）
+  // 覆盖标尺（覆盖率/差额口径在 logic.js coveragePct/incomeGap）
   renderCoverageMeter();
 
   // --- Table ---
@@ -3862,7 +3861,7 @@ function saveExpectation() {
   closeModal('expectation-modal');
   renderExpenseTrendChart();
   renderAssets(); // 报头收益 vs 预期消费徽章依赖该值
-  // 收益 Tab 可见时才同步刷新食利线（必须带可见性守卫: renderIncomeTab 尾部会 renderIncomeChart,
+  // 收益 Tab 可见时才同步刷新覆盖标尺（必须带可见性守卫: renderIncomeTab 尾部会 renderIncomeChart,
   // 对从未显示过的容器 echarts.init 会缓存 0×0 实例, 之后进 Tab 图表空白; 与 refreshVisibleCharts 同惯例)
   if (document.getElementById('tab-income').style.display !== 'none') renderIncomeTab();
   toast(hadValue ? '预期消费已更新' : '预期消费已设置', 'success');

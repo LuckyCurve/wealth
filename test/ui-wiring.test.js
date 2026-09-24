@@ -231,7 +231,7 @@ describe('UI 接线契约：堆叠柱下钻与图例记忆', () => {
   });
 });
 
-describe('UI 接线契约：食利线（现金收益覆盖预期月消费标尺）', () => {
+describe('UI 接线契约：收益覆盖标尺（分子口径可切换的预期月消费覆盖率）', () => {
   const logic = fs.readFileSync(path.join(__dirname, '..', 'logic.js'), 'utf8');
 
   test('骨架单一来源：邀请行与标尺各一份，邀请复用既有预期消费弹窗', () => {
@@ -249,6 +249,11 @@ describe('UI 接线契约：食利线（现金收益覆盖预期月消费标尺�
     assert.match(section[0], /onclick="openExpectationModal\(\)"/, '标签行修改按钮应重开预期弹窗');
   });
 
+  test('禁词守卫：自造概念词与第二套同义词不得回潮（html 全文含注释）', () => {
+    assert.doesNotMatch(html, /食利线|息可养支|覆盖量尺/,
+      '用户可见文案与注释一律用平实描述「覆盖标尺」，禁词与旧别名一并拦截');
+  });
+
   test('覆盖率口径在 logic.js coveragePct，内联脚本不重复计算百分比', () => {
     assert.match(logic, /function coveragePct\(/, '决策纯函数在 logic.js');
     const src = fnSource('renderCoverageMeter');
@@ -256,12 +261,12 @@ describe('UI 接线契约：食利线（现金收益覆盖预期月消费标尺�
     assert.doesNotMatch(src, /\/\s*expectation\s*\*|cashMonthly\s*\/\s*expectation/, '覆盖率算式不得在内联脚本重写');
   });
 
-  test('差额口径单一来源 incomeGap：盈余/缺口叙事收归食利线，报头不再重复渲染', () => {
+  test('差额口径单一来源 incomeGap：盈余/缺口叙事收归覆盖标尺，报头不再重复渲染', () => {
     assert.match(logic, /function incomeGap\(/);
-    // 食利线（renderCoverageMeter）是盈余/缺口的唯一渲染出口, 口径单一来源
-    assert.match(fnSource('renderCoverageMeter'), /incomeGap\(/, '食利线应使用 incomeGap 取盈余/缺口口径');
-    assert.doesNotMatch(fnSource('renderCoverageMeter'), /cashMonthly\s*-\s*expectation/, '食利线不再内联差额计算');
-    // 报头副行只保留收入金额与预期锚点, 盈余/缺口差额已收归食利线标尺（不调用 incomeGap、不内联差额取整）
+    // 覆盖标尺（renderCoverageMeter）是盈余/缺口的唯一渲染出口, 口径单一来源
+    assert.match(fnSource('renderCoverageMeter'), /incomeGap\(/, '覆盖标尺应使用 incomeGap 取盈余/缺口口径');
+    assert.doesNotMatch(fnSource('renderCoverageMeter'), /cashMonthly\s*-\s*expectation/, '覆盖标尺不再内联差额计算');
+    // 报头副行只保留收入金额与预期锚点, 盈余/缺口差额已收归覆盖标尺（不调用 incomeGap、不内联差额取整）
     assert.doesNotMatch(fnSource('renderMasthead'), /incomeGap\(/, '报头不再调用 incomeGap 渲染差额');
     assert.doesNotMatch(fnSource('renderMasthead'), /Math\.round\(Math\.abs\(gap\)\)/, '报头不再内联差额取整');
   });
@@ -272,8 +277,9 @@ describe('UI 接线契约：食利线（现金收益覆盖预期月消费标尺�
     assert.match(fnSource('renderCoverageMeter'), /sumAssetIncomes\(state\.assets\)/, '两口径合计与报头同源，不重复聚合');
   });
 
-  test('分子口径切换：默认现金、双按钮各接线一次、走 setSegMode 单一来源', () => {
-    assert.match(html, /let coverageMode = 'cash';/, '默认现金口径（不动本金的严格口径），与 incomeChartMode 同惯例不持久化');
+  test('分子口径切换：默认总收益、双按钮各接线一次、走 setSegMode 单一来源', () => {
+    assert.match(html, /let coverageMode = 'total';/, '默认总收益口径（含增值宽松口径），与 incomeChartMode 同惯例不持久化');
+    assert.match(html, /id="cov-mode-total"[^>]*class="seg-btn active"/, '初始 seg 高亮须与默认总收益口径一致');
     assert.strictEqual(count(/onclick="setCoverageMode\('cash'\)"/g), 1);
     assert.strictEqual(count(/onclick="setCoverageMode\('total'\)"/g), 1);
     assert.match(fnSource('setCoverageMode'), /setSegMode\('cov-mode-cash', 'cov-mode-total'/);
