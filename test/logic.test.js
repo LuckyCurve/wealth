@@ -902,3 +902,95 @@ describe('三态排序状态机 nextSortState（资产/消费列表共用）', (
     assert.deepStrictEqual(cycle('date', 'desc', 'amount', true), { by: 'amount', dir: 'asc' });
   });
 });
+
+describe('消费数据校验 isUntaggedItem / missingTagGroups / setTag / backfillTag（缺标签一键·逐条补齐）', () => {
+  const cat = { id: 'c1', name: '债券', tags: ['国债', '可转债'] };
+
+  test('isUntaggedItem 三态：缺 key / 空值 / 陈旧引用都算未归类，合法值不算', () => {
+    assert.strictEqual(L.isUntaggedItem({}, 'c1', cat.tags), true, '无该分类 key');
+    assert.strictEqual(L.isUntaggedItem({ tags: {} }, 'c1', cat.tags), true);
+    assert.strictEqual(L.isUntaggedItem({ tags: { c1: '' } }, 'c1', cat.tags), true, '空串');
+    assert.strictEqual(L.isUntaggedItem({ tags: { c1: '已删标签' } }, 'c1', cat.tags), true, '指向已删除标签的陈旧引用');
+    assert.strictEqual(L.isUntaggedItem({ tags: { c1: '国债' } }, 'c1', cat.tags), false);
+  });
+
+  test('isUntaggedItem 对缺 tags 字段/空入参不抛异常（旧数据与导入数据）', () => {
+    assert.strictEqual(L.isUntaggedItem({ tags: null }, 'c1', cat.tags), true);
+    assert.strictEqual(L.isUntaggedItem(null, 'c1', cat.tags), true);
+    assert.strictEqual(L.isUntaggedItem(undefined, 'c1', cat.tags), true);
+    // validTags 缺失按空处理：任何值都视为无效 → 仍归入待校验
+    assert.strictEqual(L.isUntaggedItem({ tags: { c1: 'x' } }, 'c1', null), true);
+  });
+
+  test('missingTagGroups 只返回有缺口的分组，内置/空标签分类跳过，不改入参', () => {
+    const items = [
+      { id: 'e1', tags: { c1: '国债' } },
+      { id: 'e2', tags: {} },
+      { id: 'e3' },
+    ];
+    const cats = [
+      { id: 'currency', name: '货币类型', builtin: true, tags: ['CNY'] },
+      { id: 'cEmpty', name: '空分类', tags: [] },
+      cat,
+      { id: 'c2', name: '渠道', tags: ['微信'] },
+    ];
+    const itemsBefore = JSON.stringify(items);
+    const catsBefore = JSON.stringify(cats);
+    const groups = L.missingTagGroups(items, cats);
+
+    assert.deepStrictEqual(groups.map(g => g.catId), ['c1', 'c2'], '有缺口才返回，内置与空标签分类不出现，且保持分类顺序');
+    const c1 = groups.find(g => g.catId === 'c1');
+    assert.deepStrictEqual(c1.items.map(i => i.id), ['e2', 'e3'], 'e1 已归类不应出现');
+    assert.deepStrictEqual(c1.tags, ['国债', '可转债'], '带出分类标签供面板渲染 chips');
+    assert.strictEqual(c1.name, '债券');
+    assert.strictEqual(groups.find(g => g.catId === 'c2').items.length, 3, '三处都缺该分类标签');
+
+    assert.strictEqual(JSON.stringify(items), itemsBefore, '不改记录');
+    assert.strictEqual(JSON.stringify(cats), catsBefore, '不改分类');
+    assert.deepStrictEqual(L.missingTagGroups([{ tags: { c1: '国债' } }], [cat]), [], '全归类 → 空数组');
+    assert.deepStrictEqual(L.missingTagGroups(null, null), [], '空入参兜底');
+  });
+
+  test('setTag 是写标签唯一出口：缺 tags 对象补建、不碰其它分类、空入参不抛', () => {
+    const a = {};
+    L.setTag(a, 'c1', '国债');
+    assert.deepStrictEqual(a.tags, { c1: '国债' });
+
+    const b = { tags: null };
+    L.setTag(b, 'c1', '可转债');
+    assert.deepStrictEqual(b.tags, { c1: '可转债' });
+
+    const c = { tags: { other: 'x' } };
+    L.setTag(c, 'c1', '国债');
+    assert.deepStrictEqual(c.tags, { other: 'x', c1: '国债' }, '既有分类值不动');
+
+    L.setTag(null, 'c1', '国债');
+    L.setTag(undefined, 'c1', '国债');
+  });
+
+  test('backfillTag 只补空缺/陈旧位，不覆盖已归类；返回实际条数且幂等', () => {
+    const items = [
+      { id: 'a', tags: { c1: '可转债' } },
+      { id: 'b', tags: { c1: '' } },
+      { id: 'c' },
+      { id: 'd', tags: { c1: '已删标签' } },
+      { id: 'e', tags: { other: 'x' } },
+    ];
+    const tagsBefore = cat.tags.slice();
+    const n = L.backfillTag(items, 'c1', '国债', cat.tags);
+
+    assert.strictEqual(n, 4, '已归类的 a 不算');
+    assert.strictEqual(items[0].tags.c1, '可转债', '绝不覆盖已归类的值');
+    assert.strictEqual(items[1].tags.c1, '国债');
+    assert.strictEqual(items[2].tags.c1, '国债');
+    assert.strictEqual(items[3].tags.c1, '国债', '陈旧引用按未归类处理');
+    assert.strictEqual(items[4].tags.c1, '国债');
+    assert.strictEqual(items[4].tags.other, 'x', '其它分类的值不动');
+    assert.deepStrictEqual(cat.tags, tagsBefore, '不改 validTags 入参');
+
+    assert.strictEqual(L.backfillTag(items, 'c1', '可转债', cat.tags), 0, '幂等：再跑 0 条');
+    assert.strictEqual(items[1].tags.c1, '国债', '幂等：不被第二次调用改写');
+    assert.strictEqual(L.backfillTag(null, 'c1', '国债', cat.tags), 0, '空入参兜底');
+    assert.strictEqual(L.backfillTag([{}, {}], 'c1', '国债', cat.tags), 2);
+  });
+});

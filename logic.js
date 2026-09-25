@@ -183,6 +183,44 @@
     return (groups || []).some(g => g.id === p.catId && ((g || {}).tags || []).indexOf(p.tag) >= 0);
   }
 
+  // ========== 消费数据校验（缺标签补齐）==========
+  // 「未归类」三态：key 缺失 / 空值 / 指向已删除标签的陈旧引用——三种都进不了分组统计
+  function isUntaggedItem(item, catId, validTags) {
+    const v = item && item.tags ? item.tags[catId] : '';
+    return !v || (validTags || []).indexOf(v) < 0;
+  }
+
+  // 按分类分组列出未归类记录（显式收参不偷读全局）；内置/无标签分类跳过，无缺口的分组不返回
+  function missingTagGroups(items, categories) {
+    return (categories || [])
+      .filter(c => c && !c.builtin && ((c || {}).tags || []).length)
+      .map(c => ({
+        catId: c.id,
+        name: c.name,
+        tags: c.tags.slice(),
+        items: (items || []).filter(e => isUntaggedItem(e, c.id, c.tags)),
+      }))
+      .filter(g => g.items.length > 0);
+  }
+
+  // 写标签的唯一入口：补建 tags 对象后落值（一键批量与逐条点选都经这里，面板不直接赋值）
+  function setTag(item, catId, tag) {
+    if (!item) return;
+    if (!item.tags || typeof item.tags !== 'object') item.tags = {};
+    item.tags[catId] = tag;
+  }
+
+  // 一键补齐：只写空缺/陈旧位，绝不覆盖已归类的值；返回实际补齐条数
+  function backfillTag(items, catId, tag, validTags) {
+    let n = 0;
+    (items || []).forEach(it => {
+      if (!it || !isUntaggedItem(it, catId, validTags)) return;
+      setTag(it, catId, tag);
+      n++;
+    });
+    return n;
+  }
+
   // ========== 收益测算（依赖 incomeMode / state）==========
   function getAssetRate(a, mode) {
     mode = mode || incomeMode;
@@ -641,6 +679,7 @@
     rateFallbackNotice,
     nextSortState, expenseMonths,
     tagFilterValue, parseTagFilter, expenseTagFilterGroups, hasTagFilterOption,
+    isUntaggedItem, missingTagGroups, setTag, backfillTag,
     findMonthSnapshot, getPrevSnapshot,
     monthlyExpenseTotals, prevExpenseMonthOf, expenseMoM, expenseMonthTagTotals,
     getAssetRate, getSafetyFactor, getCashRatio, calcAssetIncome, hasAnyRatedAsset, cashRatioPct, coveragePct, incomeGap, sumAssetIncomes,

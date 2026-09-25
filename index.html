@@ -337,6 +337,30 @@ tailwind.config = {
     border: 1px solid var(--chip-border);
     box-shadow: 0 0 0 1.5px var(--chip-ring);
   }
+
+  /* 数据校验（缺标签补齐）：虚线 = 待处理，与标签 chips 空栏同一语言 */
+  .tagcheck-bar {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px; flex-wrap: wrap; margin-bottom: 16px; padding: 9px 14px;
+    border: 1px dashed var(--accent-soft); border-radius: 8px;
+    background: var(--bg-2); font-size: 13px;
+  }
+  .tagcheck-strip {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 10px; margin-top: 12px; padding-top: 10px;
+    border-top: 1px dashed var(--rule);
+  }
+  .tagcheck-group {
+    border: 1px solid var(--border); border-radius: 8px;
+    padding: 14px 16px 6px; background: var(--card);
+    box-shadow: inset 0 1px 0 var(--card-edge);
+  }
+  .tagcheck-row {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px; flex-wrap: wrap; padding: 9px 0; border-top: 1px solid var(--rule);
+  }
+  .tagcheck-meta { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+  .tagcheck-note { max-width: 24ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .asset-row {
     display: grid; grid-template-columns: 2fr 1fr 1fr 1.5fr 1.5fr;
     align-items: center; padding: 14px 0; border-bottom: 1px solid var(--rule);
@@ -875,6 +899,12 @@ tailwind.config = {
         </div>
       </div>
 
+      <!-- 数据校验条：有分类未归类记录时才出现（renderTagCheckBar 唯一写入点） -->
+      <div id="tagcheck-bar" class="tagcheck-bar" style="display:none;">
+        <span class="tagcheck-text"></span>
+        <button type="button" class="row-btn edit" onclick="openTagCheck()">去校验</button>
+      </div>
+
       <div id="expenses-empty" class="card empty-state" style="display:none;">
         <div class="empty-rule"></div>
         <p id="expenses-empty-title" class="empty-title">还没有消费记录</p>
@@ -1215,6 +1245,19 @@ tailwind.config = {
         <button type="submit" class="btn-gold">保存</button>
       </div>
     </form>
+  </div>
+</div>
+
+<!-- 数据校验 Modal：一键批量 / 逐条点选补齐缺的标签 -->
+<div id="tagcheck-modal" class="modal-overlay" style="display:none;">
+  <div class="modal-content" style="max-width:720px;">
+    <h3 class="font-display modal-title mb-6">数据校验</h3>
+    <p class="text-sm mb-5" style="color:var(--muted);">下面这些记录在某个分类下还没有标签。组内顶部可一键补齐，也可以在每条记录上逐个点选，点一下即保存。</p>
+    <div id="tagcheck-groups" class="space-y-5" onclick="onTagCheckPick(event)"></div>
+    <p id="tagcheck-empty" class="text-sm" style="color:var(--muted); display:none;">全部记录都已归类。</p>
+    <div class="flex justify-end mt-8">
+      <button type="button" onclick="closeModal('tagcheck-modal')" class="btn-gold">完成</button>
+    </div>
   </div>
 </div>
 
@@ -1682,11 +1725,13 @@ function renderCategories() {
   renderCategoryCards('asset');
 }
 
-// ========== 平铺标签选择器（资产/消费表单共用）==========
+// ========== 平铺标签选择器（资产/消费表单 + 数据校验面板共用）==========
 // 分类标签从下拉框改为平铺 chips: 「虚线空栏 = 待选, 实心盖印 = 已选」。
 // 选中值写入同 id 的 hidden input, saveAsset/saveExpense 读取逻辑与旧下拉完全一致。
-function renderTagPicker(section, cats, selectedFor, idPrefix, colorFn) {
-  section.innerHTML = cats.map(cat => {
+// 返回 HTML 字符串由调用方写入容器；opts.hideLabel 省略分类名标签（校验面板分组头已给出分类名）
+function tagPickerHtml(cats, selectedFor, idPrefix, colorFn, opts) {
+  const withLabel = !(opts && opts.hideLabel);
+  return cats.map(cat => {
     const selected = selectedFor(cat) || '';
     const chips = cat.tags.map(t => {
       const c = colorFn(cat.id, t);
@@ -1694,7 +1739,7 @@ function renderTagPicker(section, cats, selectedFor, idPrefix, colorFn) {
         style="--chip-bg:${c.bg};--chip-fg:${c.fg};--chip-border:${c.border};--chip-ring:${hexToRgba(c.border, 0.45)};">${esc(t)}</button>`;
     }).join('');
     return `<div>
-      <label class="block text-xs font-medium mb-1.5" style="color:var(--muted);">${esc(cat.name)}</label>
+      ${withLabel ? `<label class="block text-xs font-medium mb-1.5" style="color:var(--muted);">${esc(cat.name)}</label>` : ''}
       <input type="hidden" id="${idPrefix}${cat.id}" value="${esc(selected)}">
       <div class="tag-picker" data-target="${idPrefix}${cat.id}">${chips}</div>
     </div>`;
@@ -1839,7 +1884,7 @@ function openAssetModal(editId) {
 
   // render tag selectors (skip currency - auto-synced from the currency dropdown)
   const asset = editId ? state.assets.find(x => x.id === editId) : null;
-  renderTagPicker(document.getElementById('asset-tags-section'),
+  document.getElementById('asset-tags-section').innerHTML = tagPickerHtml(
     state.categories.filter(cat => cat.id !== 'currency'),
     cat => asset ? (asset.tags[cat.id] || '') : '',
     'asset-tag-', catColor);
@@ -2181,6 +2226,7 @@ const CAT_SIDES = {
     listId: 'categories-list',
     noun: '资产',
     savedUpdated: '分类已更新', savedCreated: '分类已创建',
+    tagCheck: false, // 资产侧暂不接数据校验（历史净值快照是否随补未定）
     modal: { id: 'category-modal', title: 'category-modal-title', form: 'category-form', editId: 'cat-edit-id', name: 'cat-name', tags: 'cat-tags', editTitle: '编辑分类', newTitle: '新增分类' },
   },
   expense: {
@@ -2193,6 +2239,7 @@ const CAT_SIDES = {
     listId: 'expense-categories-list',
     noun: '消费记录',
     savedUpdated: '消费分类已更新', savedCreated: '消费分类已创建',
+    tagCheck: true, // 消费侧接数据校验：卡片提示条 + 新建分类后自动打开面板
     modal: { id: 'expense-category-modal', title: 'expense-category-modal-title', form: 'expense-category-form', editId: 'expense-cat-edit-id', name: 'expense-cat-name', tags: 'expense-cat-tags', editTitle: '编辑消费分类', newTitle: '新增消费分类' },
   },
 };
@@ -2200,10 +2247,14 @@ const CAT_SIDES = {
 function renderCategoryCards(side) {
   const cfg = CAT_SIDES[side];
   const container = document.getElementById(cfg.listId);
+  // 数据校验入口（仅 cfg.tagCheck=true 的一侧）：卡片尾部提示「N 条记录未归到本分类」
+  const gaps = cfg.tagCheck ? missingTagGroups(cfg.items(), cfg.cats()) : [];
+  const gapOf = id => gaps.find(g => g.catId === id);
   container.innerHTML = cfg.cats().map(cat => {
     const tagPills = cat.tags.map(t => tagPillHtml(cat, t, cfg.colorFn, { showKey: false, removeFn: cfg.removeTag })).join(' ');
     // 「添加」按钮与回车共用同一调用表达式, 防两处接线各自漂移
     const addTagCall = `${cfg.addTag}('${jsAttr(cat.id)}')`;
+    const gap = gapOf(cat.id);
     return `<div class="card">
       <div class="flex items-center justify-between mb-3">
         <div class="flex items-center gap-2">
@@ -2221,6 +2272,10 @@ function renderCategoryCards(side) {
         <input type="text" id="${cfg.newTagPrefix}${cat.id}" placeholder="新增标签（回车添加）" class="text-sm flex-1" style="padding:6px 10px;" autocomplete="off" onkeydown="if(event.key==='Enter'&&!event.isComposing){event.preventDefault();${addTagCall};}">
         <button onclick="${addTagCall}" class="btn-ghost" style="padding:6px 14px;">添加</button>
       </div>`}
+      ${gap ? `<div class="tagcheck-strip">
+        <span class="text-xs"><b class="font-mono" style="color:var(--accent-ink);">${gap.items.length}</b> 条记录未归到本分类</span>
+        <button type="button" class="row-btn edit" onclick="openTagCheck('${jsAttr(cat.id)}')">去校验</button>
+      </div>` : ''}
     </div>`;
   }).join('');
 }
@@ -2260,6 +2315,7 @@ function saveCategoryGeneric(side, e) {
   }
 
   const cats = cfg.cats();
+  let createdId = '';
   if (editId) {
     const idx = cats.findIndex(c => c.id === editId);
     if (idx >= 0) {
@@ -2270,7 +2326,9 @@ function saveCategoryGeneric(side, e) {
       });
     }
   } else {
-    cats.push({ id: genId(), name, builtin: false, tags });
+    const created = { id: genId(), name, builtin: false, tags };
+    cats.push(created);
+    createdId = created.id;
   }
 
   saveState();
@@ -2278,6 +2336,11 @@ function saveCategoryGeneric(side, e) {
   cfg.renderItems();
   closeModal(m.id);
   toast(editId ? cfg.savedUpdated : cfg.savedCreated, 'success');
+  // 消费侧新建分类后立刻补历史数据（资产侧 CAT_SIDES.tagCheck=false 不接线）
+  if (createdId && cfg.tagCheck) {
+    const gap = missingTagGroups(cfg.items(), cfg.cats()).find(g => g.catId === createdId);
+    if (gap) openTagCheck(createdId);
+  }
 }
 
 function deleteCategoryGeneric(side, id) {
@@ -3635,6 +3698,9 @@ function renderExpenses() {
   const totalLabel = parts.length ? parts.join(' ') : '合计';
   document.getElementById('expense-total-line').innerHTML =
     `${totalLabel} · <span class="tabular font-medium" style="color:var(--accent-ink);">${formatCNY(total)}</span> · ${filtered.length} 笔`;
+
+  // 数据校验条跟随记录/分类变化（全局口径，不随列表筛选缩小）
+  renderTagCheckBar();
 }
 
 function openExpenseModal(editId, prefillId) {
@@ -3664,7 +3730,7 @@ function openExpenseModal(editId, prefillId) {
     document.getElementById('expense-note').value = source.note || '';
   }
 
-  renderTagPicker(document.getElementById('expense-tags-section'),
+  document.getElementById('expense-tags-section').innerHTML = tagPickerHtml(
     state.expenseCategories,
     cat => source ? (source.tags[cat.id] || '') : '',
     'expense-tag-', expenseCatColor);
@@ -3771,6 +3837,124 @@ function addExpenseTag(catId) {
 
 function removeExpenseTag(catId, tagName) {
   removeTagGeneric('expense', catId, tagName);
+}
+
+// ========== 消费数据校验（缺标签：一键批量 / 逐条点选）==========
+// 打开时按分类捕获缺口记录 id；补齐后分组保留（✓ 徽章）以便逐条微调，重开时重新捕获。
+// 写标签一律走 logic.js setTag/backfillTag，此处不直接赋值。
+let tagCheckGroups = [];
+
+// 校验条（消费记录页）：唯一写入点，renderExpenses 每次重绘后调用
+function renderTagCheckBar() {
+  const bar = document.getElementById('tagcheck-bar');
+  if (!bar) return;
+  const groups = missingTagGroups(state.expenses, state.expenseCategories);
+  if (!groups.length) { bar.style.display = 'none'; return; }
+  const total = groups.reduce((s, g) => s + g.items.length, 0);
+  bar.style.display = '';
+  bar.querySelector('.tagcheck-text').innerHTML =
+    `<b class="font-mono" style="color:var(--accent-ink);">${total}</b> 条记录分类不完整 · 缺 ${groups.map(g => `「${esc(g.name)}」`).join('')}`;
+}
+
+// 分组卡片：头部计数/✓徽章 + 一键补齐 chips + 逐条记录行（均复用 tagPickerHtml）
+function tagCheckGroupHtml(g) {
+  const cat = state.expenseCategories.find(c => c.id === g.catId);
+  if (!cat) return '';
+  const items = g.ids.map(id => state.expenses.find(e => e.id === id)).filter(Boolean);
+  const left = items.filter(e => isUntaggedItem(e, g.catId, cat.tags));
+  // 一键补齐选中态：组内取值唯一时盖印该标签（批量补齐后与逐条显示一致）
+  const vals = [...new Set(items.map(e => (e.tags && e.tags[g.catId]) || ''))];
+  const batchSel = vals.length === 1 && vals[0] ? vals[0] : '';
+  const head = left.length
+    ? `<span class="text-xs" style="color:var(--muted);"><b class="font-mono">${left.length}</b> / ${items.length} 条待归类</span>`
+    : `<span class="mo-badge up">✓ 已补齐 ${items.length} 条</span>`;
+  const rows = items.map(e => `<div class="tagcheck-row" data-eid="${esc(e.id)}">
+      <div class="tagcheck-meta">
+        <span class="font-mono text-xs" style="color:var(--muted);">${esc((e.date || '').slice(5))}</span>
+        <span class="text-sm tagcheck-note">${e.note ? esc(e.note) : '<span style="color:var(--muted);">（无备注）</span>'}</span>
+        <span class="font-mono text-sm tabular">${money2(e.amount)}</span>
+      </div>
+      <div>${tagPickerHtml([cat], () => (e.tags && e.tags[g.catId]) || '', `tagcheck-r-${e.id}-`, expenseCatColor, { hideLabel: true })}</div>
+    </div>`).join('');
+  // 分组头分类名取 cat（会话对象 g 只有 catId/ids，用 g.name 会渲染成空串）
+  return `<div class="tagcheck-group" data-catid="${esc(g.catId)}">
+    <div class="flex items-center justify-between gap-3 mb-3 flex-wrap">
+      <div class="flex items-center gap-2">
+        <h4 class="font-display" style="font-size:15px;font-weight:700;">${esc(cat.name)}</h4>
+        ${head}
+      </div>
+      ${left.length ? '<span class="text-xs" style="color:var(--muted);">点标签即生效</span>' : ''}
+    </div>
+    <div class="tagcheck-batch flex items-center gap-2 flex-wrap mb-1">
+      <span class="text-xs" style="color:var(--muted);">一键补齐：</span>
+      ${tagPickerHtml([cat], () => batchSel, `tagcheck-b-${g.catId}-`, expenseCatColor, { hideLabel: true })}
+    </div>
+    <div>${rows}</div>
+  </div>`;
+}
+
+function renderTagCheckPanel() {
+  const box = document.getElementById('tagcheck-groups');
+  const empty = document.getElementById('tagcheck-empty');
+  const has = tagCheckGroups.length > 0;
+  box.style.display = has ? '' : 'none';
+  empty.style.display = has ? 'none' : '';
+  box.innerHTML = has ? tagCheckGroups.map(tagCheckGroupHtml).join('') : '';
+}
+
+// 面板内单分组局部重绘（逐条/一键落值后刷新盖印、计数与 ✓ 徽章，不重建整个面板避免滚动跳动）
+function renderTagCheckGroup(catId) {
+  const box = document.getElementById('tagcheck-groups');
+  const idx = tagCheckGroups.findIndex(g => g.catId === catId);
+  if (idx < 0) return;
+  const html = tagCheckGroupHtml(tagCheckGroups[idx]);
+  const el = box.children[idx];
+  if (el && html) el.outerHTML = html;
+}
+
+function openTagCheck(catId) {
+  tagCheckGroups = missingTagGroups(state.expenses, state.expenseCategories)
+    .filter(g => !catId || g.catId === catId)
+    .map(g => ({ catId: g.catId, ids: g.items.map(i => i.id) }));
+  renderTagCheckPanel();
+  openModal('tagcheck-modal');
+}
+
+// 面板事件委托（容器 onclick）：选中值由 selectTagChoice 先写入 hidden input，再气泡到这里
+// row = 逐条点选（可改本次会话已选值）；batch = 一键补齐（只写仍缺的位置）
+function onTagCheckPick(e) {
+  const chip = e.target && e.target.closest ? e.target.closest('.tag-picker .tag-choice') : null;
+  if (!chip) return;
+  const picker = chip.closest('.tag-picker');
+  const input = picker && document.getElementById(picker.dataset.target);
+  if (!input) return;
+  const val = input.value;
+  const row = chip.closest('.tagcheck-row');
+  const host = row || chip.closest('.tagcheck-batch');
+  if (!host) return;
+  const catEl = host.closest('.tagcheck-group');
+  const catId = catEl && catEl.dataset.catid;
+  const cat = state.expenseCategories.find(c => c.id === catId);
+  const g = tagCheckGroups.find(x => x.catId === catId);
+  if (!cat || !g) return;
+  // 再点已选项 = 取消选择：数据不变，按数据回滚盖印状态（面板不提供取消归类）
+  if (!val) { renderTagCheckGroup(catId); return; }
+
+  let n = 0;
+  if (row) {
+    const rec = state.expenses.find(x => x.id === row.dataset.eid);
+    if (!rec) return;
+    setTag(rec, catId, val);
+    n = 1;
+  } else {
+    const items = g.ids.map(id => state.expenses.find(x => x.id === id)).filter(Boolean);
+    n = backfillTag(items, catId, val, cat.tags);
+    if (!n) return;
+  }
+  saveState();
+  renderExpenses();       // 列表 pill 与校验条同步
+  renderTagCheckGroup(catId);
+  toast(n > 1 ? `已为 ${n} 条记录打上「${val}」` : `已归入「${val}」`, 'success');
 }
 
 // ========== EXPENSE CHART ==========

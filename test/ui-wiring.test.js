@@ -526,3 +526,95 @@ describe('UI 接线契约：分类管理回车添加标签', () => {
     assert.strictEqual(count(/addTagGeneric\(/g), 3, '定义一处 + addTag / addExpenseTag 包装各一处');
   });
 });
+
+describe('UI 接线契约：消费数据校验（缺标签一键/逐条补齐）', () => {
+  test('校验条唯一且在消费记录 Tab 内，唯一写入点 renderTagCheckBar（由 renderExpenses 调用）', () => {
+    assert.strictEqual(count(/id="tagcheck-bar"/g), 1, '校验条容器应唯一');
+    const tab = html.match(/id="tab-expenses"[\s\S]*?<\/section>/);
+    assert.ok(tab && tab[0].includes('id="tagcheck-bar"'), '校验条应在消费记录 Tab 内（而非分类管理页）');
+    assert.strictEqual(count(/renderTagCheckBar\(/g), 2, '定义一处 + renderExpenses 调用一处');
+    assert.match(fnSource('renderExpenses'), /renderTagCheckBar\(\)/, '列表每次重绘同步校验条');
+    assert.match(fnSource('renderTagCheckBar'), /missingTagGroups\(/, '计数走 logic.js 缺口口径');
+  });
+
+  test('面板唯一 #tagcheck-modal，打开走 openModal；三个入口共 4 处接线', () => {
+    assert.strictEqual(count(/id="tagcheck-modal"/g), 1, '面板弹窗应唯一（资产/消费不各造一套）');
+    assert.strictEqual(count(/id="tagcheck-groups"/g), 1);
+    assert.strictEqual(count(/function openTagCheck\(/g), 1, '打开入口只定义一次');
+    assert.match(fnSource('openTagCheck'), /openModal\('tagcheck-modal'\)/, '走通用弹窗路径');
+    // 定义一处 + 校验条「去校验」+ 分类卡片提示条 + 新建分类后自动打开
+    assert.strictEqual(count(/openTagCheck\(/g), 4, '三个入口都调同一入口函数');
+  });
+
+  test('chips 单一来源 tagPickerHtml：一键与逐条复用同一实现，第二套不回潮', () => {
+    assert.strictEqual(count(/class="tag-choice"/g), 1, 'tag-choice 模板只允许存在一处');
+    assert.strictEqual(count(/function tagPickerHtml\(/g), 1, 'chips 生成函数唯一');
+    assert.strictEqual(count(/renderTagPicker/g), 0, '旧的就地渲染函数应保持重命名（面板需要拿 HTML 字符串复用）');
+    // 定义一处 + 资产表单 + 消费表单 + 面板一键补齐 + 面板逐条
+    assert.strictEqual(count(/tagPickerHtml\(/g), 5);
+    assert.match(fnSource('tagCheckGroupHtml'), /tagPickerHtml\(/, '面板分组复用 chips 生成');
+  });
+
+  test('写标签只走 logic.js setTag/backfillTag，UI 层不直接给 tags 赋值', () => {
+    const src = fnSource('onTagCheckPick');
+    assert.match(src, /setTag\(/, '逐条点选走 setTag');
+    assert.match(src, /backfillTag\(/, '一键补齐走 backfillTag');
+    assert.doesNotMatch(src, /\.tags\[/, '面板不得内联 tags 赋值（口径回潮即报错）');
+    assert.strictEqual(count(/setTag\(/g), 1, 'index.html 只在 onTagCheckPick 内调一次');
+    assert.strictEqual(count(/backfillTag\(/g), 1, 'index.html 只在 onTagCheckPick 内调一次');
+  });
+
+  test('落值后同步三处：saveState → 重绘列表与校验条 → 局部重绘该分组（不整面板重建）', () => {
+    const src = fnSource('onTagCheckPick');
+    assert.match(src, /saveState\(\)/);
+    assert.match(src, /renderExpenses\(\)/, '列表 pill 与校验条跟着刷新');
+    assert.match(src, /renderTagCheckGroup\(catId\)/, '只重绘命中分组，保留面板滚动位置');
+    assert.match(fnSource('renderTagCheckGroup'), /outerHTML/, '局部替换而非重建整个面板');
+    // 取消选择（再点已选项）不得改数据：按数据回滚盖印状态
+    assert.match(src, /if \(!val\) \{ renderTagCheckGroup\(catId\); return; \}/, '取消选择只回滚 UI');
+  });
+
+  test('缺口口径 missingTagGroups 单一来源，四处调用；分类卡片入口带侧别闸门', () => {
+    assert.strictEqual(count(/missingTagGroups\(/g), 4, '校验条 + 面板打开 + 分类卡片 + 新建后检测');
+    const card = fnSource('renderCategoryCards');
+    assert.match(card, /cfg\.tagCheck \? missingTagGroups/, '卡片提示条必须带 cfg.tagCheck 闸门');
+    assert.match(card, /openTagCheck\('\$\{jsAttr\(cat\.id\)\}'\)/, '卡片入口聚焦该分类');
+    // 两侧各声明一次：资产侧不接线、消费侧接线
+    assert.strictEqual(count(/tagCheck: (true|false)/g), 2);
+    assert.match(html, /tagCheck: false,[^\n]*资产侧/, '资产侧保持不接（历史快照口径未定）');
+    assert.match(html, /tagCheck: true,[^\n]*消费侧/, '消费侧接线');
+    assert.match(fnSource('tagCheckGroupHtml'), /isUntaggedItem\(/, '组内待归类计数与 logic.js 同口径');
+  });
+
+  test('新建消费分类后自动打开面板：带 createdId && cfg.tagCheck 守卫，且在关掉分类弹窗之后', () => {
+    const src = fnSource('saveCategoryGeneric');
+    assert.match(src, /if \(createdId && cfg\.tagCheck\)/, '只有启用校验的一侧且确为新建时才打开');
+    assert.match(src, /openTagCheck\(createdId\)/, '聚焦新建的那个分类');
+    assert.ok(
+      src.indexOf('closeModal(m.id)') < src.indexOf('openTagCheck(createdId)'),
+      '必须先关分类弹窗再开面板，否则面板被压在下面');
+    assert.match(src, /missingTagGroups\(cfg\.items\(\), cfg\.cats\(\)\)/, '无缺口不打扰（0 条时不弹）');
+  });
+
+  test('面板语言复用既有账本词汇：✓ 徽章走 mo-badge.up，不另造徽章样式', () => {
+    const src = fnSource('tagCheckGroupHtml');
+    assert.match(src, /mo-badge up/, '补齐完成态复用既有印徽');
+    assert.match(src, /已补齐/, '完成态文案');
+    assert.strictEqual(count(/class="tagcheck-group"/g), 1, '分组模板只定义一处');
+  });
+
+  test('分组头分类名取 cat 而非会话对象 g（g 只有 catId/ids，用 g.name 会渲成空串）', () => {
+    const src = fnSource('tagCheckGroupHtml');
+    assert.match(src, /esc\(cat\.name\)/, '分类名从分类对象取');
+    // 调用语法正则而非裸关键词：说明注释里也会出现字段名，裸匹配会误报
+    assert.doesNotMatch(src, /\$\{esc\(g\.name\)\}/, '会话对象没有 name 字段，插值即渲出空标题');
+  });
+
+  test('data-* 属性用 esc 转义而非 jsAttr（dataset 读回需与 state 的 id 字节一致）', () => {
+    const src = fnSource('tagCheckGroupHtml');
+    assert.match(src, /data-eid="\$\{esc\(e\.id\)\}"/);
+    assert.match(src, /data-catid="\$\{esc\(g\.catId\)\}"/);
+    assert.doesNotMatch(src, /data-(eid|catid)="\$\{jsAttr/,
+      'jsAttr 会把反斜杠翻倍（为 JS 字符串设计），读回后 find(x => x.id === ...) 静默失配');
+  });
+});
