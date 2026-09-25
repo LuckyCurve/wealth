@@ -490,3 +490,39 @@ describe('UI 接线契约：消费标签筛选（单下拉分组，类别作不�
     assert.ok(tagIdx < searchIdx, '标签筛选在搜索匹配之前');
   });
 });
+
+describe('UI 接线契约：分类管理回车添加标签', () => {
+  test('新增标签输入框回车即添加，且 IME 组字中回车不误提交', () => {
+    const input = html.match(/<input type="text" id="\$\{cfg\.newTagPrefix\}\$\{cat\.id\}"[^>]*>/);
+    assert.ok(input, '分类卡片的「新增标签」输入框模板存在');
+    // 中文输入法确认候选字用的也是回车：无 isComposing 守卫会提前提交并销毁组字中的输入框
+    assert.match(
+      input[0],
+      /onkeydown="if\(event\.key==='Enter'&&!event\.isComposing\)/,
+      '回车触发添加，须带 IME 组字守卫');
+    assert.match(input[0], /event\.preventDefault\(\)/, '阻止默认行为');
+    assert.match(input[0], /autocomplete="off"/, '自动填充建议不应抢走回车');
+    assert.match(input[0], /\$\{addTagCall\}/, '回车走与「添加」按钮相同的调用');
+  });
+
+  test('「添加」按钮与回车共用 addTagCall 单一调用表达式，两处接线不各自漂移', () => {
+    assert.strictEqual(count(/const addTagCall = /g), 1, '调用表达式只定义一次');
+    assert.strictEqual(count(/\$\{cfg\.addTag\}\(/g), 1, 'cfg.addTag 拼接只允许出现在定义处');
+    assert.strictEqual(count(/\$\{addTagCall\}/g), 2, '输入框回车与「添加」按钮各引用一次');
+    assert.match(html, /<button onclick="\$\{addTagCall\}"[^>]*>添加<\/button>/, '按钮仍保留（鼠标路径）');
+  });
+
+  test('addTagGeneric 重绘后把焦点交回同分类新输入框，不再写已脱离文档的旧 input', () => {
+    const src = fnSource('addTagGeneric');
+    assert.match(src, /const next = document\.getElementById\(cfg\.newTagPrefix \+ catId\)/);
+    assert.match(src, /next\.focus\(\)/, '焦点交回新输入框才能连击回车连续添加');
+    assert.doesNotMatch(src, /input\.value = ''/, '旧 input 已随 renderCategoryCards 重绘脱离文档，赋值是死代码');
+    const rerender = src.indexOf('renderCategoryCards(side)');
+    const refocus = src.indexOf('const next =');
+    assert.ok(rerender >= 0 && refocus > rerender, '必须先重绘再取新输入框，否则焦点落在即将被替换的旧节点');
+  });
+
+  test('资产/消费两侧的回车与按钮都收敛到 addTagGeneric 单一实现', () => {
+    assert.strictEqual(count(/addTagGeneric\(/g), 3, '定义一处 + addTag / addExpenseTag 包装各一处');
+  });
+});

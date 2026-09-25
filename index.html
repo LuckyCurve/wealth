@@ -2202,6 +2202,8 @@ function renderCategoryCards(side) {
   const container = document.getElementById(cfg.listId);
   container.innerHTML = cfg.cats().map(cat => {
     const tagPills = cat.tags.map(t => tagPillHtml(cat, t, cfg.colorFn, { showKey: false, removeFn: cfg.removeTag })).join(' ');
+    // 「添加」按钮与回车共用同一调用表达式, 防两处接线各自漂移
+    const addTagCall = `${cfg.addTag}('${jsAttr(cat.id)}')`;
     return `<div class="card">
       <div class="flex items-center justify-between mb-3">
         <div class="flex items-center gap-2">
@@ -2216,8 +2218,8 @@ function renderCategoryCards(side) {
       <div class="flex flex-wrap gap-2 mb-3">${tagPills}</div>
       ${cat.builtin ? '' : `
       <div class="flex gap-2">
-        <input type="text" id="${cfg.newTagPrefix}${cat.id}" placeholder="新增标签" class="text-sm flex-1" style="padding:6px 10px;">
-        <button onclick="${cfg.addTag}('${jsAttr(cat.id)}')" class="btn-ghost" style="padding:6px 14px;">添加</button>
+        <input type="text" id="${cfg.newTagPrefix}${cat.id}" placeholder="新增标签（回车添加）" class="text-sm flex-1" style="padding:6px 10px;" autocomplete="off" onkeydown="if(event.key==='Enter'&&!event.isComposing){event.preventDefault();${addTagCall};}">
+        <button onclick="${addTagCall}" class="btn-ghost" style="padding:6px 14px;">添加</button>
       </div>`}
     </div>`;
   }).join('');
@@ -2306,7 +2308,9 @@ function addTagGeneric(side, catId) {
   saveState();
   renderCategoryCards(side);
   cfg.renderItems();
-  input.value = '';
+  // 列表已整体重绘, 旧 input 已脱离文档；把焦点交回同分类的新输入框, 便于回车连续添加
+  const next = document.getElementById(cfg.newTagPrefix + catId);
+  if (next) next.focus();
   toast('标签已添加', 'success');
 }
 
