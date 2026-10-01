@@ -623,13 +623,17 @@ describe('UI 接线契约：图表 tooltip 转义用户输入（防存储型 XSS
   // ECharts tooltip 默认 renderMode:'html'，formatter 返回值直接 innerHTML 注入。
   // p.name / p.seriesName / treePathInfo 均来自用户输入（资产名、备注、标签名），
   // 不转义时恶意名称（或导入的 JSON）会执行脚本。列表/弹窗已全走 esc()，tooltip 不得例外。
-  test('旭日图 tooltip 的名称与标签路径经 esc 转义', () => {
+  test('旭日图 tooltip 名称/标签路径经 esc 转义，且内容单一来源 sunburstTooltipContent', () => {
+    // 转义与「路径 › 名称 + 金额 · 占比」文案收敛在 helper 一处；三张旭日图只传口径
+    const helper = fnSource('sunburstTooltipContent');
+    assert.ok(helper, 'sunburstTooltipContent helper 存在');
+    assert.match(helper, /esc\(p\.name\)/, 'helper 应转义名称');
+    assert.match(helper, /esc\(p\.treePathInfo\[1\]\.name\)/, 'helper 应转义标签路径');
     for (const fn of ['renderChart', 'renderIncomeChart', 'renderExpenseChart']) {
-      const src = fnSource(fn);
-      assert.match(src, /esc\(p\.name\)/, `${fn} tooltip 名称应 esc 转义`);
-      assert.match(src, /esc\(p\.treePathInfo\[1\]\.name\)/, `${fn} 标签路径应 esc 转义`);
+      assert.match(fnSource(fn), /sunburstTooltipContent\(/, `${fn} 应复用统一 tooltip 内容`);
     }
     assert.strictEqual(count(/\$\{arrow\}\$\{p\.name\}/g), 0, '不得再内联未转义的 ${arrow}${p.name}');
+    assert.strictEqual(count(/p\.treePathInfo\[1\]\.name \+ ' › '/g), 0, '路径拼接只允许在 helper 一处');
   });
 
   test('堆叠柱 tooltip 的系列名经 esc 转义', () => {
@@ -638,6 +642,12 @@ describe('UI 接线契约：图表 tooltip 转义用户输入（防存储型 XSS
     }
     // 唯一允许的裸 p.seriesName 是与常量 TOTAL_SERIES_NAME 的比较，不得出现在 HTML 插值里
     assert.strictEqual(count(/\$\{p\.seriesName\}/g), 0, '系列名插值必须转义');
+  });
+
+  test('buildSunburstOption 的 tooltip 底座复用 chartTooltipBase，不再内联重复', () => {
+    const src = fnSource('buildSunburstOption');
+    assert.match(src, /\.\.\.chartTooltipBase\(th\)/, '应展开 chartTooltipBase 底座');
+    assert.doesNotMatch(src, /extraCssText: TOOLTIP_CSS/, '内联 tooltip 底座应消失（回潮即报错）');
   });
 });
 

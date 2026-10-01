@@ -2124,6 +2124,21 @@ function openModal(id) {
 // ========== SHARED HELPERS ==========
 // 资产/消费两套逻辑共用的小工具：旭日图配置、分类配色、利率标签、排序、金额格式化、月份下拉、分段按钮。
 // 抽到这里避免三处旭日图、两处 catColor、四处利率标签等重复实现各自漂移。
+// 旭日图 tooltip 内容单一来源（资产/收入/消费三图共用）：标签路径 › 名称 + 金额 · 占比。
+// 名称与标签路径可能来自用户输入（资产名/备注/标签），统一经 esc 后拼接
+// （ECharts tooltip 默认 renderMode:'html'，未转义会执行脚本）。
+// opts.prefix 加在金额前（收入图「月现金收益/月总收益」）；opts.pctLabel 加在百分比前（收入图「占比 」）。
+// 收入图的「单资产明细」分支自建内容，不走此函数。
+function sunburstTooltipContent(p, th, total, opts) {
+  opts = opts || {};
+  const pct = pctStr(p.value, total);
+  const arrow = p.treePathInfo && p.treePathInfo.length > 2
+    ? esc(p.treePathInfo[1].name) + ' › '
+    : '';
+  const amount = (opts.prefix ? opts.prefix + ' ' : '') + formatCNY(p.value);
+  return `<b>${arrow}${esc(p.name)}</b><br/><span style="color:${th.muted}">${amount} · ${opts.pctLabel || ''}${pct}%</span>`;
+}
+
 function buildSunburstOption(data, tooltipFormatter) {
   const th = chartTheme();
   return {
@@ -2154,15 +2169,7 @@ function buildSunburstOption(data, tooltipFormatter) {
         }
       ]
     }],
-    tooltip: {
-      trigger: 'item',
-      backgroundColor: th.card,
-      borderColor: th.line,
-      borderWidth: 1,
-      textStyle: { color: th.fg, fontFamily: '"IBM Plex Mono", monospace', fontSize: 12 },
-      extraCssText: TOOLTIP_CSS,
-      formatter: tooltipFormatter
-    }
+    tooltip: { ...chartTooltipBase(th), formatter: tooltipFormatter }
   };
 }
 
@@ -2476,13 +2483,7 @@ function renderChart() {
   const totalCNY = totalAssetsCNY();
 
   const th = chartTheme();
-  chart.setOption(buildSunburstOption(data, function(p) {
-    const pct = pctStr(p.value, totalCNY);
-    const arrow = p.treePathInfo && p.treePathInfo.length > 2
-      ? esc(p.treePathInfo[1].name) + ' › '
-      : '';
-    return `<b>${arrow}${esc(p.name)}</b><br/><span style="color:${th.muted}">${formatCNY(p.value)} · ${pct}%</span>`;
-  }), true);
+  chart.setOption(buildSunburstOption(data, p => sunburstTooltipContent(p, th, totalCNY)), true);
 }
 
 // ========== HISTORY SNAPSHOTS ==========
@@ -3163,7 +3164,6 @@ function renderIncomeChart() {
 
   const th = chartTheme();
   incomeChart.setOption(buildSunburstOption(data, function(p) {
-    const pct = pctStr(p.value, totalIncome);
     // ECharts 不会把 data 上的自定义字段展开到 params 顶层, 必须从 p.data 取
     const assetId = p.data && p.data._assetId;
     if (assetId) {
@@ -3171,13 +3171,10 @@ function renderIncomeChart() {
       if (a) {
         const inc = calcAssetIncome(a);
         const rateRange = rateLabelText(a, 1) || '未设置';
-        return `<b>${esc(a.name)}</b><br/>月现金收益 ${formatCNY(inc.cashMonthly)} · 月总收益 ${formatCNY(inc.monthly)}<br/><span style="color:${th.muted}">利率 ${rateRange} · 现金 ${cashRatioPct(a)}% · 占比 ${pct}%</span>`;
+        return `<b>${esc(a.name)}</b><br/>月现金收益 ${formatCNY(inc.cashMonthly)} · 月总收益 ${formatCNY(inc.monthly)}<br/><span style="color:${th.muted}">利率 ${rateRange} · 现金 ${cashRatioPct(a)}% · 占比 ${pctStr(p.value, totalIncome)}%</span>`;
       }
     }
-    const arrow = p.treePathInfo && p.treePathInfo.length > 2
-      ? esc(p.treePathInfo[1].name) + ' › '
-      : '';
-    return `<b>${arrow}${esc(p.name)}</b><br/><span style="color:${th.muted}">${modeLabel} ${formatCNY(p.value)} · 占比 ${pct}%</span>`;
+    return sunburstTooltipContent(p, th, totalIncome, { prefix: modeLabel, pctLabel: '占比 ' });
   }), true);
 }
 
@@ -4011,13 +4008,7 @@ function renderExpenseChart() {
   }
 
   const th = chartTheme();
-  expenseChart.setOption(buildSunburstOption(data, function(p) {
-    const pct = pctStr(p.value, total);
-    const arrow = p.treePathInfo && p.treePathInfo.length > 2
-      ? esc(p.treePathInfo[1].name) + ' › '
-      : '';
-    return `<b>${arrow}${esc(p.name)}</b><br/><span style="color:${th.muted}">${formatCNY(p.value)} · ${pct}%</span>`;
-  }), true);
+  expenseChart.setOption(buildSunburstOption(data, p => sunburstTooltipContent(p, th, total)), true);
 }
 
 // ========== EXPENSE TREND ==========
