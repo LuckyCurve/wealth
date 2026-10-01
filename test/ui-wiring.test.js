@@ -690,3 +690,10 @@ describe('UI 接线契约：颜色常量定义顺序', () => {
     assert.ok(def < use, 'CATEGORY_COLORS 应在使用它的 catColorImpl 之前定义');
   });
 });
+
+describe('UI 接线契约：下拉填充空值守卫', () => {
+  test('fillCategorySelect 与 fillMonthSelect 一样先守卫元素缺失', () => {
+    assert.match(fnSource('fillMonthSelect'), /if \(!sel\) return/, 'fillMonthSelect 既有守卫');
+    assert.match(fnSource('fillCategorySelect'), /if \(!sel\) return/, 'fillCategorySelect 应同样守卫');
+  });
+});

@@ -2457,6 +2457,7 @@ function setSegMode(idA, idB, mode, activeA, activeB, onChange) {
 // 分类下拉统一填充（资产/消费的 5 个图表分类下拉共用），保留当前选中值
 function fillCategorySelect(selId, cats) {
   const sel = document.getElementById(selId);
+  if (!sel) return sel;
   const current = sel.value;
   sel.innerHTML = cats.map(c =>
     `<option value="${c.id}">${esc(c.name)}</option>`
