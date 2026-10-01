@@ -998,7 +998,7 @@ tailwind.config = {
 </main>
 
 <!-- Snapshot Detail Modal -->
-<div id="snapshot-modal" class="modal-overlay" style="display:none;">
+<div id="snapshot-modal" class="modal-overlay" role="dialog" aria-modal="true" style="display:none;">
   <div class="modal-content" style="max-width:960px;">
     <h3 class="font-display modal-title mb-4" id="snapshot-modal-title">快照详情</h3>
     <div id="snapshot-detail-content"></div>
@@ -1009,7 +1009,7 @@ tailwind.config = {
 </div>
 
 <!-- Snapshot Compare Modal -->
-<div id="compare-modal" class="modal-overlay" style="display:none;">
+<div id="compare-modal" class="modal-overlay" role="dialog" aria-modal="true" style="display:none;">
   <div class="modal-content" style="max-width:960px;">
     <h3 class="font-display modal-title mb-4">快照对比</h3>
     <div class="flex items-center gap-3 flex-wrap mb-6">
@@ -1037,7 +1037,7 @@ tailwind.config = {
 </div>
 
 <!-- Expense Two-Month Compare Modal -->
-<div id="expense-compare-modal" class="modal-overlay" style="display:none;">
+<div id="expense-compare-modal" class="modal-overlay" role="dialog" aria-modal="true" style="display:none;">
   <div class="modal-content" style="max-width:960px;">
     <h3 class="font-display modal-title mb-4">消费对比</h3>
     <div class="flex items-center gap-3 flex-wrap mb-6">
@@ -1068,7 +1068,7 @@ tailwind.config = {
 </div>
 
 <!-- Snapshot Note Modal -->
-<div id="snapshot-note-modal" class="modal-overlay" style="display:none;">
+<div id="snapshot-note-modal" class="modal-overlay" role="dialog" aria-modal="true" style="display:none;">
   <div class="modal-content" style="max-width:400px;">
     <h3 class="font-display modal-title mb-4">记录快照</h3>
     <p class="text-sm mb-4" style="color:var(--muted);">将保存当前所有资产数据</p>
@@ -1081,7 +1081,7 @@ tailwind.config = {
 </div>
 
 <!-- Asset Modal -->
-<div id="asset-modal" class="modal-overlay" style="display:none;">
+<div id="asset-modal" class="modal-overlay" role="dialog" aria-modal="true" style="display:none;">
   <div class="modal-content">
     <h3 class="font-display modal-title mb-6" id="asset-modal-title">登记资产</h3>
     <form id="asset-form" onsubmit="saveAsset(event)">
@@ -1136,7 +1136,7 @@ tailwind.config = {
 </div>
 
 <!-- Category Modal -->
-<div id="category-modal" class="modal-overlay" style="display:none;">
+<div id="category-modal" class="modal-overlay" role="dialog" aria-modal="true" style="display:none;">
   <div class="modal-content">
     <h3 class="font-display modal-title mb-6" id="category-modal-title">新增分类</h3>
     <form id="category-form" onsubmit="saveCategory(event)">
@@ -1160,7 +1160,7 @@ tailwind.config = {
 </div>
 
 <!-- Import/Export Modal -->
-<div id="io-modal" class="modal-overlay" style="display:none;">
+<div id="io-modal" class="modal-overlay" role="dialog" aria-modal="true" style="display:none;">
   <div class="modal-content">
     <h3 class="font-display modal-title mb-6">备份与导入</h3>
     <div class="space-y-5">
@@ -1184,7 +1184,7 @@ tailwind.config = {
 </div>
 
 <!-- Confirm Modal -->
-<div id="confirm-modal" class="modal-overlay" style="display:none;">
+<div id="confirm-modal" class="modal-overlay" role="dialog" aria-modal="true" style="display:none;">
   <div class="modal-content" style="max-width:400px;">
     <h3 class="font-display modal-title mb-3" id="confirm-title">确认操作</h3>
     <p id="confirm-msg" class="text-sm" style="color:var(--muted);"></p>
@@ -1196,7 +1196,7 @@ tailwind.config = {
 </div>
 
 <!-- Expense Modal -->
-<div id="expense-modal" class="modal-overlay" style="display:none;">
+<div id="expense-modal" class="modal-overlay" role="dialog" aria-modal="true" style="display:none;">
   <div class="modal-content">
     <h3 class="font-display modal-title mb-6" id="expense-modal-title">记录消费</h3>
     <form id="expense-form" onsubmit="saveExpense(event)">
@@ -1225,7 +1225,7 @@ tailwind.config = {
 </div>
 
 <!-- Expense Category Modal -->
-<div id="expense-category-modal" class="modal-overlay" style="display:none;">
+<div id="expense-category-modal" class="modal-overlay" role="dialog" aria-modal="true" style="display:none;">
   <div class="modal-content">
     <h3 class="font-display modal-title mb-6" id="expense-category-modal-title">新增消费分类</h3>
     <form id="expense-category-form" onsubmit="saveExpenseCategory(event)">
@@ -1249,7 +1249,7 @@ tailwind.config = {
 </div>
 
 <!-- 数据校验 Modal：一键批量 / 逐条点选补齐缺的标签 -->
-<div id="tagcheck-modal" class="modal-overlay" style="display:none;">
+<div id="tagcheck-modal" class="modal-overlay" role="dialog" aria-modal="true" style="display:none;">
   <div class="modal-content" style="max-width:720px;">
     <h3 class="font-display modal-title mb-6">数据校验</h3>
     <p class="text-sm mb-5" style="color:var(--muted);">下面这些记录在某个分类下还没有标签。组内顶部可一键补齐，也可以在每条记录上逐个点选，点一下即保存。</p>
@@ -1262,7 +1262,7 @@ tailwind.config = {
 </div>
 
 <!-- Expectation (预期消费参考线) Modal -->
-<div id="expectation-modal" class="modal-overlay" style="display:none;">
+<div id="expectation-modal" class="modal-overlay" role="dialog" aria-modal="true" style="display:none;">
   <div class="modal-content" style="max-width:400px;">
     <h3 class="font-display modal-title mb-4">预期消费</h3>
     <p class="text-sm mb-4" style="color:var(--muted);">在消费趋势图中显示为水平参考线，收起部分类别后可对比每月合计</p>
@@ -1276,7 +1276,7 @@ tailwind.config = {
 </div>
 
 <!-- Net Worth Target Modal -->
-<div id="target-modal" class="modal-overlay" style="display:none;">
+<div id="target-modal" class="modal-overlay" role="dialog" aria-modal="true" style="display:none;">
   <div class="modal-content" style="max-width:400px;">
     <h3 class="font-display modal-title mb-4">目标净资产</h3>
     <p class="text-sm mb-4" style="color:var(--muted);">设置后资产页显示达成进度</p>
@@ -1290,7 +1290,7 @@ tailwind.config = {
 </div>
 
 <!-- Settings Modal (设置 · 账本凡例: 外观 + 自动备份) -->
-<div id="settings-modal" class="modal-overlay" style="display:none;">
+<div id="settings-modal" class="modal-overlay" role="dialog" aria-modal="true" style="display:none;">
   <div class="modal-content" style="max-width:480px;">
     <h3 class="font-display modal-title mb-6">设置</h3>
     <div>

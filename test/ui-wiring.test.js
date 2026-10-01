@@ -709,3 +709,13 @@ describe('UI 接线契约：本地加载异常回退完整', () => {
       '不再零散重置单个字段（rates/backup/预期等曾残留半解析状态）');
   });
 });
+
+describe('UI 接线契约：弹窗可访问性', () => {
+  test('每个 modal-overlay 都声明 role="dialog" 与 aria-modal', () => {
+    const overlays = count(/class="modal-overlay"/g);
+    assert.ok(overlays > 0, '存在弹窗容器');
+    assert.strictEqual(
+      count(/class="modal-overlay" role="dialog" aria-modal="true"/g), overlays,
+      '全部弹窗都要有对话框语义（读屏器可识别）');
+  });
+});
