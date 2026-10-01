@@ -1014,3 +1014,34 @@ describe('消费数据校验 isUntaggedItem / missingTagGroups / setTag / backfi
     assert.strictEqual(L.backfillTag([{}, {}], 'c1', '国债', cat.tags), 2);
   });
 });
+
+describe('堆叠柱标签排序 sortTagsByTotal（历史净值/消费趋势共用）', () => {
+  const cat = { id: 'c', tags: ['a', 'b', 'c'] };
+
+  test('按各标签跨月合计降序（大的放柱底）', () => {
+    assert.deepStrictEqual(L.sortTagsByTotal(cat, [{ a: 1, b: 2, c: 3 }]), ['c', 'b', 'a']);
+    assert.deepStrictEqual(
+      L.sortTagsByTotal(cat, [{ a: 1, b: 5, c: 2 }, { a: 9, b: 1, c: 0 }]),
+      ['a', 'b', 'c']);
+  });
+
+  test('合计相同保持 cat.tags 原顺序（稳定）', () => {
+    assert.deepStrictEqual(L.sortTagsByTotal(cat, [{ a: 2, b: 2, c: 2 }]), ['a', 'b', 'c']);
+  });
+
+  test('月份映射缺失/脏值按 0 计，不产出 NaN', () => {
+    assert.deepStrictEqual(L.sortTagsByTotal(cat, [null, { a: undefined, b: 3 }]), ['b', 'a', 'c']);
+    assert.deepStrictEqual(L.sortTagsByTotal(cat, undefined), ['a', 'b', 'c']);
+  });
+
+  test('不修改 cat.tags 入参', () => {
+    const tags = ['a', 'b', 'c'];
+    L.sortTagsByTotal({ id: 'c', tags }, [{ a: 3 }]);
+    assert.deepStrictEqual(tags, ['a', 'b', 'c']);
+  });
+
+  test('cat 缺失或 tags 为空返回 []', () => {
+    assert.deepStrictEqual(L.sortTagsByTotal(null, []), []);
+    assert.deepStrictEqual(L.sortTagsByTotal({ tags: null }, []), []);
+  });
+});

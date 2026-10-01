@@ -611,6 +611,19 @@
     return out;
   }
 
+  // 堆叠柱标签顺序（历史净值/消费趋势共用）：按各标签跨月合计降序，大的放柱底。
+  // monthlyTagValues: [{ 标签名: 金额 }, ...] 每个元素代表一个月的「标签→金额」映射。
+  // 合计相同保持 cat.tags 原顺序（Array.sort 稳定）；cat 缺失/tags 为空返回 []；不修改入参。
+  function sortTagsByTotal(cat, monthlyTagValues) {
+    const tags = (cat && cat.tags) || [];
+    const totals = {};
+    tags.forEach(t => { totals[t] = 0; });
+    (monthlyTagValues || []).forEach(m => {
+      tags.forEach(t => { totals[t] += (m && m[t]) || 0; });
+    });
+    return tags.slice().sort((a, b) => totals[b] - totals[a]);
+  }
+
   // 堆叠柱状图「占比模式」数据转换：保留原始金额(raw) 的同时给出百分比数值
   function percentSeriesData(raw, totals) {
     return raw.map((v, vi) => ({
@@ -692,6 +705,6 @@
     esc, escRegExp, highlightMatch, moneyStr, jsAttr,
     truncateLabel,
     hexToRgba, hexToHsl, hslToHex, pillColors, basePill,
-    CATEGORY_PALETTE, buildSunburstData, pctStr, percentSeriesData, pruneLegendSelected, amountAtRates,
+    CATEGORY_PALETTE, buildSunburstData, pctStr, percentSeriesData, pruneLegendSelected, sortTagsByTotal, amountAtRates,
   };
 });

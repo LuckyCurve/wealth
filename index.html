@@ -2810,17 +2810,18 @@ function renderHistoryChart() {
 
   const totals = sorted.map(s => s.totalCNY);
 
-  // 按各标签全部月份总和降序排列：大的放堆叠柱底部，小的在上（与消费趋势一致）
-  const tagTotals = {};
-  cat.tags.forEach(tag => { tagTotals[tag] = 0; });
-  sorted.forEach(snap => {
+  // 每月「标签→金额」映射（按快照当时汇率折算）：排序与系列数据共用，避免重复聚合；
+  // 标签顺序按跨月合计降序（大的放堆叠柱底部，小的在上，与消费趋势一致）
+  const monthTagValues = sorted.map(snap => {
+    const m = {};
     cat.tags.forEach(tag => {
-      tagTotals[tag] += (snap.assets || [])
+      m[tag] = (snap.assets || [])
         .filter(a => (a.tags || {})[catId] === tag)
         .reduce((s, a) => s + amountAtRates(a.amount, a.currency, snap.currencyRates), 0);
     });
+    return m;
   });
-  const sortedTags = [...cat.tags].sort((a, b) => tagTotals[b] - tagTotals[a]);
+  const sortedTags = sortTagsByTotal(cat, monthTagValues);
 
   // 下钻上下文：click 事件据 seriesIndex/dataIndex 反查「月份 × 标签」
   histDrillMeta = {
@@ -2831,10 +2832,7 @@ function renderHistoryChart() {
 
   const series = sortedTags.map((tag, si) => {
     const isLast = si === sortedTags.length - 1;
-    const raw = sorted.map(snap => (snap.assets || [])
-      .filter(a => (a.tags || {})[catId] === tag)
-      .reduce((s, a) => s + amountAtRates(a.amount, a.currency, snap.currencyRates), 0)
-    );
+    const raw = monthTagValues.map(m => m[tag]);
     const data = historyChartMode === 'percent'
       ? percentSeriesData(raw, totals)
       : raw;
@@ -4099,13 +4097,8 @@ function renderExpenseTrendChart() {
     return cat.tags.reduce((s, tag) => s + (monthMap[m][tag] || 0), 0);
   });
 
-  // 按各标签全部月份总和降序排列：大的放堆叠柱底部，小的在上
-  const tagTotals = {};
-  cat.tags.forEach(tag => { tagTotals[tag] = 0; });
-  sorted.forEach(m => {
-    cat.tags.forEach(tag => { tagTotals[tag] += monthMap[m][tag] || 0; });
-  });
-  const sortedTags = [...cat.tags].sort((a, b) => tagTotals[b] - tagTotals[a]);
+  // 标签顺序按跨月合计降序（大的放堆叠柱底部，小的在上），口径与历史净值同源
+  const sortedTags = sortTagsByTotal(cat, sorted.map(m => monthMap[m]));
 
   // 下钻上下文：click 事件据 seriesIndex/dataIndex 反查「月份 × 标签」
   trendDrillMeta = {

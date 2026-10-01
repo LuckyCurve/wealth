@@ -669,3 +669,15 @@ describe('UI 接线契约：预期保存/清除守卫隐藏容器（消费趋势
     }
   });
 });
+
+describe('UI 接线契约：堆叠柱标签排序单一来源', () => {
+  const logic = fs.readFileSync(path.join(__dirname, '..', 'logic.js'), 'utf8');
+
+  test('历史净值/消费趋势的标签合计排序下沉 logic.js sortTagsByTotal，内联 tagTotals 不回潮', () => {
+    assert.match(logic, /function sortTagsByTotal\(/, '决策纯函数在 logic.js');
+    for (const fn of ['renderHistoryChart', 'renderExpenseTrendChart']) {
+      assert.match(fnSource(fn), /sortTagsByTotal\(/, `${fn} 应复用统一排序`);
+    }
+    assert.strictEqual(count(/\btagTotals\b/g), 0, '两处内联的 tagTotals 聚合应消失');
+  });
+});
