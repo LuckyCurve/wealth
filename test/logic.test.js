@@ -318,6 +318,16 @@ describe('migrateState 迁移与兜底', () => {
     L.migrateState();
     assert.deepStrictEqual(state.snapshots, []);
   });
+  test('expenseExpectation/netWorthTarget 字符串归一为数字，非法值归 0', () => {
+    globalThis.state = freshState({ expenseExpectation: '1000', netWorthTarget: '5000' });
+    L.migrateState();
+    assert.strictEqual(state.expenseExpectation, 1000);
+    assert.strictEqual(state.netWorthTarget, 5000);
+    globalThis.state = freshState({ expenseExpectation: 'abc', netWorthTarget: NaN });
+    L.migrateState();
+    assert.strictEqual(state.expenseExpectation, 0);
+    assert.strictEqual(state.netWorthTarget, 0);
+  });
   test('消费记录 date/tags 归一：缺 date 补空串、缺 tags 补空对象（防 DOM 侧 slice/下标崩溃）', () => {
     globalThis.state = freshState({
       expenseCategories: [{ id: 'cat1', name: 'c', builtin: false, tags: ['t'] }],

@@ -371,9 +371,10 @@
     state.backup.autoFreq = normalizeBackupFreq(state.backup.autoFreq);
     if (!state.backup.lastBackup) state.backup.lastBackup = null;
     if (!state.backup.lastAutoDownload) state.backup.lastAutoDownload = null;
-    // 用户设置字段（旧数据可能缺失）
-    if (state.expenseExpectation == null) state.expenseExpectation = 0;
-    if (state.netWorthTarget == null) state.netWorthTarget = 0;
+    // 用户设置字段（旧数据/导入数据可能缺失或为字符串）
+    // 数字归一：字符串会让 formatCNY 走 String.toLocaleString 丢掉两位小数，统一转数字
+    state.expenseExpectation = Number(state.expenseExpectation) || 0;
+    state.netWorthTarget = Number(state.netWorthTarget) || 0;
     if (state.incomeSafetyFactor == null) state.incomeSafetyFactor = 100;
     state.incomeSafetyFactor = Math.min(100, Math.max(1, Number(state.incomeSafetyFactor) || 100));
     // migrate expectedRate -> expectedRateMin/Max (only if new fields not present)
