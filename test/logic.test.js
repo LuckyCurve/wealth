@@ -348,6 +348,17 @@ describe('migrateState 迁移与兜底', () => {
     assert.strictEqual(state.expenses[2].date, '2024-05-01');
     assert.deepStrictEqual(state.expenses[2].tags, { cat1: 't' });
   });
+  test('资产 tags 缺失归一为空对象，防 tags[catId] 崩溃', () => {
+    globalThis.state = freshState({ assets: [
+      { amount: 1, currency: 'CNY' },
+      { amount: 2, currency: 'CNY', tags: null },
+      { amount: 3, currency: 'CNY', tags: { currency: 'CNY' } },
+    ] });
+    L.migrateState();
+    assert.deepStrictEqual(state.assets[0].tags, {});
+    assert.deepStrictEqual(state.assets[1].tags, {});
+    assert.deepStrictEqual(state.assets[2].tags, { currency: 'CNY' });
+  });
 });
 
 // ========== 文本 / 金额工具 ==========

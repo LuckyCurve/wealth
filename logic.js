@@ -394,6 +394,9 @@
       a.cashRatio = Math.min(100, Math.max(0, Number(a.cashRatio) || 0));
       // 防御: 导入数据中 amount 可能是字符串, 统一转为数字
       if (a.amount != null) a.amount = Number(a.amount) || 0;
+      // tags 归一：DOM 侧多处直接 a.tags[catId]（资产列表/表单/快照详情）与分类 CRUD 的
+      // it.tags[catId]，导入缺 tags 的资产会崩；与消费记录同一入口兑底
+      if (!a.tags || typeof a.tags !== 'object') a.tags = {};
     });
     // init expense data
     if (!Array.isArray(state.expenses)) state.expenses = [];
