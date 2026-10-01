@@ -104,6 +104,13 @@
       .sort((a, b) => b.month.localeCompare(a.month))[0] || null;
   }
 
+  // 快照对比默认基准：取次新（倒数第二）快照月，与最新月构成「最近两个月」对比。
+  // sorted: 按 month 升序的快照数组；不足两个快照返回 null（openCompareModal 已守卫 >=2）
+  function defaultCompareBaseMonth(sorted) {
+    const list = sorted || [];
+    return list.length >= 2 ? list[list.length - 2].month : null;
+  }
+
   // ========== 消费月度聚合（纯函数，不依赖全局）==========
   // 按 'YYYY-MM' 聚合消费记录，返回升序 [{ month, total, count }]
   function monthlyExpenseTotals(expenses) {
@@ -705,7 +712,7 @@
     nextSortState, expenseMonths,
     tagFilterValue, parseTagFilter, expenseTagFilterGroups, hasTagFilterOption,
     isUntaggedItem, missingTagGroups, setTag, backfillTag,
-    findMonthSnapshot, getPrevSnapshot,
+    findMonthSnapshot, getPrevSnapshot, defaultCompareBaseMonth,
     monthlyExpenseTotals, prevExpenseMonthOf, expenseMoM, expenseMonthTagTotals,
     getAssetRate, getSafetyFactor, getCashRatio, calcAssetIncome, hasAnyRatedAsset, cashRatioPct, coveragePct, incomeGap, sumAssetIncomes,
     migrateState,

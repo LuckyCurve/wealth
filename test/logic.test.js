@@ -1043,6 +1043,25 @@ describe('消费数据校验 isUntaggedItem / missingTagGroups / setTag / backfi
   });
 });
 
+describe('快照对比默认基准 defaultCompareBaseMonth（默认最近两个月）', () => {
+  const snaps = (...months) => months.map(m => ({ month: m }));
+
+  test('默认基准取次新快照月，与最新月构成最近两个月', () => {
+    assert.strictEqual(L.defaultCompareBaseMonth(snaps('2024-01', '2024-02', '2024-03')), '2024-02');
+    assert.strictEqual(L.defaultCompareBaseMonth(snaps('2023-05', '2023-11', '2024-03', '2024-04')), '2024-03');
+  });
+
+  test('恰好两个快照时取最早月', () => {
+    assert.strictEqual(L.defaultCompareBaseMonth(snaps('2024-01', '2024-07')), '2024-01');
+  });
+
+  test('不足两个快照返回 null（不凭空造月）', () => {
+    assert.strictEqual(L.defaultCompareBaseMonth(snaps('2024-01')), null);
+    assert.strictEqual(L.defaultCompareBaseMonth([]), null);
+    assert.strictEqual(L.defaultCompareBaseMonth(null), null);
+  });
+});
+
 describe('堆叠柱标签排序 sortTagsByTotal（历史净值/消费趋势共用）', () => {
   const cat = { id: 'c', tags: ['a', 'b', 'c'] };
 

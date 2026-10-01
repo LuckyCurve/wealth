@@ -150,6 +150,12 @@ describe('UI 接线契约：共享层单一来源（防重复实现各自漂移�
     assert.strictEqual(count(/grid: \{ left: '3%'/g), 1, 'axis/grid 样板只允许在 barChartBase 内定义一份');
   });
 
+  test('快照对比默认基准单一来源 defaultCompareBaseMonth：默认最近两月，内联不重定义', () => {
+    assert.match(logic, /function defaultCompareBaseMonth\(/, '默认基准口径应在 logic.js');
+    assert.match(fnSource('openCompareModal'), /defaultCompareBaseMonth\(sorted\)/, '接线从 logic.js 取默认基准');
+    assert.strictEqual(count(/function defaultCompareBaseMonth\(/g), 0, 'index.html 不应再保留本地副本');
+  });
+
   test('对比 hero 单一来源：两个对比弹窗都走 renderCompareHero，零变动文案只定义一次', () => {
     for (const fn of ['renderCompareTable', 'renderExpenseCompareTable']) {
       assert.match(fnSource(fn), /renderCompareHero\(/, `${fn} 应用 renderCompareHero`);
