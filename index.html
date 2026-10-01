@@ -2479,9 +2479,9 @@ function renderChart() {
   chart.setOption(buildSunburstOption(data, function(p) {
     const pct = pctStr(p.value, totalCNY);
     const arrow = p.treePathInfo && p.treePathInfo.length > 2
-      ? p.treePathInfo[1].name + ' › '
+      ? esc(p.treePathInfo[1].name) + ' › '
       : '';
-    return `<b>${arrow}${p.name}</b><br/><span style="color:${th.muted}">${formatCNY(p.value)} · ${pct}%</span>`;
+    return `<b>${arrow}${esc(p.name)}</b><br/><span style="color:${th.muted}">${formatCNY(p.value)} · ${pct}%</span>`;
   }), true);
 }
 
@@ -2875,10 +2875,10 @@ function renderHistoryChart() {
         const total = totals[idx];
         if (historyChartMode === 'percent') {
           const raw = p.data && p.data.raw != null ? p.data.raw : 0;
-          return `<b>${d}</b><br/>${p.marker} ${p.seriesName}: ${p.value}% (${formatCNY(raw)})`;
+          return `<b>${d}</b><br/>${p.marker} ${esc(p.seriesName)}: ${p.value}% (${formatCNY(raw)})`;
         }
         const pct = pctStr(p.value, total);
-        return `<b>${d}</b><br/>${p.marker} ${p.seriesName}: ${formatCNY(p.value)} (${pct}%)`;
+        return `<b>${d}</b><br/>${p.marker} ${esc(p.seriesName)}: ${formatCNY(p.value)} (${pct}%)`;
       }
     },
     series
@@ -3175,9 +3175,9 @@ function renderIncomeChart() {
       }
     }
     const arrow = p.treePathInfo && p.treePathInfo.length > 2
-      ? p.treePathInfo[1].name + ' › '
+      ? esc(p.treePathInfo[1].name) + ' › '
       : '';
-    return `<b>${arrow}${p.name}</b><br/><span style="color:${th.muted}">${modeLabel} ${formatCNY(p.value)} · 占比 ${pct}%</span>`;
+    return `<b>${arrow}${esc(p.name)}</b><br/><span style="color:${th.muted}">${modeLabel} ${formatCNY(p.value)} · 占比 ${pct}%</span>`;
   }), true);
 }
 
@@ -4014,9 +4014,9 @@ function renderExpenseChart() {
   expenseChart.setOption(buildSunburstOption(data, function(p) {
     const pct = pctStr(p.value, total);
     const arrow = p.treePathInfo && p.treePathInfo.length > 2
-      ? p.treePathInfo[1].name + ' › '
+      ? esc(p.treePathInfo[1].name) + ' › '
       : '';
-    return `<b>${arrow}${p.name}</b><br/><span style="color:${th.muted}">${formatCNY(p.value)} · ${pct}%</span>`;
+    return `<b>${arrow}${esc(p.name)}</b><br/><span style="color:${th.muted}">${formatCNY(p.value)} · ${pct}%</span>`;
   }), true);
 }
 
@@ -4225,10 +4225,10 @@ function renderExpenseTrendChart() {
         if (expenseTrendMode === 'percent') {
           const raw = p.data && p.data.raw != null ? p.data.raw : 0;
           const pct = pctStr(raw, total);
-          return `<b>${d}</b><br/>${p.marker} ${p.seriesName}: ${formatCNY(raw)} (${pct}%)`;
+          return `<b>${d}</b><br/>${p.marker} ${esc(p.seriesName)}: ${formatCNY(raw)} (${pct}%)`;
         }
         const pct = pctStr(p.value, total);
-        return `<b>${d}</b><br/>${p.marker} ${p.seriesName}: ${formatCNY(p.value)} (${pct}%)`;
+        return `<b>${d}</b><br/>${p.marker} ${esc(p.seriesName)}: ${formatCNY(p.value)} (${pct}%)`;
       }
     },
     series

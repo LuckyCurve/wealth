@@ -618,3 +618,25 @@ describe('UI 接线契约：消费数据校验（缺标签一键/逐条补齐）
       'jsAttr 会把反斜杠翻倍（为 JS 字符串设计），读回后 find(x => x.id === ...) 静默失配');
   });
 });
+
+describe('UI 接线契约：图表 tooltip 转义用户输入（防存储型 XSS）', () => {
+  // ECharts tooltip 默认 renderMode:'html'，formatter 返回值直接 innerHTML 注入。
+  // p.name / p.seriesName / treePathInfo 均来自用户输入（资产名、备注、标签名），
+  // 不转义时恶意名称（或导入的 JSON）会执行脚本。列表/弹窗已全走 esc()，tooltip 不得例外。
+  test('旭日图 tooltip 的名称与标签路径经 esc 转义', () => {
+    for (const fn of ['renderChart', 'renderIncomeChart', 'renderExpenseChart']) {
+      const src = fnSource(fn);
+      assert.match(src, /esc\(p\.name\)/, `${fn} tooltip 名称应 esc 转义`);
+      assert.match(src, /esc\(p\.treePathInfo\[1\]\.name\)/, `${fn} 标签路径应 esc 转义`);
+    }
+    assert.strictEqual(count(/\$\{arrow\}\$\{p\.name\}/g), 0, '不得再内联未转义的 ${arrow}${p.name}');
+  });
+
+  test('堆叠柱 tooltip 的系列名经 esc 转义', () => {
+    for (const fn of ['renderHistoryChart', 'renderExpenseTrendChart']) {
+      assert.match(fnSource(fn), /esc\(p\.seriesName\)/, `${fn} tooltip 系列名应 esc 转义`);
+    }
+    // 唯一允许的裸 p.seriesName 是与常量 TOTAL_SERIES_NAME 的比较，不得出现在 HTML 插值里
+    assert.strictEqual(count(/\$\{p\.seriesName\}/g), 0, '系列名插值必须转义');
+  });
+});
