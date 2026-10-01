@@ -464,9 +464,12 @@
   }
 
   // 金额千分位 2 位格式化（与 formatCNY 区别: 不带 ¥ 符号；与 moneyStr 区别: 恒为两位小数的展示态，
-  // 用于表格/对比/tooltip 等只读场景）。原先内联在 index.html，与 formatCNY/moneyStr 同族归此集中
+  // 用于表格/对比/tooltip 等只读场景）。原先内联在 index.html，与 formatCNY/moneyStr 同族归此集中。
+  // 非有限值（undefined/NaN/Infinity/非数字串）返回空串，避免渲染出字面量 NaN
   function money2(v) {
-    return Number(v).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const n = Number(v);
+    if (!isFinite(n)) return '';
+    return n.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
 
   // 用于行内事件属性（onclick="fn('...')"）里的 JS 字符串参数：

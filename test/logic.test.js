@@ -690,6 +690,13 @@ describe('金额格式化 money2（从 index.html 下沉，表格/对比/tooltip
     assert.strictEqual(L.money2('1234.5'), '1,234.50');
     assert.strictEqual(L.money2(null), '0.00');
   });
+
+  test('非有限值（undefined/NaN/Infinity）返回空串，不渲染出 NaN', () => {
+    assert.strictEqual(L.money2(undefined), '');
+    assert.strictEqual(L.money2(NaN), '');
+    assert.strictEqual(L.money2(Infinity), '');
+    assert.strictEqual(L.money2('abc'), '');
+  });
 });
 
 describe('颜色数学 hexToRgba（从 index.html 下沉，chips ring 半透明描边用）', () => {
