@@ -640,3 +640,22 @@ describe('UI 接线契约：图表 tooltip 转义用户输入（防存储型 XSS
     assert.strictEqual(count(/\$\{p\.seriesName\}/g), 0, '系列名插值必须转义');
   });
 });
+
+describe('UI 接线契约：预期保存/清除守卫隐藏容器（消费趋势图）', () => {
+  test('saveExpectation/clearExpectation 调 renderExpenseTrendChart 须带消费趋势 Tab 可见性守卫', () => {
+    // 覆盖标尺的「修改」入口位于资产模式收益 Tab，此时 #tab-expense-trend 隐藏；
+    // 无守卫会在隐藏容器上 echarts.init 出 0×0 实例（与 renderIncomeTab 同一种坑），
+    // 之后进入趋势页图表空白，直到窗口 resize。
+    for (const fn of ['saveExpectation', 'clearExpectation']) {
+      const src = fnSource(fn);
+      assert.match(
+        src,
+        /tab-expense-trend'\)\.style\.display !== 'none'\) renderExpenseTrendChart\(\)/,
+        `${fn} 必须带可见性守卫调 renderExpenseTrendChart`);
+      assert.doesNotMatch(
+        src,
+        /^\s*renderExpenseTrendChart\(\);/m,
+        `${fn} 不应再无守卫裸调 renderExpenseTrendChart`);
+    }
+  });
+});

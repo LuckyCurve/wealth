@@ -4047,7 +4047,8 @@ function saveExpectation() {
   state.expenseExpectation = v;
   saveState();
   closeModal('expectation-modal');
-  renderExpenseTrendChart();
+  // 可见性守卫同 renderIncomeTab：防隐藏容器 echarts 0×0 初始化（隐藏时进入 Tab 由 switchTab 重渲染）
+  if (document.getElementById('tab-expense-trend').style.display !== 'none') renderExpenseTrendChart();
   renderAssets(); // 报头收益 vs 预期消费徽章依赖该值
   // 收益 Tab 可见时才同步刷新覆盖标尺（必须带可见性守卫: renderIncomeTab 尾部会 renderIncomeChart,
   // 对从未显示过的容器 echarts.init 会缓存 0×0 实例, 之后进 Tab 图表空白; 与 refreshVisibleCharts 同惯例)
@@ -4058,9 +4059,9 @@ function clearExpectation() {
   state.expenseExpectation = 0;
   saveState();
   closeModal('expectation-modal');
-  renderExpenseTrendChart();
+  // 可见性守卫同 saveExpectation（防隐藏容器 echarts 0 尺寸初始化）
+  if (document.getElementById('tab-expense-trend').style.display !== 'none') renderExpenseTrendChart();
   renderAssets();
-  // 可见性守卫同 saveExpectation（防隐藏容器 echarts 0 尺寸初始化）; 隐藏时下次进 Tab 由 switchTab 重渲染
   if (document.getElementById('tab-income').style.display !== 'none') renderIncomeTab();
   toast('已清除预期消费', 'success');
 }
