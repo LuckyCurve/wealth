@@ -2659,15 +2659,13 @@ function openCompareModal() {
   if (sorted.length < 2) { toast('至少需要两个月的快照才能对比', 'error'); return; }
   const baseSel = document.getElementById('compare-base-select');
   const targetSel = document.getElementById('compare-target-select');
-  const prevBase = baseSel.value;
-  const prevTarget = targetSel.value;
   const months = sorted.map(s => s.month);
   const opts = months.map(m => `<option value="${m}">${monthLabel(m)}</option>`).join('');
   baseSel.innerHTML = opts;
   targetSel.innerHTML = opts;
-  // 保留上次选择（有效且两月不同时），否则默认最近 vs 次新（最近两个月）
-  baseSel.value = (months.includes(prevBase) && prevBase !== prevTarget) ? prevBase : defaultCompareBaseMonth(sorted);
-  targetSel.value = (months.includes(prevTarget) && prevTarget !== baseSel.value) ? prevTarget : sorted[sorted.length - 1].month;
+  // 默认最近两个月：起始=次新月，结束=最新月；不保留上次选择
+  baseSel.value = defaultCompareBaseMonth(sorted);
+  targetSel.value = sorted[sorted.length - 1].month;
   openModal('compare-modal');
   renderCompareTable();
 }

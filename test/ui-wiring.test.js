@@ -154,6 +154,11 @@ describe('UI 接线契约：共享层单一来源（防重复实现各自漂移�
     assert.match(logic, /function defaultCompareBaseMonth\(/, '默认基准口径应在 logic.js');
     assert.match(fnSource('openCompareModal'), /defaultCompareBaseMonth\(sorted\)/, '接线从 logic.js 取默认基准');
     assert.strictEqual(count(/function defaultCompareBaseMonth\(/g), 0, 'index.html 不应再保留本地副本');
+    // 不保留记忆：每次打开都重置为最近两个月（起始=次新月，结束=最新月）
+    const src = fnSource('openCompareModal');
+    assert.doesNotMatch(src, /prevBase|prevTarget/, '不应再读取上次选择');
+    assert.match(src, /baseSel\.value = defaultCompareBaseMonth\(sorted\)/, '起始月强制次新月');
+    assert.match(src, /targetSel\.value = sorted\[sorted\.length - 1\]\.month/, '结束月强制最新月');
   });
 
   test('对比 hero 单一来源：两个对比弹窗都走 renderCompareHero，零变动文案只定义一次', () => {
