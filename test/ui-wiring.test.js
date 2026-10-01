@@ -681,3 +681,12 @@ describe('UI 接线契约：堆叠柱标签排序单一来源', () => {
     assert.strictEqual(count(/\btagTotals\b/g), 0, '两处内联的 tagTotals 聚合应消失');
   });
 });
+
+describe('UI 接线契约：颜色常量定义顺序', () => {
+  test('CATEGORY_COLORS 先于 catColorImpl 定义，消除 const TDZ 隐患', () => {
+    const def = html.indexOf('const CATEGORY_COLORS =');
+    const use = html.indexOf('function catColorImpl(');
+    assert.ok(def >= 0 && use >= 0, '两处都存在');
+    assert.ok(def < use, 'CATEGORY_COLORS 应在使用它的 catColorImpl 之前定义');
+  });
+});

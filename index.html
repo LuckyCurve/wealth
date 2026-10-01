@@ -2173,6 +2173,21 @@ function buildSunburstOption(data, tooltipFormatter) {
   };
 }
 
+// 分类基础色（pill 配色）：每项含 bg/fg/border，fg 全部 ≥4.5:1。
+// 定义在 catColorImpl 之前，消除「const 后置引用」的 TDZ 隐患。
+const CATEGORY_COLORS = [
+  { bg: '#FFF1E6', fg: '#7E5023', border: '#F0D4B0' },  // terracotta
+  { bg: '#E8F5EC', fg: '#3D7A52', border: '#B8DFC4' },  // sage green
+  { bg: '#FFF8E1', fg: '#735B21', border: '#F0E0A8' },  // amber honey
+  { bg: '#FCE8EF', fg: '#A34D68', border: '#F0C0D0' },  // dusty rose
+  { bg: '#E8EEFA', fg: '#4A6099', border: '#B8C8E8' },  // soft cornflower
+  { bg: '#FFF0E0', fg: '#7C5631', border: '#F0D8B8' },  // warm caramel
+  { bg: '#E0F4F4', fg: '#2D6767', border: '#B0D8D8' },  // teal mist
+  { bg: '#F4E8F4', fg: '#7A5080', border: '#D8C0D8' },  // soft mauve
+  { bg: '#FBF3E0', fg: '#645123', border: '#E8D8A8' },  // golden wheat
+  { bg: '#FCE8E0', fg: '#8B4332', border: '#F0C8B8' },  // coral warmth
+];
+
 // 分类 pill 配色：资产/消费共用同一套逻辑, 仅分类集合不同
 function catColorImpl(cats, catId, tagName) {
   const idx = cats.findIndex(c => c.id === catId);
@@ -3394,20 +3409,6 @@ function importData(e) {
 }
 
 // ========== UTILS ==========
-// Warm, distinctive color scheme per category — each has bg, fg, border
-const CATEGORY_COLORS = [
-  { bg: '#FFF1E6', fg: '#7E5023', border: '#F0D4B0' },  // terracotta
-  { bg: '#E8F5EC', fg: '#3D7A52', border: '#B8DFC4' },  // sage green
-  { bg: '#FFF8E1', fg: '#735B21', border: '#F0E0A8' },  // amber honey
-  { bg: '#FCE8EF', fg: '#A34D68', border: '#F0C0D0' },  // dusty rose
-  { bg: '#E8EEFA', fg: '#4A6099', border: '#B8C8E8' },  // soft cornflower
-  { bg: '#FFF0E0', fg: '#7C5631', border: '#F0D8B8' },  // warm caramel
-  { bg: '#E0F4F4', fg: '#2D6767', border: '#B0D8D8' },  // teal mist
-  { bg: '#F4E8F4', fg: '#7A5080', border: '#D8C0D8' },  // soft mauve
-  { bg: '#FBF3E0', fg: '#645123', border: '#E8D8A8' },  // golden wheat
-  { bg: '#FCE8E0', fg: '#8B4332', border: '#F0C8B8' },  // coral warmth
-];
-
 function catColor(catId, tagName) {
   return catColorImpl(state.categories, catId, tagName);
 }
