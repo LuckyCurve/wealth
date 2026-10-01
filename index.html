@@ -1332,7 +1332,18 @@ tailwind.config = {
 <script>
 // ========== STATE ==========
 const LS_KEY = 'wealth-manager-data';
-let state = { categories: [], assets: [], snapshots: [], rates: { CNY: 1, HKD: 1, USD: 1, fetchedAt: null }, expenseExpectation: 0, netWorthTarget: 0, incomeSafetyFactor: 100, backup: { autoFreq: 'daily', lastBackup: null, lastAutoDownload: null } };
+// 应用初始状态（单一来源）：顶层 state 与 loadState 异常回退共用，
+// 保证损坏的 localStorage 不会残留半解析状态（rates/backup/预期等）。
+function freshAppState() {
+  return {
+    categories: [], assets: [], snapshots: [],
+    expenseCategories: [], expenses: [],
+    rates: { CNY: 1, HKD: 1, USD: 1, fetchedAt: null },
+    expenseExpectation: 0, netWorthTarget: 0, incomeSafetyFactor: 100,
+    backup: { autoFreq: 'daily', lastBackup: null, lastAutoDownload: null },
+  };
+}
+let state = freshAppState();
 let chart = null;
 let historyChart = null;
 let historyChartMode = 'value';
@@ -1419,18 +1430,13 @@ let sortDir = 'asc';
 function loadState() {
   try {
     const raw = localStorage.getItem(LS_KEY);
-    if (raw) {
-      state = { ...state, ...JSON.parse(raw) };
-    } else {
-      state.categories = [{ id: 'currency', name: '货币类型', builtin: true, tags: ['CNY', 'HKD', 'USD'] }];
-    }
+    // 有存档：用存档字段覆盖初始状态；无存档：直接用初始状态（currency 分类由 migrateState 保证）
+    state = raw ? { ...freshAppState(), ...JSON.parse(raw) } : freshAppState();
     migrateState();
   } catch(e) {
-    state.categories = [{ id: 'currency', name: '货币类型', builtin: true, tags: ['CNY', 'HKD', 'USD'] }];
-    state.expenseCategories = [];
-    state.expenses = [];
-    state.assets = [];
-    state.snapshots = [];
+    // 回退到完整初始状态（单一来源），避免上次半解析残留
+    state = freshAppState();
+    migrateState();
   }
 }
 

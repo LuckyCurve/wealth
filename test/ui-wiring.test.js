@@ -697,3 +697,15 @@ describe('UI 接线契约：下拉填充空值守卫', () => {
     assert.match(fnSource('fillCategorySelect'), /if \(!sel\) return/, 'fillCategorySelect 应同样守卫');
   });
 });
+
+describe('UI 接线契约：本地加载异常回退完整', () => {
+  test('初始状态单一来源 freshAppState，loadState 异常回退不零散重置字段', () => {
+    assert.match(html, /function freshAppState\(/, '初始状态工厂存在');
+    assert.match(html, /let state = freshAppState\(\);/, '顶层 state 由工厂初始化');
+    const src = fnSource('loadState');
+    assert.match(src, /state = freshAppState\(\)/, 'catch 回退走同一工厂');
+    assert.strictEqual(
+      count(/state\.categories = \[\{ id: 'currency'/g), 0,
+      '不再零散重置单个字段（rates/backup/预期等曾残留半解析状态）');
+  });
+});
