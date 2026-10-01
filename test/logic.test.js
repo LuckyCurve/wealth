@@ -318,6 +318,26 @@ describe('migrateState 迁移与兜底', () => {
     L.migrateState();
     assert.deepStrictEqual(state.snapshots, []);
   });
+  test('消费记录 date/tags 归一：缺 date 补空串、缺 tags 补空对象（防 DOM 侧 slice/下标崩溃）', () => {
+    globalThis.state = freshState({
+      expenseCategories: [{ id: 'cat1', name: 'c', builtin: false, tags: ['t'] }],
+      expenses: [
+        { amount: '12', note: 'x' },
+        { amount: 3, date: null, tags: null },
+        { amount: 4, date: '2024-05-01', tags: { cat1: 't' } },
+      ],
+    });
+    L.migrateState();
+    for (const e of state.expenses) {
+      assert.strictEqual(typeof e.date, 'string', 'date 应归一为字符串');
+      assert.ok(e.tags && typeof e.tags === 'object', 'tags 应归一为对象');
+    }
+    assert.strictEqual(state.expenses[0].date, '');
+    assert.deepStrictEqual(state.expenses[0].tags, {});
+    assert.strictEqual(state.expenses[0].amount, 12);
+    assert.strictEqual(state.expenses[2].date, '2024-05-01');
+    assert.deepStrictEqual(state.expenses[2].tags, { cat1: 't' });
+  });
 });
 
 // ========== 文本 / 金额工具 ==========

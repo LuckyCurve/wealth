@@ -397,7 +397,12 @@
     // init expense data
     if (!Array.isArray(state.expenses)) state.expenses = [];
     state.expenses.forEach(e => {
-      if (e && e.amount != null) e.amount = Number(e.amount) || 0;
+      if (!e) return;
+      if (e.amount != null) e.amount = Number(e.amount) || 0;
+      // date/tags 归一：DOM 侧多处直接 e.date.slice()/e.tags[catId]（列表/分布/趋势/明细），
+      // 导入脏数据缺失时会崩；与 amount 同一入口兑底，不在各调用点重复防御
+      if (e.date == null) e.date = '';
+      if (!e.tags || typeof e.tags !== 'object') e.tags = {};
     });
     if (!Array.isArray(state.expenseCategories)) {
       state.expenseCategories = [];
