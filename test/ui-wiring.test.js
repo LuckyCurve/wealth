@@ -721,6 +721,22 @@ describe('UI 接线契约：本地加载异常回退完整', () => {
   });
 });
 
+describe('UI 接线契约：键盘 Tab 切换标签页（资产/消费模式与子 Tab）', () => {
+  test('Tab 导航处理器唯一、走 nextTabIndex 纯函数、只注册一次', () => {
+    assert.strictEqual(count(/function handleTabKeyNav\(/g), 1, 'handler 应唯一');
+    assert.match(fnSource('handleTabKeyNav'), /nextTabIndex\(/, '越界判定下沉 logic.js，不内联重写');
+    assert.strictEqual(count(/addEventListener\('keydown', handleTabKeyNav\)/g), 1, '只注册一次');
+  });
+
+  test('作用域仅限模式选择与两条子 Tab 栏，不劫持其它 seg-control', () => {
+    const src = fnSource('handleTabKeyNav');
+    assert.match(src, /classList\.contains\('tab-btn'\)/, '子 Tab 走 tab-btn 分支');
+    assert.match(src, /#tabs-assets, #tabs-expenses/, '子 Tab 分组选择器唯一');
+    assert.match(src, /#mode-assets, #mode-expenses/, '模式选择器唯一');
+    assert.strictEqual(count(/nextTabIndex\b/g), 1, '纯函数定义在 logic.js，index.html 只调用一次');
+  });
+});
+
 describe('UI 接线契约：弹窗可访问性', () => {
   test('每个 modal-overlay 都声明 role="dialog" 与 aria-modal', () => {
     const overlays = count(/class="modal-overlay"/g);

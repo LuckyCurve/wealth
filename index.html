@@ -1530,6 +1530,27 @@ function switchTab(tab) {
   }
 }
 
+// ========== 键盘 Tab 切换标签页 ==========
+// 焦点落在「资产/消费」模式选择或子 Tab 上时，Tab/Shift+Tab 移到并激活相邻标签页；
+// 抵达组首/组尾（越界）不拦截，放行浏览器默认行为让焦点移出标签组。
+// 仅作用于这两类标签控件，设置弹窗等其它 seg-control 不受影响。
+function handleTabKeyNav(e) {
+  if (e.key !== 'Tab' || e.altKey || e.ctrlKey || e.metaKey) return;
+  const btn = e.target.closest('.tab-btn, .seg-btn');
+  if (!btn) return;
+  const group = btn.classList.contains('tab-btn')
+    ? btn.closest('#tabs-assets, #tabs-expenses')
+    : btn.matches('#mode-assets, #mode-expenses') ? btn.closest('.seg-control') : null;
+  if (!group) return;
+  const btns = [...group.querySelectorAll('.tab-btn, .seg-btn')];
+  const idx = nextTabIndex(btns.indexOf(btn), btns.length, e.shiftKey);
+  if (idx === null) return; // 组边界：默认行为，焦点离开标签组
+  e.preventDefault();
+  btns[idx].focus();
+  btns[idx].click();
+}
+document.addEventListener('keydown', handleTabKeyNav);
+
 // ========== RENDER ==========
 function renderAll() {
   renderAssets();

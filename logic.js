@@ -87,6 +87,14 @@
     return { by: field, dir: 'asc' };
   }
 
+  // 标签页键盘导航：在当前标签组内前/后移一位的目标下标（Tab/Shift+Tab）。
+  // 越界（组首按 Shift+Tab / 组尾按 Tab）返回 null，由调用方放行浏览器默认行为——
+  // 焦点得以移出标签组，避免被 Tab 困在标签栏里。防御 current 非法/越界。
+  function nextTabIndex(current, total, shift) {
+    const j = (Number(current) || 0) + (shift ? -1 : 1);
+    return (j < 0 || j >= total) ? null : j;
+  }
+
   // 消费记录出现过的月份列表（去重、降序）：月份筛选下拉与趋势图维度下拉共用。
   // 防御缺失/空 date 的脏记录（filter(Boolean)），两处推导原先一份防御一份不防御，现统一单一来源
   function expenseMonths(expenses) {
@@ -709,7 +717,7 @@
     daysBetweenStr,
     BACKUP_STALE_DAYS, normalizeBackupFreq, backupNoteText, hasAnyBackupWorthyData, shouldAutoBackup, backupStaleDays,
     rateFallbackNotice,
-    nextSortState, expenseMonths,
+    nextSortState, nextTabIndex, expenseMonths,
     tagFilterValue, parseTagFilter, expenseTagFilterGroups, hasTagFilterOption,
     isUntaggedItem, missingTagGroups, setTag, backfillTag,
     findMonthSnapshot, getPrevSnapshot, defaultCompareBaseMonth,
