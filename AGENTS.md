@@ -1,77 +1,68 @@
 # AGENTS.md — 资产管理 (Wealth Management)
 
-单文件个人资产管理 SPA。无构建工具、无后端；核心纯逻辑抽到 `logic.js` 用内置 `node --test` 单测。直接打开 `index.html` 即可使用。
+单文件个人资产管理 SPA。无构建工具、无后端；核心纯逻辑抽到 `logic.js`，用内置 `node --test` 单测。直接打开 `index.html` 即可使用。
 
 ## 项目结构
 
 ```
-index.html   # 全部 HTML/CSS/JS（单文件，无构建步骤）
-logic.js     # 与 DOM 无关的纯函数（UMD：浏览器挂全局 / Node 供测试 require）
-test/        # node --test 单测（logic.test.js 纯逻辑 + ui-wiring.test.js 接线契约）
+index.html          # 全部 HTML/CSS/JS
+logic.js            # 与 DOM 无关的纯函数（UMD：浏览器挂全局 / Node require）
+test/               # node --test（logic.test.js 纯逻辑 + ui-wiring.test.js 接线契约）
 .github/workflows/  # CI：三平台 node --test
 AGENTS.md
-.gitignore   # 忽略 .superpowers/ 和 .pi/
+.gitignore          # 忽略 .superpowers/ 和 .pi/
 ```
 
 ## 技术栈
 
-| 技术 | 用途 |
-|---|---|
-| Tailwind CSS (CDN) + 自定义 CSS | 暖色调古纸质 (parchment ledger) 主题 + 暗色模式 |
-| Apache ECharts 5 (CDN) | 旭日图 (资产/收入/支出结构) + 堆叠柱状图 (历史净值/支出趋势) |
-| @fawazahmed0/currency-api (CDN) | 汇率 (`1 CNY = ? HKD/USD`，见下方换算说明) |
-| Flatpickr (CDN) + 自定义主题 CSS | 消费表单日期选择器（中文 locale、`disableMobile` 强制桌面样式、选中态金色走 CSS 变量） |
-| Noto Serif SC / IBM Plex Mono / Cormorant Garamond (Google Fonts) | 标题 / 正文+数字 / 报头 (masthead) 装饰，`display=swap` 加载 |
+- **Tailwind CSS (CDN) + 自定义 CSS** — 暖色古纸质主题 + 暗色模式
+- **Apache ECharts 5 (CDN)** — 旭日图（资产/收入/支出结构）+ 堆叠柱状图（历史净值/支出趋势）
+- **@fawazahmed0/currency-api (CDN)** — 汇率
+- **Flatpickr (CDN)** — 消费表单日期选择器（中文 locale、桌面样式）
+- **Noto Serif SC / IBM Plex Mono / Cormorant Garamond (Google Fonts)**
 
 ## 功能模块
 
-两大主模式 (`switchMode`)，默认进入 **消费** 模式：
-
-- **资产模式** (`currentMode='assets'`)：资产清单、分类管理、资产分布、历史净值、收益测算
-- **消费模式** (`currentMode='expenses'`)：消费记录、分类管理、消费分布、消费趋势
-
-每个模式内各自又有子 Tab (`switchTab`)。资产模式 5 个 Tab，消费模式 4 个 Tab。顶端模式选择支持 Tab 键轮流切换（仅资产/消费两个，见「关键发现 · 键盘 Tab 在顶端资产/消费间轮流切换」）。
+两大主模式（`switchMode`），默认 **消费**：资产模式、消费模式。每个模式内各有子 Tab（`switchTab`）。顶端模式选择支持 Tab 键在资产/消费间轮流切换（见「关键发现」）。
 
 ## 核心数据模型 (localStorage key: `wealth-manager-data`)
 
 ```typescript
 interface AppState {
   categories: Category[];        // 资产分类 [{ id, name, builtin, tags[] }]
-  assets: Asset[];               // 资产 (见下)
-  snapshots: Snapshot[];         // 月度快照 (见下)
-  expenseCategories: Category[]; // 消费分类，结构与 categories 相同，独立存储
-  expenses: Expense[];           // 消费记录 (见下)
+  assets: Asset[];
+  snapshots: Snapshot[];
+  expenseCategories: Category[]; // 结构与 categories 相同，独立存储
+  expenses: Expense[];
   rates: { CNY: 1, HKD: number, USD: number, fetchedAt: string | null };
-  expenseExpectation: number;    // 预期月消费 (CNY)，消费趋势参考线，0=未设置
-  netWorthTarget: number;        // 目标净资产 (CNY)，masthead 进度条，0=未设置
-  incomeSafetyFactor: number;    // 安全边际因子 (%)，默认 100（不打折），收益测算统一折算，越界钳制 1~100
-  backup: {                      // 备份设置（migrateState 兜底，随导出走 JSON）
-    autoFreq: 'daily' | 'weekly' | 'off';  // 自动下载频率，默认 daily
-    lastBackup: string | null;   // 最近一次备份日期 'YYYY-MM-DD'（含手动导出），新鲜度提醒用
-    lastAutoDownload: string | null;  // 最近一次自动下载日期，仅用于节流（与 lastBackup 分离）
+  expenseExpectation: number;    // 预期月消费 (CNY)，0=未设置
+  netWorthTarget: number;        // 目标净资产 (CNY)，0=未设置
+  incomeSafetyFactor: number;    // 安全边际因子 (%)，默认 100，钳制 1~100
+  backup: {
+    autoFreq: 'daily' | 'weekly' | 'off';
+    lastBackup: string | null;
+    lastAutoDownload: string | null;
   };
 }
 
 interface Asset {
-  id: string;                 // genId() = Date.now()-前缀
+  id: string;
   name: string;
   amount: number;
   currency: 'CNY' | 'HKD' | 'USD';
-  tags: { [catId: string]: string };  // 含自动同步的 tags.currency
-  expectedRateMin: number;    // 预期年利率下限 (%)，0 表示未设置
+  tags: { [catId: string]: string };  // 含 tags.currency
+  expectedRateMin: number;    // 预期年利率下限 (%)，0=未设置
   expectedRateMax: number;    // 预期年利率上限 (%)
-  cashRatio: number;          // 现金比例 (%)：预期收益中来自股息/利息/租金等现金流的比例，0~100
-  // 旧版曾用单一 expectedRate，migrateState() 会迁移为 Min/Max 并 delete expectedRate
+  cashRatio: number;          // 现金比例 (%) 0~100
 }
 
 interface Snapshot {
   month: string;              // 'YYYY-MM'，同月仅保留一条
   note: string;
-  totalCNY: number;           // 加工字段：导出时被剥离，导入时按 currencyRates 重算补全
+  totalCNY: number;           // 加工字段：导出剥离，导入按 currencyRates 重算
   currencyRates: { ...state.rates };  // 快照当时的汇率
   assets: Asset[];            // 深拷贝
-  updatedAt: string;          // ISO 时间戳
-  // 旧版用 { id, date }，migrateState() 迁移为月度格式
+  updatedAt: string;
 }
 
 interface Expense {
@@ -83,90 +74,75 @@ interface Expense {
 }
 ```
 
-**内置分类 `currency`**: `{ id:'currency', name:'货币类型', builtin:true, tags:['CNY','HKD','USD'] }` — 首次加载自动创建，不可编辑/删除。资产的 `tags.currency` 在 `saveAsset()` 中由下拉选择直接赋值（`tags['currency'] = currency`），无需独立同步函数。
-
-**消费分类** 与资产分类完全独立（`expenseCategories` / `expenses`），颜色映射走 `expenseCatColor()` 而非 `catColor()`。旧版曾内置 `expense-type` 分类，`migrateState()` 会过滤移除并清理孤立标签引用。
-
-**迁移/兜底统一入口 `migrateState()`** — `loadState()`（本地加载）与 `importData()`（JSON 导入）共用，保证旧版导出导入后行为一致。处理项：
-- 旧快照格式 `{id,date}` → 月度格式（按 `date.slice(0,7)` 分组，同月取最新）
-- 快照缺失 `totalCNY` → 按 `currencyRates`（回退 `state.rates`）重算
-- 缺失 `categories`/`assets`/`expenses`/`expenseCategories` 数组兜底
-- `currency` 内置分类缺失时自动创建；`rates` 缺失/损坏时重置，补全 `HKD`/`USD`
-- 用户设置字段 `Number()` 归一：`expenseExpectation`/`netWorthTarget` 缺失、字符串或非法一律转数字（非法归 0），避免字符串进入 `formatCNY` 丢小数位
-- `backup` 设置缺失时兜底：`autoFreq` 归 `'daily'`（非法值同）、两个日期字段归 `null`
-- `expectedRate` → `expectedRateMin/Max` 迁移并 `delete`；利率/金额字符串统一 `Number()` 转数字（导入数据防御）
-- 资产 `cashRatio` 缺失时默认 100（全额现金，与旧版「全部收益视为收入」行为一致），越界钳制 0~100
-- 资产/消费记录 `tags` 缺失或损坏归一为空对象、消费 `date` 缺失补空串：DOM 侧多处直接 `tags[catId]` / `date.slice()`，统一在迁移入口兜底（防导入脏数据崩溃）
-- 移除内置 `expense-type` 消费分类 + 清理 `expenses[].tags` 孤立引用
+- **内置分类 `currency`** 首次加载自动创建，不可编辑/删除。
+- **消费分类与资产分类完全独立**（`expenseCategories`），颜色映射走 `expenseCatColor()` 而非 `catColor()`。
+- **`migrateState()` 是迁移/兜底唯一入口**，`loadState()`（本地）与 `importData()`（导入）共用，保证旧版导出导入后行为一致。必须容忍：旧快照格式（迁移为月度、同月取最新）、缺失 `totalCNY`（按 `currencyRates` 重算）、缺失数组、缺失内置分类与汇率、用户设置字段非数字（归一为数字，非法归 0）、旧 `expectedRate`（迁移为 Min/Max）、`cashRatio` 缺失（默认 100）、资产/消费 `tags` 损坏或缺失、消费 `date` 缺失、内置 `expense-type` 分类（移除并清理孤立引用）。
 
 ## 关键发现
 
-- **所有代码在单文件中** — 结构顺序：`<head>` (内联暗色脚本 + Tailwind config + `<style>` 自定义 CSS 变量) → `<body>` (HTML) → 末尾 `<script>` (全部 JS)。修改时保持此结构。
-- **平铺标签选择器** — 资产/消费录入表单的分类选择用 chips 而非下拉框：`tagPickerHtml(cats, selectedFor, idPrefix, colorFn, opts)` 生成「虚线空栏=待选 / 实心盖印=已选（同色 ring）」按钮组的 **HTML 字符串**（调用方自行写入容器；`opts.hideLabel` 省略分类名标签——校验面板分组头已给出分类名），选中值写入同 id 的 hidden input（`asset-tag-<id>` / `expense-tag-<id>`），`saveAsset`/`saveExpense` 读取逻辑与旧下拉完全一致；`selectTagChoice` 负责单选互斥与再点取消（对应旧「请选择」）。三个调用方：资产表单、消费表单、**消费数据校验面板**（共用同一实现，禁止再造第二套 chips）。颜色复用 `catColor`/`expenseCatColor`，亮暗主题自动适配。图表维度的分类筛选下拉（`fillCategorySelect`）不受影响。
-- **汇率字段含义** — `state.rates` 存「1 外币 = X CNY」（赋值处已完成倒数：`HKD: 1/cny.hkd`），`toCNY(amount, cur) = amount * state.rates[cur]` 直接相乘，调用方不要再取倒数。
-- **汇率刷新** — `fetchRates()` 用 `cny.json` 端点且 `cache: 'no-store'`（CDN 7 天缓存导致普通刷新拿不到新汇率）；`pageshow`（bfcache 恢复）与 `visibilitychange`（切回标签页、上次拉取超 1 小时）触发刷新并重渲染；拉取成功后调用 `refreshVisibleCharts()` 同步重绘当前可见图表，并弹 info 便条「汇率已更新」。失败时回退保存的汇率，文案与语义色由 logic.js 纯函数 `rateFallbackNotice(hasCache)` 决策：有缓存 → info「使用缓存汇率」（中性金墨），无缓存 → error「汇率获取失败」（报警红）。
-- **图表统一重绘入口 `refreshVisibleCharts()`** — 汇率刷新与暗色切换共用，仅重绘当前可见 tab 的图表（隐藏 tab 下次进入时用新主题渲染）。
-- **标签关联清理** — 删除分类/标签或编辑分类标签列表时，必须同步清理 `assets[].tags`（资产）或 `expenses[].tags`（消费）中的无效引用。`migrateState()` 已含迁移期清理逻辑。
-- **分类管理标签录入** — 分类卡片的「新增标签」输入框回车即添加（不必点「添加」按钮）：`renderCategoryCards` 内按钮与回车共用局部常量 `addTagCall`（同一调用表达式只拼一次，两处接线不各自漂移），回车守卫为 `event.key==='Enter' && !event.isComposing`——中文输入法确认候选字用的也是回车，无 IME 守卫会在组字中提前提交并销毁输入框；`autocomplete="off"` 防自动填充建议抢走回车。添加成功后列表整体重绘、旧 input 已脱离文档，`addTagGeneric` 把焦点交回同分类的新输入框（`focus()`，可连击回车连续添加），**不得**再写旧 `input.value`（已成死代码）；资产/消费两侧收敛到 `renderCategoryCards`/`addTagGeneric` 单一实现。分类弹窗（名称/标签）本就是 `<form>` + `type="submit"`，回车原生提交无需另接。契约测试见 ui-wiring「分类管理回车添加标签」。
-- **消费数据校验（缺标签一键/逐条补齐）** — 「消费记录」页顶部校验条 `#tagcheck-bar`（`renderTagCheckBar()` 由 `renderExpenses` 唯一写入，**全局口径**不随列表筛选缩小，缺口为 0 自动隐藏）→「去校验」开 `#tagcheck-modal` 面板：按缺口分类分组，**组内顶部 chips = 一键批量（`backfillTag`：只写空缺/陈旧位，绝不覆盖已归类）**、**下方每条记录 chips = 逐条点选（`setTag`：可改本次会话已选值）**；点一下即 `saveState` → `renderExpenses`（列表 pill 与校验条同步）→ `renderTagCheckGroup` 局部重绘该分组（保留面板滚动，不整面板重建）。缺口口径全在 logic.js：`missingTagGroups(items, categories)` + `isUntaggedItem`（缺 key / 空值 / 指向已删标签的陈旧引用三态都算未归类），**校验条、面板、分类卡片提示条、新建分类后检测四处共用**；UI 层不直接给 `tags` 赋值（写入只经 `setTag`/`backfillTag`）。资产/消费两表单与面板共用 `tagPickerHtml` 一套 chips。**只对消费侧启用**：分类卡片尾部虚线提示条（`openTagCheck(catId)` 聚焦该分组）+ 新建消费分类后自动打开（`createdId && cfg.tagCheck` 守卫，先关分类弹窗再开面板，无缺口不弹）；资产侧 `CAT_SIDES.asset.tagCheck=false` 不接线（历史净值快照是否随补未定，将来接通=翻 flag + 处理快照口径）。会话模型：打开时按分类捕获缺口记录 id，补齐后分组保留 `mo-badge.up`「✓ 已补齐」以便逐条微调，重开时重新捕获；再点已选 chip = 取消选择，只按数据回滚盖印、不改数据（面板不提供取消归类）。
-- **ECharts 全局单例** — 五个实例变量：`chart`(资产旭日图)、`historyChart`(历史净值堆叠柱)、`incomeChart`(收入旭日图)、`expenseChart`(消费旭日图)、`expenseTrendChart`(支出趋势堆叠柱)。均用 `setOption(data, true)` 更新；`window resize` 在 `DOMContentLoaded` 顶层统一注册。`historyChartMode` 支持 `'value' | 'percent'`，`expenseTrendMode` 同理。
-- **颜色系统** — CSS 变量 (`--bg`, `--fg`, `--muted`, `--accent`, `--accent-ink`, `--verdigris`, `--down`, `--usd` 等) 控制主题；`--accent-ink` 为**金色文字专用**（亮 `#7f5c0e` / 暗 `#d9b25e`，AA 达标），`--accent` 只用于按钮/边框/填充；`--down` 为下跌/警示红（亮 `#a84943` / 暗 `#d98a86`），`--usd` 为货币构成条 USD 段（亮 `#86733f` / 暗 `#9a8758`），新代码优先用变量而非写死色值；`CATEGORY_COLORS` (10 色 `{bg,fg,border}` 数组) 为分类基础色，fg 全部 ≥4.5:1；`catColor(catId, tagName)` / `expenseCatColor(...)` 在同分类内按标签索引对 HSL 亮度做插值区分（共享 `pillColors(base, t, dark)` / `basePill(base, dark)`，**亮色浅底深字 / 暗色深底浅字**，暗色分支全色相扫描 ≥4.5:1）；旭日图另用 `CATEGORY_PALETTE` (10 色 `{base, shades[]}` 数组)。
-- **资产表单验证** — 非 `currency` 分类用平铺标签 chips 选择（`tagPickerHtml`，选中值写 hidden input），未选则报错；`expectedRateMin` 不能大于 `expectedRateMax`（空值会自动用另一值补齐）。金额输入用 `formatMoneyInput()`（oninput）实时千分位格式化，回填用 `moneyStr()`。
-- **美元/港币货币符号** — 代码中用 `HKD $` / `USD $` 区分，CNY 用 `formatCNY()` 输出 `¥`。
-- **三态排序** — 资产 `toggleSort(field)` 与消费 `toggleExpenseSort(field)` 共用 logic.js 纯函数 `nextSortState(by, dir, field, flipSticky)`（升序 → 降序 → 取消排序恢复自然顺序；换列重置新列升序）。消费侧首击保留旧行为：包装层以 `expenseSortTouched` 计算粘性翻转标志（`flipSticky=true` 仅翻转方向不进入循环）。**仅消费列表**主键相同时按 `id`（创建顺序）次级排序；资产侧主键相同时依赖稳定排序保持自然/拖拽顺序（有意行为，勿给资产排序加 id 次级排序）。
-- **键盘 Tab 在顶端资产/消费间轮流切换** — 焦点落在顶端模式选择（`#mode-assets` / `#mode-expenses`）上时，`Tab`/`Shift+Tab` 在两者间轮流切换（组内循环回绕，`Shift` 方向相反）；**不接管子 Tab（`.tab-btn`）与设置弹窗等其它 `.seg-control`**。循环下标下沉 logic.js 纯函数 `nextTabIndex(current, total, shift)`（取模回绕，`total<=0` 返回 null），index.html 的 `handleTabKeyNav` 只做 DOM 副作用（`btns[idx].focus()` + `.click()` 复用既有 `switchMode` 接线）。**首次 Tab 补偿**：`#mode-assets` 是整页第一个可聚焦元素，页面未聚焦时（`activeElement` 为 body）浏览器默认行为只会先把焦点移到按钮上、需再按一次才切换——故以当前激活模式按钮为起点（`document.querySelector('#mode-assets.active, #mode-expenses.active')`）直接切换；仅当焦点已在模式按钮或整页未聚焦时才接管，其余情况放行默认行为。ui-wiring 契约测试把守处理器唯一、只注册一次、不得再引用子 Tab 选择器、首次 Tab 补偿分支。注意：循环会始终留在模式按钮上，键盘用户需用鼠标/点击离开该控件。
-- **共享层单一来源（防各自漂移）** — 重复出现 ≥2 次的逻辑必须收敛，ui-wiring 契约测试把守（内联副本回潮即报错，修改时只改单一来源处）：
-  - logic.js 纯函数：`money2`、`hexToRgba`、`expenseMonths`、`nextSortState`、`nextTabIndex` / `inlineEditKeyAction`、`pruneLegendSelected`、`sortTagsByTotal`、`amountAtRates`（显式汇率表折算，快照/实时统一口径）、`coveragePct` / `incomeGap` / `sumAssetIncomes`（覆盖率与收益口径）、`tagFilterValue` / `parseTagFilter` / `expenseTagFilterGroups` / `hasTagFilterOption`（消费标签下拉编解码）、`isUntaggedItem` / `missingTagGroups` / `setTag` / `backfillTag`（数据校验）、备份决策族。
-  - index.html 视图 helper：`tagPickerHtml`（资产/消费表单 + 校验面板三处共用 chips）、`chartTooltipBase` / `barChartBase` / `wireStackedBarDrill`（两张堆叠柱的 tooltip/坐标轴/下钻）、`sunburstTooltipContent`（三张旭日图 tooltip）、`renderCompareHero` / `cmpBar` / `cmpPctCell`（对比弹窗）、`openModal` / `closeModal` 成对。
-- **资产拖拽排序** — `onAssetDragStart/DragOver/DragEnd/Drop` 拖拽调整 `state.assets` 顺序并保存，排序后自动清除 `sortBy` 恢复自然顺序。
-- **资产列表布局** — `.asset-row.grid-wide` 列宽 `28px 1.45fr 1fr 0.55fr 1.1fr 1.25fr 1.9fr 92px`（拖拽/名称/金额/货币/金额CNY/预期年化/标签/操作），预期年化格含「· 现金 N%」后缀需 160px+ 单行；**资产列表跳过 `currency` 分类的 pill**（货币列已单独显示，避免三枚 pill 竖排把行高撑到 97px）；`.tag-pill` 已压缩（12px、padding 3px 7px 3px 5px）使两枚 pill 单行放下（行高 ~55px）。长资产名自然换行、不截断。
-- **行内金额快速编辑** — 点击金额单元格（`.amount-cell`，hover 金色点线 + 淡入铅笔 `.edit-pencil`（与搜索放大镜同款墨线语言；**absolute 定位 + cell `padding-left:16px` 统一右移**，铅笔不占布局空间、不推挤金额；窄屏 `@media ≤900px` 隐藏铅笔并归零 padding，避免横向滚动下大金额等宽文本溢出；`role="button"` + `tabindex=0` + Enter 键支持键盘访问），编辑中的行带极淡金色微光 `.asset-row.editing`（置于 `:hover` 之后保证编辑态优先，Tab 连续编辑时光带跟随当前批注行））免开弹窗更新资产金额：`startInlineEdit(id)` 把单元格替换为 input（回填 `moneyStr()`、复用 `formatMoneyInput` 实时千分位，`.inline-edit-input` padding 收紧为 2px 6px 贴近文本行高、cell `display:inline-flex` 垂直居中），**编辑态 cell title 变为键位教学「Enter 保存 · 小键盘 Enter/Tab 下一行 · Esc 取消」**（`dataset.title` 备份、commit/Esc 恢复，非编辑态仍是「点击快速更新金额」），键位语义由 logic.js 纯函数 `inlineEditKeyAction(key, code)` 单一下沉（`onInlineEditKey` 按返回值分支，内联脚本不出现 `NumpadEnter` 判定）：主键盘 `Enter`→`'commit'` 仅保存当前项、**小键盘 Enter（`code==='NumpadEnter'`，`key` 同为 `'Enter'`）→`'jump'` 等同 Tab**、`Tab`→`'jump'`、`Escape`→`'cancel'`。主键盘 Enter/失焦提交（**commit 分支必须 `stopPropagation`**：否则 keydown 冒泡到 cell 的 onkeydown 会再触发 `startInlineEdit`，且此时 `_inlineEditId` 已被 commit 清空、守卫失效，导致提交后立即重新进入编辑态）、Esc 取消（`onInlineEditKey`，取消后焦点还给单元格并清除 editing class/title）、**小键盘 Enter 或 Tab/Shift+Tab 提交并跳到下一/上一行金额继续编辑**（按渲染顺序/DOM 顺序跳转，排序激活或整表重绘后仍准确；最后一行提交后停止；值非法时不跳走、`startInlineEdit(id)` 重回编辑态便于修正；**jump 分支同样必须 `stopPropagation`**——小键盘 Enter 的 `key` 同为 `'Enter'`，否则冒泡到 cell 的 onkeydown 会 `startInlineEdit(原行)` 把刚跳到的下一行撤销）；编辑态为单例（`_inlineEditId`），已在编辑该行时忽略点击冒泡避免误提交，`startInlineEdit` 加 / `commitInlineEdit`·Esc 清 editing class。`.inline-edit-input` 需显式 `user-select: text`——全局 `[onclick]:not(button)` 的 `user-select:none` 会传播到子元素 input，否则无法点击定位光标/拖选文本（弹窗 input 祖先无 onclick 不受影响）。提交（`commitInlineEdit`）：非法值（NaN/负数）恢复原值 + toast 并返回 false（Tab 跳转据此不跳走、重回编辑态），值不变不写 storage；值变化时 saveState 后——**排序激活时走整表重绘**（行位置需重排），**自然顺序下手动同步** cell 文本 + `renderMasthead` + `refreshVisibleCharts()`（不整表重绘，避免 blur 后用户正在点击的编辑/删除按钮 DOM 被替换而丢失 click）。`renderAssets()` 开头调用 `commitInlineEdit(false)` 收尾（只更新 state 不重绘，防递归），保证排序/拖拽/暗色切换/汇率刷新等重绘路径不丢未提交的值。金额(CNY)列为换算派生值不做行内编辑；历史快照为深拷贝不受影响。
-- **月度快照** — 同月仅保留一条，重复记录会提示「覆盖更新」。快照详情的标签颜色与资产管理列表保持一致（复用 `catColor`）。快照同时保存当时汇率 `currencyRates`。历史净值 Tab 中每条快照显示环比：首月 / 新增 / `▲▼ x.x%`（`getPrevSnapshot()` 取上一个月份）。「对比快照」弹窗（`openCompareModal`/`renderCompareTable`）按资产 id 关联两月快照逐资产 diff（新增/移除徽章），金额按各快照当时 `currencyRates` 折算 CNY；行序对齐**起始月快照的记录顺序**（拖拽调整的顺序保持一致），新增资产按结束月顺序追加在末尾；弹窗顶部为「总净值变动」hero 数字（`font-masthead`，2 位小数），表格列头用账本语汇「期初/期末」，变动列带按比例宽度迷你量条（`.cmp-bar`）；示例数据的快照资产 id 跨月稳定（与真实记录流程一致），对比才能按 id 关联出差异。**堆叠柱点击下钻**：点击历史净值图中某月某标签色块 → `viewHistorySegment(month, catId, tag)` 展开该色块资产构成明细（按快照当时 currencyRates 折算 CNY + 占比%，口径与图表一致，降序），复用 snapshot-modal。
-- **堆叠柱图例记忆与下钻接线（历史净值/消费趋势同构）** — 两张图各自在首次 echarts.init 处注册原生事件，接线收敛在单一来源：① 图例记忆：`legendselectchanged` 把用户图例选中态存入模块变量（`histLegendSel`/`trendLegendSel`），重绘时经 `pruneLegendSelected` 清理后作为**局部副本**传入 `barChartBase` 的 legendSelected 参数回灌（原始映射不回写——切换分类再切回可恢复原选中态）；切金额/占比、切主题、汇率刷新等所有 setOption(opt, true) 重绘路径均不再重置用户的图例隐藏状态。② 点击下钻：`wireStackedBarDrill(chartObj, () => histDrillMeta/trendDrillMeta, viewHistorySegment/viewExpenseSegment)` 统一处理——渲染时存入上下文（catId/months/tags），click 按 seriesIndex→标签、dataIndex→月份 反查后回调；`'__total__'` 透明承载系列（含 markLine 点击）统一忽略。早退分支（无快照/无数据）置 meta 为 null 防陈旧。图下各有一行 muted 提示「点击柱中色块，可展开该月该标签的构成明细」。
-- **收入测算** — 基于 `expectedRateMin/Max` 计算 `calcAssetIncome()`（`getAssetRate()` 按 `incomeMode` `'min'|'max'` 取值），支持切换；展示年/月/日收益 + 加权平均利率。**收益拆分现金/总额**：每项资产有 `cashRatio`（现金比例 %，`getCashRatio()` 取 0~1，缺失默认 1），`calcAssetIncome()` 返回 `annual/monthly/daily`（总资产收益）与 `cashAnnual/cashMonthly`（其中现金收益 = 总收益 × 现金比例）两套口径，**安全边际因子对两套口径统一折算**；摘要双 hero（总收益 月 绿 + 现金收益 月 金，同字号同层级；年/日/现金占比收进发丝线数据行，避免六枚大数字稀释报头 hero）、表格加「现金比例」「现金/月」列（表头星注覆盖两口径）、旭日图 `incomeChartMode` 支持 `'cash'|'total'` 切换（默认现金，tooltip 双口径并列）；报头「预估月收益」与「现金收益」**平齐双口径**展示（非嵌套）：`预估月收益 ¥X · 现金收益 ¥Y`；设置了 `expenseExpectation` 后另显示「预期月消费 ¥Z」作锚点；盈余/缺口（覆盖率差额）叙述已完整收归覆盖标尺，报头不再内联差额（口径走 logic.js `incomeGap()` 单一来源）。`saveExpectation`/`clearExpectation` 需调 `renderAssets()` 刷新报头（消费页改预期后切回资产模式才会重新渲染 masthead；**仅在收益 Tab 可见时**同步调 `renderIncomeTab()` 刷新覆盖标尺——必须带可见性守卫，否则隐藏容器会走 renderIncomeChart → echarts 0 尺寸初始化）。**比例输入统一用「比例尺」滑块 `.scale-input`**（现金比例在资产弹窗、安全边际在收益 Tab）：轨道为墨线刻度（0/25/50/75/100%，与货币构成条同语言）、值域以 `--accent-soft` 填充段表示（**填充必须画在 `::-webkit-slider-runnable-track` 背景层栈里**，input 自身背景会被不透明轨道盖住；`--fill` 由 `setScaleValue()` 同步）、菱形拇指呼应报头裁切标记；等宽读数 `.scale-reading`（tabular，金色）；现金比例展示值统一走 logic.js `cashRatioPct()`（取整口径单一来源）。滑块 `padding:0; border:none` 规避全局 `input,select` 样式。现金比例带「全额现金/纯增值」预设（`setCashRatioPreset`），提交钳制 0~100、空值=100。安全边际滑块 1~100，`onIncomeSafetyInput` 拖动即存并重渲染，`renderIncomeTab` 用 `activeElement` 守卫避免拖动中断同步。旭日图按资产聚合（仅统计有利率的资产）。**安全边际因子** `state.incomeSafetyFactor`（百分比，默认 100=不打折，migrateState 兜底并钳制 1~100）：`getSafetyFactor()` 取折算系数，在 `calcAssetIncome()` 内统一乘入，因此摘要/表格/旭日图/masthead 预估月收益全部折算；<100 时摘要页脚与表格下方（`#income-table-note`，表头年/月收益带 `*` 星注）提示「已按 N% 安全边际折算」；控件为参数条 `#income-safety-input`（`onIncomeSafetyInput` 输入即存并重渲染；range 输入由浏览器按 min/max 钳制、无非法值，无需 blur 回退；「任一资产设了利率」判定走 logic.js `hasAnyRatedAsset()`，masthead 与收益 Tab 共用；`renderIncomeTab` 顶部带焦点守卫同步值）。
-- **目标净资产** — `netWorthTarget` 在 masthead 显示进度条（`openTargetModal`/`saveTarget`/`clearTarget`），90%+ 变强调色、达成显示「目标已达成」徽章；总资产为 0 时不显示进度避免误报。masthead 副行同时展示「N 项资产」与预估月收益（任一资产设了利率即出现）。
-- **收益覆盖标尺（月收益 ÷ 预期月消费）** — 收益测算摘要卡内，量「利息能否养起全部开销、不动本金」；UI 不引入自造概念词（如「食利线」），标签行直接呈现公式。**分子口径可切换**：`coverageMode`（'total' 总收益=含增值宽松口径（默认）/ 'cash' 现金=不动本金的严格口径；不持久化，与 incomeChartMode 同惯例），切换控件**内嵌标签行公式**「〔总收益│现金收益〕÷ 预期月消费」（seg-control 缩至句内字号，顺序与上方摘要双 hero「总收益·月│现金收益·月」对齐），锚点金额/读数/印徽 title 随口径联动；指引分支仅现金口径有意义（总收益口径下有息资产必使分子 > 0）。仪器语言与全站一致：实心 verdigris 填充=已被利息养起的部分、虚线发丝=未覆盖段（标签空栏同语言）、25/50/75% 刻度墨线（货币构成条同款）、菱形站点标记呼应比例尺拇指；两端锚点直接标注当前口径收益与预期消费金额，读数行「覆盖 N% · 盈余/缺口 ¥N/月」（语义色走 logic.js `incomeGap()` 单一口径：盈余 `--verdigris` 绿、缺口 `--down` 红），≥100% 填充贯通 + 复用 `mo-badge.up` 印徽「已覆盖」。三种状态：未设预期 → 邀请行（一键 `openExpectationModal`）/ 现金流为零（全部有息资产现金比例 0，仅现金口径）→ 指引句 / 正常计量；**标签行带「修改」小钮**（target-panel 同款 ghost 小钮）重开预期弹窗——设定后的唯一再入口，修改与清除均在弹窗内完成。工程约定：**骨架静态存在于 income-summary（非 JS 重建）**，`renderCoverageMeter()` 只同步宽度与文案——安全边际滑块拖动时填充/菱形以 `transition .25s` 伸缩（`prefers-reduced-motion` 关闭）；覆盖率口径在 logic.js 纯函数 `coveragePct()`（expectation<=0 → null / 非法现金收益 → 0），内联脚本不得重写算式；**零 schema 变更**（纯派生指标）；ui-wiring 契约测试把守骨架唯一、口径单一来源、接线计数（定义一处 + renderIncomeTab/setCoverageMode 两处调用）、分子口径切换接线、达标徽章复用 mo-badge.up、保存/清除预期的可见性守卫形态。
-- **消费记录** — 排序状态 `expenseSortBy`/`expenseSortDir`；日期选择器走 Flatpickr（`setExpenseDate()` 统一设置入口，兼容实例存在/不存在两种情况）；「复制」操作 `duplicateExpense(id)` 打开新增窗口预填金额/备注/标签、日期改为今天；月份筛选 `expenseMonthFilter`（下拉由 `populateExpenseMonthFilter()` 生成）；标签筛选为**单下拉分组**（`#expense-tag-filter`，`populateExpenseTagFilter()` 用 `<optgroup>` 把每个消费分类渲染成**不可选的分组头**、标签才是可选项，首项「全部标签」，无标签的分类给 disabled 占位项保分组可见；选中值 = `tagFilterValue(catId, tag)`，`syncExpenseTagFilter()` 是状态唯一同步口，分类被删/标签改名后由 `hasTagFilterOption()` 回落「全部标签」），与月份、搜索三重筛选叠加；搜索框 `expenseSearch`（`oninput` 触发 `renderExpenses()`，匹配备注/日期/分类名/标签值，不区分大小写，与月份筛选叠加）；搜索交互：命中片段以「金笔划线」`mark.search-hit` 高亮（`highlightMatch()` 先 esc 转义再大小写不敏感替换，保留原文大小写）、输入框内 ×（`clearExpenseSearch()`，仅清搜索保留月份）与 ESC 清空、空态标题带搜索词并给「换个关键词」指引、合计标签双筛选时显示「月份 匹配」；空态按「完全无数据 / 搜索无结果 / 月份无记录」区分文案，「清除筛选」`clearExpenseFilters()` 重置三类筛选（搜索/月份/标签）。趋势图按月聚合，与历史净值柱状图风格一致。
-- **消费趋势** — `expenseExpectation` 设定后作为水平参考线，超线月份的柱顶 label 标红加 ▲；按钮状态化显示「设定预期 / 预期 ¥X」；透明「合计」系列不占高度、随 legend 选中实时重算。趋势下方按月列表 `viewExpenseMonth()` 查看当月明细。**点击色块下钻**：`viewExpenseSegment(month, catId, tag)` 展开该月该标签下的消费记录（日期/金额/占比/备注，按日期降序），复用 snapshot-modal（接线方式见「堆叠柱图例记忆与下钻接线」条目）。
-- **暗色模式** — 主题切换入口唯一在设置弹窗「外观」（页头无快捷开关）：`setTheme(dark)` 幂等守卫后落地（`localStorage['dark-mode']`：`'1'`=暗色、`''`=亮色、`null`=未设置；`document.documentElement.classList.toggle('dark')` 切换 `:root.dark` 下的 CSS 变量），再调用 `renderAll()` 重绘分类 pill（暗色分支取色）并 `refreshVisibleCharts()` 重绘图表。`<head>` 内联脚本在渲染前设置初始主题：首次访问跟随系统 `prefers-color-scheme`，显式切换后以存储值为准（避免首屏闪烁）。
-- **设置弹窗** — 页头右侧仅一个「设置」按钮打开 `settings-modal`（设置是导入/导出、外观、自动备份的唯一入口；账本「凡例」隐喻：每条设置一条目录——标签居左 `.setting-info`、控件居右、发丝线分章；金墨点边注 `.setting-note` 呼应 masthead live-dot）：①「外观」日间/夜间 seg-control，`setTheme(dark)` 见暗色模式条目，`syncThemeSeg()` 回显 aria-pressed；②「自动备份」每天/每周/关闭 seg-control（频率选择全站唯一入口），直接调 `setBackupFreq()`。底部「备份与导入…」跨弹窗直达 io-modal。ESC/遮罩关闭走通用 `.modal-overlay` 路径。
-- **品牌标记** — 页头 logo 与 favicon 为「孔方铜钱」：金渐变圆币（`--gold` 同源色）内挖方孔（`fill-rule='evenodd'` 镂空，透出页面背景），方孔四角带**裁切标记**（与 masthead 同语言，默色 = 财富、裁切 = 账页签名）；页头版为裸 SVG 无伪外框，裁切标记用 `var(--fg)` 适配亮暗主题（favicon 版因 data URI 无法取变量，硬编码深墨）；无独立容器背景，靠 `drop-shadow` 轻微离纸。
-- **报头 (masthead) 数字动画** — `renderMasthead()` 用 `requestAnimationFrame` 做缓动滚动数字；`prefers-reduced-motion` 时直接设值。masthead 另含货币构成条 (composition rule/legend) 与目标净资产进度面板。
-- **统一提示便条（全站唯一瞬时反馈出口）** — 所有操作/系统提示一律走右下角 `toast(msg, type)` 写入 `#toast-area`（`aria-live="polite"`，容器在 `<script src="logic.js">` 前静态存在于 body 末尾）；禁止再造第二套提示通道（旧版汇率页头内联状态已移除，ui-wiring 契约测试把守）。三种墨色=三种语义（与 mo-badge 同色系、亮暗各一套）：success 绿=操作已落账 / error 红=出错待处理 / **info 金墨边注**（`--accent-ink`，同设置弹窗边注语言）=系统中性知会（汇率刷新等自动事件），注意但不报警。堆叠：容器 fixed 右下 bottom 锚定 + flex column，新便条贴角、旧便条上移，容器 `pointer-events:none` 穿透不挡角落点击；去重：末尾同文案同类型且未退场（`.leaving`）的便条只重置计时不再堆叠（自动知会撞上用户操作不糊屏）；退场淡出并向角落下沉（`armToastHide` 统一管计时与 `.leaving`）。
-- **印刷账页细节** — 报头四角有裁切标记（register ticks，`.masthead::after` 八层渐变）、大数字带压印感 `text-shadow`（亮暗各一套）；卡片有纸张顶缘高光（`--card-edge`）；`.btn-gold` 为压印金属感（顶部受光 + 底部内阴影）；表格列头用 `.list-head` 双线规则（2px `--rule`）+ 0.05em 字距；货币构成条带 25/50/75% 刻度墨线（`--tick`，亮暗各一套）；图表 tooltip 统一账本卡片样式（`extraCssText` 圆角+阴影+内边距）；toast 与 `mo-badge` 同色系便条样式（见「统一提示便条」条目）；弹窗标题上带章节线（`.modal-title::before` 28×2px 金色短线）；空态有账本 SVG 图标（`.empty-state::before`，`currentColor` 跟随主题）；排序列头可键盘操作（`role="button"` + `tabindex` + Enter 触发排序）。
-- **旭日图只显示名称** — 数值和百分比在 tooltip 中，标签只展示分类/标签名称（formatter 只返回 `p.name`）。
-- **图表空态** — 所选维度全空或无可选数据时显示空态而非空白画布（资产/消费分布、历史净值、消费趋势均如此）；空态与列表空态共用 `.empty-state` 语言（账本图标 + 章节线 + 行动按钮，`btn-ghost` 安静邀请：去登记资产/记录快照/去记录消费），不喧宾夺主——主创建按钮始终由页面头部金色按钮承担。
-- **弹窗关闭** — `closeModal(id)` 统一关闭；ESC 键关闭最上层弹窗；点击遮罩空白处关闭（`mousedown` 记录目标 + overlay click 判断）。
-- **数据导入/导出** — `exportData()` 导出完整 `state` JSON，但剥离快照加工字段 `totalCNY`（可由 assets × currencyRates 重算，导入时 `migrateState()` 补全）；`importData()` 校验 `categories && assets` 字段后合并并走 `migrateState()`。
-- **数据防丢备份（方案 A+C）** — 纯本地无后端的两层防线：①「自动备份」（`maybeAutoBackup(ratePromise)`，DOMContentLoaded 尾部调用，入参为本次启动 `fetchRates()` 的 promise）：导出前先 `await` 同一笔汇率拉取完成，`state.rates` 已更新（成功写入新汇率 / 失败回退缓存汇率）后再落盘，避免备份抢在汇率刷新前拿到过期汇率；当天首次打开页面时静默触发一次 `<a download>` 下载到浏览器默认下载目录（复用手动导出格式，文件名带日期堆积即版本历史；延迟 4s 避开首屏、非手势单次下载 Chrome/Edge 通常放行、失败静默跳过）；仅当 assets/expenses/snapshots 任一非空才执行，按 `backup.autoFreq` 节流（daily 当天已下过跳过 / weekly 不足 7 天跳过 / off 关闭）。②新鲜度提醒（`checkBackupStale()`）：距 `lastBackup` 超 7 天且已有数据时进页面 toast 温和提醒（从未备份不提醒，等首次自动下载补上）。手动 `exportData()` 也刷新 `lastBackup`；「备份与导入」弹窗仅含手动导出/导入与上次备份文案（自动备份频率在设置弹窗）；上次备份文案由 `syncBackupControls()` 统一同步（`backupNoteText()`）。**决策纯函数在 logic.js**（index.html 只留 DOM 副作用，分支可 node --test 覆盖）：`daysBetweenStr()` 判日期距、`normalizeBackupFreq()` 频率白名单归一（migrateState 兑底与 setBackupFreq 同源）、`backupNoteText()` 上次备份文案（两处弹窗共用防漂移）、`hasAnyBackupWorthyData()` / `shouldAutoBackup(state, today)` / `backupStaleDays(state, today)`、阈值常量 `BACKUP_STALE_DAYS=7`。用户侧建议：把浏览器下载目录设为网盘同步文件夹即获异地容灾。
-- **示例数据** — 资产端 `loadDemoData()`、消费端 `loadExpenseDemoData()`，均先 `showConfirm` 二次确认后覆盖当前数据。资产示例含现金比例演示：存款/债/理财 100%，沪深300 指数 5~8% 利率 + 20% 现金（红利型指数）。快照内资产同样带 `cashRatio`（当前资产由最新快照深拷贝而来，缺失会导致演示现金比例失效）。
+> 只记「会改变决策的约束与原因」。具体数值、实现步骤、UI 细节以代码与 `ui-wiring` 契约测试为准。
+
+- **单文件结构** — `<head>`（内联暗色脚本 + Tailwind config + `<style>`）→ `<body>` → 末尾 `<script>`（全部 JS）。修改时保持。
+- **单一来源** — 重复出现 ≥2 次的逻辑必须收敛到单一实现（纯函数下沉 `logic.js`，视图模板/helper 只留一处），ui-wiring 契约测试把守；改动只改单一来源处。
+- **汇率口径** — `state.rates` 存「1 外币 = X CNY」（赋值处已取倒数，如 `HKD: 1/cny.hkd`）；`toCNY = amount * state.rates[cur]` 直接相乘，**不要再次取倒数**。
+- **汇率刷新** — 汇率 API 有 CDN 缓存，必须 `cache: 'no-store'` 才能拿到新值；`pageshow`/`visibilitychange` 触发刷新并重绘。失败时回退已存汇率，文案与语义色由 logic.js `rateFallbackNotice()` 单一口径决定。
+- **图表重绘入口** — `refreshVisibleCharts()` 供汇率刷新与主题切换共用，只重绘当前可见 Tab 的图表（隐藏 Tab 下次进入时按新主题渲染）。
+- **标签关联清理** — 删除分类/标签或修改标签列表时，必须同步清理 `assets[].tags` / `expenses[].tags` 中的无效引用；`migrateState()` 承担迁移期清理。
+- **平铺标签选择器** — 资产/消费录入表单与消费数据校验面板共用同一套 chips（`tagPickerHtml`），**禁止再造第二套**；图表维度的分类筛选下拉不受影响。
+- **分类标签回车录入** — 「新增标签」回车即添加；**必须带 IME `isComposing` 守卫**（中文输入法确认候选字也是回车，无守卫会在组字中提前提交并销毁输入框）；添加后整体重绘并把焦点交回同分类新输入框（可连击回车），不得再写已脱离文档的旧 input；资产/消费两侧收敛到同一实现。
+- **消费数据校验** — 缺口口径（缺 key / 空值 / 指向已删标签）由 logic.js 单一函数定义，**校验条、面板、分类卡片提示条、新建分类后检测四处共用**；校验条为全局口径、不随列表筛选缩小；批量只填空缺、绝不覆盖已归类。**只对消费侧启用**（资产侧关闭，因历史快照是否随补未定）。UI 层不直接给 `tags` 赋值。
+- **ECharts 单例** — 五个图表实例统一 `setOption(data, true)` 更新；`window resize` 在 `DOMContentLoaded` 顶层统一注册。
+- **颜色系统** — 一律用 CSS 变量而非写死色值（变量定义见 `:root` / `:root.dark`）；`--accent-ink` 为金色文字专用；分类色 `catColor`/`expenseCatColor` 为单一来源，亮/暗分支对比度须达 AA；旭日图调色板 `CATEGORY_PALETTE`。
+- **动效** — 缓动/过渡须尊重 `prefers-reduced-motion`。
+- **资产表单验证** — 非 `currency` 分类的标签必选；`expectedRateMin ≤ expectedRateMax`（空值用另一值补齐）。
+- **货币符号** — `HKD $` / `USD $` 区分，CNY 用 `formatCNY()` 输出 `¥`。
+- **三态排序** — 资产/消费共用同一状态机（升序→降序→取消）；**仅消费列表**主键相同时按 `id` 次级排序，资产侧依赖稳定排序保持自然/拖拽顺序（有意为之，勿加 id 次级排序）。资产拖拽排序后清除 `sortBy` 恢复自然顺序。
+- **键盘 Tab 切换模式** — 仅接管顶端资产/消费两个按钮（组内循环）；**不接管子 Tab 与其它分段控件**。首次 Tab 需补偿（页面未聚焦时浏览器默认先聚焦按钮，否则要按两次才切换）。循环会留在模式按钮上，需鼠标离开。
+- **行内金额编辑** — 点击金额单元格可就地改；键位语义（主键盘 Enter 仅保存、小键盘 Enter/Tab 保存并跳下一行、Esc 取消）由 logic.js `inlineEditKeyAction()` 单一下沉；**提交与跳转分支都必须 `stopPropagation`**（小键盘 Enter 的 key 同为 `'Enter'`，否则冒泡会重进原行）。值非法不跳走、重回编辑态；提交后自然顺序下不整表重绘（否则会丢失正在点击的按钮），排序激活时才重绘；所有重绘路径需先收尾未提交的行内编辑（防丢值）。
+- **月度快照** — 同月仅一条；快照保存当时 `currencyRates`；对比按资产 id 关联、金额按各自当时汇率折算，行序对齐起始月记录顺序。
+- **堆叠柱图例记忆与下钻** — 两张堆叠柱的图例选中态须跨重绘保留（清理后以副本回灌）；点击下钻接线为单一来源，透明「合计」系列统一忽略。
+- **收益测算** — 基于 `expectedRateMin/Max`；收益分**总额**与**现金**两套口径，**安全边际因子对两套口径统一折算**；仅统计设了利率的资产。预期保存/清除后刷新报头，**仅当收益 Tab 可见时**才重渲染收益内容（隐藏容器会触发 echarts 0 尺寸初始化）。
+- **目标净资产** — 在 masthead 显示进度；总资产为 0 时不显示。
+- **收益覆盖标尺** — 度量「月收益 ÷ 预期月消费」，公式与读数直接呈现，UI 不引入自造概念词。分子口径可切换（总收益宽松 / 现金严格）；覆盖率与盈余/缺口口径由 logic.js 单一函数定义，内联脚本不得重写算式；骨架静态存在、只同步宽度文案。
+- **消费记录** — 月份/标签/搜索三重筛选叠加；标签筛选为单下拉分组（分类作不可选分组头），状态同步单一入口，分类被删/标签改名后回落「全部标签」；搜索高亮须先转义再替换（防注入）；空态区分「无数据/搜索无结果/月份无记录」。
+- **消费趋势** — 预期月消费作为参考线，超线月份显著标记；可按标签下钻展开当月明细。
+- **暗色模式** — 切换入口唯一在设置弹窗；`<head>` 内联脚本在渲染前定好初始主题（跟随系统，显式切换后以存储为准），避免首屏闪烁。
+- **设置弹窗** — 导入/导出、外观、自动备份的唯一入口。
+- **统一提示便条** — 全站唯一的瞬时反馈出口（`toast` / `#toast-area`），**禁止第二套通道**；三种语义色（success/error/info）；同文案同类型且未退场时只重置计时不堆叠。
+- **图表空态与转义** — 所选维度无数据时显示空态而非空白画布；旭日图标签只显示名称，数值/占比在 tooltip；**tooltip 中插值的用户输入（资产名/标签等）必须转义，防存储型 XSS**。
+- **弹窗** — `openModal`/`closeModal` 成对；ESC 关最上层；点遮罩空白处关闭。
+- **数据导入/导出** — 导出剥离快照加工字段 `totalCNY`；导入校验必要字段后走 `migrateState()`。
+- **数据防丢备份** — 两层：①启动后按频率静默自动下载（仅在有数据时），导出前须 `await` 同一笔汇率拉取完成，避免写入过期汇率；②距上次备份超期时温和提醒。是否该备份、超期天数、文案等决策在 logic.js（可单测），index.html 只留 DOM 副作用。
+- **示例数据** — 资产/消费各有示例加载，覆盖前二次确认；示例含现金比例演示。
 
 ## 开发
 
-无构建步骤。修改后直接刷新浏览器即可生效。
+无构建步骤，改完刷新浏览器生效。
 
 ### TDD（测试先行）
 
-本项目以 TDD 推进改动，所有修复/重构都遵循「先写失败测试 → 最小实现 → 重构」的红-绿-重构循环；**不允许先改实现再补测试**。
+红-绿-重构：**先写失败测试 → 最小实现 → 重构**，不允许先改实现再补测试。
 
-1. **先写测试**：纯逻辑（换算/收益/迁移/排序/格式化/颜色等）加到 `test/logic.test.js`；DOM 接线、单一来源、文案与旧入口契约加到 `test/ui-wiring.test.js`。测试即需求说明书。
-2. **确认红**：跑 `node --test`，新增测试必须失败（red），且失败原因与预期一致（不是语法/拼写错）。
-3. **最小实现**：只改到测试转绿（green），不夹带无关改动。
-4. **重构**：绿灯下清理重复/命名，每步后重跑 `node --test` 保持全绿。
-5. **原子提交 + 推送**：一个独立问题一个 commit（Conventional Commits，中文描述），提交前 `node --test` 必须全绿；每个问题独立 push。
+1. 纯逻辑加到 `test/logic.test.js`；DOM 接线/单一来源/旧入口契约加到 `test/ui-wiring.test.js`。测试即需求说明书。
+2. 新增测试必须先失败（red），失败原因须与预期一致。
+3. 只改到转绿，不夹带无关改动；绿灯下重构，每步重跑 `node --test`。
+4. 一个独立问题一个 commit（Conventional Commits，中文描述），提交前 `node --test` 全绿，独立 push。
 
-单文件 SPA 没有组件引用可查，`index.html` 的 `onclick`/`innerHTML` 接线就是契约本身——因此新增/修改视图层逻辑时，优先在 `ui-wiring.test.js` 里用文本断言把守「单一来源」与「旧入口不回潮」。
+单文件 SPA 没有组件引用可查，`onclick`/`innerHTML` 接线就是契约本身——视图层改动优先在 `ui-wiring.test.js` 用文本断言把守「单一来源」与「旧入口不回潮」。
+
+### 文档与代码的边界（防漂移）
+
+**AGENTS.md 只写「约束与为什么」——即会改变决策的信息；不写具体数值、实现步骤、UI 细节。** 后者由代码与 `ui-wiring` 契约测试承担，写进文档只会随实现漂移并产生误导。新增约定时，若它既不能被测试守住、又不是「为什么」，就不要写进来。
 
 ## 单元测试
 
-核心纯逻辑（货币换算、收益测算、数据迁移、日期/月份、文本/金额转义、颜色数学）已抽到 `logic.js`，通过 UMD 双端复用：浏览器由 `index.html` 的 `<script src="logic.js">` 加载（函数挂到全局，供内联脚本按原名调用），Node 下作为 CommonJS 被测试 `require`。
+核心纯逻辑（换算、收益、迁移、日期、转义、颜色等）抽到 `logic.js`，UMD 双端复用：浏览器由 `<script src="logic.js">` 挂到全局，Node 下 `require`。
 
-- 运行：`node --test`（零依赖，仅用内置 `node:test` / `node:assert`）。
-- 测试文件：
-  - `test/logic.test.js` — 纯逻辑：货币换算/格式化、日期月份、快照对比、收益测算（现金口径/安全边际/覆盖率）、迁移兜底、排序状态机、标签筛选编解码、数据校验填标签、备份决策与文案、汇率提示、颜色数学、图例清理、堆叠柱标签排序、键盘导航（`nextTabIndex` / `inlineEditKeyAction`）。
-  - `test/ui-wiring.test.js` — 对 `index.html` 的文本契约断言，把守「单一来源 / 旧入口不回潮 / 关键接线」约定（设置与 toast 唯一入口、共享层不内联回潮、堆叠柱下钻与图例记忆、消费标签下拉与数据校验、键盘 Tab、行内编辑键位、自动备份时序、弹窗可访问性等；完整清单见文件内 `describe` 标题）。
-- 依赖全局 `state` / `incomeMode` 的函数，在测试中通过 `globalThis.state` / `globalThis.incomeMode` 注入，与浏览器读取 `let` 全局的行为一致。
-- 新增/修改上述纯逻辑时，请同步更新 `logic.js` 与对应单测，保持单一数据来源。
+- 运行：`node --test`（零依赖，内置 `node:test` / `node:assert`）。
+- `test/logic.test.js` — 纯函数单测。
+- `test/ui-wiring.test.js` — 对 `index.html` 的文本契约断言，把守「单一来源 / 旧入口不回潮 / 关键接线」；完整清单见文件内 `describe` 标题。
+- 依赖全局 `state` / `incomeMode` 的函数，测试中经 `globalThis` 注入。
+- 改动纯逻辑时同步更新 `logic.js` 与单测。
 
 ## Git 提交风格
 
