@@ -754,6 +754,13 @@ describe('UI 接线契约：键盘 Tab 在顶端资产/消费之间轮流切换'
     assert.ok(!/tabs-assets|tabs-expenses/.test(src), '不得再引用子 Tab 栏');
     assert.strictEqual(count(/nextTabIndex\b/g), 1, '纯函数定义在 logic.js，index.html 只调用一次');
   });
+
+  test('页面未聚焦时的首次 Tab 也切换（补偿浏览器默认先聚焦按钮，避免需按第二次）', () => {
+    const src = fnSource('handleTabKeyNav');
+    assert.match(src, /document\.activeElement/, '需读取当前焦点');
+    assert.match(src, /document\.body/, '识别未聚焦状态（activeElement 为 body）');
+    assert.match(src, /#mode-assets\.active, #mode-expenses\.active/, '以当前激活模式按钮为起点');
+  });
 });
 
 describe('UI 接线契约：弹窗可访问性', () => {

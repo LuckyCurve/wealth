@@ -1532,13 +1532,20 @@ function switchTab(tab) {
 
 // ========== 键盘 Tab 在顶端资产/消费之间轮流切换 ==========
 // 焦点落在顶端模式选择（资产/消费）上时，Tab/Shift+Tab 在两者之间轮流切换（组内循环）；
+// 整页尚未聚焦时（首次 Tab）也直接以当前激活模式为起点切换。
 // 不接管子 Tab，也不影响设置弹窗等其它 seg-control。
 function handleTabKeyNav(e) {
   if (e.key !== 'Tab' || e.altKey || e.ctrlKey || e.metaKey) return;
-  const btn = e.target.closest('#mode-assets, #mode-expenses');
-  if (!btn) return;
-  const btns = [...btn.closest('.seg-control').querySelectorAll('.seg-btn')];
-  const idx = nextTabIndex(btns.indexOf(btn), btns.length, e.shiftKey);
+  // 焦点已在模式按钮上时以它为起点；若整页尚未聚焦（首次 Tab，activeElement 为 body），
+  // 浏览器默认行为只会先把焦点移到按钮上、需再按一次才切换——这里以当前激活模式按钮为起点，
+  // 让首次 Tab 就直接切换。其余情况放行默认行为。
+  const active = document.activeElement;
+  const focused = active && active.closest ? active.closest('#mode-assets, #mode-expenses') : null;
+  const nothingFocused = active === document.body || active === document.documentElement;
+  const start = focused || (nothingFocused ? document.querySelector('#mode-assets.active, #mode-expenses.active') : null);
+  if (!start) return;
+  const btns = [...start.closest('.seg-control').querySelectorAll('.seg-btn')];
+  const idx = nextTabIndex(btns.indexOf(start), btns.length, e.shiftKey);
   if (idx === null) return;
   e.preventDefault();
   btns[idx].focus();
