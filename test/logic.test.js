@@ -1082,20 +1082,23 @@ describe('行内金额编辑键位语义 inlineEditKeyAction', () => {
   });
 });
 
-describe('标签页键盘导航 nextTabIndex（Tab/Shift+Tab 切换）', () => {
+describe('标签页键盘导航 nextTabIndex（Tab/Shift+Tab 组内循环）', () => {
   test('向后/向前移一位', () => {
     assert.strictEqual(L.nextTabIndex(0, 5, false), 1);
     assert.strictEqual(L.nextTabIndex(3, 5, true), 2);
   });
 
-  test('到达组首/组尾返回 null（不拦截，让焦点移出标签组，不困住焦点）', () => {
-    assert.strictEqual(L.nextTabIndex(4, 5, false), null);
-    assert.strictEqual(L.nextTabIndex(0, 5, true), null);
+  test('组首/组尾循环回绕（资产/消费轮流切换）', () => {
+    assert.strictEqual(L.nextTabIndex(4, 5, false), 0);
+    assert.strictEqual(L.nextTabIndex(0, 5, true), 4);
+    assert.strictEqual(L.nextTabIndex(1, 2, false), 0);
+    assert.strictEqual(L.nextTabIndex(0, 2, false), 1);
+    assert.strictEqual(L.nextTabIndex(1, 2, true), 0);
   });
 
-  test('非法/越界输入防御', () => {
+  test('非法/边界输入防御', () => {
     assert.strictEqual(L.nextTabIndex(-1, 5, false), 0);
-    assert.strictEqual(L.nextTabIndex(99, 5, false), null);
+    assert.strictEqual(L.nextTabIndex(99, 5, false), 0);
     assert.strictEqual(L.nextTabIndex(0, 0, false), null);
     assert.strictEqual(L.nextTabIndex(undefined, 2, false), 1);
   });

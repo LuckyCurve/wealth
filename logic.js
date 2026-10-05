@@ -97,12 +97,13 @@
     return null;
   }
 
-  // 标签页键盘导航：在当前标签组内前/后移一位的目标下标（Tab/Shift+Tab）。
-  // 越界（组首按 Shift+Tab / 组尾按 Tab）返回 null，由调用方放行浏览器默认行为——
-  // 焦点得以移出标签组，避免被 Tab 困在标签栏里。防御 current 非法/越界。
+  // 标签页键盘导航：在当前标签组内前/后移一位的目标下标（Tab/Shift+Tab），
+  // 组首/组尾循环回绕（顶端资产/消费只有两项，Tab 即在两者间轮流切换）。
+  // total<=0 返回 null 供调用方跳过；防御 current 非法/越界（取模前先归一到非负）。
   function nextTabIndex(current, total, shift) {
-    const j = (Number(current) || 0) + (shift ? -1 : 1);
-    return (j < 0 || j >= total) ? null : j;
+    if (!(total > 0)) return null;
+    const step = (Number(current) || 0) + (shift ? -1 : 1);
+    return ((step % total) + total) % total;
   }
 
   // 消费记录出现过的月份列表（去重、降序）：月份筛选下拉与趋势图维度下拉共用。
