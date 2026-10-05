@@ -721,6 +721,25 @@ describe('UI 接线契约：本地加载异常回退完整', () => {
   });
 });
 
+describe('UI 接线契约：行内金额编辑键位（小键盘 Enter 同 Tab）', () => {
+  test('键位语义单一来源 inlineEditKeyAction，onInlineEditKey 不内联判 NumpadEnter', () => {
+    assert.match(fnSource('onInlineEditKey'), /inlineEditKeyAction\(/, '走纯函数判键位');
+    assert.strictEqual(count(/NumpadEnter/g), 0, 'NumpadEnter 判定应只在 logic.js');
+    assert.strictEqual(count(/inlineEditKeyAction\b/g), 1, 'index.html 只调用一次，不重复定义');
+  });
+
+  test('jump 分支阻止冒泡到 cell 的 Enter 处理（否则小键盘 Enter 会立即重进原行）', () => {
+    const src = fnSource('onInlineEditKey');
+    const jump = src.slice(src.indexOf("action === 'jump'"));
+    assert.notStrictEqual(jump, '', '存在 jump 分支');
+    assert.match(jump, /e\.stopPropagation\(\)/, 'jump 必须 stopPropagation：小键盘 Enter 的 key 也是 Enter，冒泡会触发 cell onkeydown 重回原行');
+  });
+
+  test('编辑态键位教学提示小键盘 Enter/Tab 下一行', () => {
+    assert.match(fnSource('startInlineEdit'), /小键盘 Enter\/Tab 下一行/, '标题键位教学应涵盖小键盘 Enter');
+  });
+});
+
 describe('UI 接线契约：键盘 Tab 切换标签页（资产/消费模式与子 Tab）', () => {
   test('Tab 导航处理器唯一、走 nextTabIndex 纯函数、只注册一次', () => {
     assert.strictEqual(count(/function handleTabKeyNav\(/g), 1, 'handler 应唯一');

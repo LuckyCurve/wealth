@@ -1062,6 +1062,26 @@ describe('快照对比默认基准 defaultCompareBaseMonth（默认最近两个�
   });
 });
 
+describe('行内金额编辑键位语义 inlineEditKeyAction', () => {
+  test('主键盘 Enter 仅保存当前项', () => {
+    assert.strictEqual(L.inlineEditKeyAction('Enter', 'Enter'), 'commit');
+  });
+
+  test('小键盘 Enter 等同 Tab：保存并跳到下一行', () => {
+    assert.strictEqual(L.inlineEditKeyAction('Enter', 'NumpadEnter'), 'jump');
+  });
+
+  test('Tab 跳转、Escape 取消', () => {
+    assert.strictEqual(L.inlineEditKeyAction('Tab', 'Tab'), 'jump');
+    assert.strictEqual(L.inlineEditKeyAction('Escape', 'Escape'), 'cancel');
+  });
+
+  test('其它键不处理（返回 null）', () => {
+    assert.strictEqual(L.inlineEditKeyAction('a', 'KeyA'), null);
+    assert.strictEqual(L.inlineEditKeyAction('ArrowDown', 'ArrowDown'), null);
+  });
+});
+
 describe('标签页键盘导航 nextTabIndex（Tab/Shift+Tab 切换）', () => {
   test('向后/向前移一位', () => {
     assert.strictEqual(L.nextTabIndex(0, 5, false), 1);

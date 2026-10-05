@@ -1810,7 +1810,7 @@ function startInlineEdit(id) {
   if (row) row.classList.add('editing');
   // 编辑态 title 改为键位教学（非编辑态 hover 提示「点击快速更新金额」）; dataset 备份退出时恢复
   cell.dataset.title = cell.title;
-  cell.title = 'Enter 保存 · Esc 取消 · Tab 下一行';
+  cell.title = 'Enter 保存 · 小键盘 Enter/Tab 下一行 · Esc 取消';
   cell.innerHTML = `<input type="text" class="inline-edit-input" value="${moneyStr(a.amount)}" inputmode="decimal" autocomplete="off" oninput="formatMoneyInput(this)" onkeydown="onInlineEditKey(event,'${jsAttr(id)}')" onblur="commitInlineEdit()">`;
   const inp = cell.querySelector('input');
   if (inp) { inp.focus(); inp.select(); }
@@ -1856,13 +1856,15 @@ function commitInlineEdit(doRender) {
   return true;
 }
 
-// 行内编辑键盘: Enter 提交（blur 触发保存）, Esc 取消并恢复原值, Tab/Shift+Tab 提交并跳到下一/上一行
+// 行内编辑键盘: 主键盘 Enter 仅保存（blur 触发保存）; 小键盘 Enter 与 Tab/Shift+Tab 同义, 保存并跳到下一/上一行;
+// Esc 取消并恢复原值。键位判定下沉 logic.js 纯函数, 不在此内联区分主/副键盘分支。
 function onInlineEditKey(e, id) {
-  if (e.key === 'Enter') {
+  const action = inlineEditKeyAction(e.key, e.code);
+  if (action === 'commit') {
     e.preventDefault();
     e.stopPropagation(); // 阻止 keydown 冒泡到 cell 的 onkeydown（Enter 会 startInlineEdit, 且此时 _inlineEditId 已被 commit 清空、守卫失效, 会导致提交后立即重新进入编辑态）
     e.target.blur(); // 触发 onblur → commitInlineEdit
-  } else if (e.key === 'Escape') {
+  } else if (action === 'cancel') {
     e.preventDefault();
     _inlineEditId = null; // 取消: 阻止 onblur 提交
     const a = state.assets.find(x => x.id === id);
@@ -1874,8 +1876,11 @@ function onInlineEditKey(e, id) {
       if (cell.dataset.title != null) { cell.title = cell.dataset.title; delete cell.dataset.title; }
       cell.focus(); // 焦点还给单元格（tabindex=0）, Enter 可重新编辑 / Tab 继续
     }
-  } else if (e.key === 'Tab') {
+  } else if (action === 'jump') {
     e.preventDefault();
+    // 小键盘 Enter 的 key 同样是 'Enter'，不阻止冒泡会触发 cell 的 onkeydown → startInlineEdit(原行)，
+    // 把刚跳到的下一行撤销、重进原行。Tab 一并阻止无副作用（document 层标签导航本就不处理输入框）
+    e.stopPropagation();
     // 值非法时 commit 已恢复原值并返回 false: 立即重回编辑态, 不打断流式录入
     if (!commitInlineEdit(true)) { startInlineEdit(id); return; }
     // 按渲染顺序跳转（DOM 顺序即视觉顺序, 排序激活/整表重绘后仍准确）

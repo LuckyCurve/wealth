@@ -87,6 +87,16 @@
     return { by: field, dir: 'asc' };
   }
 
+  // 行内金额编辑的键位语义（单一来源）：主键盘 Enter 仅保存当前项（'commit'）；
+  // 小键盘 Enter（key 也是 'Enter'，靠 code === 'NumpadEnter' 区分）与 Tab/Shift+Tab 同义，
+  // 保存并跳到下一/上一行（'jump'），方便用小键盘流式录入；Escape 取消（'cancel'）；其余不处理（null）。
+  function inlineEditKeyAction(key, code) {
+    if (key === 'Escape') return 'cancel';
+    if (key === 'Tab') return 'jump';
+    if (key === 'Enter') return code === 'NumpadEnter' ? 'jump' : 'commit';
+    return null;
+  }
+
   // 标签页键盘导航：在当前标签组内前/后移一位的目标下标（Tab/Shift+Tab）。
   // 越界（组首按 Shift+Tab / 组尾按 Tab）返回 null，由调用方放行浏览器默认行为——
   // 焦点得以移出标签组，避免被 Tab 困在标签栏里。防御 current 非法/越界。
@@ -717,7 +727,7 @@
     daysBetweenStr,
     BACKUP_STALE_DAYS, normalizeBackupFreq, backupNoteText, hasAnyBackupWorthyData, shouldAutoBackup, backupStaleDays,
     rateFallbackNotice,
-    nextSortState, nextTabIndex, expenseMonths,
+    nextSortState, nextTabIndex, inlineEditKeyAction, expenseMonths,
     tagFilterValue, parseTagFilter, expenseTagFilterGroups, hasTagFilterOption,
     isUntaggedItem, missingTagGroups, setTag, backfillTag,
     findMonthSnapshot, getPrevSnapshot, defaultCompareBaseMonth,
