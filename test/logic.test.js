@@ -1179,14 +1179,25 @@ describe('pruneRunwayTags（标签引用归一/清理：迁移与分类 CRUD 共
 describe('runwayLiquidCNY（所选标签匹配的资产折算 CNY 合计）', () => {
   const refs = [{ catId: 'c1', tag: '活期现金' }];
 
-  test('按 catId+tag 精确匹配，按当前汇率折算', () => {
-    globalThis.state = freshState();
+  test('按 catId+tag 精确匹配，外币一律先折成 CNY 再合计（禁用原币值）', () => {
+    globalThis.state = freshState(); // HKD 0.9 / USD 7.2
     const assets = [
       { amount: 100, currency: 'CNY', tags: { c1: '活期现金' } },
+      { amount: 100, currency: 'HKD', tags: { c1: '活期现金' } },
       { amount: 100, currency: 'USD', tags: { c1: '活期现金' } },
       { amount: 999, currency: 'CNY', tags: { c1: '定期存款' } },
     ];
-    assert.ok(approx(L.runwayLiquidCNY(assets, refs), 100 + 720));
+    const liquid = L.runwayLiquidCNY(assets, refs);
+    assert.ok(approx(liquid, 100 + 90 + 720), '按当前汇率折算后相加');
+    assert.notStrictEqual(liquid, 300, '不得把外币原币值当 CNY 直接相加');
+  });
+
+  test('折算按调用时的汇率重算，不缓存（汇率刷新后读数随之变）', () => {
+    globalThis.state = freshState({ rates: { CNY: 1, HKD: 1, USD: 1, fetchedAt: null } });
+    const assets = [{ amount: 100, currency: 'HKD', tags: { c1: '活期现金' } }];
+    assert.strictEqual(L.runwayLiquidCNY(assets, refs), 100);
+    globalThis.state.rates.HKD = 0.92;
+    assert.strictEqual(L.runwayLiquidCNY(assets, refs), 92, '同一入参在新汇率下必须给出新结果');
   });
 
   test('同一资产命中多个所选标签只计一次', () => {
