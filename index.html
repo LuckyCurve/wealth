@@ -1012,6 +1012,27 @@ tailwind.config = {
           <div class="empty-action"><button onclick="switchTab('expenses')" class="btn-ghost" style="padding:8px 20px;">去记录消费</button></div>
         </div>
       </div>
+      <!-- 本月已花 ÷ 预期月消费: 与「所选标签读数卡」同依附「预期月消费」这条参考线, 先近（本月）后远（长期）。
+           刻度尺沿用覆盖标尺同一家族: 实心填充 = 钱的进度（已花占整月预期）, 金色菱形站点 = 今天的位置,
+           填充越过菱形即超前消费（转红）。公式直呈现, 骨架静态存在, JS 只同步文案;
+           未设预期消费时整张卡不显示（入口即上方「预期消费」按钮） -->
+      <div id="month-pace-card" class="card mb-6" style="display:none;">
+        <p class="cov-label text-center mb-3">本月已花</p>
+        <div class="cov-track">
+          <div id="pace-fill" class="cov-fill"></div>
+          <div id="pace-tick" class="cov-marker" style="left:0;"></div>
+        </div>
+        <p class="cov-reading runway-line" id="pace-reading">
+          <span id="pace-num" class="tabular" style="font-weight:600;color:var(--fg);"></span>
+          <span>÷ 预期月消费</span>
+          <span id="pace-expense" class="tabular"></span>
+          <span>=</span>
+          <span id="pace-pct" class="tabular" style="font-weight:600;color:var(--accent-ink);"></span>
+          <span>· 时间进度</span>
+          <span id="pace-time" class="tabular"></span>
+        </p>
+        <p id="pace-status" class="text-xs text-center" style="display:none;"></p>
+      </div>
       <!-- 所选标签的钱 ÷ 预期月消费: 依附「预期月消费」这条参考线, 故落在消费趋势（与收益测算无关）。
            公式直呈现, 骨架静态存在, JS 只同步文案; 未设预期消费时整张卡不显示（入口即上方「预期消费」按钮） -->
       <div id="runway-card" class="card mb-6" style="display:none;">
@@ -3147,6 +3168,40 @@ function openRunwayModal() {
   openModal('runway-modal');
 }
 
+// ========== 本月已花 ÷ 预期月消费（趋势页进度读数卡）==========
+// 与「所选标签读数卡」同依附「预期月消费」这条参考线, 落在消费趋势; 公式直呈现:
+// 本月已花 ÷ 预期月消费 = 百分比, 时间进度作对照。
+// 口径在 logic.js monthExpenseTotal()/monthPaceReading()/monthPaceStatusText()（单一来源）。
+// 刻度尺上实心填充 = 钱的进度, 金色菱形站点（cov-marker）= 今天的位置; 填充越过菱形即超前消费（转红）。
+// 未设预期消费 → 整张卡不显示（入口即页头「预期消费」按钮）; 骨架静态存在, 这里只同步文案。
+function renderMonthPace() {
+  const card = document.getElementById('month-pace-card');
+  if (!card) return;
+  const expectation = state.expenseExpectation || 0;
+  if (!(expectation > 0)) {
+    card.style.display = 'none';
+    return;
+  }
+  // 合计与进度必须取同一时刻: 各自 new Date 会在跨午夜瞬间分属两个月（合计旧月、进度新月）
+  const now = new Date();
+  const spent = monthExpenseTotal(state.expenses, getLocalMonthStr(now));
+  const reading = monthPaceReading(spent, expectation, now);
+  card.style.display = '';
+  // 钱的进度物理封顶（进度条上限）, 真实百分比在读数文字里呈现
+  document.getElementById('pace-fill').style.width = Math.min(100, Math.max(0, reading.pctOfMonth)) + '%';
+  document.getElementById('pace-fill').style.background = reading.over ? 'var(--down)' : 'var(--verdigris)';
+  document.getElementById('pace-tick').style.left = pctStr(reading.pace, 1) + '%';
+  document.getElementById('pace-num').textContent = formatCNY(spent);
+  document.getElementById('pace-expense').textContent = formatCNY(expectation);
+  document.getElementById('pace-pct').textContent = pctStr(spent, expectation) + '%';
+  document.getElementById('pace-time').textContent = pctStr(reading.pace, 1) + '%';
+  const status = document.getElementById('pace-status');
+  const text = monthPaceStatusText(reading);
+  status.textContent = text;
+  status.style.display = text ? '' : 'none';
+  status.style.color = reading.over ? 'var(--down)' : 'var(--muted)';
+}
+
 // 分组多选 chips: 复用录入表单同款 chip 视觉（tagChipHtml）, 分组头不可选
 function renderRunwayTagGroups() {
   const box = document.getElementById('runway-tag-groups');
@@ -4242,6 +4297,7 @@ function clearExpectation() {
 function renderExpenseTrendChart() {
   // 读数卡跟着「预期月消费」走: 放在早退之前, 无消费记录时也照样同步（口径与本页记录无关）
   renderRunwayRow();
+  renderMonthPace();
   // 预期消费按钮状态化: 未设置 →「设定预期」, 已设置 → 显示当前值
   const expBtn = document.getElementById('expense-expectation-btn');
   if (expBtn) {

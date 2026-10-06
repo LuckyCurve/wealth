@@ -416,6 +416,53 @@
     return rem === 0 ? `${years} 年` : `${years} 年 ${rem} 个月`;
   }
 
+  // ========== 本月已花 ÷ 预期月消费（趋势页进度读数卡）==========
+  // 本月合计（CNY）: 复用 monthlyExpenseTotals 同一容错口径（缺 date / NaN 金额贡献 0）, 不另写一套
+  function monthExpenseTotal(expenses, month) {
+    const found = monthlyExpenseTotals(expenses).find(x => x.month === month);
+    return found ? found.total : 0;
+  }
+
+  // 'YYYY-MM' → 当月天数。手动拆解构造 new Date(y, m, 0)（本地时区, 不走 toISOString 的 UTC 偏移）;
+  // 年/月非法（含 13 月、0 月）返回 null
+  function daysInMonthOf(month) {
+    const [y, m] = String(month || '').split('-').map(Number);
+    if (!y || !m || m < 1 || m > 12) return null;
+    return new Date(y, m, 0).getDate();
+  }
+
+  // 本月进度口径（进度卡读数单一来源）:
+  //   pace = 今天日期号 ÷ 当月天数 —— 今天算整天: 进度基准取较大值, 「超前」判定不虚报, 月初不吓人
+  //   （当月天数经 daysInMonthOf(getLocalMonthStr(t)) 取得, 不另写第二套构造）
+  //   pctOfMonth = spent ÷ expectation × 100 —— 真实值不封顶, 封顶是进度条 UI 职责
+  //   over = spent > expectedToDate —— 打平算不超（与 incomeGap 打平算盈余同精神）
+  // expectation 未设/非法（<=0）→ null（UI 整卡不显示, 入口交给「预期消费」按钮）
+  function monthPaceReading(spent, expectation, today) {
+    const e = Number(expectation);
+    if (!isFinite(e) || e <= 0) return null;
+    const t = today instanceof Date && !isNaN(today) ? today : new Date();
+    const days = daysInMonthOf(getLocalMonthStr(t));
+    const pace = t.getDate() / days;
+    const s = Number(spent) || 0;
+    const expectedToDate = e * pace;
+    return {
+      pace: pace,
+      pctOfMonth: s / e * 100,
+      expectedToDate: expectedToDate,
+      over: s > expectedToDate,
+      diff: s - expectedToDate,
+    };
+  }
+
+  // 进度状态文案（#pace-status 唯一渲染出口, 内联脚本不得重复字面量）:
+  // 按时间进度叙述差额; 打平不显示（''）。金额走 formatCNY 同一货币呈现
+  function monthPaceStatusText(reading) {
+    if (!reading || !isFinite(reading.diff)) return '';
+    if (reading.over) return '比时间进度多花 ' + formatCNY(reading.diff);
+    if (reading.diff < 0) return '比时间进度少花 ' + formatCNY(-reading.diff);
+    return '';
+  }
+
   // ========== 数据迁移 / 兜底（依赖全局 state，原地修改）==========
   // loadState（本地加载）与 importData（JSON 导入）共用，保证旧版数据导入后行为一致
   function migrateState() {
@@ -809,6 +856,7 @@
     nextSortState, nextTabIndex, inlineEditKeyAction, expenseMonths,
     tagFilterValue, parseTagFilter, expenseTagFilterGroups, hasTagFilterOption,
     isUntaggedItem, missingTagGroups, setTag, backfillTag,
+    monthExpenseTotal, daysInMonthOf, monthPaceReading, monthPaceStatusText,
     pruneRunwayTags, runwayLiquidCNY, runwayMonths, runwayMonthsText,
     findMonthSnapshot, getPrevSnapshot, defaultCompareBaseMonth,
     monthlyExpenseTotals, prevExpenseMonthOf, expenseMoM, expenseMonthTagTotals,

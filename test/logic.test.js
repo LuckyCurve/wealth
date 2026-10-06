@@ -1367,3 +1367,91 @@ describe('runwayTags 迁移兜底（migrateState）', () => {
     assert.deepStrictEqual(state.runwayTags, [{ catId: 'c1', tag: 'a' }]);
   });
 });
+
+// ========== 本月已花 ÷ 预期月消费（趋势页进度读数卡）==========
+describe('本月进度 monthExpenseTotal / daysInMonthOf / monthPaceReading / monthPaceStatusText', () => {
+  test('monthExpenseTotal 只聚合本月，脏记录贡献 0', () => {
+    const expenses = [
+      { date: '2026-10-05', amount: 100 },
+      { date: '2026-10-31', amount: 23.5 },
+      { date: '2026-09-30', amount: 999 },   // 他月不计
+      { date: '', amount: 50 },              // 空日期不计
+      { amount: 50 },                        // 缺 date 不崩
+      { date: '2026-10-02', amount: NaN },   // 脏金额归 0
+      { date: '2026-10-02' },                // 缺金额归 0
+    ];
+    assert.strictEqual(L.monthExpenseTotal(expenses, '2026-10'), 123.5);
+    assert.strictEqual(L.monthExpenseTotal(expenses, '2026-09'), 999);
+    assert.strictEqual(L.monthExpenseTotal([], '2026-10'), 0);
+    assert.strictEqual(L.monthExpenseTotal(null, '2026-10'), 0);
+  });
+
+  test('daysInMonthOf 平闰年与非法输入', () => {
+    assert.strictEqual(L.daysInMonthOf('2026-01'), 31);
+    assert.strictEqual(L.daysInMonthOf('2026-02'), 28);
+    assert.strictEqual(L.daysInMonthOf('2024-02'), 29);
+    assert.strictEqual(L.daysInMonthOf('2026-04'), 30);
+    assert.strictEqual(L.daysInMonthOf(''), null);
+    assert.strictEqual(L.daysInMonthOf('2026-13'), null);
+    assert.strictEqual(L.daysInMonthOf('2026-00'), null);
+    assert.strictEqual(L.daysInMonthOf('abc'), null);
+    assert.strictEqual(L.daysInMonthOf(null), null);
+  });
+
+  test('monthPaceReading 口径：今天算整天、打平算不超、百分比不封顶', () => {
+    // 10 月 31 天, 6 号 → pace = 6/31（今天算整天, 进度基准取较大值, 「超前」判定不虚报）
+    const t = new Date(2026, 9, 6);
+    const r = L.monthPaceReading(1000, 5000, t);
+    assert.strictEqual(r.pace, 6 / 31);
+    assert.strictEqual(r.pctOfMonth, 20);
+    approx(r.expectedToDate, 5000 * 6 / 31);
+    assert.strictEqual(r.over, true, '1000 > 967.74 超出时间进度');
+    approx(r.diff, 1000 - 5000 * 6 / 31);
+
+    // 打平不算超（与 incomeGap 打平算盈余同精神）
+    const even = L.monthPaceReading(5000 * 6 / 31, 5000, t);
+    assert.strictEqual(even.over, false);
+    assert.strictEqual(even.diff, 0);
+
+    // 月初 0 元不算超
+    assert.strictEqual(L.monthPaceReading(0, 5000, new Date(2026, 9, 1)).over, false);
+
+    // 超过 100% 不封顶（封顶是进度条 UI 职责）
+    assert.strictEqual(L.monthPaceReading(6000, 5000, t).pctOfMonth, 120);
+
+    // 未设预期 → null（UI 整卡不显示, 入口交给「预期消费」按钮）
+    assert.strictEqual(L.monthPaceReading(1000, 0, t), null);
+    assert.strictEqual(L.monthPaceReading(1000, -1, t), null);
+    assert.strictEqual(L.monthPaceReading(1000, 'abc', t), null);
+  });
+
+  test('monthPaceStatusText：差额叙述单一出口，打平不显示', () => {
+    const t = new Date(2026, 9, 6);
+    assert.strictEqual(
+      L.monthPaceStatusText(L.monthPaceReading(1000, 5000, t)),
+      '比时间进度多花 ¥32.26');
+    assert.strictEqual(
+      L.monthPaceStatusText(L.monthPaceReading(500, 5000, t)),
+      '比时间进度少花 ¥467.74');
+    const even = L.monthPaceReading(5000 * 6 / 31, 5000, t);
+    assert.strictEqual(L.monthPaceStatusText(even), '', '打平不显示状态行');
+    assert.strictEqual(L.monthPaceStatusText(null), '');
+  });
+});
+
+describe('本月进度口径单一来源（monthExpenseTotal 与 monthlyExpenseTotals 同式）', () => {
+  test('monthExpenseTotal 与 monthlyExpenseTotals 对同一月份给出相同合计（容错逻辑不得分裂）', () => {
+    const expenses = [
+      { date: '2026-10-05', amount: 100 },
+      { date: '2026-10-31', amount: 23.5 },
+      { date: '2026-09-30', amount: 999 },
+      { date: '', amount: 50 },
+      { date: '2026-10-02', amount: NaN },
+    ];
+    const fromAggregate = L.monthlyExpenseTotals(expenses).find(x => x.month === '2026-10').total;
+    assert.strictEqual(L.monthExpenseTotal(expenses, '2026-10'), fromAggregate);
+    // 聚合里不存在的月份（或全部为脏记录）→ 0, 与「找不到即 0」同口径
+    assert.strictEqual(L.monthExpenseTotal(expenses, '2026-08'), 0);
+    assert.strictEqual(L.monthExpenseTotal(null, '2026-10'), 0);
+  });
+});

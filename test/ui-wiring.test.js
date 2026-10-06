@@ -913,3 +913,67 @@ describe('UI 接线契约：所选标签的钱 ÷ 预期月消费（消费趋势
       '用户可见文案与注释一律用平实描述：所选标签的钱 ÷ 预期月消费 = 能撑几个月');
   });
 });
+
+describe('UI 接线契约：本月已花 ÷ 预期月消费（趋势页进度卡）', () => {
+  const logic = fs.readFileSync(path.join(__dirname, '..', 'logic.js'), 'utf8');
+  const trendTab = html.match(/id="tab-expense-trend"[\s\S]*?<\/section>/)[0];
+
+  test('口径在 logic.js：合计/进度/状态文案单一来源，渲染层不内联算式', () => {
+    assert.match(logic, /function monthExpenseTotal\(/, '本月合计在 logic.js');
+    assert.match(logic, /function monthPaceReading\(/, '进度口径在 logic.js');
+    assert.match(logic, /function monthPaceStatusText\(/, '差额叙述在 logic.js');
+    const src = fnSource('renderMonthPace');
+    assert.match(src, /monthExpenseTotal\(state\.expenses/, '渲染层从 logic.js 取合计');
+    assert.match(src, /monthPaceReading\(/);
+    assert.match(src, /monthPaceStatusText\(/);
+    assert.doesNotMatch(src, /\/ 31|\/ days|\/ expectation|spent\s*\/\s*expectation|\* 100/, '进度/百分比算式不得在内联脚本重写（百分比呈现统一走 pctStr）');
+    assert.match(src, /const now = new Date\(\);/, '合计与进度取同一时刻（各取一次 new Date 会在跨午夜时月份错位）');
+    assert.match(src, /getLocalMonthStr\(now\)/, '合计月份来自单一时刻');
+    assert.match(src, /monthPaceReading\(spent, expectation, now\)/, '进度口径用同一时刻');
+    assert.doesNotMatch(src, /innerHTML/, '只写 textContent: 金额来自用户数据, 不拼 HTML');
+    assert.doesNotMatch(html, /比时间进度/, '状态文案唯一出口在 logic.js, 内联脚本不得重复字面量');
+  });
+
+  test('进度卡落在消费趋势、跑道卡之前（先近后远，同依附「预期月消费」锚点），别处不得回潮', () => {
+    assert.strictEqual(count(/id="month-pace-card"/g), 1);
+    assert.ok(trendTab.indexOf('month-pace-card') < trendTab.indexOf('runway-card'),
+      '本月视角在跑道（长期视角）之前');
+    const recordsTab = html.match(/id="tab-expenses"[\s\S]*?<\/section>/)[0];
+    assert.doesNotMatch(recordsTab, /month-pace/, '消费记录页不出现第二套进度呈现（单一来源）');
+    for (const id of ['pace-num', 'pace-expense', 'pace-pct', 'pace-time', 'pace-status', 'pace-fill', 'pace-tick']) {
+      assert.strictEqual(count(new RegExp(`id="${id}"`, 'g')), 1, `${id} 唯一`);
+    }
+  });
+
+  test('公式写在结构里；刻度尺复用 cov-track 家族（不另造第二把尺）', () => {
+    const card = html.match(/id="month-pace-card"[\s\S]*?<\/div>\s*<\/div>\s*<\/div>/)[0];
+    assert.match(card, /÷ 预期月消费/, '除法与分母名称在静态骨架中可见（公式直呈现）');
+    assert.match(card, /· 时间进度/, '时间进度对照在骨架中可见');
+    assert.match(card, /class="cov-track"/, '刻度尺沿用覆盖标尺同一家族');
+    assert.match(card, /class="cov-fill"/, '填充沿用覆盖标尺同一家族');
+    assert.match(card, /class="cov-marker"/, '「今天」用覆盖标尺同族的菱形站点标记（1px 发丝刻度太轻, 站点才读得出位置）');
+    assert.doesNotMatch(html, /\.pace-tick \{/, '菱形直接复用 cov-marker 家族, 不再留第二套刻度样式');
+  });
+
+  test('状态机：未设预期整卡不显示（入口交给页头「预期消费」按钮），否则同步文案槽', () => {
+    const src = fnSource('renderMonthPace');
+    assert.match(src, /if \(!card\) return;/, '骨架缺卡早退');
+    assert.match(src, /if \(!\(expectation > 0\)\)/, '未设预期时整张卡不显示');
+    assert.match(src, /card\.style\.display = 'none'/);
+    for (const id of ['pace-num', 'pace-expense', 'pace-pct', 'pace-time']) {
+      assert.match(src, new RegExp(`getElementById\\('${id}'\\)\\.textContent`), `${id} 用 textContent 同步`);
+    }
+    assert.match(src, /Math\.min\(100/, '进度条宽度物理封顶（读数文字不封顶）');
+    assert.match(src, /reading\.over/, '超前/未超前决定填充与状态行语义色');
+  });
+
+  test('接线：随消费趋势同步刷新，且在早退之前（无消费记录时也照样同步）', () => {
+    const trend = fnSource('renderExpenseTrendChart');
+    assert.match(trend, /renderMonthPace\(\);/, '随消费趋势同步刷新');
+    assert.ok(trend.indexOf('renderMonthPace();') < trend.indexOf('state.expenses.length === 0'),
+      '必须在早退之前');
+    assert.strictEqual(count(/function renderMonthPace\(/g), 1, '定义唯一');
+    // 调用点唯一：定义外仅趋势图同步 1 处（无散落调用点要维护）
+    assert.strictEqual(count(/renderMonthPace\(\)/g), 2, '定义 1 + 趋势图同步 1');
+  });
+});
