@@ -1134,3 +1134,225 @@ describe('堆叠柱标签排序 sortTagsByTotal（历史净值/消费趋势共�
     assert.deepStrictEqual(L.sortTagsByTotal({ tags: null }, []), []);
   });
 });
+
+// ========== 所选标签的钱 ÷ 预期月消费（读数行唯一口径）==========
+describe('pruneRunwayTags（标签引用归一/清理：迁移与分类 CRUD 共用）', () => {
+  const cats = [
+    { id: 'currency', name: '货币类型', builtin: true, tags: ['CNY', 'HKD'] },
+    { id: 'c1', name: '资产类型', tags: ['活期现金', '定期存款'] },
+  ];
+
+  test('非数组归零', () => {
+    assert.deepStrictEqual(L.pruneRunwayTags(null, cats), []);
+    assert.deepStrictEqual(L.pruneRunwayTags('x', cats), []);
+    assert.deepStrictEqual(L.pruneRunwayTags(undefined, cats), []);
+  });
+
+  test('丢弃畸形项与指向已不存在分类/标签的引用', () => {
+    const out = L.pruneRunwayTags([
+      null, 'x', {}, { catId: 'c1' }, { tag: '活期现金' }, { catId: 1, tag: '活期现金' },
+      { catId: 'c9', tag: '活期现金' },
+      { catId: 'c1', tag: '已删标签' },
+      { catId: 'c1', tag: '活期现金' },
+    ], cats);
+    assert.deepStrictEqual(out, [{ catId: 'c1', tag: '活期现金' }]);
+  });
+
+  test('去重保序', () => {
+    const out = L.pruneRunwayTags([
+      { catId: 'c1', tag: '定期存款' },
+      { catId: 'c1', tag: '活期现金' },
+      { catId: 'c1', tag: '定期存款' },
+    ], cats);
+    assert.deepStrictEqual(out, [
+      { catId: 'c1', tag: '定期存款' },
+      { catId: 'c1', tag: '活期现金' },
+    ]);
+  });
+
+  test('categories 缺失/损坏时不崩，返回 []', () => {
+    assert.deepStrictEqual(L.pruneRunwayTags([{ catId: 'c1', tag: 'a' }], null), []);
+    assert.deepStrictEqual(L.pruneRunwayTags([{ catId: 'c1', tag: 'a' }], [{ id: 'c1', tags: null }]), []);
+  });
+});
+
+describe('runwayLiquidCNY（所选标签匹配的资产折算 CNY 合计）', () => {
+  const refs = [{ catId: 'c1', tag: '活期现金' }];
+
+  test('按 catId+tag 精确匹配，按当前汇率折算', () => {
+    globalThis.state = freshState();
+    const assets = [
+      { amount: 100, currency: 'CNY', tags: { c1: '活期现金' } },
+      { amount: 100, currency: 'USD', tags: { c1: '活期现金' } },
+      { amount: 999, currency: 'CNY', tags: { c1: '定期存款' } },
+    ];
+    assert.ok(approx(L.runwayLiquidCNY(assets, refs), 100 + 720));
+  });
+
+  test('同一资产命中多个所选标签只计一次', () => {
+    globalThis.state = freshState();
+    const assets = [{ amount: 500, currency: 'CNY', tags: { c1: '活期现金', c2: '货币基金' } }];
+    const both = [{ catId: 'c1', tag: '活期现金' }, { catId: 'c2', tag: '货币基金' }];
+    assert.strictEqual(L.runwayLiquidCNY(assets, both), 500);
+  });
+
+  test('跨分类 = 且：只计同时命中各分类所选标签的资产', () => {
+    globalThis.state = freshState();
+    const assets = [
+      { amount: 100, currency: 'CNY', tags: { c1: '活期现金', c2: '高风险' } },
+      { amount: 200, currency: 'CNY', tags: { c1: '定期存款', c2: '低风险' } },
+      { amount: 50, currency: 'CNY', tags: { c1: '活期现金', c2: '低风险' } },
+      { amount: 70, currency: 'CNY', tags: { c2: '低风险' } },
+    ];
+    const refs = [{ catId: 'c1', tag: '活期现金' }, { catId: 'c2', tag: '低风险' }];
+    assert.strictEqual(L.runwayLiquidCNY(assets, refs), 50);
+  });
+
+  test('同分类 = 或：一个资产在一个分类下只有一个标签，同分类取交必然为零', () => {
+    globalThis.state = freshState();
+    const assets = [
+      { amount: 10, currency: 'CNY', tags: { c1: '活期现金' } },
+      { amount: 20, currency: 'CNY', tags: { c1: '定期存款' } },
+      { amount: 999, currency: 'CNY', tags: { c1: '权益基金' } },
+    ];
+    const refs = [{ catId: 'c1', tag: '活期现金' }, { catId: 'c1', tag: '定期存款' }];
+    assert.strictEqual(L.runwayLiquidCNY(assets, refs), 30);
+  });
+
+  test('同分类取并、跨分类取交（组合）', () => {
+    globalThis.state = freshState();
+    const assets = [
+      { amount: 10, currency: 'CNY', tags: { c1: '活期现金', c2: '低风险' } },
+      { amount: 20, currency: 'CNY', tags: { c1: '定期存款', c2: '低风险' } },
+      { amount: 999, currency: 'CNY', tags: { c1: '活期现金', c2: '高风险' } },
+      { amount: 888, currency: 'CNY', tags: { c1: '权益基金', c2: '低风险' } },
+      { amount: 777, currency: 'CNY', tags: { c1: '定期存款', c2: '高风险' } },
+    ];
+    const refs = [
+      { catId: 'c1', tag: '活期现金' }, { catId: 'c1', tag: '定期存款' },
+      { catId: 'c2', tag: '低风险' },
+    ];
+    assert.strictEqual(L.runwayLiquidCNY(assets, refs), 30);
+  });
+
+  test('未选的分类不参与过滤：只选一个分类时，其余分类不施加任何约束', () => {
+    globalThis.state = freshState();
+    const assets = [
+      { amount: 10, currency: 'CNY', tags: { c1: '活期现金', c2: '低风险' } },
+      { amount: 20, currency: 'CNY', tags: { c1: '活期现金', c2: '高风险' } },
+      { amount: 999, currency: 'CNY', tags: { c1: '权益基金', c2: '低风险' } },
+    ];
+    // 只选了 c1：c2 未选 → 不要求「必须是某个风险等级」
+    assert.strictEqual(L.runwayLiquidCNY(assets, [{ catId: 'c1', tag: '活期现金' }]), 30);
+    // 只选了 c2：c1 未选 → 不要求「必须是某类资产」
+    assert.strictEqual(L.runwayLiquidCNY(assets, [{ catId: 'c2', tag: '低风险' }]), 1009);
+  });
+
+  test('所选分类里该资产没有对应标签 = 不满足（不能算进去）', () => {
+    globalThis.state = freshState();
+    const assets = [
+      { amount: 10, currency: 'CNY', tags: { c2: '低风险' } },
+      { amount: 20, currency: 'CNY', tags: { c1: '活期现金' } },
+    ];
+    assert.strictEqual(L.runwayLiquidCNY(assets, [{ catId: 'c1', tag: '活期现金' }]), 20);
+  });
+
+  test('引用缺 tag（畸形）不得匹配到「没有该分类标签」的资产', () => {
+    globalThis.state = freshState();
+    const assets = [
+      { amount: 100, currency: 'CNY', tags: { c2: '低风险' } },
+      { amount: 200, currency: 'CNY', tags: { c1: '活期现金' } },
+    ];
+    // 畸形引用（有 catId 无 tag）: 若把 undefined 塞进集合, a.tags.c1 也是 undefined,
+    // 「没打过这个分类标签」的资产会被误判为命中, 分子虚高
+    assert.strictEqual(L.runwayLiquidCNY(assets, [{ catId: 'c1' }]), null, '全部畸形 → 视为未选');
+    assert.strictEqual(
+      L.runwayLiquidCNY(assets, [{ catId: 'c1', tag: '活期现金' }, { catId: 'c2' }]), 200,
+      '畸形项被忽略, 不影响合法项');
+  });
+
+  test('所选标签均无有效分类（防御）视为未选，返回 null', () => {
+    globalThis.state = freshState();
+    assert.strictEqual(L.runwayLiquidCNY([], [{ catId: 1, tag: 'x' }]), null);
+  });
+
+  test('未选标签返回 null（UI 据此走指引句，而不是把「没选」显示成 0）', () => {
+    assert.strictEqual(L.runwayLiquidCNY([], []), null);
+    assert.strictEqual(L.runwayLiquidCNY([], null), null);
+  });
+
+  test('选了标签但无资产命中返回 0', () => {
+    assert.strictEqual(L.runwayLiquidCNY([], refs), 0);
+  });
+
+  test('tags 缺失/损坏的资产与空项不崩', () => {
+    const assets = [{ amount: 1, currency: 'CNY' }, { amount: 2, currency: 'CNY', tags: null }, null];
+    assert.strictEqual(L.runwayLiquidCNY(assets, refs), 0);
+  });
+
+  test('不修改入参', () => {
+    const r = [{ catId: 'c1', tag: '活期现金' }];
+    L.runwayLiquidCNY([{ amount: 1, currency: 'CNY', tags: { c1: '活期现金' } }], r);
+    assert.deepStrictEqual(r, [{ catId: 'c1', tag: '活期现金' }]);
+  });
+});
+
+describe('runwayMonths / runwayMonthsText（月数口径与展示）', () => {
+  test('月数 = 所选标签的钱 ÷ 预期月消费', () => {
+    assert.ok(approx(L.runwayMonths(42000, 6000), 7));
+    assert.ok(approx(L.runwayMonths(0, 6000), 0));
+  });
+
+  test('预期未设 / 分子未选 / 非有限值返回 null', () => {
+    assert.strictEqual(L.runwayMonths(42000, 0), null);
+    assert.strictEqual(L.runwayMonths(42000, null), null);
+    assert.strictEqual(L.runwayMonths(null, 6000), null);
+    assert.strictEqual(L.runwayMonths(NaN, 6000), null);
+    assert.strictEqual(L.runwayMonths(42000, NaN), null);
+  });
+
+  test('展示口径：整数月，小数一律舍弃（保守），不足一个月单独成句', () => {
+    assert.strictEqual(L.runwayMonthsText(7), '7 个月');
+    assert.strictEqual(L.runwayMonthsText(7.9), '7 个月', '不进位');
+    assert.strictEqual(L.runwayMonthsText(11.99), '11 个月', '不会凑成 12 个月');
+    assert.strictEqual(L.runwayMonthsText(1), '1 个月');
+    assert.strictEqual(L.runwayMonthsText(0.99), '不足 1 个月');
+    assert.strictEqual(L.runwayMonthsText(0.4), '不足 1 个月');
+    assert.strictEqual(L.runwayMonthsText(0.05), '不足 1 个月');
+    assert.strictEqual(L.runwayMonthsText(0), '不足 1 个月');
+    assert.strictEqual(L.runwayMonthsText(null), '');
+    assert.strictEqual(L.runwayMonthsText(NaN), '');
+  });
+
+  test('展示口径：一年以上拆成「x 年 x 月」，月数取整不进位', () => {
+    assert.strictEqual(L.runwayMonthsText(12), '1 年');
+    assert.strictEqual(L.runwayMonthsText(12.5), '1 年');
+    assert.strictEqual(L.runwayMonthsText(15), '1 年 3 个月');
+    assert.strictEqual(L.runwayMonthsText(60), '5 年');
+    assert.strictEqual(L.runwayMonthsText(100), '8 年 4 个月');
+    assert.strictEqual(L.runwayMonthsText(1200), '100 年');
+    assert.strictEqual(L.runwayMonthsText(143.6), '11 年 11 个月', '不得进位成 12 年');
+    assert.strictEqual(L.runwayMonthsText(23.7), '1 年 11 个月', '不得进位成 2 年');
+    assert.strictEqual(L.runwayMonthsText(13.2), '1 年 1 个月');
+  });
+});
+
+describe('runwayTags 迁移兜底（migrateState）', () => {
+  test('缺失/损坏归一为 []', () => {
+    globalThis.state = freshState({ categories: [{ id: 'c1', name: 'x', tags: ['a'] }] });
+    L.migrateState();
+    assert.deepStrictEqual(state.runwayTags, []);
+    globalThis.state = freshState({ categories: [], runwayTags: 'x' });
+    L.migrateState();
+    assert.deepStrictEqual(state.runwayTags, []);
+  });
+
+  test('指向已删标签/分类的引用在迁移期清理，重复项去掉且保序', () => {
+    globalThis.state = freshState({
+      categories: [{ id: 'c1', name: 'x', tags: ['a'] }],
+      runwayTags: [{ catId: 'c1', tag: 'a' }, { catId: 'c1', tag: 'gone' }, { catId: 'c1', tag: 'a' }],
+    });
+    L.migrateState();
+    assert.deepStrictEqual(state.runwayTags, [{ catId: 'c1', tag: 'a' }]);
+  });
+});

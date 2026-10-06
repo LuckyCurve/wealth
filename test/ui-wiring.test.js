@@ -772,3 +772,130 @@ describe('UI 接线契约：弹窗可访问性', () => {
       '全部弹窗都要有对话框语义（读屏器可识别）');
   });
 });
+
+describe('UI 接线契约：所选标签的钱 ÷ 预期月消费（消费趋势的读数卡）', () => {
+  const logic = fs.readFileSync(path.join(__dirname, '..', 'logic.js'), 'utf8');
+
+  test('口径在 logic.js：渲染层不内联除法，展示走 runwayMonthsText', () => {
+    assert.match(logic, /function runwayLiquidCNY\(/, '分子合计在 logic.js');
+    assert.match(logic, /function runwayMonths\(/, '月数口径在 logic.js');
+    assert.match(logic, /function runwayMonthsText\(/, '展示口径在 logic.js');
+    const src = fnSource('renderRunwayRow');
+    assert.match(src, /runwayLiquidCNY\(state\.assets/, '渲染层从 logic.js 取分子');
+    assert.match(src, /runwayMonths\(/);
+    assert.match(src, /runwayMonthsText\(/);
+    assert.doesNotMatch(src, /\/\s*expectation/, '月数算式不得在内联脚本重写');
+    assert.doesNotMatch(src, /innerHTML/, '只写 textContent: 标签名/金额来自用户数据, 不拼 HTML');
+  });
+
+  test('读数卡落在消费趋势（跟着「预期月消费」这条参考线走），收益测算里不得出现', () => {
+    assert.strictEqual(count(/id="runway-card"/g), 1);
+    assert.strictEqual(count(/id="runway-guide"/g), 1);
+    const trendTab = html.match(/id="tab-expense-trend"[\s\S]*?<\/section>/)[0];
+    assert.match(trendTab, /id="runway-card"/, '读数依附「预期月消费」，故在消费趋势');
+    assert.match(trendTab, /id="runway-guide"[\s\S]*id="runway-reading"/, '指引与读数同卡，指引在前');
+    const incomeTab = html.match(/id="tab-income"[\s\S]*?<\/section>/)[0];
+    assert.doesNotMatch(incomeTab, /runway/, '这里没有测算收益，读数不得回潮到收益测算');
+    assert.strictEqual(count(/id="runway-modal"/g), 1, '标签弹窗唯一');
+    assert.strictEqual(count(/onclick="openRunwayModal\(\)"/g), 2, '指引 + 读数各一处再入口');
+  });
+
+  test('读数卡公式写在结构里（整句居中, 不沿用无刻度支撑的锚点两端对齐）', () => {
+    // 行尾无关: 断言只截到卡片的闭合 div（工作区可能 CRLF，写死 \n 会脆）
+    const section = html.match(/id="runway-card"[\s\S]*?<\/div>/);
+    assert.ok(section, '读数卡存在');
+    assert.match(section[0], /÷ 预期月消费/, '除法与分母名称在静态骨架中可见（公式直呈现）');
+    assert.match(section[0], /id="runway-num"/);
+    assert.match(section[0], /id="runway-expense"/);
+    assert.match(section[0], /id="runway-months"/);
+    assert.match(html, /\.runway-line \{[^}]*justify-content: center/, '整句居中, 窄屏按顿读点换行');
+    assert.doesNotMatch(section[0], /cov-anchors/, '无刻度可测, 不套用两端对齐锚点（中间空档会显得突兀）');
+  });
+
+  test('三种状态：未设预期整卡不显示（入口交给页头「预期消费」按钮）、未选标签走指引、否则读数', () => {
+    const src = fnSource('renderRunwayRow');
+    assert.match(src, /if \(!card \|\| !guide \|\| !line\) return;/, '三块骨架缺一即早退（少查一个就会在缺元素时抛错）');
+    assert.match(src, /if \(!\(expectation > 0\)\)/, '未设预期时整张卡不显示');
+    assert.match(src, /liquid != null/, '未选标签（null）与选了但合计为 0 区分开');
+    // 四个文案槽必须逐格同步（函数签名天然含函数名, 拿函数名当断言等于没断言）
+    for (const id of ['runway-tags-label', 'runway-num', 'runway-expense', 'runway-months']) {
+      assert.match(src, new RegExp(`getElementById\\('${id}'\\)\\.textContent`), `${id} 用 textContent 同步`);
+    }
+    assert.match(fnSource('renderExpenseTrendChart'), /renderRunwayRow\(\);/, '随消费趋势同步刷新');
+    assert.doesNotMatch(fnSource('renderIncomeTab'), /renderRunwayRow/, '收益侧不再接线');
+    // 空态也要刷新: 必须放在 renderExpenseTrendChart 的早退之前（无消费记录时读数照样成立）
+    const trend = fnSource('renderExpenseTrendChart');
+    assert.ok(trend.indexOf('renderRunwayRow();') < trend.indexOf('state.expenses.length === 0'),
+      '读数同步必须在早退之前');
+  });
+
+  test('多选 chips 复用 tagChipHtml 单一来源，不另造第二套 chip 模板', () => {
+    assert.strictEqual(count(/class="tag-choice"/g), 1, 'chip 模板只允许存在一处');
+    assert.strictEqual(count(/function tagChipHtml\(/g), 1, 'chip 生成函数唯一');
+    // 定义一处 + 单选 picker（录入/校验复用）+ 读数区多选 picker
+    assert.strictEqual(count(/tagChipHtml\(/g), 3, '单选与多选共用同一 chip 生成');
+    assert.match(fnSource('renderRunwayTagGroups'), /tagChipHtml\(/);
+  });
+
+  test('标签引用清理单一来源 pruneRunwayTags：迁移与分类三处编辑都走它', () => {
+    assert.match(logic, /function pruneRunwayTags\(/, '清理口径在 logic.js');
+    assert.match(logic, /state\.runwayTags = pruneRunwayTags\(state\.runwayTags, state\.categories\)/,
+      'migrateState 迁移期清理');
+    for (const fn of ['saveCategoryGeneric', 'deleteCategoryGeneric', 'removeTagGeneric']) {
+      const src = fnSource(fn);
+      assert.match(src, /state\.runwayTags = pruneRunwayTags\(state\.runwayTags, state\.categories\)/,
+        `${fn} 改名/删除标签后同步清理读数区引用，避免读数指着已不存在的标签`);
+      assert.match(src, /side === 'asset'/, `${fn} 需带侧别闸门：消费分类与读数卡无关`);
+    }
+  });
+
+  test('落值只走 saveRunwayTags（草稿 _runwayDraft，取消不落库）', () => {
+    const src = fnSource('saveRunwayTags');
+    assert.match(src, /state\.runwayTags = pruneRunwayTags\(_runwayDraft, state\.categories\)/);
+    assert.match(src, /saveState\(\)/);
+    assert.match(src, /renderRunwayRow\(\)/);
+    assert.match(src, /closeModal\('runway-modal'\)/);
+    assert.match(fnSource('openRunwayModal'), /openModal\('runway-modal'\)/, '走通用弹窗路径');
+    assert.doesNotMatch(fnSource('openRunwayModal'), /state\.runwayTags = /, '打开只拷草稿，不写状态');
+    assert.match(fnSource('openRunwayModal'), /_runwayDraft = .*state\.runwayTags/);
+  });
+
+  test('标签语义放 ? 悬停提示（正文不写说明），hover 与键盘 focus 都能看到', () => {
+    assert.strictEqual(count(/同一分类内多选为「或」/g), 1, '语义只出现一次——在提示气泡里');
+    const tip = html.match(/<span class="tip">[\s\S]*?<\/span>\s*<\/h3>/);
+    assert.ok(tip, '标题旁有 ? 提示结构');
+    assert.match(tip[0], /class="tip-mark"[^>]*aria-describedby="runway-tip"/, '? 图标关联气泡（可访问性）');
+    assert.match(tip[0], /role="tooltip"/);
+    assert.match(tip[0], /同一分类内多选为「或」/);
+    assert.match(tip[0], /不同分类之间为「且」/);
+    assert.match(tip[0], /某个分类不选则不参与过滤/);
+    assert.match(html, /\.tip:hover \.tip-bubble/, 'hover 展示');
+    assert.match(html, /\.tip:focus-within \.tip-bubble/, '键盘 focus 也要能看到');
+    assert.match(html, /prefers-reduced-motion: reduce\) \{ \.tip-mark, \.tip-bubble \{ transition: none; \} \}/,
+      '减弱动效须盖住两个会过渡的元素（只写气泡会漏掉 ? 图标）');
+  });
+
+  test('弹窗正文不再写说明段落（标题→chips→预览，说明交给 ? 提示）', () => {
+    const head = html.match(/id="runway-modal"[\s\S]*?id="runway-tag-groups"/)[0];
+    assert.doesNotMatch(head, /<p /, '标题到标签之间不留说明段落');
+    assert.doesNotMatch(head, /能撑几个月/, '说明句移入 ? 提示');
+    const modal = html.match(/id="runway-modal"[\s\S]*?id="runway-preview"/)[0];
+    assert.match(modal, /id="runway-preview"/, '预览行承担算式说明');
+  });
+
+  test('弹窗内实时预览：勾选即见结果，不用保存了才知道', () => {
+    assert.strictEqual(count(/id="runway-preview"/g), 1, '预览行唯一');
+    const src = fnSource('renderRunwayPreview');
+    assert.match(src, /runwayLiquidCNY\(state\.assets, _runwayDraft\)/, '预览按草稿算，与读数卡同一口径函数');
+    assert.match(src, /runwayMonths\(/);
+    assert.match(src, /runwayMonthsText\(/);
+    assert.doesNotMatch(src, /innerHTML/, '只写 textContent');
+    assert.match(fnSource('openRunwayModal'), /renderRunwayPreview\(\)/, '打开时同步一次');
+    assert.match(fnSource('toggleRunwayTag'), /renderRunwayPreview\(\)/, '每次勾选即刷新');
+  });
+
+  test('禁词守卫：不引入自造概念词（用户只认标签与算式）', () => {
+    assert.doesNotMatch(html, /备用金|跑道|安全垫|应急/,
+      '用户可见文案与注释一律用平实描述：所选标签的钱 ÷ 预期月消费 = 能撑几个月');
+  });
+});

@@ -340,6 +340,82 @@
     };
   }
 
+  // ========== 所选标签的钱 ÷ 预期月消费（消费趋势的读数卡，与收益测算无关）==========
+  // 口径与收益无关: 分子是本金（所选标签匹配的资产按当前汇率折算）, 不乘安全边际、不看利率。
+  // 标签引用形如 { catId, tag }, 与 assets[].tags[catId] === tag 匹配。
+
+  // 标签引用归一/清理: 丢弃畸形项与指向已不存在分类/标签的引用, 去重保序。
+  // migrateState（迁移/导入）与分类 CRUD（改名/删除标签）共用同一口径, 避免读数指着悬空标签。
+  // 消费分类与读数卡无关, 由调用方按侧别（asset）决定是否清理。
+  function pruneRunwayTags(runwayTags, categories) {
+    if (!Array.isArray(runwayTags)) return [];
+    const cats = Array.isArray(categories) ? categories : [];
+    const seen = new Set();
+    const out = [];
+    runwayTags.forEach(ref => {
+      if (!ref || typeof ref !== 'object') return;
+      const { catId, tag } = ref;
+      if (typeof catId !== 'string' || typeof tag !== 'string') return;
+      const cat = cats.find(c => c && c.id === catId);
+      if (!cat || !Array.isArray(cat.tags) || !cat.tags.includes(tag)) return;
+      const key = catId + '\u0001' + tag;
+      if (seen.has(key)) return;
+      seen.add(key);
+      out.push({ catId, tag });
+    });
+    return out;
+  }
+
+  // 分子合计（CNY）: 匹配资产的金额按当前汇率折算求和。
+  // 标签语义（与筛选面板的维度语义一致, 已按分类分组）:
+  //   同一分类内多选 = 或 —— 一个资产在一个分类下只带一个标签, 同分类取交必然为零（如「低风险 + 中风险」）;
+  //   不同分类之间 = 且 —— 所选分类都要满足（如「活期现金 + 低风险」只算既是活期又低风险的资产）。
+  // 未选标签返回 null —— 与「选了但无资产命中」（0）区分, UI 据此走指引句而不是把「没选」显示成 0
+  function runwayLiquidCNY(assets, runwayTags) {
+    const refs = Array.isArray(runwayTags) ? runwayTags : [];
+    if (refs.length === 0) return null;
+    const groups = new Map();
+    refs.forEach(ref => {
+      // catId 与 tag 都必须是字符串: 缺 tag 时会把 undefined 塞进集合, 而
+      // 「没打过该分类标签」的资产 a.tags[catId] 恰为 undefined → 被误判为命中（分子虚高）
+      if (!ref || typeof ref.catId !== 'string' || typeof ref.tag !== 'string') return;
+      if (!groups.has(ref.catId)) groups.set(ref.catId, new Set());
+      groups.get(ref.catId).add(ref.tag);
+    });
+    if (groups.size === 0) return null;
+    let sum = 0;
+    (assets || []).forEach(a => {
+      if (!a || !a.tags) return;
+      let hit = true;
+      for (const [catId, tags] of groups) {
+        if (!tags.has(a.tags[catId])) { hit = false; break; }
+      }
+      if (hit) sum += toCNY(a.amount, a.currency);
+    });
+    return sum;
+  }
+
+  // 月数 = 分子 ÷ 预期月消费; 预期未设/非法或分子未选（null）→ null（UI 不渲染读数）
+  function runwayMonths(liquidCNY, expectation) {
+    const exp = Number(expectation);
+    const liq = Number(liquidCNY);
+    if (liquidCNY == null || !isFinite(liq) || !isFinite(exp) || exp <= 0) return null;
+    return liq / exp;
+  }
+
+  // 月数展示: 一律整数月（小数直接舍弃，不四舍五入也不进位）—— 「能撑多久」的保守口径，宁可少报不虚报；
+  // 不足一个月单独成句（否则只能显示「0 个月」）。一年以上拆成「x 年 x 月」，余数为 0 只写年。
+  function runwayMonthsText(months) {
+    const m = Number(months);
+    if (months == null || !isFinite(m)) return '';
+    if (m < 1) return '不足 1 个月';
+    const whole = Math.floor(m);
+    if (whole < 12) return whole + ' 个月';
+    const years = Math.floor(whole / 12);
+    const rem = whole - years * 12;
+    return rem === 0 ? `${years} 年` : `${years} 年 ${rem} 个月`;
+  }
+
   // ========== 数据迁移 / 兜底（依赖全局 state，原地修改）==========
   // loadState（本地加载）与 importData（JSON 导入）共用，保证旧版数据导入后行为一致
   function migrateState() {
@@ -424,6 +500,8 @@
       // it.tags[catId]，导入缺 tags 的资产会崩；与消费记录同一入口兑底
       if (!a.tags || typeof a.tags !== 'object') a.tags = {};
     });
+    // 读数卡所选标签（旧数据/导入可能缺失或指向已删标签）: 与分类 CRUD 共用清理口径
+    state.runwayTags = pruneRunwayTags(state.runwayTags, state.categories);
     // init expense data
     if (!Array.isArray(state.expenses)) state.expenses = [];
     state.expenses.forEach(e => {
@@ -731,6 +809,7 @@
     nextSortState, nextTabIndex, inlineEditKeyAction, expenseMonths,
     tagFilterValue, parseTagFilter, expenseTagFilterGroups, hasTagFilterOption,
     isUntaggedItem, missingTagGroups, setTag, backfillTag,
+    pruneRunwayTags, runwayLiquidCNY, runwayMonths, runwayMonthsText,
     findMonthSnapshot, getPrevSnapshot, defaultCompareBaseMonth,
     monthlyExpenseTotals, prevExpenseMonthOf, expenseMoM, expenseMonthTagTotals,
     getAssetRate, getSafetyFactor, getCashRatio, calcAssetIncome, hasAnyRatedAsset, cashRatioPct, coveragePct, incomeGap, sumAssetIncomes,
