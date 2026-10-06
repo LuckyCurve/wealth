@@ -3121,7 +3121,9 @@ function renderRunwayRow() {
     card.style.display = 'none';
     return;
   }
-  const refs = state.runwayTags || [];
+  // 引用先过同一清理入口: 手改/损坏的数据里可能有畸形引用（不仅不计数, 也不能在标签摘要里渲染成 undefined）,
+  // 且非数组时 refs.map 会直接抛错; 清理后的 refs 与 runwayLiquidCNY 的匹配集合必然一致
+  const refs = pruneRunwayTags(state.runwayTags, state.categories);
   const liquid = runwayLiquidCNY(state.assets, refs);
   card.style.display = '';
   // 未选标签（null）与选了但无资产命中（0）区分开: 前者走指引句
@@ -3139,7 +3141,7 @@ function renderRunwayRow() {
 // 标签选择（多选草稿）: 打开只拷草稿、保存才落 state —— 取消不落库（与预期消费弹窗同惯例）
 let _runwayDraft = [];
 function openRunwayModal() {
-  _runwayDraft = (state.runwayTags || []).map(r => ({ catId: r.catId, tag: r.tag }));
+  _runwayDraft = pruneRunwayTags(state.runwayTags, state.categories);
   renderRunwayTagGroups();
   renderRunwayPreview();
   openModal('runway-modal');

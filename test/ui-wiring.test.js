@@ -823,13 +823,22 @@ describe('UI 接线契约：所选标签的钱 ÷ 预期月消费（消费趋势
     }
     assert.match(fnSource('renderExpenseTrendChart'), /renderRunwayRow\(\);/, '随消费趋势同步刷新');
     assert.doesNotMatch(fnSource('renderIncomeTab'), /renderRunwayRow/, '收益侧不再接线');
+    // 调用点唯一：定义 1 + 趋势图同步 1 + 保存后 1；多一处就多一份刷新时机要维护
+    assert.strictEqual(count(/renderRunwayRow\(\)/g), 3, '不得新增散落调用点');
     // 空态也要刷新: 必须放在 renderExpenseTrendChart 的早退之前（无消费记录时读数照样成立）
     const trend = fnSource('renderExpenseTrendChart');
     assert.ok(trend.indexOf('renderRunwayRow();') < trend.indexOf('state.expenses.length === 0'),
       '读数同步必须在早退之前');
   });
 
-  test('多选 chips 复用 tagChipHtml 单一来源，不另造第二套 chip 模板', () => {    assert.strictEqual(count(/class="tag-choice"/g), 1, 'chip 模板只允许存在一处');
+  test('标签摘要只列有效引用：损坏引用不得渲染成字面 undefined', () => {
+    const src = fnSource('renderRunwayRow');
+    assert.match(src, /const refs = pruneRunwayTags\(state\.runwayTags, state\.categories\)/,
+      '渲染前走同一清理入口：否则手改 JSON 的畸形引用会显示 undefined，非数组还会直接抛错');
+  });
+
+  test('多选 chips 复用 tagChipHtml 单一来源，不另造第二套 chip 模板', () => {
+    assert.strictEqual(count(/class="tag-choice"/g), 1, 'chip 模板只允许存在一处');
     assert.strictEqual(count(/function tagChipHtml\(/g), 1, 'chip 生成函数唯一');
     // 定义一处 + 单选 picker（录入/校验复用）+ 读数区多选 picker
     assert.strictEqual(count(/tagChipHtml\(/g), 3, '单选与多选共用同一 chip 生成');
@@ -838,7 +847,7 @@ describe('UI 接线契约：所选标签的钱 ÷ 预期月消费（消费趋势
 
   test('货币类型（内置分类）也能选：不得因 builtin 被挡在 picker 外', () => {
     const src = fnSource('renderRunwayTagGroups');
-    assert.doesNotMatch(src, /filter\([^)]*builtin/, '分组不得按 builtin 过滤（只看 CNY 能撑多久是合法筛法）');
+    assert.doesNotMatch(src, /builtin/, '分组不得提到 builtin（只看 CNY 能撑多久是合法筛法）；函数式 filter 也拦得住');
     assert.match(src, /state\.categories/, '分组直接来自全部分类');
   });
 
