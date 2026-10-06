@@ -3149,8 +3149,8 @@ function openRunwayModal() {
 function renderRunwayTagGroups() {
   const box = document.getElementById('runway-tag-groups');
   if (!box) return;
-  // 跳过内置货币分类: 币种（CNY/HKD/USD）不表达「哪些钱能随时动」, 选了等于全选
-  const cats = state.categories.filter(c => !c.builtin);
+  // 内置货币分类照样列出: 币种本身就是合法的筛法（只看 HKD 能撑多久）, 且与其它分类是「且」关系
+  const cats = state.categories.filter(c => c && Array.isArray(c.tags));
   if (cats.length === 0) {
     box.innerHTML = '<p class="text-sm" style="color:var(--muted);">先去「分类管理」建一个资产分类和标签。</p>';
     return;

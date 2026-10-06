@@ -829,12 +829,17 @@ describe('UI 接线契约：所选标签的钱 ÷ 预期月消费（消费趋势
       '读数同步必须在早退之前');
   });
 
-  test('多选 chips 复用 tagChipHtml 单一来源，不另造第二套 chip 模板', () => {
-    assert.strictEqual(count(/class="tag-choice"/g), 1, 'chip 模板只允许存在一处');
+  test('多选 chips 复用 tagChipHtml 单一来源，不另造第二套 chip 模板', () => {    assert.strictEqual(count(/class="tag-choice"/g), 1, 'chip 模板只允许存在一处');
     assert.strictEqual(count(/function tagChipHtml\(/g), 1, 'chip 生成函数唯一');
     // 定义一处 + 单选 picker（录入/校验复用）+ 读数区多选 picker
     assert.strictEqual(count(/tagChipHtml\(/g), 3, '单选与多选共用同一 chip 生成');
     assert.match(fnSource('renderRunwayTagGroups'), /tagChipHtml\(/);
+  });
+
+  test('货币类型（内置分类）也能选：不得因 builtin 被挡在 picker 外', () => {
+    const src = fnSource('renderRunwayTagGroups');
+    assert.doesNotMatch(src, /filter\([^)]*builtin/, '分组不得按 builtin 过滤（只看 CNY 能撑多久是合法筛法）');
+    assert.match(src, /state\.categories/, '分组直接来自全部分类');
   });
 
   test('标签引用清理单一来源 pruneRunwayTags：迁移与分类三处编辑都走它', () => {
