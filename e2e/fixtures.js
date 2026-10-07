@@ -221,33 +221,37 @@ async function disableMotion(page) {
  * 走遍所有可见视图，让「懒渲染」的内容都进 DOM。
  * 主题色一致性必须覆盖全部 Tab：分类管理/图表/历史/收益/趋势里的 pill、徽章、
  * 空态只在各自 Tab 首次进入时才渲染（switchTab 里的 setTimeout 重绘）。
+ *
+ * 禁止 sleep 等待：switchTab 的 display 翻转是同步的，用面板可见断言即可到位；
+ * 固定等待会让每个主题用例凭空多吃 2s——Theme spec 是全套最慢的，这里是主战场。
  */
 async function visitAllTabs(page) {
+  const showPanel = async (bar, tab) => {
+    await page.locator(`${bar} .tab-btn[data-tab="${tab}"]`).click();
+    // 面板翻转同步发生：直接断言，不 sleep
+    await expect(page.locator(`#tab-${tab}`)).toBeVisible();
+  };
   await page.locator('#mode-assets').click();
-  for (const t of ['assets', 'categories', 'chart', 'history', 'income']) {
-    await page.locator(`#tabs-assets .tab-btn[data-tab="${t}"]`).click();
-    await page.waitForTimeout(180);
-  }
+  for (const t of ['assets', 'categories', 'chart', 'history', 'income']) await showPanel('#tabs-assets', t);
   await page.locator('#mode-expenses').click();
-  for (const t of ['expenses', 'expense-categories', 'expense-chart', 'expense-trend']) {
-    await page.locator(`#tabs-expenses .tab-btn[data-tab="${t}"]`).click();
-    await page.waitForTimeout(180);
-  }
-  // 消费弹窗（chips / 按钮）
-  await page.locator('#tabs-expenses .tab-btn[data-tab="expenses"]').click();
-  await page.waitForTimeout(150);
+  for (const t of ['expenses', 'expense-categories', 'expense-chart', 'expense-trend']) await showPanel('#tabs-expenses', t);
+  // 消费弹窗（chips / 按钮）：需先把面板切回 expenses（遍历结束时停在 expense-trend 上）
+  await showPanel('#tabs-expenses', 'expenses');
   await page.locator('#tab-expenses button:has-text("记录消费")').click();
-  await page.waitForTimeout(250);
+  await expect(page.locator('#expense-modal')).toBeVisible();
   await page.keyboard.press('Escape');
-  await page.waitForTimeout(150);
+  await expect(page.locator('#expense-modal')).toBeHidden();
   // 便条是 2.5s 自动退场的瞬时元素：能否被扫到取决于时机（不确定性 = 假阴/假阳）。
-  // 扫描前主动触发三种语义色，把「碰巧在」变成「一定在」，顺带把便条配色纳入巡检
+  // 扫描前主动触发三种语义色，把「碰巧在」变成「一定在」，顺带把便条配色纳入巡检。
+  // 注意先清空：页面启动时必弹一条汇率便条（fetchRates 无条件触发），不清掉的话
+  // toHaveCount(3) 会数到 4 —— 去 sleep 提速后 visitAllTabs < 2.8s，汇率便条还没退场。
   await page.evaluate(() => {
+    document.getElementById('toast-area').innerHTML = '';
     toast('主题巡检·成功', 'success');
     toast('主题巡检·错误', 'error');
     toast('主题巡检·信息', 'info');
   });
-  await page.waitForTimeout(100);
+  await expect(page.locator('#toast-area .toast')).toHaveCount(3);
 }
 
 /**

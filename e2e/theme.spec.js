@@ -60,6 +60,14 @@ async function scan(page) {
   return { ua, hardcoded };
 }
 
+/** 切到暗色主题：setTheme 是同步翻转（classList + renderAll），直接断言即可到位 */
+const switchToDark = async (page) => {
+  await page.getByRole('button', { name: '设置' }).click();
+  await page.locator('#theme-seg-dark').click();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('html')).toHaveClass(/dark/);
+};
+
 const fmt = (list) =>
   [...new Set(list.map((o) => `${o.color}  ${o.where}:${o.prop}`))].sort().join('\n  ');
 
@@ -72,10 +80,7 @@ test.describe('主题色一致性', () => {
   });
 
   test('暗色模式：无元素使用浏览器默认外观（漏设样式）', async ({ appPage: page }) => {
-    await page.getByRole('button', { name: '设置' }).click();
-    await page.locator('#theme-seg-dark').click();
-    await page.keyboard.press('Escape');
-    await page.waitForTimeout(300);
+    await switchToDark(page);
 
     const { ua } = await scan(page);
     expect(ua, `这些元素没设样式，吃到浏览器默认外观：\n  ${fmt(ua)}`).toEqual([]);
@@ -84,10 +89,7 @@ test.describe('主题色一致性', () => {
   test('两套主题下写死色值不超出已知清单（清单只减不增）', async ({ appPage: page }) => {
     const light = await scan(page);
 
-    await page.getByRole('button', { name: '设置' }).click();
-    await page.locator('#theme-seg-dark').click();
-    await page.keyboard.press('Escape');
-    await page.waitForTimeout(300);
+    await switchToDark(page);
     const dark = await scan(page);
 
     const seen = new Set([...light.hardcoded, ...dark.hardcoded].map((o) => o.color));
@@ -123,10 +125,7 @@ test.describe('主题色一致性', () => {
       });
 
     const light = await readVars();
-    await page.getByRole('button', { name: '设置' }).click();
-    await page.locator('#theme-seg-dark').click();
-    await page.keyboard.press('Escape');
-    await page.waitForTimeout(300);
+    await switchToDark(page);
     const dark = await readVars();
 
     expect(Object.keys(light).length).toBeGreaterThan(0);

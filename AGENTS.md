@@ -158,6 +158,7 @@ interface Expense {
 - **不访问外网**：汇率 / echarts / tailwind / flatpickr / 字体全部 `page.route` stub（见 `e2e/fixtures.js`）。要测的是应用自身行为，不是 CDN 可用性；断网也能跑。
 - **route 后注册者优先**：兜底「拦掉一切外网」必须先注册，具体 CDN 替身后注册才能覆盖它。次序写反会让所有替身失效且不报错，只表现为一串莫名失败。
 - **先关动效再断言数字**：masthead 净资产是计数动画，等它收敛会让每个数字断言吃满超时。`fixtures` 里统一 `emulateMedia({ reducedMotion: 'reduce' })`。
+- **E2E 里禁止 `waitForTimeout` 睡眠**：`switchTab` 的 display 翻转、`setTheme` 的 classList 翻转都是同步的，用可见断言即可到位；固定等待会让主题巡检这类全 Tab 遍历的用例凭空多吃数秒（曾占全套时长的 1/3）。确需等待异步渲染时用 `expect.poll`。
 - **读内存态 vs 读存档**：`migrateState()` 只修内存态、不回写 localStorage。验证「已落盘」读 localStorage，验证「迁移/兜底已生效」读 `state`。
 - **seed 只在首次导航生效**：`addInitScript` 对每次导航（含 reload）都会重跑，若无条件覆盖，reload 会把存档洗回种子值 —— 持久化用例会「永远绿」（假通过）。标记用 sessionStorage（同一标签页跨 reload 存活、每个用例独立）。
 - **静态服务器的健康检查要验明正身**：`webServer.url` 指向 `/__e2e_health__`（仅本服务器提供）。`reuseExistingServer` 只看端口是否响应，固定端口被别的服务占用时会静默连错，症状是一堆难以理解的失败。

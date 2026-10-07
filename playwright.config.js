@@ -19,9 +19,11 @@ module.exports = defineConfig({
   // e2e/ 下不放 *.test.js（那是 node --test 的命名约定，见 test/e2e-server.test.js）
   testDir: './e2e',
   testMatch: '**/*.spec.js',
-  // 单文件 SPA，串行足够快；CI 机器只有 1~2 核，并行反而抢资源导致超时
+  // workers=2 为实测拐点：1→2 约快 40%，2→4 不再下降（主题巡检用例本身是串行长尾）。
+  // 本地与 CI（ubuntu-latest 4 核）都安全：每个 worker 是独立浏览器进程，约 300MB。
+  // 串行跑完约 31s，并行约 20s；失败排查时可用 --workers=1 复现。
   fullyParallel: false,
-  workers: 1,
+  workers: 2,
   // 单测已经把契约钉死，E2E 只在 CI 上跑，失败即失败，不做重试掩盖
   retries: 0,
   forbidOnly: !!process.env.CI,
