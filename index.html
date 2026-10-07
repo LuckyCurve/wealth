@@ -87,6 +87,8 @@ tailwind.config = {
   .dark .asset-row { border-bottom-color: var(--rule); }
   .dark .asset-row:hover { background: #2a2214; }
   .dark .card { border-color: var(--border); }
+  /* hr 的 border-color 走 var(--border)，但 color 仍是 UA 灰；一并归到主题色 */
+  hr { color: var(--border); border: none; border-top: 1px solid var(--border); }
   .sort-indicator { margin-left: 2px; font-size: 10px; color: var(--muted); }
   .sort-indicator.active { color: var(--accent-ink); }
   /* 可点击行/表头禁用文字选中：快速点击(双击)排序表头时避免浏览器选中文本（<button> 原生即不选中，无需处理） */
@@ -339,6 +341,14 @@ tailwind.config = {
   .tag-pill .tag-val { font-weight: 600; }
   .tag-pill.active { border-color: var(--accent); border-left-color: var(--accent); }
   .tag-pill:hover { filter: brightness(0.94); }
+  /* pill 内 ✕ 删除：只给 color 的话 background/border 会走浏览器 UA 默认（灰底黑边的
+     系统按钮），在暖色古纸主题上很突兀。这里剥掉原生外观，只留一个字形 */
+  .tag-pill button {
+    background: none; border: none; padding: 0; margin-left: 2px;
+    cursor: pointer; font-size: 10px; line-height: 1; font-family: inherit;
+    opacity: 0.55; transition: opacity 0.15s;
+  }
+  .tag-pill button:hover { opacity: 1; }
   /* 表单内平铺标签选择器: 账页「虚线空栏 = 待选, 实心盖印 = 已选」; 颜色由 JS 以 --chip-* 变量注入 */
   .tag-picker { display: flex; flex-wrap: wrap; gap: 6px; }
   .tag-choice {
@@ -1167,9 +1177,12 @@ tailwind.config = {
         <div>
           <label class="block text-xs font-medium mb-1.5" style="color:var(--muted);">预期年化收益率 (%)</label>
           <div class="flex items-center gap-2">
-            <input type="number" id="asset-rate-min" min="0" step="0.1" class="w-full" placeholder="最低" value="0">
+            <!-- step="any"：step="0.1" 会让 0.25% 这类两位小数利率命中原生 stepMismatch，
+                 浏览器静默拦截 submit —— 用户点保存毫无反应也没有任何提示（演示数据的
+                 0.25%/0.35% 即会触发）。步长在这里没有语义，交给 saveAsset 校验。 -->
+            <input type="number" id="asset-rate-min" min="0" step="any" class="w-full" placeholder="最低" value="0">
             <span style="color:var(--muted);">—</span>
-            <input type="number" id="asset-rate-max" min="0" step="0.1" class="w-full" placeholder="最高" value="0">
+            <input type="number" id="asset-rate-max" min="0" step="any" class="w-full" placeholder="最高" value="0">
           </div>
         </div>
         <div>

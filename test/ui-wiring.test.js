@@ -977,3 +977,44 @@ describe('UI 接线契约：本月已花 ÷ 预期月消费（趋势页进度卡
     assert.strictEqual(count(/renderMonthPace\(\)/g), 2, '定义 1 + 趋势图同步 1');
   });
 });
+
+describe('UI 接线契约：主题与表单校验的防回潮', () => {
+  test('利率输入框必须 step="any"（step="0.1" 会命中原生 stepMismatch 静默拦截提交）', () => {
+    // 回归背景：演示数据的 0.25%/0.35% 利率不是 0.1 的倍数，浏览器直接拦下 submit，
+    // 用户点「保存」毫无反应且无提示（saveAsset 根本没被调用）。
+    const minInput = html.match(/<input[^>]*id="asset-rate-min"[^>]*>/);
+    const maxInput = html.match(/<input[^>]*id="asset-rate-max"[^>]*>/);
+    assert.ok(minInput && maxInput, '两个利率输入框都存在');
+    assert.match(minInput[0], /step="any"/, 'rate-min 必须 step="any"');
+    assert.match(maxInput[0], /step="any"/, 'rate-max 必须 step="any"');
+    assert.doesNotMatch(minInput[0], /step="0\.1"/, 'step="0.1" 不回潮');
+  });
+
+  test('tag-pill 内删除按钮必须剥掉 UA 默认外观（否则灰底黑边系统按钮）', () => {
+    // 回归背景：✕ 只设了 color，background/border 走浏览器默认，在古纸主题上很突兀
+    const rule = html.match(/\.tag-pill button \{[\s\S]*?\n  \}/);
+    assert.ok(rule, '.tag-pill button 重置规则存在');
+    assert.match(rule[0], /background:\s*none/, '背景必须归零');
+    assert.match(rule[0], /border:\s*none/, '边框必须归零');
+  });
+
+  test('hr 的配色必须归到主题变量（UA 默认 color 是灰）', () => {
+    const rule = html.match(/\n  hr \{[^}]*\}/);
+    assert.ok(rule, 'hr 主题化规则存在');
+    assert.match(rule[0], /var\(--border\)/, 'hr 必须用 var(--border)');
+  });
+
+  test('两套主题的 CSS 变量一一对应（漏定义会在暗色下回落成亮色值）', () => {
+    const collect = (sel) => {
+      const m = html.match(new RegExp(`${sel} \{([^}]*)\}`));
+      assert.ok(m, `${sel} 存在`);
+      return new Set([...m[1].matchAll(/(--[\w-]+)\s*:/g)].map((x) => x[1]));
+    };
+    const light = collect(':root');
+    const dark = collect(':root.dark');
+    const missingInDark = [...light].filter((k) => !dark.has(k));
+    const missingInLight = [...dark].filter((k) => !light.has(k));
+    assert.deepStrictEqual(missingInDark, [], `暗色缺变量: ${missingInDark.join(', ')}`);
+    assert.deepStrictEqual(missingInLight, [], `亮色缺变量: ${missingInLight.join(', ')}`);
+  });
+});
