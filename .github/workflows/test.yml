@@ -28,3 +28,48 @@ jobs:
 
       - name: 运行单元测试
         run: node --test
+
+  e2e:
+    name: 运行端到端测试 (Playwright · chromium)
+    # 单系统足够：E2E 验证的是应用行为，与 OS 无关；三平台各装一次浏览器不值这个时长
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v7
+
+      - name: 配置 Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: 安装依赖
+        run: npm ci
+
+      - name: 安装 Playwright 系统依赖
+        run: npx playwright install-deps chromium
+
+      # 浏览器二进制缓存：约 700MB，无缓存时每次全量下载约 50s。
+      # 缓存 key 带上 package-lock 的 playwright 版本，升级 playwright 时自动失效重装。
+      - name: 缓存 Playwright 浏览器
+        id: pw-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('package-lock.json') }}
+
+      - name: 安装 Playwright 浏览器
+        if: steps.pw-cache.outputs.cache-hit != 'true'
+        run: npx playwright install chromium
+
+      - name: 运行端到端测试
+        run: npx playwright test
+
+      - name: 上传失败用例的 trace / 截图
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-results
+          path: e2e-results/
+          if-no-files-found: ignore
+          retention-days: 7

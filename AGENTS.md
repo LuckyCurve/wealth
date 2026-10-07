@@ -7,10 +7,13 @@
 ```
 index.html          # 全部 HTML/CSS/JS
 logic.js            # 与 DOM 无关的纯函数（UMD：浏览器挂全局 / Node require）
-test/               # node --test（logic.test.js 纯逻辑 + ui-wiring.test.js 接线契约）
-.github/workflows/  # CI：三平台 node --test
+test/               # node --test（logic.test.js 纯逻辑 + ui-wiring.test.js 接线契约 + e2e-server.test.js）
+e2e/                # Playwright 端到端（app.spec.js + theme.spec.js + fixtures.js + server.js）
+playwright.config.js
+package.json        # 仅 devDependency: @playwright/test（无构建步骤）
+.github/workflows/  # CI：三平台 node --test + Linux Playwright E2E
 AGENTS.md
-.gitignore          # 忽略 .superpowers/ 和 .pi/
+.gitignore          # 忽略 .superpowers/ .pi/ node_modules/ 与测试产物
 ```
 
 ## 技术栈
@@ -93,6 +96,9 @@ interface Expense {
 - **消费数据校验** — 缺口口径（缺 key / 空值 / 指向已删标签）由 logic.js 单一函数定义，**校验条、面板、分类卡片提示条、新建分类后检测四处共用**；校验条为全局口径、不随列表筛选缩小；批量只填空缺、绝不覆盖已归类。**只对消费侧启用**（资产侧关闭，因历史快照是否随补未定）。UI 层不直接给 `tags` 赋值。
 - **ECharts 单例** — 五个图表实例统一 `setOption(data, true)` 更新；`window resize` 在 `DOMContentLoaded` 顶层统一注册。
 - **颜色系统** — 一律用 CSS 变量而非写死色值（变量定义见 `:root` / `:root.dark`）；`--accent-ink` 为金色文字专用；分类色 `catColor`/`expenseCatColor` 为单一来源，亮/暗分支对比度须达 AA；旭日图调色板 `CATEGORY_PALETTE`。
+  - **`e2e/theme.spec.js` 会自动巡检**：扫全部元素的计算色，凡不在「主题允许集」里的都报出来。允许集在页面内从主题自身求值（当前模式的 CSS 变量 ∪ pill 调色板 ∪ 图表调色板），所以加变量/改分类色不需要改测试。
+  - 越界分两类，**判据不同**：①**写死色值**——直接违反本条约定，现状快照在 `KNOWN_HARDCODED`（只减不增，修一处删一行）；②**浏览器 UA 默认色**——症状是「漏设样式」（如只给 `color` 的 `<button>` 会吃到灰底黑边），同样算缺陷但不进清单。
+  - 两套模式的 CSS 变量必须一一对应，漏定义一个会在暗色下回落成亮色值或透明。
 - **动效** — 缓动/过渡须尊重 `prefers-reduced-motion`。
 - **资产表单验证** — 非 `currency` 分类的标签必选；`expectedRateMin ≤ expectedRateMax`（空值用另一值补齐）。
 - **货币符号** — `HKD $` / `USD $` 区分，CNY 用 `formatCNY()` 输出 `¥`。
@@ -144,6 +150,19 @@ interface Expense {
 - `test/ui-wiring.test.js` — 对 `index.html` 的文本契约断言，把守「单一来源 / 旧入口不回潮 / 关键接线」；完整清单见文件内 `describe` 标题。
 - 依赖全局 `state` / `incomeMode` 的函数，测试中经 `globalThis` 注入。
 - 改动纯逻辑时同步更新 `logic.js` 与单测。
+
+## 端到端测试（Playwright）
+
+真实浏览器里跑一遍：`npm run test:e2e`（`npx playwright test`）。跑在 `e2e/`，与 `node --test` 的 `test/` 完全分开（后者只拾取 `test/*.test.js`）。CI 上 Linux + chromium 单矩阵即可，E2E 验证的是应用行为、与 OS 无关。
+
+- **不访问外网**：汇率 / echarts / tailwind / flatpickr / 字体全部 `page.route` stub（见 `e2e/fixtures.js`）。要测的是应用自身行为，不是 CDN 可用性；断网也能跑。
+- **route 后注册者优先**：兜底「拦掉一切外网」必须先注册，具体 CDN 替身后注册才能覆盖它。次序写反会让所有替身失效且不报错，只表现为一串莫名失败。
+- **先关动效再断言数字**：masthead 净资产是计数动画，等它收敛会让每个数字断言吃满超时。`fixtures` 里统一 `emulateMedia({ reducedMotion: 'reduce' })`。
+- **读内存态 vs 读存档**：`migrateState()` 只修内存态、不回写 localStorage。验证「已落盘」读 localStorage，验证「迁移/兜底已生效」读 `state`。
+- **seed 只在首次导航生效**：`addInitScript` 对每次导航（含 reload）都会重跑，若无条件覆盖，reload 会把存档洗回种子值 —— 持久化用例会「永远绿」（假通过）。标记用 sessionStorage（同一标签页跨 reload 存活、每个用例独立）。
+- **静态服务器的健康检查要验明正身**：`webServer.url` 指向 `/__e2e_health__`（仅本服务器提供）。`reuseExistingServer` 只看端口是否响应，固定端口被别的服务占用时会静默连错，症状是一堆难以理解的失败。
+- 静态服务器 `e2e/server.js` 是零依赖的、只服务本项目目录；不用 `file://`，因为 localStorage 在 file origin 下不可靠。
+- TDD 同样适用：E2E 是发现「能打开但点不动」这类 bug 的地方（如原生 `step` 校验静默拦截提交），先写失败用例再改实现。
 
 ## Git 提交风格
 
