@@ -416,6 +416,74 @@ test.describe('图表初始化与空态', () => {
   });
 });
 
+test.describe('读数卡的自定月消费（只对本卡生效）', () => {
+  const openRunway = async (page) => {
+    await page.locator('#tabs-expenses .tab-btn[data-tab="expense-trend"]').click();
+    await page.locator('#runway-guide button').click();
+    await expect(page.locator('#runway-modal')).toBeVisible();
+  };
+
+  test('默认带出已填的预期月消费；改后只影响本卡，全局预期与存档不被回写', async ({ appPage: page }) => {
+    await openRunway(page);
+    // 未自定时分母就是全局「预期月消费」，输入框默认值须是它（不用重敲）
+    await expect(page.locator('#runway-expectation')).toHaveValue('5,000');
+    await expect(page.locator('#runway-preview')).toHaveText('勾选标签后这里显示结果');
+
+    await page.locator('#runway-tag-groups .tag-choice', { hasText: '活期现金' }).first().click();
+    await expect(page.locator('#runway-preview')).toContainText('¥5,000.00');
+
+    await page.locator('#runway-expectation').fill('9000');
+    await expect(page.locator('#runway-preview')).toContainText('¥9,000.00');
+    await page.locator('#runway-modal .btn-gold').click();
+    await expect(page.locator('#runway-modal')).toBeHidden();
+
+    // 读数卡换用自定分母（并标出自定），消费趋势的参考线/进度卡仍是全局值
+    await expect(page.locator('#runway-expense-name')).toHaveText('月消费（自定）');
+    await expect(page.locator('#runway-expense')).toHaveText('¥9,000.00');
+    await expect(page.locator('#pace-expense')).toHaveText('¥5,000.00');
+
+    const stored = await readStored(page);
+    expect(stored.runwayExpectation).toBe(9000);
+    expect(stored.expenseExpectation).toBe(5000); // 自定值不得回填全局预期月消费
+  });
+
+  test('自定值持久化（刷新后仍在），清空则回落全局预期', async ({ appPage: page }) => {
+    await openRunway(page);
+    await page.locator('#runway-tag-groups .tag-choice', { hasText: '活期现金' }).first().click();
+    await page.locator('#runway-expectation').fill('2000');
+    await page.locator('#runway-modal .btn-gold').click();
+    await expect(page.locator('#runway-expense')).toHaveText('¥2,000.00');
+
+    await page.reload();
+    await waitReady(page);
+    await page.locator('#tabs-expenses .tab-btn[data-tab="expense-trend"]').click();
+    await expect(page.locator('#runway-expense')).toHaveText('¥2,000.00');
+
+    // 清空回默认（不是回 0）：把全局预期填回字段, 保存后分母名不再标「自定」
+    await page.locator('#runway-reading button').click();
+    await page.locator('#runway-expectation').fill('');
+    await page.locator('#runway-modal .btn-gold').click();
+    await expect(page.locator('#runway-expense-name')).toHaveText('预期月消费');
+    await expect(page.locator('#runway-expense')).toHaveText('¥5,000.00');
+    expect((await readStored(page)).runwayExpectation).toBe(0);
+
+    // 重开后默认带出当前生效的分母（就是全局预期），不必重敲
+    await page.locator('#runway-reading button').click();
+    await expect(page.locator('#runway-expectation')).toHaveValue('5,000');
+
+    // 「默认」按钮把全局预期填回字段
+    await page.locator('#runway-expectation').fill('9000');
+    await page.locator('[onclick="useDefaultRunwayExpectation()"]').click();
+    await expect(page.locator('#runway-expectation')).toHaveValue('5,000');
+
+    // 填成与全局预期相同的数 → 按默认存（不标「自定」, 不钉住旧值）
+    await page.locator('#runway-expectation').fill('5000');
+    await page.locator('#runway-modal .btn-gold').click();
+    await expect(page.locator('#runway-expense-name')).toHaveText('预期月消费');
+    expect((await readStored(page)).runwayExpectation).toBe(0);
+  });
+});
+
 test.describe('弹窗与提示', () => {
   test('ESC 关闭最上层弹窗', async ({ appPage: page }) => {
     await page.locator('#tab-expenses button:has-text("记录消费")').click();

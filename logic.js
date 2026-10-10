@@ -395,7 +395,41 @@
     return sum;
   }
 
-  // 月数 = 分子 ÷ 预期月消费; 预期未设/非法或分子未选（null）→ null（UI 不渲染读数）
+  // 分母（月消费）: 先看全局「预期月消费」是否已设 —— 未设则整卡不显示（读数卡入口就在卡内, 自定值也无从填起,
+  // 仍然回页头「预期消费」按钮）；已设则自定值优先, 未自定（0/空/非法/负值）回落全局值。
+  // 自定值只作用于这张读数卡 —— 不写回 state.expenseExpectation, 趋势参考线/覆盖标尺/进度卡照旧用全局值,
+  // 目的就是可以按更保守的月消费看「能撑多久」, 不动全局口径。全局预期未设 → 0（UI 整卡不显示,
+  // 即卡内自定值不放行 —— 「先有预期月消费才有这张卡」）。
+  function runwayExpectationOf(runwayExpectation, expenseExpectation) {
+    const global = Number(expenseExpectation);
+    if (!isFinite(global) || global <= 0) return 0;
+    const custom = Number(runwayExpectation);
+    return isFinite(custom) && custom > 0 ? custom : global;
+  }
+
+  // 分母是否为自定值（与 runwayExpectationOf 同一判定）: 读数卡据此把分母名换成「月消费（自定）」。
+  // 若不换名, 自定的分母会和旁边的覆盖标尺/进度卡（仍是全局预期）看着像同一个数。
+  function runwayExpectationIsCustom(runwayExpectation) {
+    const custom = Number(runwayExpectation);
+    return isFinite(custom) && custom > 0;
+  }
+
+  // 输入框字符串 → 自定月消费值（0 = 未自定/按默认）: 空串、非法、非正数一律 0;
+  // 与全局「预期月消费」相同的数也按默认存（0）—— 它会继续跟着全局走, 否则日后改全局预期时
+  // 本卡会默默钉住一个看似默认的旧值。
+  // 写入侧（saveRunwayTags）与弹窗实时预览共用这一处解析+归一; 读取侧的回落见 runwayExpectationOf。
+  // 两侧不得各写一份: 值恰好等价也靠不住, 只改一处就会让预览与保存后的读数分家且不报错。
+  function normalizeRunwayExpectationInput(raw, expenseExpectation) {
+    const s = String(raw == null ? '' : raw).replace(/,/g, '').trim();
+    const v = s === '' ? NaN : parseFloat(s);
+    if (!isFinite(v) || v <= 0) return 0;
+    const global = Number(expenseExpectation);
+    if (isFinite(global) && global > 0 && v === global) return 0;
+    return v;
+  }
+
+  // 月数 = 分子 ÷ 月消费（分母为自定或全局预期, 取法见 runwayExpectationOf）;
+  // 分母未设/非法或分子未选（null）→ null（UI 不渲染读数）
   function runwayMonths(liquidCNY, expectation) {
     const exp = Number(expectation);
     const liq = Number(liquidCNY);
@@ -549,6 +583,10 @@
     });
     // 读数卡所选标签（旧数据/导入可能缺失或指向已删标签）: 与分类 CRUD 共用清理口径
     state.runwayTags = pruneRunwayTags(state.runwayTags, state.categories);
+    // 读数卡的月消费自定值（旧数据/导入可能缺失、为字符串、或非有限数——JSON 里的 1e999 会解析成 Infinity）:
+    // 0 = 未自定, 回落全局「预期月消费」; 只接受正有限数（严格同注释: 非法的归 0, 不留 Infinity/-1 在存档里）
+    const customExpectation = Number(state.runwayExpectation);
+    state.runwayExpectation = isFinite(customExpectation) && customExpectation > 0 ? customExpectation : 0;
     // init expense data
     if (!Array.isArray(state.expenses)) state.expenses = [];
     state.expenses.forEach(e => {
@@ -857,7 +895,7 @@
     tagFilterValue, parseTagFilter, expenseTagFilterGroups, hasTagFilterOption,
     isUntaggedItem, missingTagGroups, setTag, backfillTag,
     monthExpenseTotal, daysInMonthOf, monthPaceReading, monthPaceStatusText,
-    pruneRunwayTags, runwayLiquidCNY, runwayMonths, runwayMonthsText,
+    pruneRunwayTags, runwayLiquidCNY, runwayExpectationOf, runwayExpectationIsCustom, normalizeRunwayExpectationInput, runwayMonths, runwayMonthsText,
     findMonthSnapshot, getPrevSnapshot, defaultCompareBaseMonth,
     monthlyExpenseTotals, prevExpenseMonthOf, expenseMoM, expenseMonthTagTotals,
     getAssetRate, getSafetyFactor, getCashRatio, calcAssetIncome, hasAnyRatedAsset, cashRatioPct, coveragePct, incomeGap, sumAssetIncomes,

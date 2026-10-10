@@ -38,7 +38,7 @@ const EMPTY_STATE = {
   expenseExpectation: 0,
   netWorthTarget: 0,
   incomeSafetyFactor: 100,
-  runwayTags: [],
+  runwayTags: [], runwayExpectation: 0,
   backup: { autoFreq: 'off', lastBackup: null, lastAutoDownload: null },
 };
 

@@ -1176,6 +1176,76 @@ describe('pruneRunwayTags（标签引用归一/清理：迁移与分类 CRUD 共
   });
 });
 
+describe('runwayExpectationOf（读数卡分母：自定优先，否则全局预期月消费）', () => {
+  test('未自定（0/空/非法/负值）时用全局预期月消费', () => {
+    assert.strictEqual(L.runwayExpectationOf(0, 5000), 5000);
+    assert.strictEqual(L.runwayExpectationOf(null, 5000), 5000);
+    assert.strictEqual(L.runwayExpectationOf(undefined, 5000), 5000);
+    assert.strictEqual(L.runwayExpectationOf('', 5000), 5000);
+    assert.strictEqual(L.runwayExpectationOf('abc', 5000), 5000);
+    assert.strictEqual(L.runwayExpectationOf(NaN, 5000), 5000);
+    assert.strictEqual(L.runwayExpectationOf(-1, 5000), 5000);
+  });
+
+  test('自定值优先于全局（字符串归一为数字）', () => {
+    assert.strictEqual(L.runwayExpectationOf(9000, 5000), 9000);
+    assert.strictEqual(L.runwayExpectationOf('9000', 5000), 9000);
+  });
+
+  test('全局预期未设 → 0：自定值也不放行（读数卡入口就在卡内, 保持整卡不显示）', () => {
+    assert.strictEqual(L.runwayExpectationOf(9000, 0), 0);
+    assert.strictEqual(L.runwayExpectationOf(9000, null), 0);
+    assert.strictEqual(L.runwayExpectationOf(9000, 'abc'), 0);
+  });
+
+  test('两处都没设 → 0（UI 据此整卡不显示）', () => {
+    assert.strictEqual(L.runwayExpectationOf(0, 0), 0);
+    assert.strictEqual(L.runwayExpectationOf(undefined, undefined), 0);
+    assert.strictEqual(L.runwayExpectationOf('abc', 'abc'), 0);
+  });
+
+  test('runwayExpectationIsCustom 与分母口径同一判定（供读数卡标注「自定」）', () => {
+    assert.strictEqual(L.runwayExpectationIsCustom(9000), true);
+    assert.strictEqual(L.runwayExpectationIsCustom('9000'), true);
+    for (const v of [0, null, undefined, '', 'abc', -1, Infinity]) {
+      assert.strictEqual(L.runwayExpectationIsCustom(v), false, `${String(v)} 不算自定`);
+    }
+  });
+});
+
+describe('normalizeRunwayExpectationInput（输入框字符串 → 自定月消费：写入与预览共用）', () => {
+  test('千分位/空白/数字串都按数值解析', () => {
+    assert.strictEqual(L.normalizeRunwayExpectationInput('9,000', 5000), 9000);
+    assert.strictEqual(L.normalizeRunwayExpectationInput(' 9000 ', 5000), 9000);
+    assert.strictEqual(L.normalizeRunwayExpectationInput(9000, 5000), 9000);
+    assert.strictEqual(L.normalizeRunwayExpectationInput('9000.5', 5000), 9000.5);
+  });
+
+  test('空串/非法/零/负值 → 0（未自定，回落全局预期）', () => {
+    for (const bad of ['', '   ', null, undefined, 'abc', '0', '0.0', -1, '-9000', 0]) {
+      assert.strictEqual(L.normalizeRunwayExpectationInput(bad, 5000), 0, `${String(bad)} → 0`);
+    }
+  });
+
+  test('与全局预期相同 → 0（按默认存，继续跟着全局走；否则日后改全局本卡会默默钉住旧值）', () => {
+    assert.strictEqual(L.normalizeRunwayExpectationInput('5,000', 5000), 0);
+    assert.strictEqual(L.normalizeRunwayExpectationInput('5000', 5000), 0);
+    assert.strictEqual(L.normalizeRunwayExpectationInput('9000', 5000), 9000);
+    // 全局未设时同一个数就是自定值（无「默认」可回落）
+    assert.strictEqual(L.normalizeRunwayExpectationInput('5000', 0), 5000);
+  });
+
+  test('不与读取侧口径矛盾：归一后的值经 runwayExpectationOf 解析回同一个数', () => {
+    const globalExp = 5000;
+    for (const raw of ['9,000', '5000', '', 'abc', '-1']) {
+      const stored = L.normalizeRunwayExpectationInput(raw, globalExp);
+      const effective = L.runwayExpectationOf(stored, globalExp);
+      // 存 0 表示按默认（全局值）；否则必须原样读回
+      assert.strictEqual(effective, stored > 0 ? stored : globalExp, `raw=${raw}`);
+    }
+  });
+});
+
 describe('runwayLiquidCNY（所选标签匹配的资产折算 CNY 合计）', () => {
   const refs = [{ catId: 'c1', tag: '活期现金' }];
 
@@ -1345,6 +1415,31 @@ describe('runwayMonths / runwayMonthsText（月数口径与展示）', () => {
     assert.strictEqual(L.runwayMonthsText(143.6), '11 年 11 个月', '不得进位成 12 年');
     assert.strictEqual(L.runwayMonthsText(23.7), '1 年 11 个月', '不得进位成 2 年');
     assert.strictEqual(L.runwayMonthsText(13.2), '1 年 1 个月');
+  });
+});
+
+describe('runwayExpectation 迁移兜底（migrateState）', () => {
+  test('缺失/损坏归 0，字符串归一为数字，负值归 0（0 = 未自定）', () => {
+    globalThis.state = freshState();
+    L.migrateState();
+    assert.strictEqual(state.runwayExpectation, 0);
+
+    globalThis.state = freshState({ runwayExpectation: '9000' });
+    L.migrateState();
+    assert.strictEqual(state.runwayExpectation, 9000);
+
+    for (const bad of ['abc', NaN, null, -1]) {
+      globalThis.state = freshState({ runwayExpectation: bad });
+      L.migrateState();
+      assert.strictEqual(state.runwayExpectation, 0, `${String(bad)} 归 0`);
+    }
+  });
+
+  test('非有限数（JSON 里的 1e999 → Infinity）归 0，不留 Infinity 进存档', () => {
+    globalThis.state = freshState({ runwayExpectation: Infinity });
+    L.migrateState();
+    assert.strictEqual(state.runwayExpectation, 0, 'NaN 会让读数行渲染出 ¥NaN，Infinity 会渲染出 ¥∞');
+    assert.strictEqual(JSON.parse(JSON.stringify(state)).runwayExpectation, 0, '存回 JSON 后仍是有限数');
   });
 });
 

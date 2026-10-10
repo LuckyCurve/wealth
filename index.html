@@ -1043,20 +1043,22 @@ tailwind.config = {
         </p>
         <p id="pace-status" class="text-xs text-center" style="display:none;"></p>
       </div>
-      <!-- 所选标签的钱 ÷ 预期月消费: 依附「预期月消费」这条参考线, 故落在消费趋势（与收益测算无关）。
-           公式直呈现, 骨架静态存在, JS 只同步文案; 未设预期消费时整张卡不显示（入口即上方「预期消费」按钮） -->
+      <!-- 所选标签的钱 ÷ 月消费: 依附「预期月消费」这条参考线, 故落在消费趋势（与收益测算无关）。
+           分母默认为全局「预期月消费」, 也可在弹窗里自定（只对本卡生效, 不回填全局）—— 可调高月消费看保守口径。
+           公式直呈现, 骨架静态存在, JS 只同步文案; **全局**预期月消费未设时整张卡不显示（入口即上方「预期消费」按钮,
+           卡内没有入口无从填起, 故卡内自定值不放行） -->
       <div id="runway-card" class="card mb-6" style="display:none;">
         <p id="runway-guide" class="text-xs text-center" style="display:none;color:var(--muted);">
-          选几个标签，看看这些钱能撑几个月<button type="button" onclick="openRunwayModal()" class="btn-ghost" style="padding:2px 10px;font-size:11px;margin-left:8px;">选择标签</button>
+          选几个标签、填月消费，看看这些钱能撑几个月<button type="button" onclick="openRunwayModal()" class="btn-ghost" style="padding:2px 10px;font-size:11px;margin-left:8px;">标签与月消费</button>
         </p>
         <p class="cov-reading runway-line" id="runway-reading" style="display:none;">
           <span id="runway-tags-label"></span>
           <span id="runway-num" class="tabular" style="font-weight:600;color:var(--fg);"></span>
-          <span>÷ 预期月消费</span>
+          <span>÷ <span id="runway-expense-name">预期月消费</span></span>
           <span id="runway-expense" class="tabular"></span>
           <span>=</span>
           <span id="runway-months" class="tabular" style="font-weight:600;color:var(--accent-ink);"></span>
-          <button type="button" onclick="openRunwayModal()" class="btn-ghost" style="padding:2px 8px;font-size:10px;">选择标签</button>
+          <button type="button" onclick="openRunwayModal()" class="btn-ghost" style="padding:2px 8px;font-size:10px;">标签与月消费</button>
         </p>
       </div>
       <div id="expense-trend-list"></div>
@@ -1347,14 +1349,20 @@ tailwind.config = {
   </div>
 </div>
 
-<!-- Runway Tag Modal（读数卡标签选择：多选，取消不落库） -->
+<!-- Runway Modal（读数卡编辑：标签多选 + 月消费自定，取消不落库） -->
 <div id="runway-modal" class="modal-overlay" role="dialog" aria-modal="true" style="display:none;">
   <div class="modal-content" style="max-width:480px;">
-    <h3 class="font-display modal-title mb-2">选择标签<span class="tip">
+    <h3 class="font-display modal-title mb-2">标签与月消费<span class="tip">
       <button type="button" class="tip-mark" aria-describedby="runway-tip" aria-label="标签如何参与计算">?</button>
       <span class="tip-bubble" id="runway-tip" role="tooltip">同一分类内多选为「或」，不同分类之间为「且」；某个分类不选则不参与过滤。</span>
     </span></h3>
     <div id="runway-tag-groups" class="space-y-3" style="max-height:44vh;overflow-y:auto;"></div>
+    <!-- 月消费: 默认带出全局「预期月消费」, 改成自定值只影响这张读数卡（不回填全局）; 清空即回默认 -->
+    <label class="block text-xs font-medium mt-4 mb-1.5" for="runway-expectation" style="color:var(--muted);">月消费 (CNY)</label>
+    <div class="flex items-center gap-2">
+      <input type="text" id="runway-expectation" inputmode="decimal" class="w-full" placeholder="月消费 (CNY)" oninput="formatMoneyInput(this); renderRunwayPreview();" onkeydown="if(event.key==='Enter' && !event.isComposing)saveRunwayTags()" autocomplete="off">
+      <button type="button" onclick="useDefaultRunwayExpectation()" class="btn-ghost" style="padding:6px 12px;font-size:11px;white-space:nowrap;">默认</button>
+    </div>
     <p id="runway-preview" class="text-sm text-center mt-4" style="color:var(--muted);border-top:1px dashed var(--rule);padding-top:12px;"></p>
     <div class="flex justify-end gap-3 mt-6">
       <button type="button" onclick="closeModal('runway-modal')" class="btn-ghost">取消</button>
@@ -1428,7 +1436,7 @@ function freshAppState() {
     expenseCategories: [], expenses: [],
     rates: { CNY: 1, HKD: 1, USD: 1, fetchedAt: null },
     expenseExpectation: 0, netWorthTarget: 0, incomeSafetyFactor: 100,
-    runwayTags: [],
+    runwayTags: [], runwayExpectation: 0,
     backup: { autoFreq: 'daily', lastBackup: null, lastAutoDownload: null },
   };
 }
@@ -3140,17 +3148,18 @@ function setCoverageMode(mode) {
   setSegMode('cov-mode-cash', 'cov-mode-total', mode, 'cash', 'total', () => renderCoverageMeter());
 }
 
-// ========== 所选标签的钱 ÷ 预期月消费（消费趋势的读数卡）==========
+// ========== 所选标签的钱 ÷ 月消费（消费趋势的读数卡）==========
 // 依附「预期月消费」这条参考线（与收益测算无关）, 故落在消费趋势; 公式直呈现:
-// 标签摘要 ÷ 预期月消费, 锚点式数字与月数同一句话里给出。
-// 口径在 logic.js runwayLiquidCNY()/runwayMonths()/runwayMonthsText()（单一来源）。
-// 三种状态: 未设预期消费 → 整张卡不显示（入口即趋势页头的「预期消费」按钮）/ 未选标签 → 指引句 / 正常 → 读数行。
+// 标签摘要 ÷ 月消费, 锚点式数字与月数同一句话里给出。
+// 分母默认取全局「预期月消费」, 也可在弹窗里自定（只对本卡生效, 不回填全局, 目的＝按更保守的月消费看能撑多久）。
+// 口径在 logic.js runwayLiquidCNY()/runwayExpectationOf()/runwayMonths()/runwayMonthsText()（单一来源）。
+// 三种状态: **全局**预期月消费未设 → 整张卡不显示（入口即趋势页头的「预期消费」按钮, 卡内没有入口无从填起）/ 未选标签 → 指引句 / 正常 → 读数行。
 function renderRunwayRow() {
   const card = document.getElementById('runway-card');
   const guide = document.getElementById('runway-guide');
   const line = document.getElementById('runway-reading');
   if (!card || !guide || !line) return;
-  const expectation = state.expenseExpectation || 0;
+  const expectation = runwayExpectationOf(state.runwayExpectation, state.expenseExpectation);
   if (!(expectation > 0)) {
     card.style.display = 'none';
     return;
@@ -3168,17 +3177,29 @@ function renderRunwayRow() {
   // 只同步文案: 公式骨架在 HTML 里静态可见（÷ 与 = 写在结构里）, 这里不拼 HTML
   document.getElementById('runway-tags-label').textContent = refs.map(r => r.tag).join(' · ');
   document.getElementById('runway-num').textContent = formatCNY(liquid);
+  // 分母名要标出「自定」: 自定值只作用于本卡, 不换名会与旁边的覆盖标尺（仍是全局预期）看着像同一个数
+  document.getElementById('runway-expense-name').textContent =
+    runwayExpectationIsCustom(state.runwayExpectation) ? '月消费（自定）' : '预期月消费';
   document.getElementById('runway-expense').textContent = formatCNY(expectation);
   document.getElementById('runway-months').textContent = runwayMonthsText(runwayMonths(liquid, expectation));
 }
 
-// 标签选择（多选草稿）: 打开只拷草稿、保存才落 state —— 取消不落库（与预期消费弹窗同惯例）
+// 标签与月消费（草稿）: 打开只拷草稿、保存才落 state —— 取消不落库（与预期消费弹窗同惯例）
 let _runwayDraft = [];
 function openRunwayModal() {
   _runwayDraft = pruneRunwayTags(state.runwayTags, state.categories);
+  // 默认带出已填的月消费（自定值优先, 否则全局「预期月消费」）: 字段里就是当前生效的数, 改一个数即可, 不必重敲
+  document.getElementById('runway-expectation').value =
+    moneyStr(runwayExpectationOf(state.runwayExpectation, state.expenseExpectation));
   renderRunwayTagGroups();
   renderRunwayPreview();
   openModal('runway-modal');
+}
+
+// 「默认」= 把字段填回全局「预期月消费」（值可见, 不必记住原数字）; 保存时与它相同的值即按默认存（0）
+function useDefaultRunwayExpectation() {
+  document.getElementById('runway-expectation').value = moneyStr(state.expenseExpectation);
+  renderRunwayPreview();
 }
 
 // ========== 本月已花 ÷ 预期月消费（趋势页进度读数卡）==========
@@ -3247,23 +3268,30 @@ function toggleRunwayTag(btn) {
   renderRunwayPreview();
 }
 
-// 弹窗内实时预览: 勾选即见结果（同一口径函数, 与读数行同算式）, 不必保存了才知道
+// 弹窗内实时预览: 勾选/改月消费即见结果（同一口径函数, 与读数行同算式）, 不必保存了才知道。
+// 输入解析与归一与写入侧共用 normalizeRunwayExpectationInput: 两处各写一份时值恰好等价, 但
+// 一旦只改一处（如把「与全局相同」的判定收掉）预览与保存后的读数就会对不上, 而这类分家不会报错。
 function renderRunwayPreview() {
   const el = document.getElementById('runway-preview');
   if (!el) return;
+  const input = document.getElementById('runway-expectation').value;
+  const expectation = runwayExpectationOf(normalizeRunwayExpectationInput(input, state.expenseExpectation), state.expenseExpectation);
   const liquid = runwayLiquidCNY(state.assets, _runwayDraft);
   if (liquid == null) { el.textContent = '勾选标签后这里显示结果'; return; }
-  const months = runwayMonths(liquid, state.expenseExpectation);
+  const months = runwayMonths(liquid, expectation);
   if (months == null) { el.textContent = '先设定预期月消费，再回来看结果'; return; }
-  el.textContent = `${formatCNY(liquid)} ÷ 预期月消费 ${formatCNY(state.expenseExpectation)} = ${runwayMonthsText(months)}`;
+  el.textContent = `${formatCNY(liquid)} ÷ 月消费 ${formatCNY(expectation)} = ${runwayMonthsText(months)}`;
 }
 
 function saveRunwayTags() {
   state.runwayTags = pruneRunwayTags(_runwayDraft, state.categories);
+  // 自定月消费: 只写读数卡自己的字段, 绝不回填 state.expenseExpectation（全局预期由「预期消费」弹窗独占）
+  state.runwayExpectation = normalizeRunwayExpectationInput(
+    document.getElementById('runway-expectation').value, state.expenseExpectation);
   saveState();
   closeModal('runway-modal');
   renderRunwayRow();
-  toast('已更新所选标签', 'success');
+  toast(state.runwayExpectation > 0 ? '已更新标签与月消费' : '已更新标签', 'success');
 }
 
 function renderIncomeTab() {

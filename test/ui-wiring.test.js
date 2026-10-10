@@ -804,10 +804,13 @@ describe('UI 接线契约：所选标签的钱 ÷ 预期月消费（消费趋势
     // 行尾无关: 断言只截到卡片的闭合 div（工作区可能 CRLF，写死 \n 会脆）
     const section = html.match(/id="runway-card"[\s\S]*?<\/div>/);
     assert.ok(section, '读数卡存在');
-    assert.match(section[0], /÷ 预期月消费/, '除法与分母名称在静态骨架中可见（公式直呈现）');
+    assert.match(section[0], /÷ <span id="runway-expense-name">预期月消费<\/span>/,
+      '除法与分母名称在静态骨架中可见（公式直呈现）；分母名单独成槽，自定时换成「月消费（自定）」');
     assert.match(section[0], /id="runway-num"/);
     assert.match(section[0], /id="runway-expense"/);
     assert.match(section[0], /id="runway-months"/);
+    // 分母名单独成槽且唯一: JS 靠它切换「预期月消费 / 月消费（自定）」
+    assert.strictEqual(count(/id="runway-expense-name"/g), 1);
     assert.match(html, /\.runway-line \{[^}]*justify-content: center/, '整句居中, 窄屏按顿读点换行');
     assert.doesNotMatch(section[0], /cov-anchors/, '无刻度可测, 不套用两端对齐锚点（中间空档会显得突兀）');
   });
@@ -910,7 +913,76 @@ describe('UI 接线契约：所选标签的钱 ÷ 预期月消费（消费趋势
 
   test('禁词守卫：不引入自造概念词（用户只认标签与算式）', () => {
     assert.doesNotMatch(html, /备用金|跑道|安全垫|应急/,
-      '用户可见文案与注释一律用平实描述：所选标签的钱 ÷ 预期月消费 = 能撑几个月');
+      '用户可见文案与注释一律用平实描述：所选标签的钱 ÷ 月消费 = 能撑几个月');
+  });
+});
+
+describe('UI 接线契约：读数卡的自定月消费（只对本卡生效）', () => {
+  const logic = fs.readFileSync(path.join(__dirname, '..', 'logic.js'), 'utf8');
+  const modal = () => html.match(/id="runway-modal"[\s\S]*?id="runway-preview"/)[0];
+
+  test('分母口径在 logic.js：自定优先、否则回落全局预期（渲染层不内联取值）', () => {
+    assert.match(logic, /function runwayExpectationOf\(/, '分母口径在 logic.js');
+    assert.match(logic, /function runwayExpectationIsCustom\(/, '「是否自定」与分母同一判定');
+    const src = fnSource('renderRunwayRow');
+    assert.match(src, /runwayExpectationOf\(state\.runwayExpectation, state\.expenseExpectation\)/,
+      '分母必须走单一口径函数');
+    assert.match(src, /runwayExpectationIsCustom\(state\.runwayExpectation\)/, '自重绘后仍要能标出「自定」');
+    assert.doesNotMatch(src, /state\.expenseExpectation\s*\|\|/, '直接读全局预期会把自定值吞掉');
+    // 只禁「拿 state.runwayExpectation 直接比较/运算」（裸 `expenseExpectation` 会命中函数名
+    // runwayExpectationOf，造成自相矛盾的断言；带 state 前缀的赋值是卡片自身的字段，另由迁移测试把守）
+    assert.doesNotMatch(src, /state\.runwayExpectation\s*[<>=!+\-*/]/,
+      '分母取值一律走 runwayExpectationOf / runwayExpectationIsCustom，不在渲染层内联回落链');
+    assert.match(fnSource('renderRunwayPreview'), /runwayExpectationOf\(/,
+      '弹窗预览与读数卡同一分母口径');
+  });
+
+  test('输入归一单一来源：写入侧与预览共用 normalizeRunwayExpectationInput', () => {
+    assert.match(logic, /function normalizeRunwayExpectationInput\(/, '归一在 logic.js');
+    for (const fn of ['renderRunwayPreview', 'saveRunwayTags']) {
+      assert.match(fnSource(fn), /normalizeRunwayExpectationInput\([\s\S]{0,80}state\.expenseExpectation\)/,
+        `${fn} 走同一解析+归一口径（各写一份时值等价也靠不住, 只改一处就会分家）`);
+    }
+    // 内联脚本不再自行 replace(/,/g)/parseFloat/比较全局值
+    for (const fn of ['renderRunwayPreview', 'saveRunwayTags']) {
+      const src = fnSource(fn);
+      assert.doesNotMatch(src, /parseFloat/, `${fn} 不得重写解析`);
+      assert.doesNotMatch(src, /\/,\/g/, `${fn} 不得重写千分位剥离`);
+    }
+  });
+
+  test('月消费输入与标签同处一个弹窗，标题随之改名', () => {
+    assert.strictEqual(count(/id="runway-expectation"/g), 1, '输入框唯一');
+    assert.match(modal(), /id="runway-expectation"/, '与标签同弹窗（同一个编辑框）');
+    assert.match(modal(), /oninput="formatMoneyInput\(this\)/, '金额输入沿用同一格式化');
+    assert.match(modal(), /<label[^>]*for="runway-expectation"/, '标签关联输入框（点标签可聚焦）');
+    assert.match(modal(), /onkeydown="if\(event\.key==='Enter' && !event\.isComposing\)saveRunwayTags\(\)"/,
+      '回车即保存（与预期消费/目标净资产弹窗同惯例），带 IME 守卫防组字中误提交');
+    assert.match(html, /<h3 class="font-display modal-title mb-2">标签与月消费/, '标题已改名');
+    assert.doesNotMatch(html, />选择标签</, '标题/按钮不得仍叫「选择标签」（现在也编辑月消费）');
+  });
+
+  test('打开时默认带出已填的月消费（字段里就是当前生效数），不回写状态', () => {
+    const open = fnSource('openRunwayModal');
+    assert.match(open, /runwayExpectationOf\(state\.runwayExpectation, state\.expenseExpectation\)/,
+      '默认值走同一分母口径：自定值优先，否则全局预期');
+    assert.match(open, /moneyStr\(/);
+    assert.doesNotMatch(open, /state\.runwayExpectation = /, '打开只回填输入框，不写状态');
+  });
+
+  test('自定值不回填预期月消费（只对本卡生效）', () => {
+    const save = fnSource('saveRunwayTags');
+    assert.match(save, /state\.runwayExpectation = normalizeRunwayExpectationInput\(/,
+      '保存写入读数卡自定值（归一走 logic.js，含「与全局相同则视为默认」）');
+    assert.doesNotMatch(save, /state\.expenseExpectation = /, '自定值不得回填全局预期月消费');
+    assert.doesNotMatch(html, /expenseExpectation = state\.runwayExpectation/, '更不得反向同步');
+  });
+
+  test('「默认」入口单一：把全局预期填回字段（值可见，不必记住原数字）', () => {
+    assert.strictEqual(count(/onclick="useDefaultRunwayExpectation\(\)"/g), 1);
+    const src = fnSource('useDefaultRunwayExpectation');
+    assert.match(src, /moneyStr\(state\.expenseExpectation\)/);
+    assert.match(src, /renderRunwayPreview\(\)/);
   });
 });
 
