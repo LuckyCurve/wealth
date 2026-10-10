@@ -320,6 +320,14 @@ describe('UI 接线契约：收益覆盖标尺（分子口径可切换的预期�
     assert.doesNotMatch(src, /\* 12 \* [\w.]+ \//, '缺口×12÷年化不得在内联脚本重写');
   });
 
+  test('有息本金单一来源 ratedPrincipalCNY：页脚加权平均利率与缺口外推同基地，内联不重复聚合', () => {
+    assert.match(logic, /function ratedPrincipalCNY\(/, '决策纯函数在 logic.js');
+    const src = fnSource('renderIncomeTab');
+    assert.match(src, /ratedPrincipalCNY\(state\.assets\)/, '页脚基地须走 logic.js 同一口径');
+    // 内联 reduce 聚合有息本金是分家源头（改一处忘另一处 → 页脚均值与外推年化对不上）
+    assert.doesNotMatch(src, /assets\.reduce\(\(s, a\) => s \+ toCNY/, '页脚不得内联重复聚合有息本金');
+  });
+
   test('缺口 Tips 复用标题旁 ? 自绘提示（.tip 唯一实现），仅缺口分支出现', () => {
     const src = fnSource('renderCoverageMeter');
     const tip = fnSource('shortfallTipHtml'); // 气泡拼装的唯一出口
@@ -333,6 +341,8 @@ describe('UI 接线契约：收益覆盖标尺（分子口径可切换的预期�
     assert.match(src, /if \(!ok\)/, 'Tips 只在未覆盖分支拼装');
     assert.match(src, /shortfallTipHtml\(need,/, '渲染层只调唯一拼装处');
     assert.doesNotMatch(tip, /formatCNY\(gap|\* 12 \*/, '外推算式不得在展示层重写（口径在 logic.js）');
+    // 年化 = annual ÷ principal: 展示层再算一遍就与 logic.js 的外推基数分家（改一处忘另一处）
+    assert.doesNotMatch(tip, /annual \/ principal|\/ principal \* 100/, '实际年化不得在展示层重算');
     assert.strictEqual(count(/cov-shortfall-tip/g) <= 2, true, '气泡 id 只应出现在拼装处, 不另开通道');
   });
 });

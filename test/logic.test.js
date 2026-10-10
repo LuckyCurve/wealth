@@ -885,31 +885,38 @@ describe('coverShortfallPrincipal（覆盖缺口还需本金：按现有实际�
     assert.match(L.coverShortfallPrincipal.toString(), /function coverShortfallPrincipal\(monthly, expectation, annual, principal\)/);
   });
 
-  test('常规外推：缺口月 ×12 ÷ 实际年化（年收益 ÷ 有息本金）', () => {
+  test('常规外推：need = 缺口月 ×12 ÷ 实际年化（年收益 ÷ 有息本金），rate 同源一次给出', () => {
     // 月收益 6240、预期 10000，年收益 74880、基地 100 万 → 缺口 3760×12×1e6/74880
-    assert.ok(approx(L.coverShortfallPrincipal(6240, 10000, 74880, 1000000), 3760 * 12 * 1000000 / 74880));
+    const r = L.coverShortfallPrincipal(6240, 10000, 74880, 1000000);
+    assert.ok(approx(r.need, 3760 * 12 * 1000000 / 74880));
+    assert.ok(approx(r.rate, 7.488), 'rate 为实际年化百分比，与 need 同源（展示层不得重算）');
     // 字符串数字防御（导入数据同源口径）
-    assert.ok(approx(L.coverShortfallPrincipal('6240', '10000', '74880', '1000000'), 3760 * 12 * 1000000 / 74880));
+    const rs = L.coverShortfallPrincipal('6240', '10000', '74880', '1000000');
+    assert.ok(approx(rs.need, 3760 * 12 * 1000000 / 74880));
   });
 
-  test('已覆盖/打平 → null（UI 不挂 Tips，只在缺口分支出现）', () => {
-    assert.strictEqual(L.coverShortfallPrincipal(12500, 10000, 150000, 1000000), null);
-    assert.strictEqual(L.coverShortfallPrincipal(10000, 10000, 120000, 1000000), null);
+  test('已覆盖/打平 → need=null（UI 不挂 Tips，只在缺口分支出现）', () => {
+    assert.strictEqual(L.coverShortfallPrincipal(12500, 10000, 150000, 1000000).need, null);
+    assert.strictEqual(L.coverShortfallPrincipal(10000, 10000, 120000, 1000000).need, null);
   });
 
-  test('未设/非法预期 → null（调用方回退邀请态）；月收益 NaN 按 0 参与不产出 NaN', () => {
-    assert.strictEqual(L.coverShortfallPrincipal(5000, 0, 60000, 1000000), null);
-    assert.strictEqual(L.coverShortfallPrincipal(5000, null, 60000, 1000000), null);
-    assert.strictEqual(L.coverShortfallPrincipal(5000, 'abc', 60000, 1000000), null);
-    assert.ok(approx(L.coverShortfallPrincipal(NaN, 10000, 74880, 1000000), 10000 * 12 * 1000000 / 74880));
+  test('未设/非法预期 → need=null（调用方回退邀请态）；月收益 NaN 按 0 参与不产出 NaN', () => {
+    assert.strictEqual(L.coverShortfallPrincipal(5000, 0, 60000, 1000000).need, null);
+    assert.strictEqual(L.coverShortfallPrincipal(5000, null, 60000, 1000000).need, null);
+    assert.strictEqual(L.coverShortfallPrincipal(5000, 'abc', 60000, 1000000).need, null);
+    assert.ok(approx(L.coverShortfallPrincipal(NaN, 10000, 74880, 1000000).need, 10000 * 12 * 1000000 / 74880));
   });
 
-  test('年收益/基地非法或非正 → Infinity（收益率≤0 无法外推，UI 显示兜底一句）', () => {
-    assert.strictEqual(L.coverShortfallPrincipal(6240, 10000, 0, 1000000), Infinity);
-    assert.strictEqual(L.coverShortfallPrincipal(6240, 10000, -100, 1000000), Infinity);
-    assert.strictEqual(L.coverShortfallPrincipal(6240, 10000, 74880, 0), Infinity);
-    assert.strictEqual(L.coverShortfallPrincipal(6240, 10000, NaN, 1000000), Infinity);
-    assert.strictEqual(L.coverShortfallPrincipal(6240, 10000, 74880, null), Infinity);
+  test('年收益/基地非法或非正 → need=Infinity（收益率≤0 无法外推，UI 显示兜底一句）', () => {
+    for (const [a, p] of [[0, 1000000], [-100, 1000000], [74880, 0], [NaN, 1000000], [74880, null]]) {
+      assert.strictEqual(L.coverShortfallPrincipal(6240, 10000, a, p).need, Infinity);
+    }
+  });
+
+  test('rate 兜底：基地为 0 或非有限时归 0（不产出 NaN/Infinity 文案）', () => {
+    assert.strictEqual(L.coverShortfallPrincipal(6240, 10000, 74880, 0).rate, 0);
+    assert.strictEqual(L.coverShortfallPrincipal(6240, 10000, NaN, 1000000).rate, 0);
+    assert.strictEqual(L.coverShortfallPrincipal(6240, 10000, Infinity, 1000000).rate, 0);
   });
 
   test('ratedPrincipalCNY 只算有息资产（跟随利率档），零利率不摊薄收益率', () => {

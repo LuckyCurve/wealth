@@ -650,6 +650,20 @@ test.describe('覆盖标尺的缺口 Tips（还需本金）', () => {
     expect(await bubble.textContent()).not.toBe(before);
   });
 
+  test('页脚加权平均利率与 Tips 的外推年化同基地（改一处即同步，不各自漂移）', async ({ appPage: page }) => {
+    await gotoIncome(page);
+    // 页脚「加权平均利率 X%」中的 X 就是有息本金的加权均值
+    const footer = await page.locator('#income-summary-footer').textContent();
+    const avgRate = parseFloat(footer.match(/加权平均利率 ([\d.]+)%/)[1]);
+
+    await page.locator('#cov-reading .tip-mark').hover();
+    const bubble = await page.locator('#cov-shortfall-tip').textContent();
+    const effRate = parseFloat(bubble.match(/实际年化 ([\d.]+)%/)[1]);
+
+    // 安全边际 100% 时两者应相等（同为有息本金基地）；若页脚另算基地就会分叉
+    expect(avgRate).toBeCloseTo(effRate, 1);
+  });
+
   test('已覆盖时不挂 Tips（达标只剩印徽）', async ({ page }) => {
     const s = sampleState();
     s.expenseExpectation = 10; // 远低于月收益 → 覆盖

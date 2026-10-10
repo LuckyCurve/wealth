@@ -3140,8 +3140,8 @@ function renderCoverageMeter() {
   if (!ok) {
     const annualBase = coverageMode === 'total' ? annual : cashAnnual;
     const principal = ratedPrincipalCNY(state.assets);
-    const need = coverShortfallPrincipal(numerator, expectation, annualBase, principal);
-    shortfallTip = shortfallTipHtml(need, annualBase, principal);
+    const { need, rate } = coverShortfallPrincipal(numerator, expectation, annualBase, principal);
+    shortfallTip = shortfallTipHtml(need, rate);
   }
   reading.innerHTML =
     `<span>覆盖 <span class="tabular" style="font-weight:600;color:${ok ? 'var(--verdigris)' : 'var(--fg)'};opacity:${ok ? '1' : '0.85'};">${pct.toFixed(1)}%</span></span>` +
@@ -3152,9 +3152,8 @@ function renderCoverageMeter() {
 
 // 缺口「还需本金」气泡文案（Tips 唯一拼装处）: 算式与口径在 logic.js, 这里只做展示。
 // need 为 null（已覆盖/预期非法）→ 不挂图标; Infinity（实际年化 ≤ 0）→ 兜底一句（收益率不成立, 无从外推）。
-function shortfallTipHtml(need, annual, principal) {
+function shortfallTipHtml(need, rate) {
   if (need === null) return '';
-  const rate = principal > 0 ? (annual / principal * 100) : 0;
   const body = need === Infinity
     ? '当前资产的实际年化不高，加本金也补不上这个缺口——先调高预期年利率或降低月消费。'
     : `按当前实际年化 ${rate.toFixed(2)}% 线性外推，还需本金 <span class="tabular" style="font-weight:600;">${formatCNY(need)}</span> 才能覆盖。`;
@@ -3372,7 +3371,9 @@ function renderIncomeTab() {
     const cny = toCNY(a.amount, a.currency);
     return s + cny * getAssetRate(a) * getCashRatio(a);
   }, 0);
-  const totalAssetCNY = assets.reduce((s, a) => s + toCNY(a.amount, a.currency), 0);
+  // 有息本金（CNY）单一来源（logic.js ratedPrincipalCNY）: 页脚加权平均利率与缺口外推的「还需本金」
+  // 必须同基地 —— 两处各写一份 reduce 时, 改一处忘另一处会让页脚均值与外推年化对不上且不报错
+  const totalAssetCNY = ratedPrincipalCNY(state.assets);
   const avgRate = totalAssetCNY > 0 ? (totalWeighted / totalAssetCNY).toFixed(2) : '0.00';
   const avgCashRate = totalAssetCNY > 0 ? (cashWeighted / totalAssetCNY).toFixed(2) : '0.00';
   const safetyPct = state.incomeSafetyFactor || 100;

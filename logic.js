@@ -356,16 +356,20 @@
   // 安全边际已含在 annual 里（calcAssetIncome 折算），min/max 跟随 incomeMode。
   // 返回：已覆盖/打平或预期非法 → null（UI 不挂 Tips）；年收益/基地非法或非正 → Infinity
   // （实际年化 ≤0 无法外推，UI 显示兜底一句）；月收益非法按 0 参与（与 incomeGap 同口径）。
+  // 返回 { need, rate }: need 同上（null / Infinity / 金额）; rate 为**实际年化百分比**
+  // （annual ÷ principal × 100, 已含安全边际折算），与 need 同源一次算就出 ——
+  // 展示层再算一遍 annual/principal 就与外推基数分家（改一处忘另一处不报错）。
   function coverShortfallPrincipal(monthly, expectation, annual, principal) {
     const e = Number(expectation);
-    if (!isFinite(e) || e <= 0) return null;
+    if (!isFinite(e) || e <= 0) return { need: null, rate: 0 };
     const m = Number(monthly);
     const gap = e - (isFinite(m) ? m : 0);
-    if (gap <= 0) return null;
+    if (gap <= 0) return { need: null, rate: 0 };
     const a = Number(annual);
     const p = Number(principal);
-    if (!isFinite(a) || a <= 0 || !isFinite(p) || p <= 0) return Infinity;
-    return gap * 12 * p / a;
+    const rate = (isFinite(a) && isFinite(p) && p > 0) ? a / p * 100 : 0;
+    if (!isFinite(a) || a <= 0 || !isFinite(p) || p <= 0) return { need: Infinity, rate: rate };
+    return { need: gap * 12 * p / a, rate: rate };
   }
 
   // ========== 所选标签的钱 ÷ 预期月消费（消费趋势的读数卡，与收益测算无关）==========
