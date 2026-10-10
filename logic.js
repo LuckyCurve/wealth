@@ -340,6 +340,34 @@
     };
   }
 
+  // 有息本金（CNY）: 设了预期利率（当前 incomeMode 档）的资产按当前汇率折算合计 ——
+  // 外推「还需多少本金」的收益率基地；零利率资产不摊薄收益率（与页脚加权平均利率同基地），
+  // 否则把闲置现金算进基地会得出偏低的年化、进而算出偏高的所需本金。空表/缺失入参归 0。
+  function ratedPrincipalCNY(assets) {
+    return (assets || []).reduce((s, a) => {
+      if (!(getAssetRate(a) > 0)) return s;
+      return s + toCNY(Number(a.amount) || 0, a.currency);
+    }, 0);
+  }
+
+  // 覆盖缺口还需本金（线性外推）: 缺口月 ×12 ÷ 实际年化，其中实际年化 = annual ÷ principal。
+  // annual/principal 由调用方按口径传入（total: 年总收益/有息本金；cash: 年现金收益/有息本金），
+  // 有息本金指 getAssetRate > 0 资产的折算合计（闲置零利率资产不摊薄收益率）；
+  // 安全边际已含在 annual 里（calcAssetIncome 折算），min/max 跟随 incomeMode。
+  // 返回：已覆盖/打平或预期非法 → null（UI 不挂 Tips）；年收益/基地非法或非正 → Infinity
+  // （实际年化 ≤0 无法外推，UI 显示兜底一句）；月收益非法按 0 参与（与 incomeGap 同口径）。
+  function coverShortfallPrincipal(monthly, expectation, annual, principal) {
+    const e = Number(expectation);
+    if (!isFinite(e) || e <= 0) return null;
+    const m = Number(monthly);
+    const gap = e - (isFinite(m) ? m : 0);
+    if (gap <= 0) return null;
+    const a = Number(annual);
+    const p = Number(principal);
+    if (!isFinite(a) || a <= 0 || !isFinite(p) || p <= 0) return Infinity;
+    return gap * 12 * p / a;
+  }
+
   // ========== 所选标签的钱 ÷ 预期月消费（消费趋势的读数卡，与收益测算无关）==========
   // 口径与收益无关: 分子是本金（所选标签匹配的资产按当前汇率折算）, 不乘安全边际、不看利率。
   // 标签引用形如 { catId, tag }, 与 assets[].tags[catId] === tag 匹配。
@@ -898,7 +926,7 @@
     pruneRunwayTags, runwayLiquidCNY, runwayExpectationOf, runwayExpectationIsCustom, normalizeRunwayExpectationInput, runwayMonths, runwayMonthsText,
     findMonthSnapshot, getPrevSnapshot, defaultCompareBaseMonth,
     monthlyExpenseTotals, prevExpenseMonthOf, expenseMoM, expenseMonthTagTotals,
-    getAssetRate, getSafetyFactor, getCashRatio, calcAssetIncome, hasAnyRatedAsset, cashRatioPct, coveragePct, incomeGap, sumAssetIncomes,
+    getAssetRate, getSafetyFactor, getCashRatio, calcAssetIncome, hasAnyRatedAsset, cashRatioPct, coveragePct, incomeGap, coverShortfallPrincipal, sumAssetIncomes, ratedPrincipalCNY,
     migrateState,
     esc, escRegExp, highlightMatch, moneyStr, jsAttr,
     truncateLabel,

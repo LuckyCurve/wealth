@@ -602,6 +602,64 @@ test.describe('持久化与迁移', () => {
   });
 });
 
+test.describe('覆盖标尺的缺口 Tips（还需本金）', () => {
+  // 有息本金 13 万（50000+80000 CNY, HKD 折算另计）、max 档年化约 6.58%
+  const gotoIncome = async (page) => {
+    await gotoAssetsTab(page, 'income');
+    await expect(page.locator('#cov-section')).toBeVisible();
+  };
+
+  test('缺口时出现 ? Tips，气泡给出按实际年化线性外推的还需本金', async ({ appPage: page }) => {
+    await gotoIncome(page);
+    const tip = page.locator('#cov-reading .tip');
+    await expect(tip).toBeVisible();
+    await tip.locator('.tip-mark').hover();
+    const bubble = page.locator('#cov-shortfall-tip');
+    await expect(bubble).toBeVisible();
+    await expect(bubble).toContainText('线性外推');
+    await expect(bubble).toContainText('还需本金');
+  });
+
+  test('切到现金口径：Tips 跟随当前分子重算（同一气泡、数字随口径变化）', async ({ appPage: page }) => {
+    await gotoIncome(page);
+    await page.locator('#cov-reading .tip-mark').hover();
+    const bubble = page.locator('#cov-shortfall-tip');
+    await expect(bubble).toBeVisible();
+    const totalText = await bubble.textContent();
+
+    await page.locator('#cov-mode-cash').click();
+    await expect(page.locator('#cov-mode-cash')).toHaveClass(/active/);
+    // 重绘后气泡回到收起态（须重新 hover），口径切换后 ? 图标仍在
+    await expect(page.locator('#cov-reading .tip-mark')).toBeVisible();
+    await page.locator('#cov-reading .tip-mark').hover();
+    await expect(bubble).toContainText('还需本金');
+    expect(await bubble.textContent()).not.toBe(totalText);
+  });
+
+  test('安全边际滑块拖动：Tips 随折算后的年化同步变化', async ({ appPage: page }) => {
+    await gotoIncome(page);
+    await page.locator('#cov-reading .tip-mark').hover();
+    const bubble = page.locator('#cov-shortfall-tip');
+    await expect(bubble).toBeVisible();
+    const before = await bubble.textContent();
+
+    await page.locator('#income-safety-input').fill('50');
+    await expect(page.locator('#income-safety-readout')).toHaveText('50%');
+    await page.locator('#cov-reading .tip-mark').hover();
+    await expect(bubble).toContainText('线性外推');
+    expect(await bubble.textContent()).not.toBe(before);
+  });
+
+  test('已覆盖时不挂 Tips（达标只剩印徽）', async ({ page }) => {
+    const s = sampleState();
+    s.expenseExpectation = 10; // 远低于月收益 → 覆盖
+    await openWith(page, s);
+    await gotoIncome(page);
+    await expect(page.locator('#cov-reading .mo-badge.up')).toBeVisible();
+    await expect(page.locator('#cov-reading .tip')).toHaveCount(0);
+  });
+});
+
 test.describe('汇率', () => {
   test('汇率口径：1 外币 = X CNY，页面对 API 的倒数取值不重复取倒', async ({ page }) => {
     // API 给 1 CNY = 0.5 HKD → HKD→CNY = 2 → 50000 HKD = 100000 CNY

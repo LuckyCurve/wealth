@@ -3113,8 +3113,8 @@ function renderCoverageMeter() {
   invite.style.display = 'none';
   section.style.display = '';
 
-  // 两口径合计与报头同源（logic.js sumAssetIncomes）
-  const { monthly, cashMonthly } = sumAssetIncomes(state.assets);
+  // 两口径合计与报头同源（logic.js sumAssetIncomes; 年值供缺口外推用同一份, 不另算）
+  const { monthly, cashMonthly, annual, cashAnnual } = sumAssetIncomes(state.assets);
   const numerator = coverageMode === 'total' ? monthly : cashMonthly;
   document.getElementById('cov-anchor-num').textContent = formatCNY(numerator);
   document.getElementById('cov-anchor-expense').textContent = formatCNY(expectation);
@@ -3135,10 +3135,32 @@ function renderCoverageMeter() {
   const g = incomeGap(numerator, expectation);
   const ok = g.ok;
   const diffColor = g.ok ? 'var(--verdigris)' : 'var(--down)';
+  // 缺口分支挂「还需本金」Tips: 按当前口径（分子/利率档/安全边际）线性外推, 算式在 logic.js（单一来源）
+  let shortfallTip = '';
+  if (!ok) {
+    const annualBase = coverageMode === 'total' ? annual : cashAnnual;
+    const principal = ratedPrincipalCNY(state.assets);
+    const need = coverShortfallPrincipal(numerator, expectation, annualBase, principal);
+    shortfallTip = shortfallTipHtml(need, annualBase, principal);
+  }
   reading.innerHTML =
     `<span>覆盖 <span class="tabular" style="font-weight:600;color:${ok ? 'var(--verdigris)' : 'var(--fg)'};opacity:${ok ? '1' : '0.85'};">${pct.toFixed(1)}%</span></span>` +
     ` · <span>${g.word} <span class="tabular" style="font-weight:600;color:${diffColor};">¥${g.amt.toLocaleString('zh-CN')}</span>/月</span>` +
+    shortfallTip +
     (ok ? ` <span class="mo-badge up" title="${coverageMode === 'total' ? '总收益' : '现金收益'}已完全覆盖预期月消费">已覆盖</span>` : '');
+}
+
+// 缺口「还需本金」气泡文案（Tips 唯一拼装处）: 算式与口径在 logic.js, 这里只做展示。
+// need 为 null（已覆盖/预期非法）→ 不挂图标; Infinity（实际年化 ≤ 0）→ 兜底一句（收益率不成立, 无从外推）。
+function shortfallTipHtml(need, annual, principal) {
+  if (need === null) return '';
+  const rate = principal > 0 ? (annual / principal * 100) : 0;
+  const body = need === Infinity
+    ? '当前资产的实际年化不高，加本金也补不上这个缺口——先调高预期年利率或降低月消费。'
+    : `按当前实际年化 ${rate.toFixed(2)}% 线性外推，还需本金 <span class="tabular" style="font-weight:600;">${formatCNY(need)}</span> 才能覆盖。`;
+  return `<span class="tip">` +
+    `<button type="button" class="tip-mark" aria-describedby="cov-shortfall-tip" aria-label="还需多少本金才能覆盖">?</button>` +
+    `<span class="tip-bubble" id="cov-shortfall-tip" role="tooltip">${body}</span></span>`;
 }
 
 let coverageMode = 'total'; // 覆盖标尺分子口径, 默认总收益（含增值宽松口径）; 不持久化与 incomeChartMode 同惯例

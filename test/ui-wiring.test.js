@@ -312,6 +312,29 @@ describe('UI 接线契约：收益覆盖标尺（分子口径可切换的预期�
   test('达标印徽复用 mo-badge.up 语义色（与目标净资产「已达成」同语言），不另造徽章样式', () => {
     assert.match(fnSource('renderCoverageMeter'), /mo-badge up/);
   });
+
+  test('缺口还需本金：算式下沉 logic.js coverShortfallPrincipal，内联不重写外推', () => {
+    assert.match(logic, /function coverShortfallPrincipal\(/, '决策纯函数在 logic.js');
+    const src = fnSource('renderCoverageMeter');
+    assert.match(src, /coverShortfallPrincipal\(numerator, expectation,/, '按当前口径传入分子与预期，口径切换/滑块/预期改动自动跟随');
+    assert.doesNotMatch(src, /\* 12 \* [\w.]+ \//, '缺口×12÷年化不得在内联脚本重写');
+  });
+
+  test('缺口 Tips 复用标题旁 ? 自绘提示（.tip 唯一实现），仅缺口分支出现', () => {
+    const src = fnSource('renderCoverageMeter');
+    const tip = fnSource('shortfallTipHtml'); // 气泡拼装的唯一出口
+    assert.ok(tip, 'shortfallTipHtml 应存在（Tips 唯一拼装处）');
+    assert.match(tip, /cov-shortfall-tip/, '气泡 id 唯一可关联');
+    assert.match(tip, /class="tip"/, '复用 .tip 容器');
+    assert.match(tip, /class="tip-mark"/, '复用 ? 图标');
+    assert.match(tip, /class="tip-bubble"/, '说明性文字进气泡不写正文');
+    assert.match(tip, /aria-describedby="cov-shortfall-tip"/, '? 图标关联气泡（可访问性）');
+    // 已覆盖分支只剩印徽：tip 拼装须收在 !ok 分支内
+    assert.match(src, /if \(!ok\)/, 'Tips 只在未覆盖分支拼装');
+    assert.match(src, /shortfallTipHtml\(need,/, '渲染层只调唯一拼装处');
+    assert.doesNotMatch(tip, /formatCNY\(gap|\* 12 \*/, '外推算式不得在展示层重写（口径在 logic.js）');
+    assert.strictEqual(count(/cov-shortfall-tip/g) <= 2, true, '气泡 id 只应出现在拼装处, 不另开通道');
+  });
 });
 
 describe('UI 接线契约：自动备份等待汇率拉取完成再导出', () => {

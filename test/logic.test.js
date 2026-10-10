@@ -880,6 +880,53 @@ describe('incomeGap（收益−预期差额口径：覆盖标尺读数单一来�
   });
 });
 
+describe('coverShortfallPrincipal（覆盖缺口还需本金：按现有实际收益率线性外推）', () => {
+  test('形参自解释：月收益 / 预期 / 年收益 / 有息本金，调用方按口径传入总或现金两套值', () => {
+    assert.match(L.coverShortfallPrincipal.toString(), /function coverShortfallPrincipal\(monthly, expectation, annual, principal\)/);
+  });
+
+  test('常规外推：缺口月 ×12 ÷ 实际年化（年收益 ÷ 有息本金）', () => {
+    // 月收益 6240、预期 10000，年收益 74880、基地 100 万 → 缺口 3760×12×1e6/74880
+    assert.ok(approx(L.coverShortfallPrincipal(6240, 10000, 74880, 1000000), 3760 * 12 * 1000000 / 74880));
+    // 字符串数字防御（导入数据同源口径）
+    assert.ok(approx(L.coverShortfallPrincipal('6240', '10000', '74880', '1000000'), 3760 * 12 * 1000000 / 74880));
+  });
+
+  test('已覆盖/打平 → null（UI 不挂 Tips，只在缺口分支出现）', () => {
+    assert.strictEqual(L.coverShortfallPrincipal(12500, 10000, 150000, 1000000), null);
+    assert.strictEqual(L.coverShortfallPrincipal(10000, 10000, 120000, 1000000), null);
+  });
+
+  test('未设/非法预期 → null（调用方回退邀请态）；月收益 NaN 按 0 参与不产出 NaN', () => {
+    assert.strictEqual(L.coverShortfallPrincipal(5000, 0, 60000, 1000000), null);
+    assert.strictEqual(L.coverShortfallPrincipal(5000, null, 60000, 1000000), null);
+    assert.strictEqual(L.coverShortfallPrincipal(5000, 'abc', 60000, 1000000), null);
+    assert.ok(approx(L.coverShortfallPrincipal(NaN, 10000, 74880, 1000000), 10000 * 12 * 1000000 / 74880));
+  });
+
+  test('年收益/基地非法或非正 → Infinity（收益率≤0 无法外推，UI 显示兜底一句）', () => {
+    assert.strictEqual(L.coverShortfallPrincipal(6240, 10000, 0, 1000000), Infinity);
+    assert.strictEqual(L.coverShortfallPrincipal(6240, 10000, -100, 1000000), Infinity);
+    assert.strictEqual(L.coverShortfallPrincipal(6240, 10000, 74880, 0), Infinity);
+    assert.strictEqual(L.coverShortfallPrincipal(6240, 10000, NaN, 1000000), Infinity);
+    assert.strictEqual(L.coverShortfallPrincipal(6240, 10000, 74880, null), Infinity);
+  });
+
+  test('ratedPrincipalCNY 只算有息资产（跟随利率档），零利率不摊薄收益率', () => {
+    const assets = [
+      { amount: 1000, currency: 'CNY', expectedRateMin: 5, expectedRateMax: 5 },
+      { amount: 500, currency: 'CNY', expectedRateMin: 0, expectedRateMax: 0 },
+      { amount: 100, currency: 'USD', expectedRateMin: 0, expectedRateMax: 10 },
+    ];
+    globalThis.incomeMode = 'min';
+    assert.ok(approx(L.ratedPrincipalCNY(assets), 1000), 'min 档只有第一笔算有息');
+    globalThis.incomeMode = 'max';
+    assert.ok(approx(L.ratedPrincipalCNY(assets), 1000 + 720), 'max 档含美元资产（按汇率折算）');
+    assert.strictEqual(L.ratedPrincipalCNY([]), 0);
+    assert.strictEqual(L.ratedPrincipalCNY(null), 0);
+  });
+});
+
 describe('sumAssetIncomes（两口径收益合计：报头副行/收益摘要/覆盖标尺共用）', () => {
   test('多资产合计含安全边际与现金拆分，衍生月/日值与单资产算法同式', () => {
     const s = L.sumAssetIncomes([
