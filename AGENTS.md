@@ -8,7 +8,7 @@
 index.html          # 全部 HTML/CSS/JS
 logic.js            # 与 DOM 无关的纯函数（UMD：浏览器挂全局 / Node require）
 test/               # node --test（logic.test.js 纯逻辑 + ui-wiring.test.js 接线契约 + e2e-server.test.js）
-e2e/                # Playwright 端到端（app.spec.js + theme.spec.js + fixtures.js + server.js）
+e2e/                # Playwright 端到端（app.spec.js + theme.spec.js + consistency.spec.js + fixtures.js + server.js）
 playwright.config.js
 package.json        # 仅 devDependency: @playwright/test（无构建步骤）
 .github/workflows/  # CI：三平台 node --test + Linux Playwright E2E
@@ -97,6 +97,11 @@ interface Expense {
 - **分类标签回车录入** — 「新增标签」回车即添加；**必须带 IME `isComposing` 守卫**（中文输入法确认候选字也是回车，无守卫会在组字中提前提交并销毁输入框）；添加后整体重绘并把焦点交回同分类新输入框（可连击回车），不得再写已脱离文档的旧 input；资产/消费两侧收敛到同一实现。
 - **消费数据校验** — 缺口口径（缺 key / 空值 / 指向已删标签）由 logic.js 单一函数定义，**校验条、面板、分类卡片提示条、新建分类后检测四处共用**；校验条为全局口径、不随列表筛选缩小；批量只填空缺、绝不覆盖已归类。**只对消费侧启用**（资产侧关闭，因历史快照是否随补未定）。UI 层不直接给 `tags` 赋值。
 - **ECharts 单例** — 五个图表实例统一 `setOption(data, true)` 更新；`window resize` 在 `DOMContentLoaded` 顶层统一注册。
+- **版式单一来源（样式同样适用「≥2 次即收敛」）** — 同类结构（章节头 / 表格 / 按钮 / 弹窗页脚与宽度 / 表单字段 / 筛选控件 / 卡片标题 / 主读数 / 文字色）共用同一套 class，布局与规格定义在 `<style>` 里；**页面不准内联重复样式**（`style="color:var(--muted)"`、`style="grid-template-columns:…"`、按钮上的 `padding`/`font-size`/`white-space` 等一律收回 CSS）。
+  - 判据同代码：同一结构出现 ≥2 次就下沉单一实现。规格成「档位」（语义固定、可复用）而非随手值；**完整档位清单即 `<style>` 里的常量类**，不在此处重列（列了就会随实现漂移）。数据驱动色值（`color:${compareColor(d)}`）无法用类名表达，不在此列。
+  - **表格列宽必须单一来源**：表头与数据行引用同一个 `cols-*` class 或同一个 `cols` 常量，不允许各写一遍——两边各写一串的下场是改一处忘一处、表头与内容错位。`.cols-*` 须定义在 `.asset-row` 之后（同特异性下后者胜）。
+  - **规格不写进 Tailwind 类**：Tailwind 走 CDN，且 E2E 里是空壳（`window.tailwind = {}`）——写进工具类的规格既不可测、又随 CDN 抖动。关键布局用自有 CSS，顺带保证 CDN 挂掉时页面不塌。已有的 Tailwind 间距类（`mb-6`、`gap-3`）保持不动。
+  - **`e2e/consistency.spec.js` 会自动巡检**：在真实浏览器里量同类元素的计算样式（集合大小须为 1）与「表头 vs 数据行列宽是否相等」——单测看不到「写对了 class 但 CSS 被覆盖 / 漏挂 class」，这里补上。
 - **颜色系统** — 一律用 CSS 变量而非写死色值（变量定义见 `:root` / `:root.dark`）；`--accent-ink` 为金色文字专用；分类色 `catColor`/`expenseCatColor` 为单一来源，亮/暗分支对比度须达 AA；旭日图调色板 `CATEGORY_PALETTE`。
   - **`e2e/theme.spec.js` 会自动巡检**：扫全部元素的计算色，凡不在「主题允许集」里的都报出来。允许集在页面内从主题自身求值（当前模式的 CSS 变量 ∪ pill 调色板 ∪ 图表调色板），所以加变量/改分类色不需要改测试。
   - 越界分两类，**判据不同**：①**写死色值**——直接违反本条约定，现状快照在 `KNOWN_HARDCODED`（只减不增，修一处删一行）；②**浏览器 UA 默认色**——症状是「漏设样式」（如只给 `color` 的 `<button>` 会吃到灰底黑边），同样算缺陷但不进清单。
@@ -161,6 +166,8 @@ interface Expense {
 真实浏览器里跑一遍：`npm run test:e2e`（`npx playwright test`）。跑在 `e2e/`，与 `node --test` 的 `test/` 完全分开（后者只拾取 `test/*.test.js`）。CI 上 Linux + chromium 单矩阵即可，E2E 验证的是应用行为、与 OS 无关。
 
 - **不访问外网**：汇率 / echarts / tailwind / flatpickr / 字体全部 `page.route` stub（见 `e2e/fixtures.js`）。要测的是应用自身行为，不是 CDN 可用性；断网也能跑。
+- **Tailwind 在 E2E 里是空壳**：`window.tailwind = {}`，所以工具类（`flex`/`gap-3`/`grid-cols-2`）在 E2E 里不生效——截图不能用来验收 Tailwind 布局。这也是「版式规格必须写在自有 CSS 里」的原因之一（见「版式单一来源」）。
+- **版式巡检（`consistency.spec.js`）**：同类元素的计算样式集合须为 1，表头与数据行列宽须相等。新增同类结构时不必改测试（判据从页面自身求值）；它拓的是「写对 class 但被覆盖 / 漏挂 class」这类单测看不见的漏洞。
 - **route 后注册者优先**：兜底「拦掉一切外网」必须先注册，具体 CDN 替身后注册才能覆盖它。次序写反会让所有替身失效且不报错，只表现为一串莫名失败。
 - **先关动效再断言数字**：masthead 净资产是计数动画，等它收敛会让每个数字断言吃满超时。`fixtures` 里统一 `emulateMedia({ reducedMotion: 'reduce' })`。
 - **E2E 里禁止 `waitForTimeout` 睡眠**：`switchTab` 的 display 翻转、`setTheme` 的 classList 翻转都是同步的，用可见断言即可到位；固定等待会让主题巡检这类全 Tab 遍历的用例凭空多吃数秒（曾占全套时长的 1/3）。确需等待异步渲染时用 `expect.poll`。
