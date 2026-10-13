@@ -20,6 +20,12 @@ const fnSource = (fn) => {
   const m = html.match(new RegExp(`function ${fn}\\([\\s\\S]*?\\n\\}`));
   return m ? m[0] : '';
 };
+// 剥掉注释后的源码：断言「不得出现某文案」时，解释该约定的注释本身不算违规
+const stripComments = (src) =>
+  String(src)
+    .replace(/<!--[\s\S]*?-->/g, '')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/^\s*\/\/.*$/gm, '');
 
 describe('UI 接线契约：设置是唯一入口', () => {
   test('页头只有「设置」按钮，无导入/导出与明暗快捷开关', () => {
@@ -1019,57 +1025,74 @@ describe('UI 接线契约：读数卡的自定月消费（只对本卡生效）'
   });
 });
 
-describe('UI 接线契约：本月已花 ÷ 预期月消费（趋势页进度卡）', () => {
+describe('UI 接线契约：本月已花 ÷ 预期月消费（趋势页预算卡）', () => {
   const logic = fs.readFileSync(path.join(__dirname, '..', 'logic.js'), 'utf8');
   const trendTab = html.match(/id="tab-expense-trend"[\s\S]*?<\/section>/)[0];
+  // 卡片骨架：卡首到下一张卡（跑道卡）之间
+  const card = trendTab.slice(trendTab.indexOf('id="month-pace-card"'), trendTab.indexOf('id="runway-card"'));
+  // 渲染函数源码（剥掉注释）：契约断言针对代码——注释里复述算式或旧文案不算违规
+  const paceSrc = () => stripComments(fnSource('renderMonthPace'));
 
-  test('口径在 logic.js：合计/进度/状态文案单一来源，渲染层不内联算式', () => {
+  test('口径在 logic.js：预算读数/状态文案单一来源，渲染层不内联算式', () => {
     assert.match(logic, /function monthExpenseTotal\(/, '本月合计在 logic.js');
-    assert.match(logic, /function monthPaceReading\(/, '进度口径在 logic.js');
-    assert.match(logic, /function monthPaceStatusText\(/, '差额叙述在 logic.js');
-    const src = fnSource('renderMonthPace');
+    assert.match(logic, /function monthBudgetReading\(/, '预算口径在 logic.js');
+    assert.match(logic, /function monthBudgetNote\(/, '预算状态叙述在 logic.js');
+    const src = paceSrc();
     assert.match(src, /monthExpenseTotal\(state\.expenses/, '渲染层从 logic.js 取合计');
-    assert.match(src, /monthPaceReading\(/);
-    assert.match(src, /monthPaceStatusText\(/);
-    assert.doesNotMatch(src, /\/ 31|\/ days|\/ expectation|spent\s*\/\s*expectation|\* 100/, '进度/百分比算式不得在内联脚本重写（百分比呈现统一走 pctStr）');
-    assert.match(src, /const now = new Date\(\);/, '合计与进度取同一时刻（各取一次 new Date 会在跨午夜时月份错位）');
+    assert.match(src, /monthBudgetReading\(/);
+    assert.match(src, /monthBudgetNote\(/);
+    assert.doesNotMatch(src, /\/ 31|\/ days|\/ expectation|spent\s*\/\s*expectation|\* 100/, '百分比/日均算式不得在内联脚本重写（呈现统一走 pctStr）');
+    assert.match(src, /pctStr\(reading\.pctOfMonth/, '百分比读数取 reading.pctOfMonth（与尺子宽度/≥90% 判断同源, 不另算一遍）');
+    assert.match(src, /const now = new Date\(\);/, '合计与读数取同一时刻（各取一次 new Date 会在跨午夜时月份错位）');
     assert.match(src, /getLocalMonthStr\(now\)/, '合计月份来自单一时刻');
-    assert.match(src, /monthPaceReading\(spent, expectation, now\)/, '进度口径用同一时刻');
+    assert.match(src, /monthBudgetReading\(spent, expectation, now\)/, '预算口径用同一时刻');
     assert.doesNotMatch(src, /innerHTML/, '只写 textContent: 金额来自用户数据, 不拼 HTML');
-    assert.doesNotMatch(html, /比时间进度/, '状态文案唯一出口在 logic.js, 内联脚本不得重复字面量');
   });
 
-  test('进度卡落在消费趋势、跑道卡之前（先近后远，同依附「预期月消费」锚点），别处不得回潮', () => {
+  test('时间进度对照不回潮（大额固定支出会让它失真）', () => {
+    // 回归背景：消费沿时间不均匀（房租在月初入账），「比时间进度多花/少花」几乎只反映那笔支出的入账日，
+    // 不携带「是否花超了」的信息。改成剩余预算 + 日均后，时间进度对照与「今天」菱形站点都应消失。
+    // 注释里仍会复述这条理由，故先剥掉注释再断言（守的是可见文案与旧入口，不是解释本身）。
+    assert.doesNotMatch(stripComments(html), /时间进度/, '页面不得再出现时间进度对照');
+    assert.doesNotMatch(stripComments(logic), /时间进度/, '口径层不得再叙述时间进度');
+    assert.doesNotMatch(html, /pace-tick/, '「今天」菱形站点随时间进度一并移除');
+    assert.doesNotMatch(stripComments(logic), /expectedToDate|monthPaceReading|monthPaceStatusText/, '旧入口不回潮');
+  });
+
+  test('预算卡落在消费趋势、跑道卡之前（先近后远，同依附「预期月消费」锚点），别处不得回潮', () => {
     assert.strictEqual(count(/id="month-pace-card"/g), 1);
     assert.ok(trendTab.indexOf('month-pace-card') < trendTab.indexOf('runway-card'),
       '本月视角在跑道（长期视角）之前');
     const recordsTab = html.match(/id="tab-expenses"[\s\S]*?<\/section>/)[0];
     assert.doesNotMatch(recordsTab, /month-pace/, '消费记录页不出现第二套进度呈现（单一来源）');
-    for (const id of ['pace-num', 'pace-expense', 'pace-pct', 'pace-time', 'pace-status', 'pace-fill', 'pace-tick']) {
+    for (const id of ['pace-num', 'pace-expense', 'pace-pct', 'pace-note', 'pace-fill']) {
       assert.strictEqual(count(new RegExp(`id="${id}"`, 'g')), 1, `${id} 唯一`);
     }
   });
 
-  test('公式写在结构里；刻度尺复用 cov-track 家族（不另造第二把尺）', () => {
-    const card = html.match(/id="month-pace-card"[\s\S]*?<\/div>\s*<\/div>\s*<\/div>/)[0];
+  test('公式写在结构里；预算尺复用 cov-track 家族（不另造第二把尺），不带时间站点', () => {
+    assert.match(card, /本月已花/, '主语在静态骨架中可见');
     assert.match(card, /÷ 预期月消费/, '除法与分母名称在静态骨架中可见（公式直呈现）');
-    assert.match(card, /· 时间进度/, '时间进度对照在骨架中可见');
-    assert.match(card, /class="cov-track"/, '刻度尺沿用覆盖标尺同一家族');
+    assert.match(card, /class="cov-track"/, '预算尺沿用覆盖标尺同一家族');
     assert.match(card, /class="cov-fill"/, '填充沿用覆盖标尺同一家族');
-    assert.match(card, /class="cov-marker"/, '「今天」用覆盖标尺同族的菱形站点标记（1px 发丝刻度太轻, 站点才读得出位置）');
-    assert.doesNotMatch(html, /\.pace-tick \{/, '菱形直接复用 cov-marker 家族, 不再留第二套刻度样式');
+    assert.match(card, /class="cov-tick"/, '发丝刻度与货币构成条/比例尺同语言');
+    assert.doesNotMatch(card, /cov-marker/, '预算尺不再有「今天」站点（尺子语义是预算容器, 不是与时间赛跑）');
+    assert.doesNotMatch(html, /\.pace-tick \{/, '不另留第二套刻度样式');
   });
 
   test('状态机：未设预期整卡不显示（入口交给页头「预期消费」按钮），否则同步文案槽', () => {
-    const src = fnSource('renderMonthPace');
+    const src = paceSrc();
     assert.match(src, /if \(!card\) return;/, '骨架缺卡早退');
     assert.match(src, /if \(!\(expectation > 0\)\)/, '未设预期时整张卡不显示');
     assert.match(src, /card\.style\.display = 'none'/);
-    for (const id of ['pace-num', 'pace-expense', 'pace-pct', 'pace-time']) {
-      assert.match(src, new RegExp(`getElementById\\('${id}'\\)\\.textContent`), `${id} 用 textContent 同步`);
+    for (const id of ['pace-num', 'pace-expense', 'pace-pct', 'pace-note']) {
+      assert.match(src, new RegExp(`getElementById\\('${id}'\\)`), `${id} 由渲染层同步`);
     }
-    assert.match(src, /Math\.min\(100/, '进度条宽度物理封顶（读数文字不封顶）');
-    assert.match(src, /reading\.over/, '超前/未超前决定填充与状态行语义色');
+    // 四个槽各写一次 textContent（逐个 getElementById 取值也算）, 且全函数不得出现 innerHTML
+    const textWrites = (src.match(/\.textContent =/g) || []).length;
+    assert.strictEqual(textWrites, 4, `四个文案槽都走 textContent 赋值（实测 ${textWrites} 处）`);
+    assert.match(src, /Math\.min\(100/, '预算尺宽度物理封顶（读数文字不封顶）');
+    assert.match(src, /reading\.over/, '超支/未超支决定填充与状态行语义色');
   });
 
   test('接线：随消费趋势同步刷新，且在早退之前（无消费记录时也照样同步）', () => {

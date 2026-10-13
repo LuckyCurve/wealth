@@ -416,6 +416,79 @@ test.describe('图表初始化与空态', () => {
   });
 });
 
+test.describe('本月预算卡（消费趋势）', () => {
+  // 冻结时钟：卡里的「已花」按月聚合、「余下天数」按今天算，不冻就随真实日期漂移。
+  // 必须 before goto（addInitScript 同层），否则首屏渲染已经用真实时间跑过一遍。
+  const openTrendAt = async (page, state, iso) => {
+    await page.clock.setFixedTime(new Date(iso));
+    await openWith(page, state);
+    await page.locator('#tabs-expenses .tab-btn[data-tab="expense-trend"]').click();
+    await expect(page.locator('#month-pace-card')).toBeVisible();
+  };
+
+  const withMonthExpenses = (amounts, month = '2026-10') => ({
+    ...sampleState(),
+    expenses: amounts.map((a, i) => ({
+      id: 'e-m' + i, date: `${month}-${String(i + 1).padStart(2, '0')}`, amount: a, note: '当月支出', tags: {},
+    })),
+  });
+
+  // 把主题 CSS 变量解析成实际颜色：用浏览器自己算（探针元素走同一变量链），不写死 rgb
+  const resolvedColor = (page, name) => page.evaluate((v) => {
+    const probe = document.createElement('div');
+    probe.style.color = `var(${v})`;
+    document.body.appendChild(probe);
+    const c = getComputedStyle(probe).color;
+    probe.remove();
+    return c;
+  }, name);
+
+  test('未超支：报剩余、余下天数与日均，不出现时间进度对照', async ({ page }) => {
+    await openTrendAt(page, withMonthExpenses([600, 400]), '2026-10-06T10:00:00');
+    await expect(page.locator('#pace-num')).toHaveText('¥1,000.00');
+    await expect(page.locator('#pace-pct')).toHaveText('20.0%');
+    // 10 月 31 天、6 号 → 余 26 天（今天算整天）
+    await expect(page.locator('#pace-note')).toHaveText('预算剩 ¥4,000.00 · 余 26 天 · 日均 ¥153.85');
+    // 尺子语义是预算容器：不带「今天」站点，也不再叙述时间进度
+    await expect(page.locator('#month-pace-card .cov-marker')).toHaveCount(0);
+    await expect(page.locator('#month-pace-card')).not.toContainText('时间进度');
+    // 未超支时填充是活钱的 verdigris（而非警示色）
+    const fillBg = await page.locator('#pace-fill').evaluate((el) => getComputedStyle(el).backgroundColor);
+    expect(fillBg).toBe(await resolvedColor(page, '--verdigris'));
+  });
+
+  test('超支：剩余归零、给出超出额，尺子与读数转警示色', async ({ page }) => {
+    await openTrendAt(page, withMonthExpenses([3200, 2600]), '2026-10-06T10:00:00');
+    await expect(page.locator('#pace-pct')).toHaveText('116.0%');
+    await expect(page.locator('#pace-note')).toHaveText('已超预算 ¥800.00 · 本月额度已用完');
+    // 填充物理封顶（右端即整月预算），真实百分比留在读数里
+    await expect(page.locator('#pace-fill')).toHaveCSS('width', await page.locator('#month-pace-card .cov-track')
+      .evaluate((el) => getComputedStyle(el).width));
+    const fillBg = await page.locator('#pace-fill').evaluate((el) => getComputedStyle(el).backgroundColor);
+    expect(fillBg).toBe(await resolvedColor(page, '--down'));
+    await expect(page.locator('#pace-note')).toHaveCSS('color', await resolvedColor(page, '--down'));
+  });
+
+  test('预算将尽（≥90%）但未超支：尺子转金，读数仍报剩余', async ({ page }) => {
+    await openTrendAt(page, withMonthExpenses([4600]), '2026-10-06T10:00:00');
+    await expect(page.locator('#pace-pct')).toHaveText('92.0%');
+    await expect(page.locator('#pace-note')).toContainText('预算剩 ¥400.00');
+    const fillBg = await page.locator('#pace-fill').evaluate((el) => getComputedStyle(el).backgroundColor);
+    expect(fillBg).toBe(await resolvedColor(page, '--accent'));
+  });
+
+  test('打平：预算刚好花完，没有可叙述的差额', async ({ page }) => {
+    await openTrendAt(page, withMonthExpenses([5000]), '2026-10-06T10:00:00');
+    await expect(page.locator('#pace-pct')).toHaveText('100.0%');
+    await expect(page.locator('#pace-note')).toBeHidden();
+  });
+
+  test('月初当天：余下天数含今天，分母不为 0', async ({ page }) => {
+    await openTrendAt(page, withMonthExpenses([]), '2026-10-01T09:00:00');
+    await expect(page.locator('#pace-note')).toHaveText('预算剩 ¥5,000.00 · 余 31 天 · 日均 ¥161.29');
+  });
+});
+
 test.describe('读数卡的自定月消费（只对本卡生效）', () => {
   const openRunway = async (page) => {
     await page.locator('#tabs-expenses .tab-btn[data-tab="expense-trend"]').click();

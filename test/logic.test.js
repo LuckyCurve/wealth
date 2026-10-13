@@ -1517,8 +1517,8 @@ describe('runwayTags 迁移兜底（migrateState）', () => {
   });
 });
 
-// ========== 本月已花 ÷ 预期月消费（趋势页进度读数卡）==========
-describe('本月进度 monthExpenseTotal / daysInMonthOf / monthPaceReading / monthPaceStatusText', () => {
+// ========== 本月预算消耗（趋势页进度读数卡）==========
+describe('本月预算 monthExpenseTotal / daysInMonthOf / monthBudgetReading / monthBudgetNote', () => {
   test('monthExpenseTotal 只聚合本月，脏记录贡献 0', () => {
     const expenses = [
       { date: '2026-10-05', amount: 100 },
@@ -1547,48 +1547,80 @@ describe('本月进度 monthExpenseTotal / daysInMonthOf / monthPaceReading / mo
     assert.strictEqual(L.daysInMonthOf(null), null);
   });
 
-  test('monthPaceReading 口径：今天算整天、打平算不超、百分比不封顶', () => {
-    // 10 月 31 天, 6 号 → pace = 6/31（今天算整天, 进度基准取较大值, 「超前」判定不虚报）
+  test('monthBudgetReading 口径：剩余 = 预期 − 已花、今天算整天、打平算不超、百分比不封顶', () => {
+    // 10 月 31 天, 6 号 → 余 26 天（含今天）
     const t = new Date(2026, 9, 6);
-    const r = L.monthPaceReading(1000, 5000, t);
-    assert.strictEqual(r.pace, 6 / 31);
+    const r = L.monthBudgetReading(1000, 5000, t);
+    assert.strictEqual(r.remaining, 4000);
+    assert.strictEqual(r.daysLeft, 26);
+    approx(r.dailyLeft, 4000 / 26);
     assert.strictEqual(r.pctOfMonth, 20);
-    approx(r.expectedToDate, 5000 * 6 / 31);
-    assert.strictEqual(r.over, true, '1000 > 967.74 超出时间进度');
-    approx(r.diff, 1000 - 5000 * 6 / 31);
+    assert.strictEqual(r.over, false);
+    assert.strictEqual(r.excess, 0);
 
-    // 打平不算超（与 incomeGap 打平算盈余同精神）
-    const even = L.monthPaceReading(5000 * 6 / 31, 5000, t);
+    // 打平不算超（与 incomeGap 打平算盈余同精神）：已花恰好等于预期
+    const even = L.monthBudgetReading(5000, 5000, t);
     assert.strictEqual(even.over, false);
-    assert.strictEqual(even.diff, 0);
+    assert.strictEqual(even.remaining, 0);
+    assert.strictEqual(even.dailyLeft, 0, '剩余为 0 时日均就是 0, 不显示负数');
 
-    // 月初 0 元不算超
-    assert.strictEqual(L.monthPaceReading(0, 5000, new Date(2026, 9, 1)).over, false);
+    // 超支：剩余为 0（不呈现负数）, 超出额另计, 日均不参与（剩余为 0 即无从谈起）
+    const over = L.monthBudgetReading(6000, 5000, t);
+    assert.strictEqual(over.over, true);
+    assert.strictEqual(over.remaining, 0);
+    assert.strictEqual(over.excess, 1000);
+    assert.strictEqual(over.dailyLeft, 0);
 
     // 超过 100% 不封顶（封顶是进度条 UI 职责）
-    assert.strictEqual(L.monthPaceReading(6000, 5000, t).pctOfMonth, 120);
+    assert.strictEqual(over.pctOfMonth, 120);
+
+    // 月初 0 元：全月都是剩余
+    const first = L.monthBudgetReading(0, 5000, new Date(2026, 9, 1));
+    assert.strictEqual(first.daysLeft, 31);
+    approx(first.dailyLeft, 5000 / 31);
+    assert.strictEqual(first.over, false);
+
+    // 月末最后一天：只余今天一天, 分母不为 0
+    const last = L.monthBudgetReading(0, 5000, new Date(2026, 9, 31));
+    assert.strictEqual(last.daysLeft, 1);
+    assert.strictEqual(last.dailyLeft, 5000);
+
+    // 闰月（2024-02 共 29 天）: 余天数按实际月长算, 不写死 30/31
+    const leap = L.monthBudgetReading(0, 5000, new Date(2024, 1, 28));
+    assert.strictEqual(leap.daysLeft, 2);
+
+    // 非法 today 兜底为当下（不抛错, 字段仍齐备）
+    const fallback = L.monthBudgetReading(100, 5000, 'not-a-date');
+    assert.ok(fallback && isFinite(fallback.daysLeft) && fallback.daysLeft >= 1);
 
     // 未设预期 → null（UI 整卡不显示, 入口交给「预期消费」按钮）
-    assert.strictEqual(L.monthPaceReading(1000, 0, t), null);
-    assert.strictEqual(L.monthPaceReading(1000, -1, t), null);
-    assert.strictEqual(L.monthPaceReading(1000, 'abc', t), null);
+    assert.strictEqual(L.monthBudgetReading(1000, 0, t), null);
+    assert.strictEqual(L.monthBudgetReading(1000, -1, t), null);
+    assert.strictEqual(L.monthBudgetReading(1000, 'abc', t), null);
   });
 
-  test('monthPaceStatusText：差额叙述单一出口，打平不显示', () => {
+  test('monthBudgetNote：剩余/超支两分支单一出口，打平不显示', () => {
     const t = new Date(2026, 9, 6);
     assert.strictEqual(
-      L.monthPaceStatusText(L.monthPaceReading(1000, 5000, t)),
-      '比时间进度多花 ¥32.26');
+      L.monthBudgetNote(L.monthBudgetReading(1000, 5000, t)),
+      '预算剩 ¥4,000.00 · 余 26 天 · 日均 ¥153.85');
     assert.strictEqual(
-      L.monthPaceStatusText(L.monthPaceReading(500, 5000, t)),
-      '比时间进度少花 ¥467.74');
-    const even = L.monthPaceReading(5000 * 6 / 31, 5000, t);
-    assert.strictEqual(L.monthPaceStatusText(even), '', '打平不显示状态行');
-    assert.strictEqual(L.monthPaceStatusText(null), '');
+      L.monthBudgetNote(L.monthBudgetReading(6000, 5000, t)),
+      '已超预算 ¥1,000.00 · 本月额度已用完');
+    // 打平 = 预算刚好花完, 没有可叙述的差额
+    assert.strictEqual(L.monthBudgetNote(L.monthBudgetReading(5000, 5000, t)), '');
+    assert.strictEqual(L.monthBudgetNote(null), '');
+    // 脏/缺字段的 reading：不抛错、不打印 ¥NaN，而是不渲染（渲染函数曾只守 remaining,
+    // 实际却读 excess/daysLeft/dailyLeft——缺字段会扔 TypeError 而不是兑底）
+    assert.strictEqual(L.monthBudgetNote({ over: false, remaining: 100 }), '', '缺 daysLeft/dailyLeft 不炸');
+    assert.strictEqual(L.monthBudgetNote({ over: true, remaining: 0 }), '', '缺 excess 不炸');
+    assert.strictEqual(L.monthBudgetNote({}), '');
+    assert.strictEqual(L.monthBudgetNote({ over: false, remaining: 100, daysLeft: 26, dailyLeft: NaN }), '', 'NaN 不当成数字渲染');
+    assert.strictEqual(L.monthBudgetNote({ over: true, remaining: 0, excess: Infinity, daysLeft: 26, dailyLeft: 0 }), '', 'Infinity 同样不渲染');
   });
 });
 
-describe('本月进度口径单一来源（monthExpenseTotal 与 monthlyExpenseTotals 同式）', () => {
+describe('本月预算口径单一来源（monthExpenseTotal 与 monthlyExpenseTotals 同式）', () => {
   test('monthExpenseTotal 与 monthlyExpenseTotals 对同一月份给出相同合计（容错逻辑不得分裂）', () => {
     const expenses = [
       { date: '2026-10-05', amount: 100 },

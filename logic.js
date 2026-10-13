@@ -482,7 +482,7 @@
     return rem === 0 ? `${years} 年` : `${years} 年 ${rem} 个月`;
   }
 
-  // ========== 本月已花 ÷ 预期月消费（趋势页进度读数卡）==========
+  // ========== 本月预算消耗（趋势页进度读数卡）==========
   // 本月合计（CNY）: 复用 monthlyExpenseTotals 同一容错口径（缺 date / NaN 金额贡献 0）, 不另写一套
   function monthExpenseTotal(expenses, month) {
     const found = monthlyExpenseTotals(expenses).find(x => x.month === month);
@@ -497,36 +497,55 @@
     return new Date(y, m, 0).getDate();
   }
 
-  // 本月进度口径（进度卡读数单一来源）:
-  //   pace = 今天日期号 ÷ 当月天数 —— 今天算整天: 进度基准取较大值, 「超前」判定不虚报, 月初不吓人
-  //   （当月天数经 daysInMonthOf(getLocalMonthStr(t)) 取得, 不另写第二套构造）
-  //   pctOfMonth = spent ÷ expectation × 100 —— 真实值不封顶, 封顶是进度条 UI 职责
-  //   over = spent > expectedToDate —— 打平算不超（与 incomeGap 打平算盈余同精神）
+  // 本月预算消耗口径（进度卡读数单一来源）——**不用时间进度做对照基准**：
+  // 消费沿时间并不均匀（房租这类大额固定支出在月初入账），「比时间进度多花/少花」几乎完全由
+  // 那笔支出的入账日决定, 不携带「是否花超了」的信息, 反而会诱导用户把正常支出当异常。
+  // 改为两个不依赖均匀假设、直接可决策的数：
+  //   remaining = 预期 − 已花（下限 0, 超支时不在剩余里呈现负数）
+  //   daysLeft  = 当月天数 − 今天日期号 + 1 —— 今天算整天（与旧的 pace 口径同精神, 不虚报）
+  //   dailyLeft = remaining ÷ daysLeft —— 「剩下这些钱、这些天, 每天能花多少」, 分母恒 >= 1
+  //   over/excess = 已花 > 预期 / 超出额（打平算不超, 与 incomeGap 打平算盈余同精神）
+  //   pctOfMonth  = 已花 ÷ 预期 × 100 —— 真实值不封顶, 封顶是进度条 UI 职责
   // expectation 未设/非法（<=0）→ null（UI 整卡不显示, 入口交给「预期消费」按钮）
-  function monthPaceReading(spent, expectation, today) {
+  function monthBudgetReading(spent, expectation, today) {
     const e = Number(expectation);
     if (!isFinite(e) || e <= 0) return null;
     const t = today instanceof Date && !isNaN(today) ? today : new Date();
     const days = daysInMonthOf(getLocalMonthStr(t));
-    const pace = t.getDate() / days;
+    const daysLeft = Math.max(1, days - t.getDate() + 1);
     const s = Number(spent) || 0;
-    const expectedToDate = e * pace;
+    const over = s > e;
+    const remaining = Math.max(0, e - s);
     return {
-      pace: pace,
+      daysLeft: daysLeft,
       pctOfMonth: s / e * 100,
-      expectedToDate: expectedToDate,
-      over: s > expectedToDate,
-      diff: s - expectedToDate,
+      over: over,
+      remaining: remaining,
+      excess: over ? s - e : 0,
+      dailyLeft: remaining / daysLeft,
     };
   }
 
-  // 进度状态文案（#pace-status 唯一渲染出口, 内联脚本不得重复字面量）:
-  // 按时间进度叙述差额; 打平不显示（''）。金额走 formatCNY 同一货币呈现
-  function monthPaceStatusText(reading) {
-    if (!reading || !isFinite(reading.diff)) return '';
-    if (reading.over) return '比时间进度多花 ' + formatCNY(reading.diff);
-    if (reading.diff < 0) return '比时间进度少花 ' + formatCNY(-reading.diff);
-    return '';
+  // 预算状态文案（#pace-note 唯一渲染出口, 内联脚本不得重复字面量）:
+  // 正常 → 剩余 + 余下天数 + 日均; 超支 → 超出额 + 「本月额度已用完」（不显示负的日均）;
+  // 打平（remaining 与 excess 都为 0）→ ''（没有可叙述的差额）。金额走 formatCNY 同一货币呈现。
+  // 入参可能是脏的/缺字段的（不一定是 monthBudgetReading 的产物）: 本函数读到的每个字段都必须
+  // 先验成有限数, 否则 formatCNY(undefined) 会抛 TypeError、formatCNY(NaN) 会渲染出「¥NaN」。
+  function monthBudgetNote(reading) {
+    if (!reading) return '';
+    const remaining = Number(reading.remaining);
+    if (!isFinite(remaining)) return '';
+    if (reading.over) {
+      const excess = Number(reading.excess);
+      return isFinite(excess) && excess > 0
+        ? '已超预算 ' + formatCNY(excess) + ' · 本月额度已用完'
+        : '';
+    }
+    if (remaining <= 0) return '';
+    const daysLeft = Number(reading.daysLeft);
+    const dailyLeft = Number(reading.dailyLeft);
+    if (!isFinite(daysLeft) || daysLeft < 1 || !isFinite(dailyLeft) || dailyLeft < 0) return '';
+    return '预算剩 ' + formatCNY(remaining) + ' · 余 ' + daysLeft + ' 天 · 日均 ' + formatCNY(dailyLeft);
   }
 
   // ========== 数据迁移 / 兜底（依赖全局 state，原地修改）==========
@@ -926,7 +945,7 @@
     nextSortState, nextTabIndex, inlineEditKeyAction, expenseMonths,
     tagFilterValue, parseTagFilter, expenseTagFilterGroups, hasTagFilterOption,
     isUntaggedItem, missingTagGroups, setTag, backfillTag,
-    monthExpenseTotal, daysInMonthOf, monthPaceReading, monthPaceStatusText,
+    monthExpenseTotal, daysInMonthOf, monthBudgetReading, monthBudgetNote,
     pruneRunwayTags, runwayLiquidCNY, runwayExpectationOf, runwayExpectationIsCustom, normalizeRunwayExpectationInput, runwayMonths, runwayMonthsText,
     findMonthSnapshot, getPrevSnapshot, defaultCompareBaseMonth,
     monthlyExpenseTotals, prevExpenseMonthOf, expenseMoM, expenseMonthTagTotals,

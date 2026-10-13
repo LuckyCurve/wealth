@@ -635,6 +635,16 @@ tailwind.config = {
   /* 读数行（所选标签的钱 ÷ 预期月消费）: 没有刻度可测, 故不沿用锚点两端对齐（中间空档会显得突兀）,
      整句公式居中呈现, 窄屏按顿读点换行 */
   .runway-line { display: flex; flex-wrap: wrap; justify-content: center; align-items: baseline; gap: 6px; margin-top: 0; }
+  /* 本月预算卡（消费趋势）: 尺子语义是预算容器, 故不带「今天」站点;
+     hero 借报头同一支 display 字, 把「本月已花」抬成这张卡的读数主角（分母降级为小号）,
+     百分比落在尺子右端作刻度读数——同一行里读数与尺子互为表里 */
+  .pace-hero { display: flex; justify-content: center; align-items: baseline; gap: 10px; margin: 0 0 14px; }
+  .pace-hero #pace-num { font-family: 'Cormorant Garamond', 'Noto Serif SC', serif; font-weight: 500; font-size: clamp(26px, 4.4vw, 34px); line-height: 1; color: var(--fg); }
+  .pace-hero-div { font-size: 13px; color: var(--muted); }
+  .pace-hero #pace-expense { font-size: 14px; color: var(--muted); }
+  .pace-meter { display: flex; align-items: center; gap: 12px; }
+  .pace-meter .cov-track { flex: 1; }
+  .pace-pct { min-width: 3.8em; text-align: right; font-size: 12px; font-weight: 600; color: var(--accent-ink); }
   @media (prefers-reduced-motion: reduce) { .cov-fill, .cov-marker { transition: none; } }
   /* 快照对比：每行变动量条（账本刻度语言, 一眼看出谁推动了净值变化） */
   .cmp-bar-track { height: 3px; border-radius: 2px; background: var(--bg-2); margin-top: 4px; overflow: hidden; }
@@ -1023,25 +1033,27 @@ tailwind.config = {
         </div>
       </div>
       <!-- 本月已花 ÷ 预期月消费: 与「所选标签读数卡」同依附「预期月消费」这条参考线, 先近（本月）后远（长期）。
-           刻度尺沿用覆盖标尺同一家族: 实心填充 = 钱的进度（已花占整月预期）, 金色菱形站点 = 今天的位置,
-           填充越过菱形即超前消费（转红）。公式直呈现, 骨架静态存在, JS 只同步文案;
+           尺子语义是**预算容器**: 实心填充 = 已花占整月预期, 25/50/75% 发丝刻度与货币构成条/比例尺同语言。
+           刻意**不用时间进度做对照基准** —— 消费沿时间并不均匀（房租这类大额固定支出在月初入账）,
+           「比时间进度多花/少花」几乎只由那笔支出的入账日决定, 不携带「是否花超了」的信息。
+           改为剩余预算与日均可用这两个不依赖均匀假设的数（口径在 logic.js monthBudgetReading()）。
+           公式直呈现, 骨架静态存在, JS 只同步文案;
            未设预期消费时整张卡不显示（入口即上方「预期消费」按钮） -->
       <div id="month-pace-card" class="card mb-6" style="display:none;">
-        <p class="cov-label text-center mb-3">本月已花</p>
-        <div class="cov-track">
-          <div id="pace-fill" class="cov-fill"></div>
-          <div id="pace-tick" class="cov-marker" style="left:0;"></div>
-        </div>
-        <p class="cov-reading runway-line" id="pace-reading">
-          <span id="pace-num" class="tabular" style="font-weight:600;color:var(--fg);"></span>
-          <span>÷ 预期月消费</span>
+        <p class="cov-label text-center mb-3">本月已花 ÷ 预期月消费</p>
+        <p class="pace-hero">
+          <span id="pace-num" class="tabular"></span>
+          <span class="pace-hero-div">÷</span>
           <span id="pace-expense" class="tabular"></span>
-          <span>=</span>
-          <span id="pace-pct" class="tabular" style="font-weight:600;color:var(--accent-ink);"></span>
-          <span>· 时间进度</span>
-          <span id="pace-time" class="tabular"></span>
         </p>
-        <p id="pace-status" class="text-xs text-center" style="display:none;"></p>
+        <div class="pace-meter">
+          <div class="cov-track">
+            <div id="pace-fill" class="cov-fill"></div>
+            <span class="cov-tick" style="left:25%;"></span><span class="cov-tick" style="left:50%;"></span><span class="cov-tick" style="left:75%;"></span><span class="cov-tick cov-tick-end"></span>
+          </div>
+          <span id="pace-pct" class="pace-pct tabular"></span>
+        </div>
+        <p id="pace-note" class="cov-reading" style="display:none;"></p>
       </div>
       <!-- 所选标签的钱 ÷ 月消费: 依附「预期月消费」这条参考线, 故落在消费趋势（与收益测算无关）。
            分母默认为全局「预期月消费」, 也可在弹窗里自定（只对本卡生效, 不回填全局）—— 可调高月消费看保守口径。
@@ -3223,12 +3235,14 @@ function useDefaultRunwayExpectation() {
   renderRunwayPreview();
 }
 
-// ========== 本月已花 ÷ 预期月消费（趋势页进度读数卡）==========
-// 与「所选标签读数卡」同依附「预期月消费」这条参考线, 落在消费趋势; 公式直呈现:
-// 本月已花 ÷ 预期月消费 = 百分比, 时间进度作对照。
-// 口径在 logic.js monthExpenseTotal()/monthPaceReading()/monthPaceStatusText()（单一来源）。
-// 刻度尺上实心填充 = 钱的进度, 金色菱形站点（cov-marker）= 今天的位置; 填充越过菱形即超前消费（转红）。
-// 未设预期消费 → 整张卡不显示（入口即页头「预期消费」按钮）; 骨架静态存在, 这里只同步文案。
+// ========== 本月已花 ÷ 预期月消费（趋势页预算卡）==========
+// 与「所选标签读数卡」同依附「预期月消费」这条参考线, 落在消费趋势; 公式直呈现: 已花 / 预期月消费。
+// 刻意不用时间进度做对照基准（消费沿时间不均匀, 大额固定支出会让它失真）, 只报两个可决策的数:
+//   剩余预算、以及「剩下这些钱、这些天, 每天能花多少」。
+// 口径在 logic.js monthBudgetReading()/monthBudgetNote()（单一来源）。
+// 预算尺上实心填充 = 已花占整月预期（右端即整月预算）; 三态与目标净资产面板同语言:
+// 未超支 verdigris / 预算将尽（≥90%）转金 / 超支转红。骨架静态存在, 这里只同步文案。
+// 未设预期消费 → 整张卡不显示（入口即页头「预期消费」按钮）。
 function renderMonthPace() {
   const card = document.getElementById('month-pace-card');
   if (!card) return;
@@ -3237,24 +3251,27 @@ function renderMonthPace() {
     card.style.display = 'none';
     return;
   }
-  // 合计与进度必须取同一时刻: 各自 new Date 会在跨午夜瞬间分属两个月（合计旧月、进度新月）
+  // 合计与读数必须取同一时刻: 各自 new Date 会在跨午夜瞬间分属两个月（合计旧月、读数新月）
   const now = new Date();
   const spent = monthExpenseTotal(state.expenses, getLocalMonthStr(now));
-  const reading = monthPaceReading(spent, expectation, now);
+  const reading = monthBudgetReading(spent, expectation, now);
   card.style.display = '';
-  // 钱的进度物理封顶（进度条上限）, 真实百分比在读数文字里呈现
-  document.getElementById('pace-fill').style.width = Math.min(100, Math.max(0, reading.pctOfMonth)) + '%';
-  document.getElementById('pace-fill').style.background = reading.over ? 'var(--down)' : 'var(--verdigris)';
-  document.getElementById('pace-tick').style.left = pctStr(reading.pace, 1) + '%';
+  // 尺子宽度物理封顶（右端就是整月预算）, 真实百分比在右侧读数里呈现。
+  // 三态与目标净资产面板同语言: 未超支 verdigris / 预算将尽(≥90%) 转金 / 超支转红
+  const fill = document.getElementById('pace-fill');
+  fill.style.width = Math.min(100, Math.max(0, reading.pctOfMonth)) + '%';
+  fill.style.background = reading.over ? 'var(--down)' : (reading.pctOfMonth >= 90 ? 'var(--accent)' : 'var(--verdigris)');
   document.getElementById('pace-num').textContent = formatCNY(spent);
   document.getElementById('pace-expense').textContent = formatCNY(expectation);
-  document.getElementById('pace-pct').textContent = pctStr(spent, expectation) + '%';
-  document.getElementById('pace-time').textContent = pctStr(reading.pace, 1) + '%';
-  const status = document.getElementById('pace-status');
-  const text = monthPaceStatusText(reading);
-  status.textContent = text;
-  status.style.display = text ? '' : 'none';
-  status.style.color = reading.over ? 'var(--down)' : 'var(--muted)';
+  const pct = document.getElementById('pace-pct');
+  // 百分比读数取 reading.pctOfMonth（与尺子宽度、≥90% 判断同源）, 不用 spent/expectation 另算一遍
+  pct.textContent = pctStr(reading.pctOfMonth, 100) + '%';
+  pct.style.color = reading.over ? 'var(--down)' : 'var(--accent-ink)';
+  const note = document.getElementById('pace-note');
+  const text = monthBudgetNote(reading);
+  note.textContent = text;
+  note.style.display = text ? '' : 'none';
+  note.style.color = reading.over ? 'var(--down)' : 'var(--muted)';
 }
 
 // 分组多选 chips: 复用录入表单同款 chip 视觉（tagChipHtml）, 分组头不可选
