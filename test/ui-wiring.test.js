@@ -997,7 +997,7 @@ describe('UI 接线契约：读数卡的自定月消费（只对本卡生效）'
     assert.match(modal(), /<label[^>]*for="runway-expectation"/, '标签关联输入框（点标签可聚焦）');
     assert.match(modal(), /onkeydown="if\(event\.key==='Enter' && !event\.isComposing\)saveRunwayTags\(\)"/,
       '回车即保存（与预期消费/目标净资产弹窗同惯例），带 IME 守卫防组字中误提交');
-    assert.match(html, /<h3 class="font-display modal-title mb-2">标签与月消费/, '标题已改名');
+    assert.match(html, /<h3 class="font-display modal-title">标签与月消费/, '标题已改名');
     assert.doesNotMatch(html, />选择标签</, '标题/按钮不得仍叫「选择标签」（现在也编辑月消费）');
   });
 
@@ -1144,5 +1144,171 @@ describe('UI 接线契约：主题与表单校验的防回潮', () => {
     const missingInLight = [...dark].filter((k) => !light.has(k));
     assert.deepStrictEqual(missingInDark, [], `暗色缺变量: ${missingInDark.join(', ')}`);
     assert.deepStrictEqual(missingInLight, [], `亮色缺变量: ${missingInLight.join(', ')}`);
+  });
+});
+
+/*
+ * 版式一致性：同类结构必须共用同一套 class，页面不得再内联重复样式。
+ * --------------------------------------------------------------------------
+ * 单文件 SPA 没有组件可复用，同类结构（章节头、表格、按钮、弹窗页脚、字段标签…）
+ * 只能靠「同一组 class」保持一致；一旦允许内联覆盖，同类结构就会各自漂移
+ * （改一处间距，另一处不知道）。这里把「什么结构用什么 class」钉死，防回潮。
+ */
+describe('UI 接线契约：版式一致性（同类结构同一套 class）', () => {
+  const styleOf = (attr) => (html.match(new RegExp(`${attr}[^>]*style="([^"]*)"`)) || [])[1] || '';
+
+  test('章节头只有 section-head 一种写法（布局归 CSS，不再复制 flex/mb-6 类串）', () => {
+    assert.strictEqual(count(/class="flex items-center justify-between mb-6 section-head/g), 0,
+      '章节头的布局类串应收回 .section-head');
+    assert.strictEqual(count(/class="section-head mb-6"/g), 8, '八个 Tab 的章节头统一为 section-head mb-6');
+    const rule = html.match(/\n  \.section-head \{[^}]*\}/);
+    assert.ok(rule, '.section-head 自带布局规则');
+    assert.match(rule[0], /display:\s*flex/, '布局（flex）在 CSS 里定义一次');
+    assert.match(rule[0], /flex-wrap:\s*wrap/, '窄屏换行也在 CSS 里');
+  });
+
+  test('表头统一 list-head：字号/字距/底色/收尾双线都在 CSS，页面不再内联', () => {
+    assert.strictEqual(count(/list-head text-xs font-medium/g), 0, '表头不再内联字号类');
+    assert.strictEqual(count(/list-head"[^>]*style="[^"]*color:var\(--muted\)/g), 0, '表头不再内联 muted 色');
+    assert.strictEqual(count(/list-head/g), 10, '表头共 10 处（列表 2 + 弹窗/图表明细 8）');
+    const rule = html.match(/\n  \.list-head \{[^}]*\}/);
+    assert.ok(rule, '.list-head 规则存在');
+    assert.match(rule[0], /color:\s*var\(--muted\)/, '表头底色归 CSS');
+    assert.match(rule[0], /font-size:/, '表头字号归 CSS');
+  });
+
+  test('列宽模板单一来源：只在 CSS 定义一次，表头与数据行挂同一 class', () => {
+    // 内联 style 里不得再出现列宽（原先表头与数据行各写一遍同一串 = 改一处漏一处）
+    assert.strictEqual(count(/style="[^"]*grid-template-columns/g), 0, '列宽不许内联');
+    for (const [cls, tpl] of [
+      ['cols-expenses', '1fr 1fr 2fr 1.5fr 130px'],
+      ['cols-expense-month', '1fr 1fr 2fr 1.5fr'],
+      ['cols-income', '1.8fr 1fr 0.8fr 0.8fr 1fr 1fr 1fr'],
+      ['cols-segment', '2fr 1fr 0.7fr 1.3fr 0.7fr'],
+      ['cols-compare', '2fr 1.2fr 1.2fr 1.5fr 1fr'],
+      ['cols-expense-segment', '1fr 1fr 0.8fr 2.6fr'],
+    ]) {
+      assert.match(html, new RegExp(`\\.${cls} \\{[^}]*grid-template-columns: ${tpl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')};`),
+        `${cls} 模板在 CSS 里定义`);
+      assert.strictEqual(count(new RegExp(`grid-template-columns: ${tpl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')};`, 'g')), 1,
+        `${tpl} 只应出现一次（CSS 定义处）`);
+    }
+    // 表头与数据行必须引用同一个常量/类名，而不是各自写一遍
+    for (const name of ['cols-segment', 'cols-compare', 'cols-expense-segment']) {
+      assert.match(html, new RegExp(`const cols = '${name}'`), `${name} 走常量`);
+    }
+  });
+
+  test('按钮尺寸只有两档小号（.btn-sm / .btn-xs），同类按钮不再各自内联', () => {
+    assert.strictEqual(count(/btn-(ghost|gold|danger)[^>]*style="[^"]*(padding|font-size|white-space)/g), 0,
+      '按钮尺寸必须走 .btn-sm / .btn-xs 档位，不再内联');
+    for (const cls of ['btn-sm', 'btn-xs']) {
+      assert.match(html, new RegExp(`\\.${cls}(,| \\{)`), `${cls} 档位在 CSS 里定义`);
+    }
+    // 空态邀请按钮的内联 padding 与 .btn-ghost 默认值完全重复，应已删除
+    assert.strictEqual(count(/class="btn-ghost" style="padding/g), 0, '默认档位不再重复声明 padding');
+  });
+
+  test('弹窗：标题下间距与页脚布局统一（mb-* 变体与 mt-6/mt-8 混用不再出现）', () => {
+    assert.strictEqual(count(/class="font-display modal-title mb-\d/g), 0,
+      '弹窗标题间距收回 .modal-title');
+    assert.strictEqual(count(/flex justify-end gap-3 mt-8/g), 0, '弹窗页脚统一走 .modal-footer');
+    assert.strictEqual(count(/class="modal-footer"/g) + count(/class="modal-footer between"/g) >= 13, true,
+      '全部弹窗页脚都挂 .modal-footer');
+    const rule = html.match(/\n  \.modal-footer \{[^}]*\}/);
+    assert.ok(rule, '.modal-footer 规则存在');
+    assert.match(rule[0], /justify-content:\s*flex-end/);
+  });
+
+  test('字段标签与下拉框统一 class（.field-label / .select-field）', () => {
+    assert.strictEqual(count(/class="block text-xs font-medium mb-1\.5"/g), 0,
+      '表单字段标签统一走 .field-label');
+    assert.match(html, /<select[^>]*class="select-field/);
+    assert.strictEqual(count(/<select[^>]*style="min-width:\d+px;"/g), 0,
+      '下拉框宽度由 .select-field 决定，不再逐个内联');
+    const sel = html.match(/\n  \.select-field \{[^}]*\}/);
+    assert.ok(sel, '.select-field 规则存在');
+    assert.match(sel[0], /min-width:\s*\d+px/, '宽度只此一处');
+  });
+
+  test('muted 文字用 .muted，不再逐处内联 color:var(--muted)', () => {
+    assert.strictEqual(count(/style="color:var\(--muted\);"/g), 0, '纯 muted 内联样式应清空');
+    assert.match(html, /\n  \.muted \{ color: var\(--muted\); \}/, '.muted 规则存在');
+  });
+});
+
+describe('UI 接线契约：卡片内读数与标题的层级（同一角色同一字号）', () => {
+  test('卡片主读数统一 .hero-figure（收益摘要 / 对比弹窗 hero 不再各自内联 30px/36px）', () => {
+    assert.strictEqual(count(/style="[^"]*font-size:3[06]px/g), 0,
+      '主读数字号应走 .hero-figure');
+    const rule = html.match(/\n  \.hero-figure \{[^}]*\}/);
+    assert.ok(rule, '.hero-figure 规则存在');
+    assert.match(rule[0], /font-size:/, '字号只此一处');
+    assert.match(rule[0], /font-weight:\s*500/);
+  });
+
+  test('卡片标题统一 .card-title / .card-title-sm（不再内联 font-size:17px/15px）', () => {
+    assert.strictEqual(count(/style="[^"]*font-size:1[57]px/g), 0,
+      '卡片标题字号应走 .card-title / .card-title-sm');
+    assert.match(html, /\n  \.card-title \{[^}]*font-size: 17px/);
+    assert.match(html, /\n  \.card-title-sm \{[^}]*font-size: 15px/);
+  });
+});
+
+describe('UI 接线契约：弹窗尺寸与筛选控件的档位', () => {
+  test('弹窗宽度只有四档 + 默认，不再逐个内联 max-width', () => {
+    assert.strictEqual(count(/class="modal-content" style="max-width/g), 0,
+      '弹窗宽度应走 .modal-sm / .modal-md / .modal-lg / .modal-xl');
+    for (const [cls, w] of [['modal-sm', '400px'], ['modal-md', '480px'], ['modal-lg', '720px'], ['modal-xl', '960px']]) {
+      assert.match(html, new RegExp(`\.${cls} \{ max-width: ${w}; \}`), `${cls} 档位在 CSS 里定义`);
+    }
+  });
+
+  test('筛选下拉统一 .select-field，搜索框宽度归 .search-wrap，都不再内联 min-width', () => {
+    assert.strictEqual(count(/style="min-width:\d+px;"/g), 0, '筛选控件不再内联 min-width');
+    // 8 个工具条/图表筛选下拉 + 5 个对比弹窗下拉
+    assert.strictEqual(count(/class="select-field/g), 13, '13 个筛选下拉都挂同一类');
+    assert.strictEqual(count(/class="select-field ml-2"/g), 5, '弹窗内下拉用既有 ml-2 工具类控制左间距');
+    assert.match(html, /<input[^>]*id="expense-search"[^>]*class="text-sm"/, '搜索框不再带内联宽度');
+    assert.match(html, /\n  \.select-field \{ min-width: 160px; \}/, '下拉宽度只此一处');
+    assert.match(html, /\n  \.search-wrap input \{[^}]*min-width: 180px/, '搜索框宽度只此一处');
+  });
+
+  test('小号元信息标签统一 .meta-label（收益摘要 / 对比弹窗筛选标签不再内联字距）', () => {
+    assert.strictEqual(count(/style="[^"]*letter-spacing/g), 0, '字距应由 .meta-label / 类承担');
+    assert.match(html, /\n  \.meta-label \{[^}]*letter-spacing: 0\.06em/, '.meta-label 规则存在');
+  });
+});
+
+describe('UI 接线契约：文字色角色的单一来源', () => {
+  test('金色读数 .ink-accent / 柔化读数 .text-value：同类数字不再逐处内联色值', () => {
+    assert.strictEqual(count(/style="color:var\(--accent-ink\);?"/g), 0, '金色读数应走 .ink-accent');
+    assert.strictEqual(count(/style="[^"]*color:var\(--fg\);opacity:0\.85;/g), 0, '柔化读数应走 .text-value');
+    assert.match(html, /\n  \.ink-accent \{ color: var\(--accent-ink\); \}/);
+    assert.match(html, /\n  \.text-value \{ color: var\(--fg\); opacity: 0\.85; \}/);
+  });
+
+  test('未设置利率的小字注记统一 .hint-xs（不再内联 font-size:11px）', () => {
+    assert.strictEqual(count(/style="[^"]*font-size:11px/g), 0, '小字注记应走 .hint-xs');
+    assert.match(html, /\n  \.hint-xs \{ font-size: 11px; \}/);
+  });
+});
+
+describe('UI 接线契约：同排标签的对齐', () => {
+  test('与右侧读数同排的字段标签不带下间距（否则居中排布时上移半个间距）', () => {
+    assert.match(html, /<label class="field-label tight" for="asset-cash-ratio">/,
+      '现金比例标签与读数同排，下间距应由父行承担');
+    assert.match(html, /\n  \.field-label\.tight \{ margin-bottom: 0; \}/);
+  });
+});
+
+describe('UI 接线契约：收益/读数文字色的角色类补齐', () => {
+  test('正向收益色 .ink-up、加粗读数 .readout-strong 各自单一来源', () => {
+    assert.strictEqual(count(/style="color:var\(--verdigris\);"/g), 0, '正向收益色应走 .ink-up');
+    assert.match(html, /\n  \.ink-up \{ color: var\(--verdigris\); \}/);
+    // 读数卡里的加粗数值（标签钱数 / 月数）共用同一档
+    assert.strictEqual(count(/style="font-weight:600;color:var\(--fg\);"/g), 0, '加粗读数走 .readout-strong');
+    assert.strictEqual(count(/style="font-weight:600;color:var\(--accent-ink\);"/g), 0, '加粗金墨读数走 .readout-strong.ink-accent');
+    assert.match(html, /\n  \.readout-strong \{ font-weight: 600; \}/);
   });
 });
