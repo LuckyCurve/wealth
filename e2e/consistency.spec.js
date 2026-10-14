@@ -343,6 +343,49 @@ test.describe('可读性：平铺 chip 未选中态跨分类一致', () => {
     await page.hover('#expense-tags-section .tag-choice[aria-pressed="true"]');
     await expect.poll(read).toBe(before);
   });
+
+  test('已选 chip 的「盖印」边必须明显强于未选空栏（用户实测：选中了却看不出来）', async ({ appPage: page }) => {
+    // 把三个分类都摆出来（调色板 0/1/2 号基色：棕/绿/黄），黄系正是最看不清的那档
+    await page.evaluate(() => {
+      state.expenseCategories = [
+        { id: 'ec1', name: '甲类', builtin: false, tags: ['甲一', '甲二'] },
+        { id: 'ec2', name: '乙类', builtin: false, tags: ['乙一', '乙二'] },
+        { id: 'ec3', name: '丙类', builtin: false, tags: ['丙一', '丙二'] },
+      ];
+      state.expenses = [{ id: 'e1', date: '2026-01-05', amount: 100, note: '午餐', tags: { ec1: '甲一', ec2: '乙一', ec3: '丙一' } }];
+      renderExpenses();
+      editExpense('e1');
+    });
+    await expect(page.locator('#expense-modal')).toBeVisible();
+
+    const rows = await page.evaluate(() => {
+      const L = (c) => { const f = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }; return 0.2126 * f(c.r) + 0.7152 * f(c.g) + 0.0722 * f(c.b); };
+      const parse = (c) => { const m = (c || '').match(/rgba?\(([^)]+)\)/); if (!m) return null; const p = m[1].split(',').map(Number); return { r: p[0], g: p[1], b: p[2] }; };
+      const ratio = (a, b) => { const x = L(a), y = L(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+      const card = parse(getComputedStyle(document.querySelector('#expense-modal .modal-content')).backgroundColor);
+      return [...document.querySelectorAll('#expense-tags-section .tag-choice')].map((el) => {
+        const cs = getComputedStyle(el);
+        return {
+          pressed: el.getAttribute('aria-pressed') === 'true',
+          text: el.textContent.trim(),
+          border: cs.borderTopStyle === 'dashed' ? parse(cs.borderTopColor) : null,
+          // 非图形文字的对比度下限（WCAG 1.4.11）
+          edge: ratio(parse(cs.borderTopColor), card),
+        };
+      });
+    });
+
+    const sel = rows.filter((r) => r.pressed);
+    const unsel = rows.filter((r) => !r.pressed);
+    expect(sel.length, '每个分类各有一个已选项').toBe(3);
+    expect(unsel.length, '每个分类各有一个未选项').toBe(3);
+    for (const s of sel) {
+      // 已选态的边（盖印）必须强于任何未选空栏的边，且自身不低于非文字对比度下限 3:1
+      const worstUnsel = Math.max(...unsel.map((u) => u.edge));
+      expect(s.edge, `「${s.text}」已选边 ${s.edge.toFixed(2)} 必须强于未选空栏的 ${worstUnsel.toFixed(2)}`).toBeGreaterThan(worstUnsel);
+      expect(s.edge, `「${s.text}」已选边仅 ${s.edge.toFixed(2)}:1，低于非文字元素 3:1 下限`).toBeGreaterThanOrEqual(3);
+    }
+  });
 });
 
 test.describe('版式一致性：真实数据下的读数层级', () => {

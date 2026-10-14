@@ -438,11 +438,15 @@ tailwind.config = {
     transition: background 0.15s, border-color 0.15s, box-shadow 0.15s, color 0.15s;
   }
   .tag-choice:hover { color: var(--fg); border-color: var(--accent-soft); }
-  /* 已选态的悬停反馈不能改字色/描边（那会抹掉分类色），只提亮度——与 pill 悬停同语言 */
+  /* 已选态 = 实心盖印：浅 tint 底 + **分类字色**的实线描边。
+     描边为何不能用 --chip-border：pillColors 的 border 与 bg 同为 90%+ 明度的浅 tint，
+     与弹窗卡面只差 1.04–1.09:1，而待选空栏的中性虚线有 1.38:1 —— 选择指示一度是倒挂的，
+     用户原话「已经选中了日常但快看不出来了」。用分类字色做描边后实测 4.99–7.46:1，
+     既明显强于空栏，又满足 WCAG 非图形文字 3:1 的下限。 */
   .tag-choice[aria-pressed="true"]:hover { filter: brightness(0.96); }
   .tag-choice[aria-pressed="true"] {
     background: var(--chip-bg); color: var(--chip-fg);
-    border: 1px solid var(--chip-border);
+    border: 1px solid var(--chip-fg);
     box-shadow: 0 0 0 1.5px var(--chip-ring);
   }
 
@@ -1982,7 +1986,7 @@ function renderCategories() {
 function tagChipHtml(catId, tag, pressed, attrs, colorFn) {
   const c = colorFn(catId, tag);
   return `<button type="button" class="tag-choice" aria-pressed="${pressed}" ${attrs}
-    style="--chip-bg:${c.bg};--chip-fg:${c.fg};--chip-border:${c.border};--chip-ring:${hexToRgba(c.border, 0.45)};">${esc(tag)}</button>`;
+    style="--chip-bg:${c.bg};--chip-fg:${c.fg};--chip-ring:${hexToRgba(c.fg, 0.28)};">${esc(tag)}</button>`;
 }
 
 // 分类标签从下拉框改为平铺 chips: 「虚线空栏 = 待选, 实心盖印 = 已选」。

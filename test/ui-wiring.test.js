@@ -1259,6 +1259,16 @@ describe('UI 接线契约：排版档位单一来源（字号/字重/字体族�
     assert.match(pressed, /background: var\(--chip-bg\)/, '已选态用分类底色（实心盖印）');
     assert.match(pressed, /color: var\(--chip-fg\)/, '已选态用分类字色');
   });
+
+  test('已选 chip 的描边走分类字色（曾用分类底色当描边，选中态几乎看不见）', () => {
+    // pillColors 的底/描边都是 90%+ 明度的浅 tint，与弹窗卡面（--card）只差 1.04–1.09:1
+    // —— 肉眼完全看不出「已选中」，用户原话「已经选中了日常但快看不出来了」。
+    // 而未选中态的中性虚线描边有 1.38:1，反而比选中态更显眼，选择指示是倒挂的。
+    // 描边改用分类字色（--chip-fg）：实测 4.99–7.46:1，与浅 tint 拉开明确的「盖印」边。
+    const pressed = html.match(/\n  \.tag-choice\[aria-pressed="true"\] \{[^}]*\}/)[0];
+    assert.match(pressed, /border: 1px solid var\(--chip-fg\)/, '描边用分类字色，不用浅 tint');
+    assert.ok(!/--chip-border/.test(pressed), '不再用 --chip-border 当描边（那只是更浅的 tint）');
+  });
 });
 
 /*
