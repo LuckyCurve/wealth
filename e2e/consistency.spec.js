@@ -253,6 +253,98 @@ test.describe('版式一致性：排版档位在真实浏览器里唯一', () =>
   });
 });
 
+/*
+ * 平铺 chip 的「未选中态」跨分类一致。
+ * --------------------------------------------------------------------------
+ * 用户实测反馈：编辑消费弹窗里选标签时，第三个分类的 chip「特别浅」。根因不是对比度不达标
+ * （实测都 ≥4.5:1），而是未选中态套了分类的饱和字色：同一支 picker 里棕/绿/黄绿三种字色
+ * 并存，而暖色卡面上黄色系的亮度最低，肉眼就是「发白」。CSS 注释本意是「虚线空栏 = 待选，
+ * 实心盖印 = 已选」——分类色只该出现在承载「已选」语义的那个状态上。
+ */
+test.describe('可读性：平铺 chip 未选中态跨分类一致', () => {
+  test('所有未选中 chip 的字色/描边完全相同（含浅色系分类），且不随分类变', async ({ appPage: page }) => {
+    // 三个分类分别取到调色板的 0/1/2 号基色：terracotta(棕) / sage green(绿) / amber honey(黄)
+    // 黄系正是用户反馈「特别浅」的那一档
+    await page.evaluate(() => {
+      state.expenseCategories = [
+        { id: 'ec1', name: '甲类', builtin: false, tags: ['甲一', '甲二'] },
+        { id: 'ec2', name: '乙类', builtin: false, tags: ['乙一', '乙二'] },
+        { id: 'ec3', name: '丙类', builtin: false, tags: ['丙一', '丙二'] },
+      ];
+      state.expenses = [{ id: 'e1', date: '2026-01-05', amount: 100, note: '午餐', tags: { ec1: '甲一', ec2: '乙一', ec3: '丙一' } }];
+      renderExpenses();
+      editExpense('e1');
+    });
+    await expect(page.locator('#expense-modal')).toBeVisible();
+
+    const styles = await page.evaluate(() => {
+      const card = getComputedStyle(document.querySelector('#expense-modal .modal-content')).backgroundColor;
+      const read = (el) => {
+        const cs = getComputedStyle(el);
+        return `${cs.color}|${cs.backgroundColor}|${cs.borderTopColor}|${cs.borderTopStyle}`;
+      };
+      return [...document.querySelectorAll('#expense-tags-section .tag-choice[aria-pressed="false"]')]
+        .map((el) => ({ text: el.textContent.trim(), style: read(el), card }));
+    });
+
+    expect(styles.length, '每个分类都应留下未选中 chip').toBeGreaterThanOrEqual(3);
+    // 未选中态必须长得一模一样：字色/底色/描边三件套全部相同（底色即弹窗卡面）
+    const uniq = [...new Set(styles.map((s) => s.style))];
+    expect(uniq, `未选中 chip 样式不一致：\n  ${uniq.join('\n  ')}`).toHaveLength(1);
+    // 且不得带分类色：字色不能是某个分类的饱和色（这里用 muted 兜底，与页面其它次要文字同源）
+    expect(uniq[0]).toMatch(/^rgb\(/);
+  });
+
+  test('已选中 chip 才用分类色（实心盖印，选中态才有底色）', async ({ appPage: page }) => {
+    await page.evaluate(() => {
+      state.expenseCategories = [
+        { id: 'ec1', name: '甲类', builtin: false, tags: ['甲一', '甲二'] },
+        { id: 'ec2', name: '乙类', builtin: false, tags: ['乙一', '乙二'] },
+      ];
+      state.expenses = [{ id: 'e1', date: '2026-01-05', amount: 100, note: '午餐', tags: { ec1: '甲一', ec2: '乙一' } }];
+      renderExpenses();
+      editExpense('e1');
+    });
+    await expect(page.locator('#expense-modal')).toBeVisible();
+    const selected = await page.evaluate(() =>
+      [...document.querySelectorAll('#expense-tags-section .tag-choice[aria-pressed="true"]')].map((el) => {
+        const cs = getComputedStyle(el);
+        return { text: el.textContent.trim(), bg: cs.backgroundColor, style: cs.borderTopStyle };
+      })
+    );
+    expect(selected.length).toBeGreaterThanOrEqual(2);
+    for (const s of selected) {
+      // 选中态有实心底色（盖印）与实线描边，与未选态的「虚线空栏」区分
+      expect(s.bg, `「${s.text}」选中态应有分类底色`).not.toBe('rgba(0, 0, 0, 0)');
+      expect(s.style, `「${s.text}」选中态应为实线`).toBe('solid');
+    }
+    // 两个分类的选中底色不同（分类色确实生效）
+    expect(new Set(selected.map((s) => s.bg)).size).toBe(selected.length);
+  });
+
+  test('悬停已选中 chip 不抹掉分类色（只在已选态给反馈）', async ({ appPage: page }) => {
+    await page.evaluate(() => {
+      state.expenseCategories = [
+        { id: 'ec1', name: '甲类', builtin: false, tags: ['甲一', '甲二'] },
+        { id: 'ec2', name: '乙类', builtin: false, tags: ['乙一', '乙二'] },
+      ];
+      state.expenses = [{ id: 'e1', date: '2026-01-05', amount: 100, note: '午餐', tags: { ec1: '甲一', ec2: '乙一' } }];
+      renderExpenses();
+      editExpense('e1');
+    });
+    await expect(page.locator('#expense-modal')).toBeVisible();
+    const read = () =>
+      page.evaluate(() => {
+        const el = document.querySelector('#expense-tags-section .tag-choice[aria-pressed="true"]');
+        const cs = getComputedStyle(el);
+        return `${cs.color}|${cs.backgroundColor}|${cs.borderTopColor}`;
+      });
+    const before = await read();
+    await page.hover('#expense-tags-section .tag-choice[aria-pressed="true"]');
+    await expect.poll(read).toBe(before);
+  });
+});
+
 test.describe('版式一致性：真实数据下的读数层级', () => {
   test('收益摘要与对比弹窗的主读数同字号（同一个 .hero-figure）', async ({ appPage: page }) => {
     await page.locator('#mode-assets').click();

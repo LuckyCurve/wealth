@@ -1241,6 +1241,24 @@ describe('UI 接线契约：排版档位单一来源（字号/字重/字体族�
     const btn = html.match(/\n  \.tag-pill button \{[^}]*\}/)[0];
     assert.ok(!/opacity:/.test(btn), 'pill 内 ✕ 不用 opacity 压淡（它是个真控件）');
   });
+
+  test('平铺 chip 未选中态不套分类色（否则浅色系分类的字会「发白」）', () => {
+    // CSS 注释写的是「虚线空栏 = 待选, 实心盖印 = 已选」，但未选中态一直在用 --chip-fg
+    // （分类的饱和字色）：同一支 picker 里，支付方式是棕字、消费类型是绿字、消费频率是
+    // 黄绿字——第三类在暖色卡面上亮度最低，肉眼看着就是「特别浅」，尽管对比度仍达标。
+    // 分类色只留给「已选」这个承载语义的状态。
+    const rule = html.match(/\n  \.tag-choice \{[^}]*\}/)[0];
+    assert.ok(!/--chip-fg/.test(rule), '未选中态不得用分类字色');
+    assert.ok(!/--chip-bg/.test(rule), '未选中态不得用分类底色');
+    assert.match(rule, /color: var\(--muted\)/, '未选中态统一走 muted（所有分类长得一样）');
+    const border = rule.match(/border: 1px dashed ([^;]+);/);
+    assert.ok(border, '未选中态保持虚线空栏');
+    assert.strictEqual(border[1].trim(), 'var(--border)', '虚线描边走中性 border，不走分类色');
+    // 已选态才允许用分类色（data-driven 色值无法用类名表达，只能内联变量）
+    const pressed = html.match(/\n  \.tag-choice\[aria-pressed="true"\] \{[^}]*\}/)[0];
+    assert.match(pressed, /background: var\(--chip-bg\)/, '已选态用分类底色（实心盖印）');
+    assert.match(pressed, /color: var\(--chip-fg\)/, '已选态用分类字色');
+  });
 });
 
 /*

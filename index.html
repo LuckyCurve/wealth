@@ -422,18 +422,24 @@ tailwind.config = {
     transition: opacity 0.15s;
   }
   .tag-pill button:hover { opacity: 1; color: var(--down); }
-  /* 表单内平铺标签选择器: 账页「虚线空栏 = 待选, 实心盖印 = 已选」; 颜色由 JS 以 --chip-* 变量注入 */
+  /* 表单内平铺标签选择器: 账页「虚线空栏 = 待选, 实心盖印 = 已选」; 颜色由 JS 以 --chip-* 变量注入。
+     未选中态**不套分类色**：曾把 --chip-fg 用在空栏上，结果同一支 picker 里棕/绿/黄绿
+     三种字色并存——暖色卡面上黄色系亮度最低，用户实测第三个分类「特别浅」（对比度虽达标，
+     肉眼仍发白）。分类色只留给「已选」这个承载语义的状态；空栏统一 muted + 中性虚线，
+     于是每个分类的待选项长得完全一样，选中项才盖印出分类色。 */
   .tag-picker { display: flex; flex-wrap: wrap; gap: 6px; }
   .tag-choice {
     display: inline-flex; align-items: center;
     padding: 3px 7px 3px 5px; border-radius: 4px; font-size: var(--fs-micro);
     font-weight: var(--fw-medium); font-family: var(--font-body);
     line-height: 1.5; white-space: nowrap; cursor: pointer;
-    background: transparent; color: var(--chip-fg);
-    border: 1px dashed var(--chip-border);
+    background: transparent; color: var(--muted);
+    border: 1px dashed var(--border);
     transition: background 0.15s, border-color 0.15s, box-shadow 0.15s, color 0.15s;
   }
-  .tag-choice:hover { filter: brightness(0.95); }
+  .tag-choice:hover { color: var(--fg); border-color: var(--accent-soft); }
+  /* 已选态的悬停反馈不能改字色/描边（那会抹掉分类色），只提亮度——与 pill 悬停同语言 */
+  .tag-choice[aria-pressed="true"]:hover { filter: brightness(0.96); }
   .tag-choice[aria-pressed="true"] {
     background: var(--chip-bg); color: var(--chip-fg);
     border: 1px solid var(--chip-border);
