@@ -782,20 +782,41 @@
     return '#' + f(0) + f(8) + f(4);
   }
 
-  // 分类 pill 配色：同一色相下按标签序数插值（亮色: 浅底深字 / 暗色: 深底浅字）。
+  // 分类 pill 基色：资产/消费共用同一套，序数插值见 pillColors。
+  // 放在 logic.js 是为了让「每个色板 × 每个插值点都达 AA」这条不变量可被单测钉住——
+  // 它曾在亮色分支翻车：公式按色相重算底色，t=1 时底色被压深而字没跟着加深，实测 2.4:1。
+  const CATEGORY_COLORS = [
+    { bg: '#FFF1E6', fg: '#7E5023', border: '#F0D4B0' },  // terracotta
+    { bg: '#E8F5EC', fg: '#3D7A52', border: '#B8DFC4' },  // sage green
+    { bg: '#FFF8E1', fg: '#735B21', border: '#F0E0A8' },  // amber honey
+    { bg: '#FCE8EF', fg: '#A34D68', border: '#F0C0D0' },  // dusty rose
+    { bg: '#E8EEFA', fg: '#4A6099', border: '#B8C8E8' },  // soft cornflower
+    { bg: '#FFF0E0', fg: '#7C5631', border: '#F0D8B8' },  // warm caramel
+    { bg: '#E0F4F4', fg: '#2D6767', border: '#B0D8D8' },  // teal mist
+    { bg: '#F4E8F4', fg: '#7A5080', border: '#D8C0D8' },  // soft mauve
+    { bg: '#FBF3E0', fg: '#645123', border: '#E8D8A8' },  // golden wheat
+    { bg: '#FCE8E0', fg: '#8B4332', border: '#F0C8B8' },  // coral warmth
+  ];
+
+  // 分类 pill 配色：同一分类内按标签序数插值（亮色: 浅底深字 / 暗色: 深底浅字）。
+  // 亮色分支**锚定基色**插值，不按色相公式另起一套：否则 t=0 就偏离基色、
+  // t=1 时底色被压深而字不变，整条色带跌出 AA（曾实测最低 2.4:1）。
+  const lerp = (a, b, t) => a + (b - a) * t;
   function pillColors(base, t, dark) {
-    const h = hexToHsl(base.bg).h;
     if (dark) {
+      const h = hexToHsl(base.bg).h;
       return {
         bg: hslToHex(h, 32 + t * 14, 14 + t * 7),
         fg: hslToHex(h, 44, 74 - t * 4),
         border: hslToHex(h, 30 + t * 16, 25 + t * 8),
       };
     }
+    const H = hexToHsl(base.bg), F = hexToHsl(base.fg);
     return {
-      bg: hslToHex(h, 35 + t * 20, 90 - t * 20),
-      fg: hslToHex(h, 50, 38),
-      border: hslToHex(h, 30 + t * 18, 78 - t * 26),
+      // 底色只往「更浅更饱和」走，字色只往「更深更饱和」走：两者同向拉开，对比单调不减
+      bg: hslToHex(H.h, lerp(H.s, 45, t), lerp(H.l, 84, t)),
+      fg: hslToHex(F.h, lerp(F.s, 55, t), lerp(F.l, Math.max(26, F.l - 10), t)),
+      border: hslToHex(H.h, lerp(H.s, 42, t), lerp(H.l, 80, t)),
     };
   }
 
@@ -953,7 +974,7 @@
     migrateState,
     esc, escRegExp, highlightMatch, moneyStr, jsAttr,
     truncateLabel,
-    hexToRgba, hexToHsl, hslToHex, pillColors, basePill,
+    hexToRgba, hexToHsl, hslToHex, pillColors, basePill, CATEGORY_COLORS,
     CATEGORY_PALETTE, buildSunburstData, pctStr, percentSeriesData, pruneLegendSelected, sortTagsByTotal, amountAtRates,
   };
 });

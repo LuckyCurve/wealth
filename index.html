@@ -29,11 +29,8 @@
 tailwind.config = {
   theme: {
     extend: {
-      fontFamily: {
-        display: ['"Noto Serif SC"', 'serif'],
-        masthead: ['"Cormorant Garamond"', '"Noto Serif SC"', 'serif'],
-        mono: ['"IBM Plex Mono"', 'monospace'],
-      },
+      // 排版规格（字号/字重/字体族）一律写在 <style> 的 :root, :root.dark token 与 .t-* 档位类里，
+      // 不在这里声明 fontFamily：CDN 空壳下这些类不生效，真机里又会和自有档位各算一套。
       colors: {
         // Parchment ledger — warm paper, deep ink, gilded accent, a single verdigris for live/income.
         ink: { 50: '#f6f1e4', 100: '#ece4d0', 200: '#d8cbab', 300: '#b9a87e', 400: '#9a8758', 500: '#7c6b43', 600: '#5e5034', 700: '#473b28', 800: '#2f281b', 900: '#211b10', 950: '#15110a' },
@@ -69,7 +66,7 @@ tailwind.config = {
     --bg: #15110a;
     --bg-2: #1c1710;
     --fg: #ece4d0;
-    --muted: #9a8758;
+    --muted: #b0a078;
     --accent: #d9b25e;
     --accent-ink: #d9b25e;
     --accent-soft: #e6c982;
@@ -86,6 +83,45 @@ tailwind.config = {
   }
   .dark .asset-row { border-bottom-color: var(--rule); }
   .dark .card { border-color: var(--border); }
+  /* ===== 排版 token（字号 / 字重 / 字体族）=====
+     放在 :root, :root.dark 合并选择器上：它们与明暗无关，写进两套主题块就等于同一个值
+     声明两遍，改一处忘一处。主题变量（颜色）仍各自成块，theme.spec.js 的「两套变量一一
+     对应」巡检只扫 :root / :root.dark，不会把这三个 token 算进去。
+     字体族为何必须显式写 CJK 回落：body 是等宽字体（拉丁/数字），而 IBM Plex Mono 没有
+     中文字形——不写这一层，中文会落到 monospace 的宋体兜底，12px 下笔画极细、发灰，
+     正是「字很浅、字重不够」的根因；显式落到 PingFang/雅黑/Noto Sans 才有屏显黑体。 */
+  :root, :root.dark {
+    --font-body: 'IBM Plex Mono', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', monospace;
+    --font-display: 'Noto Serif SC', 'Songti SC', serif;
+    --font-numeric: 'Cormorant Garamond', 'Noto Serif SC', serif;
+    /* 文字只两档字号：微操作（表头/边注/徽章/微按钮）与正文（表格/说明/按钮） */
+    --fs-micro: 12px;
+    --fs-body: 14px;
+    /* 展示档：卡片内小标题 / 卡片标题 / 区块标题 / 弹窗标题 / 卡片主读数——
+       层级靠字号与颜色，不靠 1px 差。主读数（hero-figure）与弹窗标题必须分开：
+       曾把两者并成同一个 token，结果卡片主读数被压到 22px（原 32px），
+       E2E 的「同字号」断言只看 .hero-figure 彼此一致，抓不到这种跨角色坍缩。 */
+    --fs-card-sm: 15px;
+    --fs-card: 17px;
+    --fs-section: 20px;
+    --fs-modal: 22px;
+    --fs-hero: 32px;
+    /* 字重三档：正文基准提到 500（原 400，观感发虚）；层级靠颜色与字重，不靠 1px 字号差 */
+    --fw-medium: 500;
+    --fw-strong: 600;
+    --fw-bold: 700;
+  }
+  /* 排版档位类：页面一律挂这两个字号 + 两个字重，不再写裸字号/裸字重，也不再用
+     Tailwind 的 text-* / font-* 工具类（CDN 空壳下不可测、且会和自有档位漂移）。
+     强调（600）不走档位类而由 strong/b 与语义类（.readout-strong/.tag-val…）承担：
+     它只在「行内读数」出现，没有需要挂类的场景，预设一个空转类反而是死代码。 */
+  .t-micro { font-size: var(--fs-micro); }
+  .t-body { font-size: var(--fs-body); }
+  .t-medium { font-weight: var(--fw-medium); }
+  .t-bold { font-weight: var(--fw-bold); }
+  /* 行内强调统一走设计字重 600：浏览器默认是 700，比本设计的强调档还重一档，
+     弹窗标题行里的「总净值/合计」会明显压过正文 */
+  strong, b { font-weight: var(--fw-strong); }
   /* 唯一 muted 文字出口：说明性/次要文字统一挂 .muted, 不再逐处内联 color */
   .muted { color: var(--muted); }
   /* 文字色角色: 金色读数（现金口径/还差金额）/ 柔化读数（同一数字的次要出现）/ 正向收益 各一处 */
@@ -93,18 +129,18 @@ tailwind.config = {
   .ink-up { color: var(--verdigris); }
   .text-value { color: var(--fg); opacity: 0.85; }
   /* 读数卡里的加粗数值（标签钱数 / 月数）: 加粗只此一处, 颜色由 .ink-accent / 默认文字色承担 */
-  .readout-strong { font-weight: 600; }
+  .readout-strong { font-weight: var(--fw-strong); }
   /* 行内小字注记（未设置利率等）: 字号只此一处 */
-  .hint-xs { font-size: 11px; }
+  .hint-xs { font-size: var(--fs-micro); }
   /* 表单字段标签唯一写法（原 13 处内联 block text-xs font-medium mb-1.5 的收敛处）。
      .tight: 与右侧读数同排的标签（如现金比例那一行），下间距由父行承担，标签自身不留白，
      否则居中排布时标签文字会相对读数上移半个间距 */
-  .field-label { display: block; font-size: 12px; font-weight: 500; color: var(--muted); margin-bottom: 6px; }
+  .field-label { display: block; font-size: var(--fs-body); font-weight: var(--fw-medium); color: var(--muted); margin-bottom: 6px; }
   .field-label.tight { margin-bottom: 0; }
   /* 下拉框统一规格（宽度只此一处，页面不再逐个内联 min-width） */
   .select-field { min-width: 160px; }
   /* 小号元信息标签（收益摘要口径名 / 对比弹窗筛选标签）: 字号+字距只此一处 */
-  .meta-label { font-size: 12px; font-weight: 500; letter-spacing: 0.06em; }
+  .meta-label { font-size: var(--fs-body); font-weight: var(--fw-medium); letter-spacing: 0.06em; }
   /* 弹窗宽度四档（默认 560px）: 尺寸语汇收在这里, 弹窗结构里不再逐个内联 max-width */
   .modal-sm { max-width: 400px; }
   .modal-md { max-width: 480px; }
@@ -118,19 +154,19 @@ tailwind.config = {
   }
   /* hr 的 border-color 走 var(--border)，但 color 仍是 UA 灰；一并归到主题色 */
   hr { color: var(--border); border: none; border-top: 1px solid var(--border); }
-  .sort-indicator { margin-left: 2px; font-size: 10px; color: var(--muted); }
+  .sort-indicator { margin-left: 2px; font-size: var(--fs-micro); color: var(--muted); }
   .sort-indicator.active { color: var(--accent-ink); }
   /* 可点击行/表头禁用文字选中：快速点击(双击)排序表头时避免浏览器选中文本（<button> 原生即不选中，无需处理） */
   [onclick]:not(button) { user-select: none; -webkit-user-select: none; }
   * { box-sizing: border-box; }
   html { -webkit-text-size-adjust: 100%; }
-  body { background: var(--bg); color: var(--fg); font-family: 'IBM Plex Mono', monospace; font-feature-settings: 'tnum' 1; }
+  body { background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: var(--fs-body); font-weight: var(--fw-medium); font-feature-settings: 'tnum' 1; }
   body::before {
     content: ''; position: fixed; inset: 0; z-index: -1; opacity: 0.035; pointer-events: none;
     background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23000' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
   }
-  .font-display { font-family: 'Noto Serif SC', serif; }
-  .font-masthead { font-family: 'Cormorant Garamond', 'Noto Serif SC', serif; font-feature-settings: 'lnum' 1, 'tnum' 1; }
+  .font-display { font-family: var(--font-display); }
+  .font-masthead { font-family: var(--font-numeric); font-feature-settings: 'lnum' 1, 'tnum' 1; }
   .tabular { font-variant-numeric: tabular-nums; font-feature-settings: 'tnum' 1; }
   :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
   ::selection { background: rgba(180, 132, 26, 0.28); }
@@ -141,8 +177,8 @@ tailwind.config = {
   .btn-gold {
     background: linear-gradient(180deg, #d9b25e, #b4841a);
     color: #211b10; border: 1px solid #8f6713; border-radius: 6px; padding: 8px 20px;
-    font-weight: 600; cursor: pointer; transition: filter .15s, box-shadow .15s, transform .05s;
-    font-family: 'IBM Plex Mono', monospace; font-size: 13px; letter-spacing: 0.01em;
+    font-weight: var(--fw-strong); cursor: pointer; transition: filter .15s, box-shadow .15s, transform .05s;
+    font-family: var(--font-body); font-size: var(--fs-body); letter-spacing: 0.01em;
     /* 压印金属感: 顶部受光 + 底部内阴影, 取代模板式外发光 */
     box-shadow: inset 0 1px 0 rgba(255,255,255,0.4), inset 0 -1px 0 rgba(33,27,16,0.22), 0 1px 2px var(--shadow);
   }
@@ -151,19 +187,19 @@ tailwind.config = {
   .btn-ghost {
     background: transparent; color: var(--muted); border: 1px solid var(--border);
     border-radius: 6px; padding: 8px 20px; cursor: pointer; transition: all 0.15s;
-    font-family: 'IBM Plex Mono', monospace; font-size: 13px;
+    font-family: var(--font-body); font-size: var(--fs-body);
   }
   .btn-ghost:hover { border-color: var(--accent); color: var(--accent-ink); }
   .btn-danger {
     background: transparent; color: var(--down); border: 1px solid #dcb6b4;
     border-radius: 6px; padding: 6px 14px; cursor: pointer; transition: all 0.15s;
-    font-family: 'IBM Plex Mono', monospace; font-size: 12px;
+    font-family: var(--font-body); font-size: var(--fs-micro);
   }
   .btn-danger:hover { background: var(--down); color: white; border-color: var(--down); }
   .dark .btn-danger { color: #d98a86; border-color: #5a3a39; }
   .dark .btn-danger:hover { color: #fff; }
   /* 行内操作按钮（统一规格, 颜色区分操作层级） */
-  .row-btn { border: none; background: transparent; font-size: 11px; padding: 3px 6px; border-radius: 5px; cursor: pointer; font-family: 'IBM Plex Mono', monospace; white-space: nowrap; flex-shrink: 0; transition: background 0.15s, color 0.15s; }
+  .row-btn { border: none; background: transparent; font-size: var(--fs-micro); padding: 3px 6px; border-radius: 5px; cursor: pointer; font-family: var(--font-body); white-space: nowrap; flex-shrink: 0; transition: background 0.15s, color 0.15s; }
   .row-btn:hover { background: var(--bg-2); }
   .row-btn.edit { color: var(--accent-ink); }
   .row-btn.copy { color: var(--verdigris); }
@@ -179,7 +215,7 @@ tailwind.config = {
   .card-interactive { cursor: pointer; }
   .card-interactive:hover { box-shadow: inset 0 1px 0 var(--card-edge), 0 4px 16px var(--shadow); border-color: var(--accent-soft); }
   input, select {
-    font-family: 'IBM Plex Mono', monospace; font-size: 14px; font-variant-numeric: tabular-nums;
+    font-family: var(--font-body); font-size: var(--fs-body); font-variant-numeric: tabular-nums;
     border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px;
     background: var(--card); color: var(--fg); transition: border-color 0.15s, box-shadow 0.15s;
     outline: none;
@@ -188,7 +224,7 @@ tailwind.config = {
   .dark input, .dark select { background: var(--bg-2); }
   /* Flatpickr 日期选择器 — 账本主题定制 */
   .flatpickr-calendar {
-    font-family: 'IBM Plex Mono', monospace !important;
+    font-family: var(--font-body) !important;
     border-radius: 10px !important;
     border: 1px solid var(--border) !important;
     box-shadow: 0 8px 32px var(--shadow), 0 2px 8px rgba(0,0,0,0.06) !important;
@@ -202,16 +238,16 @@ tailwind.config = {
     line-height: 40px !important;
   }
   .flatpickr-current-month {
-    font-family: 'IBM Plex Mono', monospace !important;
-    font-size: 13px !important;
-    font-weight: 600 !important;
+    font-family: var(--font-body) !important;
+    font-size: var(--fs-body) !important;
+    font-weight: var(--fw-strong) !important;
     color: var(--fg) !important;
     padding-top: 0 !important;
   }
   .flatpickr-current-month .flatpickr-monthDropdown-months,
   .flatpickr-current-month input.cur-year {
-    font-family: 'IBM Plex Mono', monospace !important;
-    font-weight: 600 !important;
+    font-family: var(--font-body) !important;
+    font-weight: var(--fw-strong) !important;
     color: var(--fg) !important;
     background: transparent !important;
     border: none !important;
@@ -221,17 +257,17 @@ tailwind.config = {
     color: var(--accent-ink) !important;
   }
   span.flatpickr-weekday {
-    font-family: 'IBM Plex Mono', monospace !important;
-    font-size: 11px !important;
-    font-weight: 500 !important;
+    font-family: var(--font-body) !important;
+    font-size: var(--fs-micro) !important;
+    font-weight: var(--fw-medium) !important;
     color: var(--muted) !important;
     background: transparent !important;
     padding: 8px 0 4px !important;
   }
   .flatpickr-day {
-    font-family: 'IBM Plex Mono', monospace !important;
-    font-size: 13px !important;
-    font-weight: 400 !important;
+    font-family: var(--font-body) !important;
+    font-size: var(--fs-body) !important;
+    font-weight: var(--fw-medium) !important;
     color: var(--fg) !important;
     border-radius: 6px !important;
     border: none !important;
@@ -249,14 +285,14 @@ tailwind.config = {
   .flatpickr-day.today {
     border-color: var(--accent) !important;
     color: var(--accent-ink) !important;
-    font-weight: 600 !important;
+    font-weight: var(--fw-strong) !important;
   }
   .flatpickr-day.selected, .flatpickr-day.selected:hover {
     background: var(--accent) !important;
     color: var(--fg) !important;
     border-color: var(--accent) !important;
     box-shadow: 0 2px 8px rgba(180,132,26,0.3) !important;
-    font-weight: 600 !important;
+    font-weight: var(--fw-strong) !important;
   }
   .flatpickr-day.prevMonthDay, .flatpickr-day.nextMonthDay {
     color: var(--muted) !important;
@@ -310,7 +346,7 @@ tailwind.config = {
   .search-clear {
     position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
     width: 22px; height: 22px; border: none; background: transparent; border-radius: 4px;
-    color: var(--muted); font-size: 14px; line-height: 1; cursor: pointer; padding: 0;
+    color: var(--muted); font-size: var(--fs-body); line-height: 1; cursor: pointer; padding: 0;
     display: flex; align-items: center; justify-content: center;
     transition: color 0.15s, background 0.15s;
   }
@@ -331,7 +367,7 @@ tailwind.config = {
   }
   /* 弹窗标题下间距与页脚布局收在这里: 原先标题有 mb-2/3/4/6 四种、页脚 mt-6/mt-8 混用、
      有的页脚忘写 gap-3 两按钮贴在一起, 同类弹窗高矮不一 */
-  .modal-title { font-size: 22px; font-weight: 700; margin-bottom: 24px; }
+  .modal-title { font-size: var(--fs-modal); font-weight: var(--fw-bold); margin-bottom: 24px; }
   .modal-footer { display: flex; align-items: center; justify-content: flex-end; gap: 12px; margin-top: 32px; }
   .modal-footer.between { justify-content: space-between; }
   /* 章节线: 与 section-head/empty-rule 同一结构语言, 每个弹窗如账页新起一章 */
@@ -346,7 +382,7 @@ tailwind.config = {
   .tip-mark {
     display: inline-flex; align-items: center; justify-content: center; width: 15px; height: 15px;
     padding: 0; border-radius: 50%; border: 1px solid var(--border); background: transparent;
-    color: var(--muted); font-family: 'IBM Plex Mono', monospace; font-size: 10px; line-height: 1;
+    color: var(--muted); font-family: var(--font-body); font-size: var(--fs-micro); line-height: 1;
     cursor: help; transition: color 0.15s, border-color 0.15s;
   }
   .tip-mark:hover, .tip-mark:focus-visible { color: var(--fg); border-color: var(--accent); }
@@ -354,7 +390,7 @@ tailwind.config = {
   .tip-bubble {
     position: absolute; left: -10px; top: calc(100% + 8px); z-index: 5; width: max-content; max-width: 250px;
     padding: 8px 10px; border-radius: 6px; background: var(--card-2); border: 1px solid var(--border);
-    box-shadow: 0 4px 14px var(--shadow); color: var(--fg); font-size: 11px; font-weight: 400;
+    box-shadow: 0 4px 14px var(--shadow); color: var(--fg); font-size: var(--fs-body); font-weight: var(--fw-medium);
     letter-spacing: 0; line-height: 1.7; text-align: left; white-space: normal;
     opacity: 0; visibility: hidden; pointer-events: none; transition: opacity 0.15s ease, visibility 0.15s;
   }
@@ -362,33 +398,36 @@ tailwind.config = {
   @media (prefers-reduced-motion: reduce) { .tip-mark, .tip-bubble { transition: none; } }
   .tag-pill {
     display: inline-flex; align-items: center; gap: 3px;
-    padding: 3px 7px 3px 5px; border-radius: 4px; font-size: 12px;
-    font-weight: 500; font-family: 'IBM Plex Mono', monospace;
+    padding: 3px 7px 3px 5px; border-radius: 4px; font-size: var(--fs-micro);
+    font-weight: var(--fw-medium); font-family: var(--font-body);
     border: 1px solid var(--border);
     border-left: 3px solid var(--border);
     transition: all 0.15s; white-space: nowrap; line-height: 1.5;
   }
+  /* 分类名（key）与标签值（val）同字号，层级只靠字重区分：
+     曾用 opacity .55 把 key 压淡，实测对比掉到 1.6–2.1:1 —— 分类名恰恰是用户要读的信息。 */
   .tag-pill .tag-key {
-    font-size: 11px; font-weight: 400; opacity: 0.55;
+    font-size: var(--fs-micro); font-weight: var(--fw-medium);
     letter-spacing: 0.02em; margin-right: 4px;
   }
-  .tag-pill .tag-val { font-weight: 600; }
+  .tag-pill .tag-val { font-weight: var(--fw-strong); }
   .tag-pill.active { border-color: var(--accent); border-left-color: var(--accent); }
   .tag-pill:hover { filter: brightness(0.94); }
   /* pill 内 ✕ 删除：只给 color 的话 background/border 会走浏览器 UA 默认（灰底黑边的
-     系统按钮），在暖色古纸主题上很突兀。这里剥掉原生外观，只留一个字形 */
+     系统按钮），在暖色古纸主题上很突兀。这里剥掉原生外观，只留一个字形。
+     不设 opacity：它是个真控件，压淡会让它从 pill 上「消失」（实测 2.8:1）。 */
   .tag-pill button {
     background: none; border: none; padding: 0; margin-left: 2px;
-    cursor: pointer; font-size: 10px; line-height: 1; font-family: inherit;
-    opacity: 0.55; transition: opacity 0.15s;
+    cursor: pointer; font-size: var(--fs-micro); line-height: 1; font-family: inherit;
+    transition: opacity 0.15s;
   }
-  .tag-pill button:hover { opacity: 1; }
+  .tag-pill button:hover { opacity: 1; color: var(--down); }
   /* 表单内平铺标签选择器: 账页「虚线空栏 = 待选, 实心盖印 = 已选」; 颜色由 JS 以 --chip-* 变量注入 */
   .tag-picker { display: flex; flex-wrap: wrap; gap: 6px; }
   .tag-choice {
     display: inline-flex; align-items: center;
-    padding: 3px 7px 3px 5px; border-radius: 4px; font-size: 12px;
-    font-weight: 500; font-family: 'IBM Plex Mono', monospace;
+    padding: 3px 7px 3px 5px; border-radius: 4px; font-size: var(--fs-micro);
+    font-weight: var(--fw-medium); font-family: var(--font-body);
     line-height: 1.5; white-space: nowrap; cursor: pointer;
     background: transparent; color: var(--chip-fg);
     border: 1px dashed var(--chip-border);
@@ -406,7 +445,7 @@ tailwind.config = {
     display: flex; align-items: center; justify-content: space-between;
     gap: 12px; flex-wrap: wrap; margin-bottom: 16px; padding: 9px 14px;
     border: 1px dashed var(--accent-soft); border-radius: 8px;
-    background: var(--bg-2); font-size: 13px;
+    background: var(--bg-2); font-size: var(--fs-body);
   }
   .tagcheck-strip {
     display: flex; align-items: center; justify-content: space-between;
@@ -446,12 +485,12 @@ tailwind.config = {
   .drag-handle { user-select: none; -webkit-user-select: none; }
   .asset-row.dragging { opacity: 0.35; background: var(--border); border-radius: 6px; }
   .asset-row.drag-over { border-top: 2px solid var(--accent); }
-  .drag-handle { cursor: grab; display: inline-flex; align-items: center; justify-content: center; color: var(--muted); font-size: 14px; }
+  .drag-handle { cursor: grab; display: inline-flex; align-items: center; justify-content: center; color: var(--muted); font-size: var(--fs-body); }
   .drag-handle:active { cursor: grabbing; }
   /* 小号按钮两档（工具条次级 / 行内微操作）: 同一规格只此一处，页面不再逐处内联 padding 与字号
      （原来同规格按钮有 6px 14px / 6px 10px / 6px 12px / 4px 12px / 2px 8px / 2px 10px 六种写法） */
-  .btn-sm, .btn-xs { padding: 6px 14px; font-size: 12px; white-space: nowrap; }
-  .btn-xs { padding: 4px 10px; font-size: 11px; }
+  .btn-sm, .btn-xs { padding: 6px 14px; font-size: var(--fs-micro); white-space: nowrap; }
+  .btn-xs { padding: 4px 10px; font-size: var(--fs-micro); }
   /* 行内金额快速编辑: 账页「铅笔批注」——悬停金线+铅笔示意可改, 编辑态由 input 接管 */
   .amount-cell { position: relative; padding-left: 16px; display: inline-flex; align-items: center; cursor: pointer; border-bottom: 1px dashed transparent; transition: border-bottom-color 0.15s; }
   .amount-cell:hover { border-bottom-color: var(--accent-soft); }
@@ -460,7 +499,7 @@ tailwind.config = {
      hover/键盘聚焦时淡入; 呼应 chips「虚线=待选→实心=已选」 */
   .edit-pencil { position: absolute; left: 2px; top: 50%; width: 11px; height: 11px; transform: translateY(-50%) translateX(-3px); color: var(--accent-ink); opacity: 0; transition: opacity 0.15s, transform 0.15s; }
   .amount-cell:hover .edit-pencil, .amount-cell:focus-visible .edit-pencil { opacity: 1; transform: translateY(-50%) translateX(0); }
-  .inline-edit-input { width: 100%; padding: 2px 6px; font-size: 14px; user-select: text; -webkit-user-select: text; }
+  .inline-edit-input { width: 100%; padding: 2px 6px; font-size: var(--fs-body); user-select: text; -webkit-user-select: text; }
   .asset-row:hover { background: var(--card-2); }
   .asset-row:last-child { border-bottom: none; }
   /* 编辑中的行: 极淡金色微光（置于 :hover 之后, 编辑态优先于 hover 行色）; Tab 连续编辑时光带跟随 */
@@ -470,16 +509,16 @@ tailwind.config = {
      字号/字重/底色一并收在这里：原先是每处内联 text-xs font-medium + color, 改一次要改八处 */
   .list-head {
     border-bottom: 2px solid var(--rule); letter-spacing: 0.05em;
-    font-size: 12px; font-weight: 500; color: var(--muted);
+    font-size: var(--fs-micro); font-weight: var(--fw-medium); color: var(--muted);
   }
   /* 统一提示便条: 全站唯一出口在右下角。#toast-area 竖排堆叠（新便条贴角、旧便条上移，
      容器以 bottom 锚定向上生长）；容器 pointer-events:none 穿透不挡角落点击，便条自身恢复 */
   #toast-area { position: fixed; right: 24px; bottom: 24px; z-index: 200; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; pointer-events: none; }
   .toast {
     position: static; max-width: min(360px, calc(100vw - 48px));
-    padding: 12px 24px; border-radius: 8px; font-size: 13px;
+    padding: 12px 24px; border-radius: 8px; font-size: var(--fs-body);
     animation: slideUp 0.25s ease; box-shadow: 0 4px 20px rgba(0,0,0,0.1);
-    font-family: 'IBM Plex Mono', monospace; border: 1px solid;
+    font-family: var(--font-body); border: 1px solid;
     pointer-events: auto; transition: opacity 0.3s ease, transform 0.3s ease;
   }
   .toast.leaving { opacity: 0; transform: translateY(6px); }
@@ -492,9 +531,9 @@ tailwind.config = {
   .dark .toast-error { background: #2a1c1a; color: #d98a86; border-color: #4a2c2a; }
   .dark .toast-info { background: #292214; color: var(--accent-ink); border-color: #453a20; }
   .tab-btn {
-    padding: 10px 22px; font-size: 13px; border: none; background: transparent;
+    padding: 10px 22px; font-size: var(--fs-body); border: none; background: transparent;
     color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent;
-    font-family: 'IBM Plex Mono', monospace; transition: all 0.2s;
+    font-family: var(--font-body); transition: all 0.2s;
   }
   /* 两套模式的 Tab 栏同一种结构（原先每处拼 border-b + 内联 border-color） */
   .tab-bar { display: flex; border-bottom: 1px solid var(--border); }
@@ -502,20 +541,20 @@ tailwind.config = {
   .tab-btn:hover { color: var(--fg); }
   /* Segmented control（模式/视图切换器） */
   .seg-control { display: inline-flex; padding: 3px; border-radius: 8px; background: var(--bg-2); border: 1px solid var(--border); gap: 2px; }
-  .seg-btn { border: none; background: transparent; color: var(--muted); font-size: 12px; font-family: 'IBM Plex Mono', monospace; padding: 5px 18px; border-radius: 6px; cursor: pointer; transition: background 0.15s, color 0.15s; }
+  .seg-btn { border: none; background: transparent; color: var(--muted); font-size: var(--fs-micro); font-family: var(--font-body); padding: 5px 18px; border-radius: 6px; cursor: pointer; transition: background 0.15s, color 0.15s; }
   .seg-btn:hover { color: var(--fg); }
-  .seg-btn.active { background: linear-gradient(180deg, #d9b25e, #b4841a); color: #211b10; font-weight: 600; box-shadow: inset 0 1px 0 rgba(255,255,255,0.25), 0 1px 2px var(--shadow); }
+  .seg-btn.active { background: linear-gradient(180deg, #d9b25e, #b4841a); color: #211b10; font-weight: var(--fw-strong); box-shadow: inset 0 1px 0 rgba(255,255,255,0.25), 0 1px 2px var(--shadow); }
   /* ===== 设置弹窗: 账本「凡例」页 —— 每条设置如一条目录, 标签居左、控件居右、发丝线分章 ===== */
   .setting-row { display: flex; align-items: center; justify-content: space-between; gap: 14px 24px; flex-wrap: wrap; }
   .setting-info { flex: 1 1 260px; min-width: 200px; }
-  .setting-label { font-size: 14px; font-weight: 600; }
-  .setting-desc { font-size: 12px; color: var(--muted); margin-top: 4px; line-height: 1.7; }
+  .setting-label { font-size: var(--fs-body); font-weight: var(--fw-strong); }
+  .setting-desc { font-size: var(--fs-body); color: var(--muted); margin-top: 4px; line-height: 1.7; }
   /* 边注状态行: 金墨点引导, 与 masthead live-dot / 章节线同语言 */
-  .setting-note { display: inline-flex; align-items: center; gap: 7px; margin-top: 10px; font-size: 11px; letter-spacing: 0.04em; color: var(--muted); }
+  .setting-note { display: inline-flex; align-items: center; gap: 7px; margin-top: 10px; font-size: var(--fs-micro); letter-spacing: 0.04em; color: var(--muted); }
   .setting-note::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: var(--accent-soft); flex-shrink: 0; }
   /* 安全边际因子: 与 seg-control 同语言的参数条, 账页边注式 */
   .safety-control { display: inline-flex; align-items: center; gap: 10px; padding: 5px 10px; border-radius: 8px; background: var(--bg-2); border: 1px solid var(--border); }
-  .safety-label { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--muted); letter-spacing: 0.08em; }
+  .safety-label { font-family: var(--font-body); font-size: var(--fs-micro); color: var(--muted); letter-spacing: 0.08em; }
   .safety-control .scale-input { width: 150px; }
   /* ===== 比例尺滑块: 账页刻度量尺 =====
      刻度线 0/25/50/75/100% 与货币构成条同语言; 菱形拇指呼应报头裁切标记;
@@ -557,8 +596,8 @@ tailwind.config = {
     box-shadow: 0 1px 3px var(--shadow); cursor: grab;
   }
   .scale-reading {
-    font-family: 'IBM Plex Mono', monospace; font-variant-numeric: tabular-nums;
-    font-size: 13px; font-weight: 600; color: var(--accent-ink); letter-spacing: 0.02em;
+    font-family: var(--font-body); font-variant-numeric: tabular-nums;
+    font-size: var(--fs-body); font-weight: var(--fw-strong); color: var(--accent-ink); letter-spacing: 0.02em;
     min-width: 3.4em; text-align: right;
   }
   /* 统一空态（邀请行动） */
@@ -570,8 +609,8 @@ tailwind.config = {
     background: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%20fill='none'%20stroke='currentColor'%20stroke-width='1.4'%20stroke-linecap='round'%20stroke-linejoin='round'%3E%3Cpath%20d='M4%205.5A2.5%202.5%200%200%201%206.5%203H20v15H6.5A2.5%202.5%200%200%200%204%2020.5z'/%3E%3Cpath%20d='M4%205.5v15'/%3E%3Cpath%20d='M8.5%207.5h7M8.5%2011h7M8.5%2014.5h4.5'/%3E%3C/svg%3E") center/contain no-repeat;
   }
   .empty-state .empty-rule { width: 36px; height: 2px; background: var(--accent-soft); border-radius: 1px; margin: 0 auto 18px; }
-  .empty-state .empty-title { color: var(--muted); }
-  .empty-state .empty-sub { color: var(--muted); font-size: 13px; margin-top: 6px; }
+  .empty-state .empty-title { color: var(--muted); font-size: var(--fs-card); font-weight: var(--fw-strong); }
+  .empty-state .empty-sub { color: var(--muted); font-size: var(--fs-body); margin-top: 6px; }
   .empty-state .empty-action { margin-top: 22px; }
   /* 窄屏表格横向滚动（保列对齐） */
   @media (max-width: 900px) {
@@ -605,18 +644,18 @@ tailwind.config = {
      签名语言是四角裁切标记（::after）——左缘渐变条是纯装饰、且最像模板式渐变强调，已移除。 */
   .masthead { position: relative; padding: 30px 28px 26px; border-radius: 12px; overflow: hidden; }
   .masthead-eyebrow {
-    font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 0.22em;
+    font-family: var(--font-body); font-size: var(--fs-micro); letter-spacing: 0.22em;
     text-transform: uppercase; color: var(--muted); margin-bottom: 6px; display: flex; align-items: center; gap: 8px;
   }
   .masthead-eyebrow .live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--verdigris); box-shadow: 0 0 0 3px rgba(68,106,91,0.18); animation: livePulse 2.6s ease-out infinite; }
   @keyframes livePulse { 0% { box-shadow: 0 0 0 0 rgba(68,106,91,0.4); } 70% { box-shadow: 0 0 0 7px rgba(68,106,91,0); } 100% { box-shadow: 0 0 0 0 rgba(68,106,91,0); } }
   .masthead-amount {
-    font-family: 'Cormorant Garamond', 'Noto Serif SC', serif; font-weight: 500;
+    font-family: var(--font-numeric); font-weight: var(--fw-medium);
     font-size: clamp(38px, 7vw, 64px); line-height: 1; letter-spacing: -0.01em;
     color: var(--fg); font-variant-numeric: tabular-nums; display: flex; align-items: baseline; gap: 6px;
   }
-  .masthead-amount .currency-mark { font-size: 0.42em; color: var(--accent-ink); font-weight: 600; transform: translateY(-0.55em); }
-  .masthead-amount .cents { font-size: 0.4em; color: var(--muted); font-weight: 400; }
+  .masthead-amount .currency-mark { font-size: 0.42em; color: var(--accent-ink); font-weight: var(--fw-strong); transform: translateY(-0.55em); }
+  .masthead-amount .cents { font-size: 0.4em; color: var(--muted); font-weight: var(--fw-medium); }
   /* 报头四角裁切标记（register ticks）: 像一张刚从印刷版上裁下的账页 */
   .masthead::after {
     content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 1;
@@ -635,7 +674,7 @@ tailwind.config = {
     text-shadow: 0 1px 0 rgba(255, 255, 255, 0.45);
   }
   .dark .masthead-amount { text-shadow: 0 1px 0 rgba(0, 0, 0, 0.6); }
-  .masthead-sub { margin-top: 14px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; font-size: 13px; color: var(--muted); }
+  .masthead-sub { margin-top: 14px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; font-size: var(--fs-body); color: var(--muted); }
   /* Tri-color composition rule: a literal ledger ruling, segments proportional to CNY/HKD/USD */
   .composition-rule { margin-top: 18px; display: flex; height: 5px; border-radius: 3px; overflow: hidden; gap: 2px; position: relative; }
   /* 25/50/75% 刻度墨线: 构成条本身即比例尺, 刻度给眼睛以测量参照 */
@@ -651,10 +690,10 @@ tailwind.config = {
   .composition-rule .seg-hkd { background: var(--verdigris); }
   .composition-rule .seg-usd { background: var(--usd); }
   .composition-rule .seg-other { background: var(--rule); }
-  .composition-legend { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .composition-legend { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: var(--fs-micro); color: var(--muted); font-variant-numeric: tabular-nums; }
   .composition-legend .dot { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 5px; transform: translateY(0px); }
   /* 涨跌徽章（历史净值环比 / 目标达成） */
-  .mo-badge { display: inline-flex; align-items: center; padding: 1px 7px; border-radius: 4px; font-size: 11px; font-weight: 600; font-family: 'IBM Plex Mono', monospace; border: 1px solid; line-height: 1.6; white-space: nowrap; }
+  .mo-badge { display: inline-flex; align-items: center; padding: 1px 7px; border-radius: 4px; font-size: var(--fs-micro); font-weight: var(--fw-strong); font-family: var(--font-body); border: 1px solid; line-height: 1.6; white-space: nowrap; }
   .mo-badge.up { background: #e8f5ec; color: #3d7a52; border-color: #b8dfc4; }
   .mo-badge.down { background: #fce8e0; color: var(--down); border-color: #f0c8b8; }
   .mo-badge.first { background: var(--bg-2); color: var(--muted); border-color: var(--border); }
@@ -672,8 +711,8 @@ tailwind.config = {
   .cov-label-row { display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
   /* 公式内嵌口径切换器: 缩至句内字号, 不抢标尺的视觉主角 */
   .cov-label-row .seg-control { padding: 2px; border-radius: 6px; }
-  .cov-label-row .seg-btn { padding: 2px 10px; font-size: 11px; border-radius: 4px; }
-  .cov-label { font-size: 11px; font-weight: 500; color: var(--muted); letter-spacing: 0.08em; }
+  .cov-label-row .seg-btn { padding: 2px 10px; font-size: var(--fs-micro); border-radius: 4px; }
+  .cov-label { font-size: var(--fs-micro); font-weight: var(--fw-medium); color: var(--muted); letter-spacing: 0.08em; }
   .cov-track { position: relative; height: 9px; margin: 0 4px; }
   .cov-track::before { content: ''; position: absolute; left: 0; right: 0; top: 50%; border-top: 1px dashed var(--border); }
   .cov-fill { position: absolute; left: 0; top: 50%; transform: translateY(-50%); width: 0; height: 3px; background: var(--verdigris); border-radius: 2px; transition: width 0.25s ease; }
@@ -684,9 +723,9 @@ tailwind.config = {
     background: var(--accent); border: 1.5px solid var(--card); box-shadow: 0 1px 3px var(--shadow);
     transform: translate(-50%, -50%) rotate(45deg); transition: left 0.25s ease;
   }
-  .cov-anchors { display: flex; justify-content: space-between; gap: 12px; margin-top: 8px; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
-  .cov-anchors span { font-weight: 500; color: var(--fg); opacity: 0.85; }
-  .cov-reading { text-align: center; margin-top: 10px; font-size: 13px; color: var(--muted); }
+  .cov-anchors { display: flex; justify-content: space-between; gap: 12px; margin-top: 8px; font-size: var(--fs-micro); color: var(--muted); font-variant-numeric: tabular-nums; }
+  .cov-anchors span { font-weight: var(--fw-medium); color: var(--fg); opacity: 0.85; }
+  .cov-reading { text-align: center; margin-top: 10px; font-size: var(--fs-body); color: var(--muted); }
   /* 读数行（所选标签的钱 ÷ 预期月消费）: 没有刻度可测, 故不沿用锚点两端对齐（中间空档会显得突兀）,
      整句公式居中呈现, 窄屏按顿读点换行 */
   .runway-line { display: flex; flex-wrap: wrap; justify-content: center; align-items: baseline; gap: 6px; margin-top: 0; }
@@ -694,12 +733,12 @@ tailwind.config = {
      hero 借报头同一支 display 字, 把「本月已花」抬成这张卡的读数主角（分母降级为小号）,
      百分比落在尺子右端作刻度读数——同一行里读数与尺子互为表里 */
   .pace-hero { display: flex; justify-content: center; align-items: baseline; gap: 10px; margin: 0 0 14px; }
-  .pace-hero #pace-num { font-family: 'Cormorant Garamond', 'Noto Serif SC', serif; font-weight: 500; font-size: clamp(26px, 4.4vw, 34px); line-height: 1; color: var(--fg); }
-  .pace-hero-div { font-size: 13px; color: var(--muted); }
-  .pace-hero #pace-expense { font-size: 14px; color: var(--muted); }
+  .pace-hero #pace-num { font-family: var(--font-numeric); font-weight: var(--fw-medium); font-size: clamp(26px, 4.4vw, 34px); line-height: 1; color: var(--fg); }
+  .pace-hero-div { font-size: var(--fs-body); color: var(--muted); }
+  .pace-hero #pace-expense { font-size: var(--fs-body); color: var(--muted); }
   .pace-meter { display: flex; align-items: center; gap: 12px; }
   .pace-meter .cov-track { flex: 1; }
-  .pace-pct { min-width: 3.8em; text-align: right; font-size: 12px; font-weight: 600; color: var(--accent-ink); }
+  .pace-pct { min-width: 3.8em; text-align: right; font-size: var(--fs-micro); font-weight: var(--fw-strong); color: var(--accent-ink); }
   @media (prefers-reduced-motion: reduce) { .cov-fill, .cov-marker { transition: none; } }
   /* 快照对比：每行变动量条（账本刻度语言, 一眼看出谁推动了净值变化） */
   .cmp-bar-track { height: 3px; border-radius: 2px; background: var(--bg-2); margin-top: 4px; overflow: hidden; }
@@ -710,20 +749,25 @@ tailwind.config = {
   }
 
   /* 卡片内标题层级: 卡片主标题 / 弹窗内分组标题各一档（原为逐处内联 17px/15px） */
-  .card-title { font-family: 'Noto Serif SC', serif; font-size: 17px; font-weight: 700; letter-spacing: -0.005em; }
-  .card-title-sm { font-family: 'Noto Serif SC', serif; font-size: 15px; font-weight: 700; }
+  .card-title { font-family: var(--font-display); font-size: var(--fs-card); font-weight: var(--fw-bold); letter-spacing: -0.005em; }
+  .card-title-sm { font-family: var(--font-display); font-size: var(--fs-card-sm); font-weight: var(--fw-bold); }
   /* 卡片主读数: 收益摘要 / 对比弹窗 hero 同一种大字（原为内联 30px 与 36px 两种） */
-  .hero-figure { font-size: 32px; line-height: 1.1; font-weight: 500; }
+  .hero-figure { font-size: var(--fs-hero); line-height: 1.1; font-weight: var(--fw-medium); }
 
   /* ===== Section headers (eyebrow + title) =====
      布局（左标题组 / 右操作区、窄屏换行）归 CSS: 原先每处复制一遍类串, 还漏过一处 */
   .section-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
-  .section-head h2 { font-size: 20px; font-weight: 700; letter-spacing: -0.005em; }
-  .section-head .eyebrow {
-    font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 0.22em;
-    text-transform: uppercase; color: var(--muted); margin-bottom: 4px; display: block;
+  .section-head h2 { font-size: var(--fs-section); font-weight: var(--fw-bold); letter-spacing: -0.005em; }
+  /* 眉标（eyebrow）: 全站同一支——品牌副标、区块眉标、报头眉标共用，
+     字号/字距/大写/颜色只此一处（原品牌副标单独写了一套 0.2em + Tailwind tracking 类） */
+  .eyebrow, .section-head .eyebrow {
+    font-family: var(--font-body); font-size: var(--fs-micro); letter-spacing: 0.22em;
+    text-transform: uppercase; color: var(--muted); display: block;
   }
-  .section-head .sub { font-size: 13px; color: var(--muted); margin-top: 2px; }
+  .section-head .eyebrow { margin-bottom: 4px; }
+  /* 品牌题名：与区块标题同档，字距单独收紧（-0.005em 与 .card-title/.section-head h2 同源） */
+  .brand-title { font-family: var(--font-display); font-size: var(--fs-section); font-weight: var(--fw-bold); letter-spacing: -0.005em; line-height: 1; }
+  .section-head .sub { font-size: var(--fs-body); color: var(--muted); margin-top: 2px; }
 </style>
 </head>
 <body class="min-h-screen">
@@ -744,8 +788,8 @@ tailwind.config = {
           <path d="M10.5 10.5v3M10.5 10.5h3M21.5 10.5v3M21.5 10.5h-3M10.5 21.5v-3M10.5 21.5h3M21.5 21.5v-3M21.5 21.5h-3" style="fill:none;stroke:var(--fg);stroke-width:1.8;stroke-linecap:round;"/>
         </svg>
         <div>
-          <h1 class="font-display text-lg font-bold tracking-tight leading-none">财富管理</h1>
-          <span class="text-[10px] tracking-[0.2em] uppercase muted">Private Ledger</span>
+          <h1 class="brand-title">财富管理</h1>
+          <span class="eyebrow">Private Ledger</span>
         </div>
       </div>
       <div class="seg-control">
@@ -879,7 +923,7 @@ tailwind.config = {
     </div>
     <div class="card mb-6">
       <div id="history-chart" style="width:100%; height:420px;"></div>
-      <p class="text-xs mt-2 muted">点击柱中色块，可展开该月该标签的构成明细</p>
+      <p class="t-micro mt-2 muted">点击柱中色块，可展开该月该标签的构成明细</p>
       <div id="history-empty" class="empty-state" style="display:none;">
         <div class="empty-rule"></div>
         <p class="empty-title">还没有月度快照</p>
@@ -927,14 +971,14 @@ tailwind.config = {
           <p id="income-cash-monthly" class="font-masthead tabular hero-figure ink-accent">¥0</p>
         </div>
       </div>
-      <div class="flex flex-wrap justify-center gap-x-6 gap-y-1 text-xs mt-3 pt-3 muted" style="border-top:1px dashed var(--rule);">
-        <span>年 <span id="income-annual" class="tabular font-medium text-value">¥0</span></span>
-        <span>日 <span id="income-daily" class="tabular font-medium text-value">¥0</span></span>
-        <span>现金占比 <span id="income-cash-share" class="tabular font-medium ink-accent">—</span></span>
+      <div class="flex flex-wrap justify-center gap-x-6 gap-y-1 t-micro mt-3 pt-3 muted" style="border-top:1px dashed var(--rule);">
+        <span>年 <span id="income-annual" class="tabular t-medium text-value">¥0</span></span>
+        <span>日 <span id="income-daily" class="tabular t-medium text-value">¥0</span></span>
+        <span>现金占比 <span id="income-cash-share" class="tabular t-medium ink-accent">—</span></span>
       </div>
       <!-- 覆盖标尺: 未设预期消费时显示邀请, 已设则显示覆盖标尺（骨架静态存在, JS 只同步宽度与文案,
            保证安全边际滑块拖动时填充/菱形以过渡动画伸缩） -->
-      <div id="cov-invite" class="text-xs text-center mt-3 pt-3 muted" style="display:none;border-top:1px dashed var(--rule);">
+      <div id="cov-invite" class="t-micro text-center mt-3 pt-3 muted" style="display:none;border-top:1px dashed var(--rule);">
         设定预期月消费，看看收益能否覆盖日常开销<button type="button" onclick="openExpectationModal()" class="btn-ghost btn-xs ml-2">设定</button>
       </div>
       <div id="cov-section" class="cov-section" style="display:none;">
@@ -959,15 +1003,15 @@ tailwind.config = {
         </div>
         <p class="cov-reading" id="cov-reading"></p>
       </div>
-      <p id="income-summary-footer" class="text-xs text-center mt-2 muted"></p>
+      <p id="income-summary-footer" class="t-micro text-center mt-2 muted"></p>
     </div>
     <div id="income-table-container" class="card" style="display:none;">
       <div id="income-rows"></div>
-      <p id="income-table-note" class="text-xs mt-3 muted" style="display:none;"></p>
+      <p id="income-table-note" class="t-micro mt-3 muted" style="display:none;"></p>
     </div>
     <div id="income-chart-container" class="card mt-6" style="display:none;">
       <div class="flex items-center justify-between mb-4">
-        <h3 class="font-display text-sm font-bold">收益分布</h3>
+        <h3 class="font-display t-body t-bold">收益分布</h3>
         <div class="flex items-center gap-3">
           <div class="seg-control">
             <button id="income-chart-mode-cash" onclick="setIncomeChartMode('cash')" class="seg-btn active">现金收益</button>
@@ -995,7 +1039,7 @@ tailwind.config = {
         <div class="flex items-center gap-3">
           <span class="search-wrap">
             <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><line x1="10.5" y1="10.5" x2="14" y2="14"/></svg>
-            <input type="text" id="expense-search" placeholder="搜索备注 / 标签 / 分类" class="text-sm" autocomplete="off" oninput="renderExpenses()" onkeydown="if(event.key==='Escape')clearExpenseSearch()">
+            <input type="text" id="expense-search" placeholder="搜索备注 / 标签 / 分类" class="t-body" autocomplete="off" oninput="renderExpenses()" onkeydown="if(event.key==='Escape')clearExpenseSearch()">
             <button type="button" id="expense-search-clear" class="search-clear" onclick="clearExpenseSearch()" tabindex="-1" aria-label="清除搜索" style="display:none;">×</button>
           </span>
           <select id="expense-month-filter" onchange="renderExpenses()" class="select-field"></select>
@@ -1087,7 +1131,7 @@ tailwind.config = {
       </div>
       <div class="card mb-6">
         <div id="expense-trend-chart" style="width:100%; height:420px;"></div>
-        <p class="text-xs mt-2 muted">点击柱中色块，可展开该月该标签的构成明细</p>
+        <p class="t-micro mt-2 muted">点击柱中色块，可展开该月该标签的构成明细</p>
         <div id="expense-trend-empty" class="empty-state" style="display:none;">
           <div class="empty-rule"></div>
           <p class="empty-title">还没有消费记录</p>
@@ -1123,7 +1167,7 @@ tailwind.config = {
            公式直呈现, 骨架静态存在, JS 只同步文案; **全局**预期月消费未设时整张卡不显示（入口即上方「预期消费」按钮,
            卡内没有入口无从填起, 故卡内自定值不放行） -->
       <div id="runway-card" class="card mb-6" style="display:none;">
-        <p id="runway-guide" class="text-xs text-center muted" style="display:none;">
+        <p id="runway-guide" class="t-micro text-center muted" style="display:none;">
           选几个标签、填月消费，看看这些钱能撑几个月<button type="button" onclick="openRunwayModal()" class="btn-ghost btn-xs ml-2">标签与月消费</button>
         </p>
         <p class="cov-reading runway-line" id="runway-reading" style="display:none;">
@@ -1162,7 +1206,7 @@ tailwind.config = {
       <label class="meta-label muted">起始月
         <select id="compare-base-select" onchange="renderCompareTable()" class="select-field ml-2"></select>
       </label>
-      <span class="text-sm muted">→</span>
+      <span class="t-body muted">→</span>
       <label class="meta-label muted">结束月
         <select id="compare-target-select" onchange="renderCompareTable()" class="select-field ml-2"></select>
       </label>
@@ -1172,9 +1216,9 @@ tailwind.config = {
         <span class="masthead-eyebrow">总净值变动</span>
         <p id="compare-hero" class="font-masthead tabular hero-figure">—</p>
       </div>
-      <p id="compare-context" class="text-xs text-right muted" style="padding-bottom:6px;"></p>
+      <p id="compare-context" class="t-micro text-right muted" style="padding-bottom:6px;"></p>
     </div>
-    <p class="text-xs mb-2 muted">金额按各快照当时汇率折算为 CNY</p>
+    <p class="t-micro mb-2 muted">金额按各快照当时汇率折算为 CNY</p>
     <div id="compare-detail-content" style="overflow-x:auto;"></div>
     <div class="modal-footer">
       <button type="button" onclick="closeModal('compare-modal')" class="btn-ghost">关闭</button>
@@ -1190,7 +1234,7 @@ tailwind.config = {
       <label class="meta-label muted">起始月
         <select id="exp-compare-base-select" onchange="renderExpenseCompareTable()" class="select-field ml-2"></select>
       </label>
-      <span class="text-sm muted">→</span>
+      <span class="t-body muted">→</span>
       <label class="meta-label muted">结束月
         <select id="exp-compare-target-select" onchange="renderExpenseCompareTable()" class="select-field ml-2"></select>
       </label>
@@ -1203,9 +1247,9 @@ tailwind.config = {
         <span class="masthead-eyebrow">总消费变动</span>
         <p id="exp-compare-hero" class="font-masthead tabular hero-figure">—</p>
       </div>
-      <p id="exp-compare-context" class="text-xs text-right muted" style="padding-bottom:6px;"></p>
+      <p id="exp-compare-context" class="t-micro text-right muted" style="padding-bottom:6px;"></p>
     </div>
-    <p class="text-xs mb-2 muted">按所选维度逐标签拆分，金额单位为 CNY</p>
+    <p class="t-micro mb-2 muted">按所选维度逐标签拆分，金额单位为 CNY</p>
     <div id="exp-compare-detail-content" style="overflow-x:auto;"></div>
     <div class="modal-footer">
       <button type="button" onclick="closeModal('expense-compare-modal')" class="btn-ghost">关闭</button>
@@ -1217,7 +1261,7 @@ tailwind.config = {
 <div id="snapshot-note-modal" class="modal-overlay" role="dialog" aria-modal="true" style="display:none;">
   <div class="modal-content modal-sm">
     <h3 class="font-display modal-title">记录快照</h3>
-    <p class="text-sm mb-4 muted">将保存当前所有资产数据</p>
+    <p class="t-body mb-4 muted">将保存当前所有资产数据</p>
     <input type="text" id="snapshot-note-input" class="w-full" placeholder="备注（可选）" autofocus onkeydown="if(event.key==='Enter')confirmSnapshot()">
     <div class="modal-footer">
       <button type="button" onclick="closeModal('snapshot-note-modal')" class="btn-ghost">取消</button>
@@ -1272,7 +1316,7 @@ tailwind.config = {
             <button type="button" onclick="setCashRatioPreset(100)" class="btn-ghost btn-sm">全额现金</button>
             <button type="button" onclick="setCashRatioPreset(0)" class="btn-ghost btn-sm">纯增值</button>
           </div>
-          <p class="text-xs mt-1.5 muted">预期收益中来自股息 / 利息 / 租金等现金流的比例。存款、债券拉满；股票按分红占比估。</p>
+          <p class="t-micro mt-1.5 muted">预期收益中来自股息 / 利息 / 租金等现金流的比例。存款、债券拉满；股票按分红占比估。</p>
         </div>
         <div id="asset-tags-section" class="space-y-3"></div>
       </div>
@@ -1314,16 +1358,16 @@ tailwind.config = {
     <h3 class="font-display modal-title">备份与导入</h3>
     <div class="space-y-5">
       <div>
-        <p class="text-sm mb-3 muted">导出当前所有数据为 JSON 文件</p>
+        <p class="t-body mb-3 muted">导出当前所有数据为 JSON 文件</p>
         <button onclick="exportData()" class="btn-gold">导出数据</button>
-        <span id="backup-last-text" class="text-xs ml-3 muted"></span>
+        <span id="backup-last-text" class="t-micro ml-3 muted"></span>
       </div>
       <hr>
       <div>
-        <p class="text-sm mb-3 muted">从 JSON 文件导入数据（将覆盖当前数据）</p>
+        <p class="t-body mb-3 muted">从 JSON 文件导入数据（将覆盖当前数据）</p>
         <label for="import-file" class="btn-gold" style="display:inline-block; cursor:pointer;">选择文件</label>
         <input type="file" id="import-file" accept=".json" onchange="importData(event)" style="display:none;">
-        <span id="import-file-name" class="text-xs ml-3 muted"></span>
+        <span id="import-file-name" class="t-micro ml-3 muted"></span>
       </div>
     </div>
     <div class="modal-footer">
@@ -1336,7 +1380,7 @@ tailwind.config = {
 <div id="confirm-modal" class="modal-overlay" role="dialog" aria-modal="true" style="display:none;">
   <div class="modal-content modal-sm">
     <h3 class="font-display modal-title" id="confirm-title">确认操作</h3>
-    <p id="confirm-msg" class="text-sm muted"></p>
+    <p id="confirm-msg" class="t-body muted"></p>
     <div class="modal-footer">
       <button type="button" onclick="confirmCancel()" class="btn-ghost">取消</button>
       <button type="button" id="confirm-ok-btn" class="btn-danger">确认</button>
@@ -1401,9 +1445,9 @@ tailwind.config = {
 <div id="tagcheck-modal" class="modal-overlay" role="dialog" aria-modal="true" style="display:none;">
   <div class="modal-content modal-lg">
     <h3 class="font-display modal-title">数据校验</h3>
-    <p class="text-sm mb-5 muted">下面这些记录在某个分类下还没有标签。组内顶部可一键补齐，也可以在每条记录上逐个点选，点一下即保存。</p>
+    <p class="t-body mb-5 muted">下面这些记录在某个分类下还没有标签。组内顶部可一键补齐，也可以在每条记录上逐个点选，点一下即保存。</p>
     <div id="tagcheck-groups" class="space-y-5" onclick="onTagCheckPick(event)"></div>
-    <p id="tagcheck-empty" class="text-sm muted" style="display:none;">全部记录都已归类。</p>
+    <p id="tagcheck-empty" class="t-body muted" style="display:none;">全部记录都已归类。</p>
     <div class="modal-footer">
       <button type="button" onclick="closeModal('tagcheck-modal')" class="btn-gold">完成</button>
     </div>
@@ -1414,7 +1458,7 @@ tailwind.config = {
 <div id="expectation-modal" class="modal-overlay" role="dialog" aria-modal="true" style="display:none;">
   <div class="modal-content modal-sm">
     <h3 class="font-display modal-title">预期消费</h3>
-    <p class="text-sm mb-4 muted">在消费趋势图中显示为水平参考线，收起部分类别后可对比每月合计</p>
+    <p class="t-body mb-4 muted">在消费趋势图中显示为水平参考线，收起部分类别后可对比每月合计</p>
     <input type="text" id="expectation-input" inputmode="decimal" class="w-full" placeholder="预期月消费 (CNY)" oninput="formatMoneyInput(this)" autocomplete="off" onkeydown="if(event.key==='Enter')saveExpectation()">
     <div class="modal-footer">
       <button type="button" onclick="clearExpectation()" class="btn-danger btn-sm">清除</button>
@@ -1438,7 +1482,7 @@ tailwind.config = {
       <input type="text" id="runway-expectation" inputmode="decimal" class="w-full" placeholder="月消费 (CNY)" oninput="formatMoneyInput(this); renderRunwayPreview();" onkeydown="if(event.key==='Enter' && !event.isComposing)saveRunwayTags()" autocomplete="off">
       <button type="button" onclick="useDefaultRunwayExpectation()" class="btn-ghost btn-sm">默认</button>
     </div>
-    <p id="runway-preview" class="text-sm text-center mt-4 muted" style="border-top:1px dashed var(--rule);padding-top:12px;"></p>
+    <p id="runway-preview" class="t-body text-center mt-4 muted" style="border-top:1px dashed var(--rule);padding-top:12px;"></p>
     <div class="modal-footer">
       <button type="button" onclick="closeModal('runway-modal')" class="btn-ghost">取消</button>
       <button type="button" onclick="saveRunwayTags()" class="btn-gold">保存</button>
@@ -1450,7 +1494,7 @@ tailwind.config = {
 <div id="target-modal" class="modal-overlay" role="dialog" aria-modal="true" style="display:none;">
   <div class="modal-content modal-sm">
     <h3 class="font-display modal-title">目标净资产</h3>
-    <p class="text-sm mb-4 muted">设置后资产页显示达成进度</p>
+    <p class="t-body mb-4 muted">设置后资产页显示达成进度</p>
     <input type="text" id="target-input" inputmode="decimal" class="w-full" placeholder="目标净资产 (CNY)" oninput="formatMoneyInput(this)" autocomplete="off" onkeydown="if(event.key==='Enter')saveTarget()">
     <div class="modal-footer">
       <button type="button" onclick="clearTarget()" class="btn-danger btn-sm">清除</button>
@@ -1767,14 +1811,14 @@ function renderAssets() {
       const cnyVal = toCNY(a.amount, a.currency);
       return `<div class="asset-row grid-wide" data-id="${esc(a.id)}">
         <div class="drag-handle" title="拖动排序" draggable="true" ondragstart="onAssetDragStart(event)" ondragend="onAssetDragEnd(event)">⠿</div>
-        <div class="font-medium text-sm">${esc(a.name)}</div>
-        <div class="font-mono text-sm tabular amount-cell" data-id="${esc(a.id)}" role="button" tabindex="0" title="点击快速更新金额" onclick="startInlineEdit('${jsAttr(a.id)}')" onkeydown="if(event.key==='Enter')startInlineEdit('${jsAttr(a.id)}')">
+        <div class="t-medium t-body">${esc(a.name)}</div>
+        <div class="t-body tabular amount-cell" data-id="${esc(a.id)}" role="button" tabindex="0" title="点击快速更新金额" onclick="startInlineEdit('${jsAttr(a.id)}')" onkeydown="if(event.key==='Enter')startInlineEdit('${jsAttr(a.id)}')">
           <svg class="edit-pencil" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 3l1 1-9 9-2.5.5.5-2.5L13 3z"/><path d="M10.7 5.3l1 1"/></svg>
           <span>${amountHtml(a)}</span>
         </div>
-        <div class="text-sm muted">${a.currency}</div>
-        <div class="font-mono text-xs tabular muted">${formatCNY(cnyVal)}</div>
-        <div class="text-sm tabular">${rateLabel}${cashTag}</div>
+        <div class="t-body muted">${a.currency}</div>
+        <div class="t-micro tabular muted">${formatCNY(cnyVal)}</div>
+        <div class="t-body tabular">${rateLabel}${cashTag}</div>
         <div class="flex flex-wrap gap-1">${tagHtml}</div>
         <div class="flex gap-2 justify-end">
           <button onclick="editAsset('${jsAttr(a.id)}')" class="row-btn edit">编辑</button>
@@ -1863,7 +1907,7 @@ function renderMasthead(total) {
       : `<span class="tabular ink-accent">还差 ${formatCNY(target - total)}</span>`;
     targetEl.innerHTML = `
       <div class="target-panel">
-        <div class="flex items-center justify-between text-xs mb-1.5 muted">
+        <div class="flex items-center justify-between t-micro mb-1.5 muted">
           <span>目标净资产 · <span class="tabular text-value">${pct.toFixed(0)}%</span></span>
           <span class="flex items-center gap-2">
             <span class="tabular text-value">${formatCNY(total)} / ${formatCNY(target)}</span>
@@ -1890,10 +1934,10 @@ function renderMasthead(total) {
     // 两口径合计单一来源（logic.js sumAssetIncomes, 与收益摘要/覆盖标尺共用）
     const { monthly, cashMonthly } = sumAssetIncomes(state.assets);
     if (expectation > 0) {
-      subText += ` · <span class="muted">预期月消费 <span class="tabular font-medium text-value">${formatCNY(expectation)}</span></span>`;
+      subText += ` · <span class="muted">预期月消费 <span class="tabular t-medium text-value">${formatCNY(expectation)}</span></span>`;
     }
-    subText += ` · <span>预估月收益 <span class="tabular font-medium ink-up">${formatCNY(monthly)}</span></span>`;
-    subText += ` · <span>现金收益 <span class="tabular font-medium ink-accent">${formatCNY(cashMonthly)}</span></span>`;
+    subText += ` · <span>预估月收益 <span class="tabular t-medium ink-up">${formatCNY(monthly)}</span></span>`;
+    subText += ` · <span>现金收益 <span class="tabular t-medium ink-accent">${formatCNY(cashMonthly)}</span></span>`;
   }
   subEl.innerHTML = subText;
 }
@@ -2387,18 +2431,9 @@ function buildSunburstOption(data, tooltipFormatter) {
 
 // 分类基础色（pill 配色）：每项含 bg/fg/border，fg 全部 ≥4.5:1。
 // 定义在 catColorImpl 之前，消除「const 后置引用」的 TDZ 隐患。
-const CATEGORY_COLORS = [
-  { bg: '#FFF1E6', fg: '#7E5023', border: '#F0D4B0' },  // terracotta
-  { bg: '#E8F5EC', fg: '#3D7A52', border: '#B8DFC4' },  // sage green
-  { bg: '#FFF8E1', fg: '#735B21', border: '#F0E0A8' },  // amber honey
-  { bg: '#FCE8EF', fg: '#A34D68', border: '#F0C0D0' },  // dusty rose
-  { bg: '#E8EEFA', fg: '#4A6099', border: '#B8C8E8' },  // soft cornflower
-  { bg: '#FFF0E0', fg: '#7C5631', border: '#F0D8B8' },  // warm caramel
-  { bg: '#E0F4F4', fg: '#2D6767', border: '#B0D8D8' },  // teal mist
-  { bg: '#F4E8F4', fg: '#7A5080', border: '#D8C0D8' },  // soft mauve
-  { bg: '#FBF3E0', fg: '#645123', border: '#E8D8A8' },  // golden wheat
-  { bg: '#FCE8E0', fg: '#8B4332', border: '#F0C8B8' },  // coral warmth
-];
+// CATEGORY_COLORS（分类 pill 基色）在 logic.js：它是「配色 × 插值点都达 AA」这条不变量的
+// 数据源，放 logic.js 才能被单测逐点校验（原在 index.html，曾在这里翻车：亮色插值
+// 把底色压深而字没跟着加深，实测最低 2.4:1）。
 
 // 分类 pill 配色：资产/消费共用同一套逻辑, 仅分类集合不同
 function catColorImpl(cats, catId, tagName) {
@@ -2493,7 +2528,7 @@ function renderCategoryCards(side) {
       <div class="flex items-center justify-between mb-3">
         <div class="flex items-center gap-2">
           <h3 class="card-title">${esc(cat.name)}</h3>
-          ${cat.builtin ? '<span class="text-xs px-2 py-0.5 rounded muted" style="background:var(--bg-2);border:1px solid var(--border);">内置</span>' : ''}
+          ${cat.builtin ? '<span class="t-micro px-2 py-0.5 rounded muted" style="background:var(--bg-2);border:1px solid var(--border);">内置</span>' : ''}
         </div>
         <div class="flex gap-2">
           ${!cat.builtin ? `<button onclick="${cfg.edit}('${jsAttr(cat.id)}')" class="row-btn edit">编辑</button>
@@ -2503,11 +2538,11 @@ function renderCategoryCards(side) {
       <div class="flex flex-wrap gap-2 mb-3">${tagPills}</div>
       ${cat.builtin ? '' : `
       <div class="flex gap-2">
-        <input type="text" id="${cfg.newTagPrefix}${cat.id}" placeholder="新增标签（回车添加）" class="text-sm flex-1" style="padding:6px 10px;" autocomplete="off" onkeydown="if(event.key==='Enter'&&!event.isComposing){event.preventDefault();${addTagCall};}">
+        <input type="text" id="${cfg.newTagPrefix}${cat.id}" placeholder="新增标签（回车添加）" class="t-body flex-1" style="padding:6px 10px;" autocomplete="off" onkeydown="if(event.key==='Enter'&&!event.isComposing){event.preventDefault();${addTagCall};}">
         <button onclick="${addTagCall}" class="btn-ghost btn-sm">添加</button>
       </div>`}
       ${gap ? `<div class="tagcheck-strip">
-        <span class="text-xs"><b class="font-mono ink-accent">${gap.items.length}</b> 条记录未归到本分类</span>
+        <span class="t-micro"><b class="ink-accent">${gap.items.length}</b> 条记录未归到本分类</span>
         <button type="button" class="row-btn edit" onclick="openTagCheck('${jsAttr(cat.id)}')">去校验</button>
       </div>` : ''}
     </div>`;
@@ -2769,7 +2804,7 @@ function renderHistoryHeader() {
   if (existing) {
     area.innerHTML = `
       <div class="flex items-center gap-2">
-        <span class="text-sm muted">
+        <span class="t-body muted">
           ${monthLabel(month)} 已记录 ✓
         </span>
         <button onclick="promptOverwrite()" class="btn-ghost btn-xs">覆盖更新</button>
@@ -2806,7 +2841,7 @@ function viewSnapshot(month) {
   // viewExpenseMonth 会把标题改成「月度消费明细」，这里重置回快照标题
   document.getElementById('snapshot-modal-title').textContent = '快照详情';
   document.getElementById('snapshot-detail-content').innerHTML = `
-    <p class="text-sm mb-4 muted">${monthLabel(snap.month)}${snap.note ? ' — ' + esc(snap.note) : ''} | 总净值: <strong>${formatCNY(snap.totalCNY)}</strong></p>
+    <p class="t-body mb-4 muted">${monthLabel(snap.month)}${snap.note ? ' — ' + esc(snap.note) : ''} | 总净值: <strong>${formatCNY(snap.totalCNY)}</strong></p>
     <div class="asset-row list-head">
       <div>名称</div><div>金额</div><div>货币</div><div>预期年化</div><div>标签</div>
     </div>
@@ -2817,10 +2852,10 @@ function viewSnapshot(month) {
       }).join(' ');
       const snapRateLabel = rateLabelText(a) || '<span class="muted hint-xs">未设置</span>';
       return `<div class="asset-row">
-        <div class="font-medium text-sm">${esc(a.name)}</div>
-        <div class="font-mono text-sm">${money2(a.amount)}</div>
-        <div class="text-sm muted">${a.currency}</div>
-        <div class="text-sm">${snapRateLabel}</div>
+        <div class="t-medium t-body">${esc(a.name)}</div>
+        <div class="t-body">${money2(a.amount)}</div>
+        <div class="t-body muted">${a.currency}</div>
+        <div class="t-body">${snapRateLabel}</div>
         <div class="flex flex-wrap gap-1">${tagHtml}</div>
       </div>`;
     }).join('')}
@@ -2846,17 +2881,17 @@ function viewHistorySegment(month, catId, tag) {
   const cols = 'cols-segment';
   document.getElementById('snapshot-modal-title').textContent = monthLabel(month) + ' · ' + tag + '构成';
   document.getElementById('snapshot-detail-content').innerHTML = `
-    <p class="text-sm mb-4 muted">${esc(cat.name)} › ${esc(tag)} | ${items.length} 项资产 | 合计 <strong>${formatCNY(segTotal)}</strong></p>
+    <p class="t-body mb-4 muted">${esc(cat.name)} › ${esc(tag)} | ${items.length} 项资产 | 合计 <strong>${formatCNY(segTotal)}</strong></p>
     <div class="asset-row list-head ${cols}">
       <div>名称</div><div>金额</div><div>货币</div><div>折算 CNY</div><div>占比</div>
     </div>
     ${items.map(a => `
       <div class="asset-row ${cols}">
-        <div class="font-medium text-sm">${esc(a.name)}</div>
-        <div class="font-mono text-sm">${money2(a.amount)}</div>
-        <div class="text-sm muted">${a.currency}</div>
-        <div class="font-mono text-sm">${formatCNY(a.cny)}</div>
-        <div class="font-mono text-sm muted">${pctStr(a.cny, segTotal)}%</div>
+        <div class="t-medium t-body">${esc(a.name)}</div>
+        <div class="t-body">${money2(a.amount)}</div>
+        <div class="t-body muted">${a.currency}</div>
+        <div class="t-body">${formatCNY(a.cny)}</div>
+        <div class="t-body muted">${pctStr(a.cny, segTotal)}%</div>
       </div>`).join('')}
   `;
   openModal('snapshot-modal');
@@ -2911,7 +2946,7 @@ function renderCompareTable() {
   });
 
   if (rows.length === 0) {
-    container.innerHTML = '<p class="text-center py-8 text-sm muted">两个月份均无资产记录</p>';
+    container.innerHTML = '<p class="text-center py-8 t-body muted">两个月份均无资产记录</p>';
     return;
   }
 
@@ -2930,11 +2965,11 @@ function renderCompareTable() {
       const pctCell = cmpPctCell(r.d, r.p, color);
       const bar = cmpBar(r.d, maxAbs, color);
       return `<div class="asset-row ${cols}">
-        <div class="font-medium text-sm flex items-center gap-2">${esc(r.name)}<span class="text-xs muted">${r.cur}</span>${badge}</div>
-        <div class="font-mono text-sm tabular${r.status === 'new' ? ' muted' : ''}">${r.av > 0 ? fmt(r.av) : '—'}</div>
-        <div class="font-mono text-sm tabular${r.status === 'gone' ? ' muted' : ''}">${r.bv > 0 ? fmt(r.bv) : '—'}</div>
-        <div class="text-sm" style="color:${color(r.d)};">
-          <div class="font-mono tabular">${r.d === 0 ? '±0' : `${s}${fmt(r.d)}`}</div>
+        <div class="t-medium t-body flex items-center gap-2">${esc(r.name)}<span class="t-micro muted">${r.cur}</span>${badge}</div>
+        <div class="t-body tabular${r.status === 'new' ? ' muted' : ''}">${r.av > 0 ? fmt(r.av) : '—'}</div>
+        <div class="t-body tabular${r.status === 'gone' ? ' muted' : ''}">${r.bv > 0 ? fmt(r.bv) : '—'}</div>
+        <div class="t-body" style="color:${color(r.d)};">
+          <div class="tabular">${r.d === 0 ? '±0' : `${s}${fmt(r.d)}`}</div>
           ${bar}
         </div>
         ${pctCell}
@@ -3141,10 +3176,10 @@ function renderHistoryTab() {
     return `<div class="card card-interactive flex items-center justify-between">
       <div class="flex-1" onclick="viewSnapshot('${jsAttr(s.month)}')">
         <div class="flex items-center gap-2">
-          <span class="font-medium text-sm">${monthLabel(s.month)}</span>
+          <span class="t-medium t-body">${monthLabel(s.month)}</span>
           ${badge}
         </div>
-        <div class="text-xs mt-0.5 muted">${esc(s.note) || '无备注'} · ${formatCNY(s.totalCNY)} · ${(s.assets || []).length} 项资产${diffLine ? ' · ' + diffLine : ''}</div>
+        <div class="t-micro mt-0.5 muted">${esc(s.note) || '无备注'} · ${formatCNY(s.totalCNY)} · ${(s.assets || []).length} 项资产${diffLine ? ' · ' + diffLine : ''}</div>
       </div>
       <button onclick="deleteSnapshot('${jsAttr(s.month)}')" class="row-btn danger">删除</button>
     </div>`;
@@ -3344,7 +3379,7 @@ function renderRunwayTagGroups() {
   // 内置货币分类照样列出: 币种本身就是合法的筛法（只看 HKD 能撑多久）, 且与其它分类是「且」关系
   const cats = state.categories.filter(c => c && Array.isArray(c.tags));
   if (cats.length === 0) {
-    box.innerHTML = '<p class="text-sm muted">先去「分类管理」建一个资产分类和标签。</p>';
+    box.innerHTML = '<p class="t-body muted">先去「分类管理」建一个资产分类和标签。</p>';
     return;
   }
   box.innerHTML = cats.map(cat => {
@@ -3481,13 +3516,13 @@ function renderIncomeTab() {
       const rateLabel = rateLabelText(a, 1) || '<span class="muted">未设置</span>';
       const cashPct = cashRatioPct(a);
       return `<div class="${rowClass}">
-        <div class="font-medium text-sm">${esc(a.name)}</div>
-        <div class="font-mono text-sm">${money2(inc.cny)}</div>
-        <div class="text-sm">${rateLabel}</div>
-        <div class="text-sm tabular">${hasRate ? cashPct + '%' : '-'}</div>
-        <div class="font-mono text-sm">${hasRate ? formatCNY(inc.annual) : '-'}</div>
-        <div class="font-mono text-sm">${hasRate ? formatCNY(inc.monthly) : '-'}</div>
-        <div class="font-mono text-sm ink-accent">${hasRate ? formatCNY(inc.cashMonthly) : '-'}</div>
+        <div class="t-medium t-body">${esc(a.name)}</div>
+        <div class="t-body">${money2(inc.cny)}</div>
+        <div class="t-body">${rateLabel}</div>
+        <div class="t-body tabular">${hasRate ? cashPct + '%' : '-'}</div>
+        <div class="t-body">${hasRate ? formatCNY(inc.annual) : '-'}</div>
+        <div class="t-body">${hasRate ? formatCNY(inc.monthly) : '-'}</div>
+        <div class="t-body ink-accent">${hasRate ? formatCNY(inc.cashMonthly) : '-'}</div>
       </div>`;
     }).join('')
   ].join('');
@@ -4053,9 +4088,9 @@ function renderExpenses() {
         return tagVal ? tagPillHtml(cat, tagVal, expenseCatColor, { keyHtml: highlightMatch(cat.name, q), valHtml: highlightMatch(tagVal, q) }) : '';
       }).join(' ');
       return `<div class="asset-row cols-expenses">
-        <div class="font-mono text-sm">${highlightMatch(e.date, q)}</div>
-        <div class="font-mono text-sm">${money2(e.amount)}</div>
-        <div class="text-sm muted">${e.note ? highlightMatch(e.note, q) : '—'}</div>
+        <div class="t-body">${highlightMatch(e.date, q)}</div>
+        <div class="t-body">${money2(e.amount)}</div>
+        <div class="t-body muted">${e.note ? highlightMatch(e.note, q) : '—'}</div>
         <div class="flex flex-wrap gap-1">${tagHtml}</div>
         <div class="flex gap-2 justify-end">
           <button onclick="editExpense('${jsAttr(e.id)}')" class="row-btn edit">编辑</button>
@@ -4075,7 +4110,7 @@ function renderExpenses() {
   if (q) parts.push('匹配');
   const totalLabel = parts.length ? parts.join(' ') : '合计';
   document.getElementById('expense-total-line').innerHTML =
-    `${totalLabel} · <span class="tabular font-medium ink-accent">${formatCNY(total)}</span> · ${filtered.length} 笔`;
+    `${totalLabel} · <span class="tabular t-medium ink-accent">${formatCNY(total)}</span> · ${filtered.length} 笔`;
 
   // 数据校验条跟随记录/分类变化（全局口径，不随列表筛选缩小）
   renderTagCheckBar();
@@ -4231,7 +4266,7 @@ function renderTagCheckBar() {
   const total = groups.reduce((s, g) => s + g.items.length, 0);
   bar.style.display = '';
   bar.querySelector('.tagcheck-text').innerHTML =
-    `<b class="font-mono ink-accent">${total}</b> 条记录分类不完整 · 缺 ${groups.map(g => `「${esc(g.name)}」`).join('')}`;
+    `<b class="ink-accent">${total}</b> 条记录分类不完整 · 缺 ${groups.map(g => `「${esc(g.name)}」`).join('')}`;
 }
 
 // 分组卡片：头部计数/✓徽章 + 一键补齐 chips + 逐条记录行（均复用 tagPickerHtml）
@@ -4244,13 +4279,13 @@ function tagCheckGroupHtml(g) {
   const vals = [...new Set(items.map(e => (e.tags && e.tags[g.catId]) || ''))];
   const batchSel = vals.length === 1 && vals[0] ? vals[0] : '';
   const head = left.length
-    ? `<span class="text-xs muted"><b class="font-mono">${left.length}</b> / ${items.length} 条待归类</span>`
+    ? `<span class="t-micro muted"><b>${left.length}</b> / ${items.length} 条待归类</span>`
     : `<span class="mo-badge up">✓ 已补齐 ${items.length} 条</span>`;
   const rows = items.map(e => `<div class="tagcheck-row" data-eid="${esc(e.id)}">
       <div class="tagcheck-meta">
-        <span class="font-mono text-xs muted">${esc((e.date || '').slice(5))}</span>
-        <span class="text-sm tagcheck-note">${e.note ? esc(e.note) : '<span class="muted">（无备注）</span>'}</span>
-        <span class="font-mono text-sm tabular">${money2(e.amount)}</span>
+        <span class="t-micro muted">${esc((e.date || '').slice(5))}</span>
+        <span class="t-body tagcheck-note">${e.note ? esc(e.note) : '<span class="muted">（无备注）</span>'}</span>
+        <span class="t-body tabular">${money2(e.amount)}</span>
       </div>
       <div>${tagPickerHtml([cat], () => (e.tags && e.tags[g.catId]) || '', `tagcheck-r-${e.id}-`, expenseCatColor, { hideLabel: true })}</div>
     </div>`).join('');
@@ -4261,10 +4296,10 @@ function tagCheckGroupHtml(g) {
         <h4 class="card-title-sm">${esc(cat.name)}</h4>
         ${head}
       </div>
-      ${left.length ? '<span class="text-xs muted">点标签即生效</span>' : ''}
+      ${left.length ? '<span class="t-micro muted">点标签即生效</span>' : ''}
     </div>
     <div class="tagcheck-batch flex items-center gap-2 flex-wrap mb-1">
-      <span class="text-xs muted">一键补齐：</span>
+      <span class="t-micro muted">一键补齐：</span>
       ${tagPickerHtml([cat], () => batchSel, `tagcheck-b-${g.catId}-`, expenseCatColor, { hideLabel: true })}
     </div>
     <div>${rows}</div>
@@ -4620,10 +4655,10 @@ function renderExpenseTrendList() {
     return `<div class="card card-interactive flex items-center justify-between">
       <div class="flex-1" onclick="viewExpenseMonth('${jsAttr(month)}')">
         <div class="flex items-center gap-2">
-          <span class="font-medium text-sm">${monthLabel(month)}</span>
+          <span class="t-medium t-body">${monthLabel(month)}</span>
           ${badge}
         </div>
-        <div class="text-xs mt-0.5 muted">${formatCNY(total)} · ${count} 条消费记录${diffLine ? ' · ' + diffLine : ''}</div>
+        <div class="t-micro mt-0.5 muted">${formatCNY(total)} · ${count} 条消费记录${diffLine ? ' · ' + diffLine : ''}</div>
       </div>
     </div>`;
   }).join('');
@@ -4674,7 +4709,7 @@ function renderExpenseCompareTable() {
   });
 
   if (rows.length === 0) {
-    container.innerHTML = '<p class="text-center py-8 text-sm muted">该维度下暂无标签</p>';
+    container.innerHTML = '<p class="text-center py-8 t-body muted">该维度下暂无标签</p>';
     return;
   }
 
@@ -4691,11 +4726,11 @@ function renderExpenseCompareTable() {
       const pctCell = cmpPctCell(r.d, r.p, color);
       const bar = cmpBar(r.d, maxAbs, color);
       return `<div class="asset-row ${cols}">
-        <div class="font-medium text-sm flex items-center gap-2">${tagPillHtml(cat, r.tag, expenseCatColor, { showKey: false })}</div>
-        <div class="font-mono text-sm tabular">${fmt(r.av)}</div>
-        <div class="font-mono text-sm tabular">${fmt(r.bv)}</div>
-        <div class="text-sm" style="color:${color(r.d)};">
-          <div class="font-mono tabular">${r.d === 0 ? '±0' : `${s}${fmt(r.d)}`}</div>
+        <div class="t-medium t-body flex items-center gap-2">${tagPillHtml(cat, r.tag, expenseCatColor, { showKey: false })}</div>
+        <div class="t-body tabular">${fmt(r.av)}</div>
+        <div class="t-body tabular">${fmt(r.bv)}</div>
+        <div class="t-body" style="color:${color(r.d)};">
+          <div class="tabular">${r.d === 0 ? '±0' : `${s}${fmt(r.d)}`}</div>
           ${bar}
         </div>
         ${pctCell}
@@ -4709,7 +4744,7 @@ function viewExpenseMonth(month) {
   const total = expenses.reduce((s, e) => s + e.amount, 0);
   document.getElementById('snapshot-modal-title').textContent = '月度消费明细';
   document.getElementById('snapshot-detail-content').innerHTML = `
-    <p class="text-sm mb-4 muted">${monthLabel(month)} | 总消费: <strong>${formatCNY(total)}</strong> · ${expenses.length} 笔记录</p>
+    <p class="t-body mb-4 muted">${monthLabel(month)} | 总消费: <strong>${formatCNY(total)}</strong> · ${expenses.length} 笔记录</p>
     <div class="asset-row list-head cols-expense-month">
       <div>日期</div><div>金额</div><div>备注</div><div>标签</div>
     </div>
@@ -4719,9 +4754,9 @@ function viewExpenseMonth(month) {
         return tagVal ? tagPillHtml(cat, tagVal, expenseCatColor) : '';
       }).join(' ');
       return `<div class="asset-row cols-expense-month">
-        <div class="font-mono text-sm">${e.date}</div>
-        <div class="font-mono text-sm">${money2(e.amount)}</div>
-        <div class="text-sm muted">${e.note ? esc(e.note) : '—'}</div>
+        <div class="t-body">${e.date}</div>
+        <div class="t-body">${money2(e.amount)}</div>
+        <div class="t-body muted">${e.note ? esc(e.note) : '—'}</div>
         <div class="flex flex-wrap gap-1">${tagHtml}</div>
       </div>`;
     }).join('')}
@@ -4740,16 +4775,16 @@ function viewExpenseSegment(month, catId, tag) {
   const cols = 'cols-expense-segment';
   document.getElementById('snapshot-modal-title').textContent = monthLabel(month) + ' · ' + tag + '构成';
   document.getElementById('snapshot-detail-content').innerHTML = `
-    <p class="text-sm mb-4 muted">${esc(cat.name)} › ${esc(tag)} | ${items.length} 笔记录 | 合计 <strong>${formatCNY(segTotal)}</strong></p>
+    <p class="t-body mb-4 muted">${esc(cat.name)} › ${esc(tag)} | ${items.length} 笔记录 | 合计 <strong>${formatCNY(segTotal)}</strong></p>
     <div class="asset-row list-head ${cols}">
       <div>日期</div><div>金额</div><div>占比</div><div>备注</div>
     </div>
     ${items.map(e => `
       <div class="asset-row ${cols}">
-        <div class="font-mono text-sm">${e.date}</div>
-        <div class="font-mono text-sm">${money2(e.amount)}</div>
-        <div class="font-mono text-sm muted">${pctStr(e.amount, segTotal)}%</div>
-        <div class="text-sm muted">${e.note ? esc(e.note) : '—'}</div>
+        <div class="t-body">${e.date}</div>
+        <div class="t-body">${money2(e.amount)}</div>
+        <div class="t-body muted">${pctStr(e.amount, segTotal)}%</div>
+        <div class="t-body muted">${e.note ? esc(e.note) : '—'}</div>
       </div>`).join('')}
   `;
   openModal('snapshot-modal');

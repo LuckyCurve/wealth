@@ -436,6 +436,67 @@ describe('颜色数学', () => {
   });
 });
 
+// ========== 分类 pill 可读性：对比度不达标就是「看不清」 ==========
+// 曾出现的真实缺陷：亮色分支按色相公式重算底/字，t=1 时底色被压深到 70% 明度而字只有
+// 38%，实测对比 2.4:1 —— 标签 pill 是资产/消费列表里信息密度最高的元素，用户第一眼
+// 就看它。口径：pillColors 的每个插值点 + 基色本身，亮/暗两套都必须达 WCAG AA（4.5:1）。
+describe('分类 pill 配色对比度（AA 4.5:1，亮/暗 × 每个插值点）', () => {
+  // 测试专用：WCAG 相对亮度与对比度（不进 logic.js——生产代码没有这个需求）
+  const lum = (hex) => {
+    const s = hex.replace('#', '');
+    const c = [0, 2, 4].map((i) => parseInt(s.slice(i, i + 2), 16) / 255)
+      .map((v) => (v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4)));
+    return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+  };
+  const ratio = (a, b) => {
+    const x = lum(a), y = lum(b);
+    return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
+  };
+
+  test('CATEGORY_COLORS 是十组 {bg,fg,border}（pill 与图表共用同一份数据源）', () => {
+    assert.ok(Array.isArray(L.CATEGORY_COLORS), 'CATEGORY_COLORS 应从 logic.js 导出');
+    assert.strictEqual(L.CATEGORY_COLORS.length, 10);
+    for (const c of L.CATEGORY_COLORS) {
+      assert.match(c.bg, /^#[0-9a-f]{6}$/i);
+      assert.match(c.fg, /^#[0-9a-f]{6}$/i);
+      assert.match(c.border, /^#[0-9a-f]{6}$/i);
+    }
+  });
+
+  test('亮色：基色 + 每个插值点都达 AA', () => {
+    const bad = [];
+    for (const base of L.CATEGORY_COLORS) {
+      const r0 = ratio(base.fg, base.bg);
+      if (r0 < 4.5) bad.push(`基色 ${base.bg}→${base.fg} = ${r0.toFixed(2)}`);
+      for (const t of [0, 0.25, 0.5, 0.75, 1]) {
+        const c = L.pillColors(base, t, false);
+        const r = ratio(c.fg, c.bg);
+        if (r < 4.5) bad.push(`亮色 t=${t} ${c.bg}→${c.fg} = ${r.toFixed(2)}`);
+      }
+    }
+    assert.deepStrictEqual(bad, []);
+  });
+
+  test('暗色：基色 + 每个插值点都达 AA', () => {
+    const bad = [];
+    for (const base of L.CATEGORY_COLORS) {
+      for (const t of [0, 0.25, 0.5, 0.75, 1]) {
+        const c = L.pillColors(base, t, true);
+        const r = ratio(c.fg, c.bg);
+        if (r < 4.5) bad.push(`暗色 t=${t} ${c.bg}→${c.fg} = ${r.toFixed(2)}`);
+      }
+    }
+    assert.deepStrictEqual(bad, []);
+  });
+
+  test('插值仍有区分度：t=0 与 t=1 底色不同（序数可辨）', () => {
+    for (const base of L.CATEGORY_COLORS) {
+      assert.notStrictEqual(L.pillColors(base, 0, false).bg, L.pillColors(base, 1, false).bg);
+      assert.notStrictEqual(L.pillColors(base, 0, true).bg, L.pillColors(base, 1, true).bg);
+    }
+  });
+});
+
 // ========== 图表数据构造（旭日图 / 占比）==========
 describe('图表数据构造 buildSunburstData / pctStr / percentSeriesData', () => {
   const cat = { id: 'c1', name: '分类', tags: ['T1', 'T2', 'T3'] };

@@ -29,9 +29,9 @@ const KNOWN_HARDCODED = new Set([
   'rgb(220, 182, 180)',     // #dcb6b4  .btn-danger 描边（亮色）
   'rgb(90, 58, 57)',        // #5a3a39  .btn-danger 描边（暗色）
   'rgba(13, 11, 8, 0.5)',   // .modal-overlay 遮罩
-  // .mo-badge.up / .toast-success（亮/暗同值）
-  'rgb(232, 245, 236)',     // #e8f5ec  底（亮）
-  'rgb(61, 122, 82)',       // #3d7a52  字（亮）
+  // .mo-badge.up / .toast-success（亮/暗同值）——底色/字色与 sage green pill 基色
+  // （CATEGORY_COLORS[1]）同值，已归入 pill 调色板的允许集，故不再被巡检判为越界；
+  // 描边仍是清单项。注意这是个巧合耦合：pill 基色一改，这两项会重新被点亮。
   'rgb(184, 223, 196)',     // #b8dfc4  描边（亮）
   'rgb(28, 42, 32)',        // #1c2a20  底（暗）
   'rgb(45, 68, 53)',        // #2d4435  描边（暗）

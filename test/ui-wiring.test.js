@@ -732,12 +732,15 @@ describe('UI 接线契约：堆叠柱标签排序单一来源', () => {
   });
 });
 
-describe('UI 接线契约：颜色常量定义顺序', () => {
-  test('CATEGORY_COLORS 先于 catColorImpl 定义，消除 const TDZ 隐患', () => {
-    const def = html.indexOf('const CATEGORY_COLORS =');
-    const use = html.indexOf('function catColorImpl(');
-    assert.ok(def >= 0 && use >= 0, '两处都存在');
-    assert.ok(def < use, 'CATEGORY_COLORS 应在使用它的 catColorImpl 之前定义');
+describe('UI 接线契约：分类调色板单一来源', () => {
+  test('CATEGORY_COLORS 单一来源在 logic.js（index.html 不得再定义一份）', () => {
+    // 它曾定义在 index.html：于是「配色 × 插值点都达 AA」这条不变量无法被单测逐点校验，
+    // 亮色插值把底色压深而字没跟着加深的缺陷就是这么漏过去的（实测最低 2.4:1）。
+    assert.strictEqual(count(/const CATEGORY_COLORS =/g), 0, 'index.html 不再定义调色板');
+    assert.ok(count(/CATEGORY_COLORS\[idx/g) >= 1, 'catColorImpl 仍按 idx 取基色（引用 logic.js 的那份）');
+    const logic = fs.readFileSync(path.join(__dirname, '..', 'logic.js'), 'utf8');
+    assert.match(logic, /const CATEGORY_COLORS = \[/, 'logic.js 定义 CATEGORY_COLORS');
+    assert.match(logic, /pillColors, basePill, CATEGORY_COLORS/, '并从 logic.js 导出');
   });
 });
 
@@ -1148,6 +1151,99 @@ describe('UI 接线契约：主题与表单校验的防回潮', () => {
 });
 
 /*
+ * 排版单一来源：字号/字重/字体族只此一处定义，页面不再写 Tailwind 排版工具类。
+ * --------------------------------------------------------------------------
+ * 为什么管这件事：Tailwind 走 CDN 且 E2E 里是空壳（window.tailwind = {}），写进工具类的
+ * 规格既不可测、又会与自有档位漂移——曾经 10/11/12/13px 四档小字并存、同一处说明在弹窗里
+ * 13px 在表格里 12px，用户观感就是「字大小不一、又小又浅」。收敛后：文字只两档字号
+ * （12 微操作 / 14 正文）+ 三档字重，层级靠颜色与字重区分，不再靠 1px 差。
+ */
+describe('UI 接线契约：排版档位单一来源（字号/字重/字体族）', () => {
+  test('字号档位类存在且引用变量（页面不写裸字号）', () => {
+    assert.match(html, /\n  \.t-micro \{ font-size: var\(--fs-micro\); \}/, '.t-micro = 12px 微操作档');
+    assert.match(html, /\n  \.t-body \{ font-size: var\(--fs-body\); \}/, '.t-body = 14px 正文档');
+    assert.match(html, /\n  \.t-medium \{ font-weight: var\(--fw-medium\); \}/, '.t-medium = 500');
+    assert.match(html, /\n  \.t-bold \{ font-weight: var\(--fw-bold\); \}/, '.t-bold = 700');
+    // 强调档（600）不设档位类：只在行内读数出现，由 strong/b 与语义类承担，
+    // 预设一个空转的 .t-strong 是死代码（曾有，0 个使用者）
+    assert.match(html, /\n  strong, b \{ font-weight: var\(--fw-strong\); \}/, '行内强调走设计字重 600（非 UA 700）');
+    assert.strictEqual(count(/\n  \.t-strong \{/g), 0, '不留空转的强调档位类');
+  });
+
+  test('排版 token 定义在合并选择器上（与主题无关，不重复进两套主题块）', () => {
+    const rule = html.match(/\n  :root, :root\.dark \{[^}]*\}/);
+    assert.ok(rule, '排版 token 集中在 :root, :root.dark（与明暗无关）');
+    for (const v of ['--fs-micro', '--fs-body', '--fw-medium', '--fw-strong', '--fw-bold',
+      '--font-body', '--font-display', '--font-numeric']) {
+      assert.match(rule[0], new RegExp(`${v}:`), `${v} 只定义一次`);
+    }
+  });
+
+  test('字体族单一来源：--font-body 含 CJK 回落，页面不再重复写字面量栈', () => {
+    const rule = html.match(/--font-body: ([^;]+);/);
+    assert.ok(rule, '--font-body 已定义');
+    // 中文必须显式回落屏幕黑体：不写这一层，CJK 会落到 monospace 的宋体兜底，笔画极细
+    assert.match(rule[1], /'PingFang SC'/, 'macOS 黑体兜底');
+    assert.match(rule[1], /'Microsoft YaHei'/, 'Windows 黑体兜底');
+    assert.match(rule[1], /'Noto Sans SC'/, 'Linux/其他黑体兜底');
+    assert.strictEqual(count(/font-family: 'IBM Plex Mono', monospace/g), 0,
+      '等宽栈不再逐处重复，一律走 var(--font-body)');
+    assert.strictEqual(count(/font-family: 'Noto Serif SC', serif/g), 0,
+      '展示栈不再逐处重复，一律走 var(--font-display)');
+  });
+
+  test('Tailwind 不再承载排版规格（字号/字重/字体族/字距工具类清零）', () => {
+    // 规格写进 CDN 工具类的后果：E2E 里是空壳看不见、真机里又和自有档位各算一套
+    for (const cls of ['text-xs', 'text-sm', 'text-lg', 'text-\\[10px\\]', 'font-medium', 'font-bold', 'font-mono',
+      'tracking-tight', 'tracking-\\[[^\\]]+\\]']) {
+      assert.strictEqual(count(new RegExp(`class="[^"]*\\b${cls}\\b`, 'g')), 0,
+        `${cls} 应替换为自有档位类 / 角色类`);
+    }
+    // Tailwind 配置里的 fontFamily 同样撤掉：字体族只在 <style> 定义一次
+    assert.strictEqual(count(/fontFamily: \{/g), 0, 'Tailwind config 不再声明 fontFamily');
+  });
+
+  test('小字档收敛到 12px 下限：不再有 10/11px 文字', () => {
+    assert.strictEqual(count(/font-size: 10px/g), 0, '10px 档废除');
+    assert.strictEqual(count(/font-size: 11px/g), 0, '11px 档废除');
+    assert.strictEqual(count(/font-size: 13px/g), 0, '13px 并入 14px 正文档');
+    assert.match(html, /\n  \.hint-xs \{ font-size: var\(--fs-micro\); \}/, '.hint-xs 归到 12px 档');
+  });
+
+  test('正文基准提到 14px/字重 500（原 13px/400，观感就是小且浅）', () => {
+    assert.match(html, /\n  body \{[^}]*font-size: var\(--fs-body\)/, 'body 字号 14px');
+    assert.match(html, /\n  body \{[^}]*font-weight: var\(--fw-medium\)/, 'body 字重 500');
+    assert.match(html, /--fs-micro: 12px/, '微操作档 12px');
+    assert.match(html, /--fs-body: 14px/, '正文档 14px');
+  });
+
+  test('暗色 muted 在卡面上达 AA（曾只有 4.47:1）', () => {
+    const dark = html.match(/\n  :root\.dark \{([\s\S]*?)\n  \}/)[1];
+    const muted = dark.match(/--muted: (#[0-9a-f]{6})/)[1];
+    const card2 = dark.match(/--card-2: (#[0-9a-f]{6})/)[1];
+    const card = dark.match(/--card: (#[0-9a-f]{6})/)[1];
+    const bg = dark.match(/--bg: (#[0-9a-f]{6})/)[1];
+    const lum = (hex) => {
+      const s = hex.slice(1);
+      const c = [0, 2, 4].map((i) => parseInt(s.slice(i, i + 2), 16) / 255)
+        .map((v) => (v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4)));
+      return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+    };
+    const ratio = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+    for (const [name, surface] of [['--bg', bg], ['--card', card], ['--card-2', card2]]) {
+      assert.ok(ratio(muted, surface) >= 4.5, `暗色 muted 在 ${name} 上仅 ${ratio(muted, surface).toFixed(2)}:1`);
+    }
+  });
+
+  test('标签 pill 不再用 opacity 压淡文字（0.55 时实测仅 1.6:1）', () => {
+    const key = html.match(/\n  \.tag-pill \.tag-key \{[^}]*\}/)[0];
+    assert.ok(!/opacity:/.test(key), '.tag-key 不用 opacity 压淡，层级靠字重');
+    const btn = html.match(/\n  \.tag-pill button \{[^}]*\}/)[0];
+    assert.ok(!/opacity:/.test(btn), 'pill 内 ✕ 不用 opacity 压淡（它是个真控件）');
+  });
+});
+
+/*
  * 版式一致性：同类结构必须共用同一套 class，页面不得再内联重复样式。
  * --------------------------------------------------------------------------
  * 单文件 SPA 没有组件可复用，同类结构（章节头、表格、按钮、弹窗页脚、字段标签…）
@@ -1244,14 +1340,14 @@ describe('UI 接线契约：卡片内读数与标题的层级（同一角色同�
     const rule = html.match(/\n  \.hero-figure \{[^}]*\}/);
     assert.ok(rule, '.hero-figure 规则存在');
     assert.match(rule[0], /font-size:/, '字号只此一处');
-    assert.match(rule[0], /font-weight:\s*500/);
+    assert.match(rule[0], /font-weight: var\(--fw-medium\)/, '主读数字重走 token 档位');
   });
 
   test('卡片标题统一 .card-title / .card-title-sm（不再内联 font-size:17px/15px）', () => {
     assert.strictEqual(count(/style="[^"]*font-size:1[57]px/g), 0,
       '卡片标题字号应走 .card-title / .card-title-sm');
-    assert.match(html, /\n  \.card-title \{[^}]*font-size: 17px/);
-    assert.match(html, /\n  \.card-title-sm \{[^}]*font-size: 15px/);
+    assert.match(html, /\n  \.card-title \{[^}]*font-size: var\(--fs-card\)/, '卡片标题字号走 token');
+    assert.match(html, /\n  \.card-title-sm \{[^}]*font-size: var\(--fs-card-sm\)/, '卡片小标题字号走 token');
   });
 });
 
@@ -1269,7 +1365,7 @@ describe('UI 接线契约：弹窗尺寸与筛选控件的档位', () => {
     // 8 个工具条/图表筛选下拉 + 5 个对比弹窗下拉
     assert.strictEqual(count(/class="select-field/g), 13, '13 个筛选下拉都挂同一类');
     assert.strictEqual(count(/class="select-field ml-2"/g), 5, '弹窗内下拉用既有 ml-2 工具类控制左间距');
-    assert.match(html, /<input[^>]*id="expense-search"[^>]*class="text-sm"/, '搜索框不再带内联宽度');
+    assert.match(html, /<input[^>]*id="expense-search"[^>]*class="t-body"/, '搜索框不再带内联宽度');
     assert.match(html, /\n  \.select-field \{ min-width: 160px; \}/, '下拉宽度只此一处');
     assert.match(html, /\n  \.search-wrap input \{[^}]*min-width: 180px/, '搜索框宽度只此一处');
   });
@@ -1290,7 +1386,7 @@ describe('UI 接线契约：文字色角色的单一来源', () => {
 
   test('未设置利率的小字注记统一 .hint-xs（不再内联 font-size:11px）', () => {
     assert.strictEqual(count(/style="[^"]*font-size:11px/g), 0, '小字注记应走 .hint-xs');
-    assert.match(html, /\n  \.hint-xs \{ font-size: 11px; \}/);
+    assert.match(html, /\n  \.hint-xs \{ font-size: var\(--fs-micro\); \}/);
   });
 });
 
@@ -1309,6 +1405,6 @@ describe('UI 接线契约：收益/读数文字色的角色类补齐', () => {
     // 读数卡里的加粗数值（标签钱数 / 月数）共用同一档
     assert.strictEqual(count(/style="font-weight:600;color:var\(--fg\);"/g), 0, '加粗读数走 .readout-strong');
     assert.strictEqual(count(/style="font-weight:600;color:var\(--accent-ink\);"/g), 0, '加粗金墨读数走 .readout-strong.ink-accent');
-    assert.match(html, /\n  \.readout-strong \{ font-weight: 600; \}/);
+    assert.match(html, /\n  \.readout-strong \{ font-weight: var\(--fw-strong\); \}/);
   });
 });
