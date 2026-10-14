@@ -9,7 +9,24 @@
  * 判据统一为「同类元素的计算样式集合大小 == 1」，集合里直接打印越界值，失败信息可读。
  * 与主题巡检（theme.spec.js）同思路：不写死期望值，从页面自身求值。
  */
-const { test, expect, visitAllTabs } = require('./fixtures');
+const { test, expect, visitAllTabs, sampleState, seed, waitReady, stubCdn } = require('./fixtures');
+
+/**
+ * 本文件要按「指定存档」打开页面（fixtures 只导出工厂，组合放在这里）。
+ * seed 只在首次导航生效，故每次 openWith 都用新 page，不会互相污染。
+ */
+async function openWith(page, state) {
+  await stubCdn(page);
+  await seed(page, state);
+  await page.goto('index.html');
+  await waitReady(page);
+}
+
+/** 跳到资产侧指定 Tab（与 app.spec.js 的 gotoAssetsTab 同动作） */
+async function gotoAssetsTab(page, tab = 'assets') {
+  await page.locator('#mode-assets').click();
+  await page.locator(`#tabs-assets .tab-btn[data-tab="${tab}"]`).click();
+}
 
 /** 收集当前 DOM 里同类元素的指定计算样式，返回去重后的列表（>1 即为不一致） */
 const uniqStyles = (page, selector, props) =>
@@ -261,6 +278,65 @@ test.describe('版式一致性：排版档位在真实浏览器里唯一', () =>
  * 并存，而暖色卡面上黄色系的亮度最低，肉眼就是「发白」。CSS 注释本意是「虚线空栏 = 待选，
  * 实心盖印 = 已选」——分类色只该出现在承载「已选」语义的那个状态上。
  */
+/*
+ * 分布图总数：切右上角筛选后，卡片上方要显示「当前这一筛」的合计。
+ * 用户原话：「现在我可以看到经过右上角筛选后的各个部分，但是没有一个总数」。
+ * 关键口径：随筛选联动（不能是全局值），且与旭日图扇区同源。
+ */
+test.describe('分布图总数：随筛选联动且与扇区同源', () => {
+  test('资产分布：总数与 tooltip 分毋同口径（百分比能对得上）', async ({ appPage: page }) => {
+    await gotoAssetsTab(page, 'chart');
+    await expect(page.locator('#chart-total')).toBeVisible();
+
+    // sampleState 三笔资产：CNY 50,000 + 80,000；HKD 50,000 → 50,000 / 0.92 = 54,347.83
+    const ALL = '¥184,347.83';
+    await page.selectOption('#chart-category-select', 'cat-type');
+    await expect(page.locator('#chart-total')).toHaveText(ALL);
+    // 与报头净资产同口径（该维度只含已归类资产时两者相等）
+    await expect(page.locator('#masthead-whole')).toHaveText('184,347');
+
+    // 未归类的资产：仍计入总数（否则扇区百分比之和对不上显示的合计 —— 单测曾因此漏过
+    // 一版口径分裂），也计入净资产，于是两个数仍相等
+    await page.evaluate(() => {
+      state.assets.push({ id: 'a-x', name: '未归类', amount: 9999, currency: 'CNY', tags: {}, expectedRateMin: 0, expectedRateMax: 0, cashRatio: 100 });
+      renderChart();
+      renderMasthead(totalAssetsCNY());
+    });
+    await expect(page.locator('#chart-total'), '未归类资产也计入总数（与分毋同源）').toHaveText('¥194,346.83');
+    await expect(page.locator('#masthead-whole')).toHaveText('194,346');
+  });
+
+  test('消费分布：切月份时总数跟着变，切维度不变', async ({ appPage: page }) => {
+    await page.locator('#tabs-expenses .tab-btn[data-tab="expense-chart"]').click();
+    await expect(page.locator('#expense-chart-total')).toBeVisible();
+
+    // 月份下拉默认取最近月份（与消费列表页的「全部时间」不同，是既有行为）
+    await expect(page.locator('#expense-chart-total')).toHaveText('¥42.00');
+
+    // 全部时间：88.5 + 3200 + 42 = 3,330.50
+    await page.selectOption('#expense-chart-month-select', '');
+    await expect(page.locator('#expense-chart-total')).toHaveText('¥3,330.50');
+
+    // 切到 2026-01：88.5 + 3200 = 3,288.50
+    await page.selectOption('#expense-chart-month-select', '2026-01');
+    await expect(page.locator('#expense-chart-total')).toHaveText('¥3,288.50');
+
+    // 同月份切维度（消费类型）：维度只改分组方式，不改总数
+    await page.selectOption('#expense-chart-category-select', 'ec-type');
+    await expect(page.locator('#expense-chart-total')).toHaveText('¥3,288.50');
+  });
+
+  test('空态时不显示总数（避免留一个孤零数字）', async ({ page }) => {
+    const s = sampleState();
+    s.categories.push({ id: 'cat-empty', name: '空维度', builtin: false, tags: ['甲', '乙'] });
+    await openWith(page, s);
+    await gotoAssetsTab(page, 'chart');
+    await page.selectOption('#chart-category-select', 'cat-empty');
+    await expect(page.locator('#chart-empty')).toBeVisible();
+    await expect(page.locator('#chart-total')).toBeHidden();
+  });
+});
+
 test.describe('可读性：平铺 chip 未选中态跨分类一致', () => {
   test('所有未选中 chip 的字色/描边完全相同（含浅色系分类），且不随分类变', async ({ appPage: page }) => {
     // 三个分类分别取到调色板的 0/1/2 号基色：terracotta(棕) / sage green(绿) / amber honey(黄)

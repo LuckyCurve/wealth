@@ -685,6 +685,14 @@ tailwind.config = {
   }
   .dark .masthead-amount { text-shadow: 0 1px 0 rgba(0, 0, 0, 0.6); }
   .masthead-sub { margin-top: 14px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; font-size: var(--fs-body); color: var(--muted); }
+  /* 分布图总数（资产/消费旭日图共用）：旭日图只给各部分占比，卡片上方补一个合计。
+     与扇区同源、随右上角筛选联动；字号沿用主读数档，颜色走 fg（不抢报头的主角）。 */
+  .chart-total {
+    margin: 0 0 14px; text-align: center;
+    font-family: var(--font-numeric); font-size: var(--fs-hero);
+    line-height: 1.1; font-weight: var(--fw-medium);
+    font-variant-numeric: tabular-nums; color: var(--fg);
+  }
   /* Tri-color composition rule: a literal ledger ruling, segments proportional to CNY/HKD/USD */
   .composition-rule { margin-top: 18px; display: flex; height: 5px; border-radius: 3px; overflow: hidden; gap: 2px; position: relative; }
   /* 25/50/75% 刻度墨线: 构成条本身即比例尺, 刻度给眼睛以测量参照 */
@@ -903,6 +911,7 @@ tailwind.config = {
       </select>
     </div>
     <div class="card">
+      <p class="chart-total" id="chart-total"></p>
       <div id="sunburst-chart" style="width:100%; height:520px;"></div>
       <div id="chart-empty" class="empty-state" style="display:none;">
         <div class="empty-rule"></div>
@@ -1111,6 +1120,7 @@ tailwind.config = {
         </div>
       </div>
       <div class="card">
+        <p class="chart-total" id="expense-chart-total"></p>
         <div id="expense-sunburst-chart" style="width:100%; height:520px;"></div>
         <div id="expense-chart-empty" class="empty-state" style="display:none;">
           <div class="empty-rule"></div>
@@ -2284,6 +2294,18 @@ function showChartOrEmpty(chartEl, emptyEl, show) {
   emptyEl.style.display = show ? 'none' : '';
 }
 
+// 分布图总数（资产/消费旭日图共用）：旭日图只给各部分占比，这里补一个「当前筛选」的合计。
+// 与 showChartOrEmpty 同判据——空态时一并收起，否则会留下一个孤零零的数字压在空态提示上。
+function renderChartTotal(el, value) {
+  if (!el) return;
+  el.textContent = formatCNY(value);
+  el.style.display = '';
+}
+
+function hideChartTotal(el) {
+  if (el) el.style.display = 'none';
+}
+
 function chartTheme() {
   const cs = getComputedStyle(document.documentElement);
   const v = n => (cs.getPropertyValue(n) || '').trim();
@@ -2471,7 +2493,7 @@ function rateLabelText(a, digits) {
 
 // 总资产折算 CNY（资产/收益/报头多处复用同一公式，集中避免漂移）
 function totalAssetsCNY() {
-  return state.assets.reduce((s, a) => s + toCNY(a.amount, a.currency), 0);
+  return sumAmountCNY(state.assets, state.rates);
 }
 
 // 统一的分类标签 pill 渲染（资产/消费/快照列表共用），避免六处重复的内联 HTML 漂移
@@ -2732,12 +2754,17 @@ function renderChart() {
 
   const chartEl = document.getElementById('sunburst-chart');
   const emptyEl = document.getElementById('chart-empty');
+  const totalEl = document.getElementById('chart-total');
 
-  if (state.assets.length === 0) { showChartOrEmpty(chartEl, emptyEl, false); return; }
+  if (state.assets.length === 0) {
+    showChartOrEmpty(chartEl, emptyEl, false);
+    hideChartTotal(totalEl);
+    return;
+  }
   showChartOrEmpty(chartEl, emptyEl, true);
 
   const cat = state.categories.find(c => c.id === catId);
-  if (!cat) return;
+  if (!cat) { hideChartTotal(totalEl); return; }
 
   // group assets by the selected category's tags
   const groups = {};
@@ -2750,14 +2777,21 @@ function renderChart() {
   const data = buildSunburstData(cat, groups, a => toCNY(a.amount, a.currency));
 
   // 所选维度下所有分组均为空（如新建分类后资产尚未分配标签）时显示空态, 避免空白画布
-  if (data.length === 0) { showChartOrEmpty(chartEl, emptyEl, false); return; }
+  if (data.length === 0) {
+    showChartOrEmpty(chartEl, emptyEl, false);
+    hideChartTotal(totalEl);
+    return;
+  }
+
+  // 总数 = 当前范围的合计，与 tooltip 百分比的分母**必须是同一个变量**：
+  // 曾一边显示「已归类合计」一边用「全局净资产」做分母，同一张卡上两个「总数」各算各的，
+  // 扇区百分比之和对不上显示的总数（口径分裂）
+  const totalCNY = totalAssetsCNY();
+  renderChartTotal(totalEl, totalCNY);
 
   if (!chart) {
     chart = echarts.init(chartEl);
   }
-
-  // compute total for percentage
-  const totalCNY = totalAssetsCNY();
 
   const th = chartTheme();
   chart.setOption(buildSunburstOption(data, p => sunburstTooltipContent(p, th, totalCNY)), true);
@@ -4398,17 +4432,22 @@ function renderExpenseChart() {
 
   const chartEl = document.getElementById('expense-sunburst-chart');
   const emptyEl = document.getElementById('expense-chart-empty');
+  const totalEl = document.getElementById('expense-chart-total');
 
   const filtered = monthFilter
     ? state.expenses.filter(e => e.date.slice(0, 7) === monthFilter)
     : state.expenses;
 
   // 无分类（select 无选项）或当月无数据时都显示空态，避免空白画布
-  if (!catId || filtered.length === 0) { showChartOrEmpty(chartEl, emptyEl, false); return; }
+  if (!catId || filtered.length === 0) {
+    showChartOrEmpty(chartEl, emptyEl, false);
+    hideChartTotal(totalEl);
+    return;
+  }
   showChartOrEmpty(chartEl, emptyEl, true);
 
   const cat = state.expenseCategories.find(c => c.id === catId);
-  if (!cat) return;
+  if (!cat) { hideChartTotal(totalEl); return; }
 
   const groups = {};
   cat.tags.forEach(t => { groups[t] = []; });
@@ -4422,12 +4461,19 @@ function renderExpenseChart() {
     }
   });
 
-  const total = filtered.reduce((s, e) => s + e.amount, 0);
+  // 与资产侧同一个纯函数（消费金额本身是 CNY，汇率按 1 折算）——两页不得各 reduce 一遍
+  const total = sumAmountCNY(filtered, null);
 
   const data = buildSunburstData(cat, groups, c => c.value);
 
   // 所选维度下所有分组均为空（如新建分类后消费尚未分配标签）时显示空态, 避免空白画布
-  if (data.length === 0) { showChartOrEmpty(chartEl, emptyEl, false); return; }
+  if (data.length === 0) {
+    showChartOrEmpty(chartEl, emptyEl, false);
+    hideChartTotal(totalEl);
+    return;
+  }
+
+  renderChartTotal(totalEl, total);
 
   if (!expenseChart) {
     expenseChart = echarts.init(chartEl);

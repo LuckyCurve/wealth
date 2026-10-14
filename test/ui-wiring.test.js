@@ -1436,3 +1436,62 @@ describe('UI 接线契约：收益/读数文字色的角色类补齐', () => {
     assert.match(html, /\n  \.readout-strong \{ font-weight: var\(--fw-strong\); \}/);
   });
 });
+
+/*
+ * 分布图总数：资产/消费旭日图卡片上方的合计数。
+ * --------------------------------------------------------------------------
+ * 旭日图只给各部分占比，切右上角筛选后看不出「当前这一筛到底多少」——用户原话
+ * 「现在我可以看到经过右上角筛选后的各个部分，但是没有一个总数」。
+ * 口径必须两页一致：显示的总数与 tooltip 分毋是同一个变量，不得一个「已归类合计」
+ * 一个「全局净值」（单测曾就是这么漏过一版口径分裂的）。
+ */
+describe('UI 接线契约：分布图总数（与扇区同源，随筛选联动）', () => {
+  test('两个分布页都有总数容器，且图表卡片内只有这一处合计', () => {
+    assert.match(html, /<p class="chart-total" id="chart-total"/, '资产分布有总数容器');
+    assert.match(html, /<p class="chart-total" id="expense-chart-total"/, '消费分布有总数容器');
+    assert.strictEqual(count(/class="chart-total"/g), 2, '两个分布页各一处，不铺开到其它图表');
+  });
+
+  test('两侧都调 logic.js 的 sumAmountCNY（不各写一遍 reduce）', () => {
+    const expenseSrc = fnSource('renderExpenseChart');
+    // 旧写法：消费分布自己 reduce 合计（与扇区口径分家）
+    assert.ok(!/filtered\.reduce\(/.test(expenseSrc), '消费分布不得再自己 reduce 合计');
+    assert.match(expenseSrc, /sumAmountCNY\(/, '消费分布走同一纯函数');
+    // 报头净资产也委托同一纯函数：不得再自写一遍 reduce
+    assert.match(fnSource('totalAssetsCNY'), /sumAmountCNY\(/, '净资产合计与分布总数同源');
+    // 总数渲染收在同一 helper，避免两处 DOM 副作用漂移
+    assert.match(fnSource('renderChart'), /renderChartTotal\(/);
+    assert.match(expenseSrc, /renderChartTotal\(/);
+  });
+
+  test('显示的总数与 tooltip 百分比分母是同一个变量（曾两套口径各算各的）', () => {
+    // 曾一边显示「已归类合计」、一边用「全局净资产」做分母：同一张卡上两个总数，
+    // 扇区百分比之和对不上显示的总数（口径分裂）。这里钉死「只用同一个 total 变量」。
+    for (const fn of ['renderChart', 'renderExpenseChart']) {
+      const src = fnSource(fn);
+      // 取金额变量，不是 DOM 元素变量（totalEl = document.getElementById(...) 要先排除）
+      const decl = src.match(/const (\w*[Tt]otal\w*) = (?!document\.)[^;]+;/);
+      assert.ok(decl, `${fn} 应有一个金额合计变量（实测 ${JSON.stringify(src.slice(0, 60))}）`);
+      const name = decl[1];
+      assert.match(src, new RegExp(`renderChartTotal\\(\\w+, ${name}\\)`), `${fn}: 显示的总数用该变量`);
+      assert.match(src, new RegExp(`sunburstTooltipContent\\(p, th, ${name}\\)`), `${fn}: tooltip 分毋用同一个变量`);
+    }
+  });
+
+  test('空态时不显示总数（与图表空态同一判据）', () => {
+    // 每一条「提前退出/空态」路径都必须收起总数，否则会留一个孤零数字压在空态提示上。
+    // 不逐一对齐 showChartOrEmpty 的次数：!cat 这类守卫也是早退路径，同样得收起。
+    for (const fn of ['renderChart', 'renderExpenseChart']) {
+      const src = fnSource(fn);
+      const emptyBranches = src.match(/showChartOrEmpty\([^)]*false\)/g) || [];
+      assert.ok(emptyBranches.length >= 2, `${fn} 有空态分支（实测 ${emptyBranches.length}）`);
+      // 每个 showChartOrEmpty(..., false) 所在行之后紧跟一次收起（同一分支里）
+      for (const line of emptyBranches) {
+        const idx = src.indexOf(line);
+        assert.match(src.slice(idx, idx + 200), /hideChartTotal\(/, `${fn} 的空态分支里应收起总数`);
+      }
+      // 显示分支（true）必须先于收起出现，否则收起会盖掉刚写上的值
+      assert.match(src, /renderChartTotal\(/, `${fn} 应有显示总数的路径`);
+    }
+  });
+});

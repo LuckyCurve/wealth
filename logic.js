@@ -957,6 +957,18 @@
       : { msg: '汇率获取失败', type: 'error' };
   }
 
+  // ========== 金额合计（按显式汇率表折算为 CNY）==========
+  // 分布图卡片上方的总数用它：旭日图只给各部分占比，用户看不到「当前筛选下到底多少」。
+  // 为什么要显式传汇率表：消费侧金额恒为 CNY（无 currency 字段 → 按 1 充底），资产侧要按
+  // 当前汇率折；同一个函数两页共用，不得各 reduce 一遍（那必然漂移）。
+  // 脏数据（NaN / Infinity / 字符串金额）不污染总数：界面上的总数必须始终能显示。
+  function sumAmountCNY(items, rates) {
+    return (items || []).reduce((s, it) => {
+      const v = amountAtRates(it && it.amount, it && it.currency, rates);
+      return s + (Number.isFinite(v) ? v : 0);
+    }, 0);
+  }
+
   return {
     toCNY, formatCNY, money2,
     addMonths, getCurrentMonth, getLocalDateStr, getLocalMonthStr, monthLabel,
@@ -975,6 +987,6 @@
     esc, escRegExp, highlightMatch, moneyStr, jsAttr,
     truncateLabel,
     hexToRgba, hexToHsl, hslToHex, pillColors, basePill, CATEGORY_COLORS,
-    CATEGORY_PALETTE, buildSunburstData, pctStr, percentSeriesData, pruneLegendSelected, sortTagsByTotal, amountAtRates,
+    CATEGORY_PALETTE, buildSunburstData, pctStr, percentSeriesData, pruneLegendSelected, sortTagsByTotal, amountAtRates, sumAmountCNY,
   };
 });

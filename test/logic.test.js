@@ -1697,3 +1697,56 @@ describe('本月预算口径单一来源（monthExpenseTotal 与 monthlyExpenseT
     assert.strictEqual(L.monthExpenseTotal(null, '2026-10'), 0);
   });
 });
+
+describe('sumAmountCNY（金额合计：分布图总数与报头净资产共用一个口径）', () => {
+  const RATES = { CNY: 1, HKD: 0.92, USD: 7.24 };
+
+  test('按各自汇率折算后求和（与 toCNY 同口径，不再二次取倒）', () => {
+    const assets = [
+      { amount: 100, currency: 'CNY' },
+      { amount: 100, currency: 'HKD' },   // 100 × 0.92 = 92
+      { amount: 10, currency: 'USD' },    // 10 × 7.24 = 72.4
+    ];
+    assert.strictEqual(L.sumAmountCNY(assets, RATES), 264.4);
+  });
+
+  test('与 toCNY 逐项折算等价（同一口径，不二次取倒）', () => {
+    const assets = [
+      { id: 'a', amount: 1234.5, currency: 'CNY', tags: {} },
+      { id: 'b', amount: 88, currency: 'USD', tags: {} },
+      { id: 'c', amount: 250, currency: 'HKD', tags: {} },
+    ];
+    globalThis.state = { ...freshState(), rates: { ...RATES }, assets };
+    // 拿 toCNY（全站唯一的单币种折算口）做参照：逐项折后相加应相等。
+    // 不同步复刻 totalAssetsCNY 的公式——那本身就是待防的重复实现；
+    // 「report 净资产与这里同源」由 ui-wiring 的接线断言把守。
+    const expected = assets.reduce((s, a) => s + L.toCNY(a.amount, a.currency), 0);
+    assert.strictEqual(L.sumAmountCNY(assets, RATES), expected);
+  });
+
+  test('边界：空数组 / null / 缺失 rates / 非有限金额', () => {
+    assert.strictEqual(L.sumAmountCNY([], RATES), 0);
+    assert.strictEqual(L.sumAmountCNY(null, RATES), 0);
+    assert.strictEqual(L.sumAmountCNY(undefined, undefined), 0);
+    // 无 rates 时按 1:1 兜底（与 amountAtRates 一致，不抛错、不出 NaN）
+    assert.strictEqual(L.sumAmountCNY([{ amount: 50, currency: 'HKD' }], null), 50);
+    // 脏数据（NaN / Infinity / 字符串金额）不污染总数
+    const dirty = L.sumAmountCNY([
+      { amount: NaN, currency: 'CNY' },
+      { amount: Infinity, currency: 'CNY' },
+      { amount: '30', currency: 'CNY' },
+    ], RATES);
+    assert.ok(Number.isFinite(dirty), '总数必须是有限数');
+    assert.strictEqual(dirty, 30);
+  });
+
+  test('只累加传入的集合（当前筛选范围），不吃全局值', () => {
+    const all = [
+      { amount: 1000, currency: 'CNY' },
+      { amount: 500, currency: 'CNY' },
+    ];
+    const subset = all.filter(a => a.amount === 500);
+    assert.strictEqual(L.sumAmountCNY(all, RATES), 1500);
+    assert.strictEqual(L.sumAmountCNY(subset, RATES), 500);
+  });
+});
