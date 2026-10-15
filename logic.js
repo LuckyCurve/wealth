@@ -247,6 +247,35 @@
     return n;
   }
 
+  // ========== 标签改名的引用迁移 ==========
+  // 在分类编辑框里把「活期现金」改成「现金类」，旧名已不在标签列表里——若按「无效引用」清理，
+  // 资产/消费上的归类会被静默清空（分布图与读数卡随之失真）。改名必须**迁移引用**，
+  // 只有真正被移除的标签才走删除路径。
+  // 只迁移恰好命中「同分类 + 同名」的引用，返回迁移条数（供 UI 提示）。
+  function migrateTagRefs(items, catId, from, to) {
+    let n = 0;
+    (items || []).forEach(it => {
+      if (!it || !it.tags || typeof it.tags !== 'object') return;
+      if (it.tags[catId] !== from) return;
+      it.tags[catId] = to;
+      n++;
+    });
+    return n;
+  }
+
+  // 读数卡所选标签同样按「分类 + 名字」引用，改名须一并迁移，否则 pruneRunwayTags
+  // 会把用户选好的标签当成陈旧引用清掉（选择凭空消失）。不改入参，返回新数组。
+  function migrateRunwayTagRefs(runwayTags, catId, from, to) {
+    return (runwayTags || []).map(r =>
+      r && r.catId === catId && r.tag === from ? { catId: r.catId, tag: to } : r);
+  }
+
+  // 统计有多少条记录引用了这些（即将被移除的）标签值：删除标签前告知用户的单一来源
+  function countTagRefs(items, catId, tagValues) {
+    const set = new Set(tagValues || []);
+    return (items || []).filter(it => it && it.tags && set.has(it.tags[catId])).length;
+  }
+
   // ========== 收益测算（依赖 incomeMode / state）==========
   function getAssetRate(a, mode) {
     mode = mode || incomeMode;
@@ -978,6 +1007,7 @@
     nextSortState, nextTabIndex, inlineEditKeyAction, expenseMonths,
     tagFilterValue, parseTagFilter, expenseTagFilterGroups, hasTagFilterOption,
     isUntaggedItem, missingTagGroups, setTag, backfillTag,
+    migrateTagRefs, migrateRunwayTagRefs, countTagRefs,
     monthExpenseTotal, daysInMonthOf, monthBudgetReading, monthBudgetNote,
     pruneRunwayTags, runwayLiquidCNY, runwayExpectationOf, runwayExpectationIsCustom, normalizeRunwayExpectationInput, runwayMonths, runwayMonthsText,
     findMonthSnapshot, getPrevSnapshot, defaultCompareBaseMonth,

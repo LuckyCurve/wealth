@@ -1291,6 +1291,57 @@ describe('pruneRunwayTags（标签引用归一/清理：迁移与分类 CRUD 共
   });
 });
 
+describe('标签改名（引用迁移，不是删除重建）', () => {
+  // 分类/标签列表里把「活期现金」改成「现金类」，旧名已不在列表里——若按「无效引用」清理，
+  // 资产/消费上的归类会被静默清空（分布图与读数卡随之失真）。改名必须迁移引用。
+  test('migrateTagRefs 只迁移同分类同名的引用，返回迁移条数', () => {
+    const items = [
+      { tags: { c1: '活期现金', c2: '低风险' } },
+      { tags: { c1: '权益基金' } },
+      { tags: { c1: '活期现金' } },
+    ];
+    assert.strictEqual(L.migrateTagRefs(items, 'c1', '活期现金', '现金类'), 2);
+    assert.deepStrictEqual(items.map((i) => i.tags.c1), ['现金类', '权益基金', '现金类']);
+    assert.strictEqual(items[0].tags.c2, '低风险', '其它分类的引用不受影响');
+  });
+
+  test('migrateTagRefs 容错：非数组 / 空项 / 无 tags，均不崩且不计入', () => {
+    assert.strictEqual(L.migrateTagRefs(null, 'c1', 'a', 'b'), 0);
+    assert.strictEqual(L.migrateTagRefs(undefined, 'c1', 'a', 'b'), 0);
+    assert.strictEqual(L.migrateTagRefs([null, 'x', {}, { tags: null }, { tags: 'y' }], 'c1', 'a', 'b'), 0);
+  });
+
+  test('countTagRefs 统计引用这些标签值的记录数（删除前告知用）', () => {
+    const items = [{ tags: { c1: 'a' } }, { tags: { c1: 'b' } }, { tags: { c1: 'c' } }, {}, null];
+    assert.strictEqual(L.countTagRefs(items, 'c1', ['a', 'c']), 2);
+    assert.strictEqual(L.countTagRefs(items, 'c1', []), 0);
+    assert.strictEqual(L.countTagRefs(items, 'c9', ['a']), 0, '别的分类下同名不算');
+    assert.strictEqual(L.countTagRefs(null, 'c1', ['a']), 0);
+  });
+
+  test('migrateRunwayTagRefs 迁移读数卡所选标签（按分类 + 名字），不改入参', () => {
+    const refs = [
+      { catId: 'c1', tag: '活期现金' },
+      { catId: 'c2', tag: '活期现金' },
+      { catId: 'c1', tag: '定期存款' },
+    ];
+    assert.deepStrictEqual(L.migrateRunwayTagRefs(refs, 'c1', '活期现金', '现金类'), [
+      { catId: 'c1', tag: '现金类' },
+      { catId: 'c2', tag: '活期现金' },
+      { catId: 'c1', tag: '定期存款' },
+    ]);
+    assert.deepStrictEqual(refs[0], { catId: 'c1', tag: '活期现金' }, '不要就地改入参');
+    assert.deepStrictEqual(L.migrateRunwayTagRefs(null, 'c1', 'a', 'b'), []);
+    assert.deepStrictEqual(L.migrateRunwayTagRefs([null], 'c1', 'a', 'b'), [null], '畸形项原样保留（交给 prune 清理）');
+  });
+
+  test('改名 与 pruneRunwayTags 的组合：选择不被清空（改名先于清理的契约）', () => {
+    const cats = [{ id: 'c1', name: '资产类型', tags: ['现金类', '权益基金'] }];
+    const renamed = L.migrateRunwayTagRefs([{ catId: 'c1', tag: '活期现金' }], 'c1', '活期现金', '现金类');
+    assert.deepStrictEqual(L.pruneRunwayTags(renamed, cats), [{ catId: 'c1', tag: '现金类' }]);
+  });
+});
+
 describe('runwayExpectationOf（读数卡分母：自定优先，否则全局预期月消费）', () => {
   test('未自定（0/空/非法/负值）时用全局预期月消费', () => {
     assert.strictEqual(L.runwayExpectationOf(0, 5000), 5000);

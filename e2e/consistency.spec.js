@@ -483,7 +483,7 @@ test.describe('版式一致性：真实数据下的读数层级', () => {
     await page.evaluate(() => {
       state.expenses[0].tags = {};
       renderExpenses();
-      openTagCheck();
+      openTagCheck('expense');
     });
     await expect(page.locator('#tagcheck-modal')).toBeVisible();
     const px = async (sel) => parseFloat((await page.locator(sel).first().evaluate((el) => getComputedStyle(el).fontSize)));
@@ -508,7 +508,7 @@ test.describe('版式一致性：真实数据下的读数层级', () => {
     await page.evaluate(() => {
       state.expenses[0].tags = {};
       renderExpenses();
-      openTagCheck();
+      openTagCheck('expense');
     });
     await expect(page.locator('#tagcheck-modal')).toBeVisible();
     await once(await uniqStyles(page, '#tagcheck-modal .card-title-sm', ['fontSize', 'fontWeight']));

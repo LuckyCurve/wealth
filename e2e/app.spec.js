@@ -606,6 +606,97 @@ test.describe('弹窗与提示', () => {
   });
 });
 
+test.describe('分类标签改名（迁移引用，不是清空）', () => {
+  test('卡片上的 ✎ 改名：资产与读数卡的引用跟着迁移，不留下空 key', async ({ page }) => {
+    // 读数卡所选标签同按「分类 + 名字」引用，一并验证：曾用 pruneRunwayTags 清理，
+    // 改名会把用户选好的标签静默取消掉
+    const state = { ...sampleState(), runwayTags: [{ catId: 'cat-type', tag: '活期现金' }] };
+    await openWith(page, state);
+    await gotoAssetsTab(page, 'categories');
+
+    const card = page.locator('#categories-list .card', { hasText: '资产类型' });
+    await card.locator('.tag-pill', { hasText: '活期现金' }).getByRole('button', { name: '重命名标签' }).click();
+    const input = page.locator('#categories-list .tag-rename-input');
+    await expect(input).toBeFocused();
+    await input.fill('现金类');
+    await input.press('Enter');
+
+    await expect(card.locator('.tag-pill', { hasText: '现金类' })).toHaveCount(1);
+    await expect(card.locator('.tag-pill', { hasText: '活期现金' })).toHaveCount(0);
+    await expectToast(page, '标签已重命名');
+
+    const st = await readStored(page);
+    const cat = st.categories.find((c) => c.id === 'cat-type');
+    expect(cat.tags).toEqual(['现金类', '权益基金']);
+    expect(st.assets.map((a) => a.tags['cat-type'])).toEqual(['现金类', '权益基金', '现金类']);
+    expect(st.runwayTags).toEqual([{ catId: 'cat-type', tag: '现金类' }]);
+
+    // 列表上的 pill 同步（cfg.renderItems 接线）
+    await gotoAssetsTab(page);
+    await expect(page.locator('#assets-rows .tag-pill', { hasText: '现金类' })).toHaveCount(2);
+  });
+
+  test('编辑框里删掉有引用的标签：先弹确认；取消则数据不变，确认后才清空', async ({ appPage: page }) => {
+    await gotoAssetsTab(page, 'categories');
+    await page.locator('#categories-list .card', { hasText: '资产类型' }).getByRole('button', { name: '编辑' }).click();
+    await expect(page.locator('#category-modal')).toBeVisible();
+    await page.fill('#cat-tags', '权益基金');
+    await page.locator('#category-form button:has-text("保存")').click();
+
+    await expect(page.locator('#confirm-modal')).toBeVisible();
+    await expect(page.locator('#confirm-msg')).toContainText('活期现金');
+    await page.locator('#confirm-modal button:has-text("取消")').click();
+    await expect(page.locator('#confirm-modal')).toBeHidden();
+    await expect(page.locator('#category-modal')).toBeVisible();
+    const kept = await readStored(page);
+    expect(kept.categories.find((c) => c.id === 'cat-type').tags).toEqual(['活期现金', '权益基金']);
+    expect(kept.assets.map((a) => a.tags['cat-type'])).toEqual(['活期现金', '权益基金', '活期现金']);
+
+    await page.locator('#category-form button:has-text("保存")').click();
+    await page.locator('#confirm-ok-btn').click();
+    await expect(page.locator('#category-modal')).toBeHidden();
+    const st = await readStored(page);
+    expect(st.categories.find((c) => c.id === 'cat-type').tags).toEqual(['权益基金']);
+    expect(st.assets.map((a) => a.tags['cat-type'])).toEqual([undefined, '权益基金', undefined]);
+  });
+});
+
+test.describe('资产侧数据校验（快照按当时数据保留，不随补）', () => {
+  test('新增分类后出现校验条；一键补齐只改当前资产，快照与另一侧不受影响', async ({ page }) => {
+    const base = sampleState();
+    const state = {
+      ...base,
+      categories: [...base.categories, { id: 'cat-new', name: '资产大类', builtin: false, tags: ['股票型', '债券型'] }],
+      snapshots: [{
+        month: '2026-01',
+        note: '初始',
+        currencyRates: { CNY: 1, HKD: 0.92, USD: 7.24 },
+        assets: base.assets.map((a) => ({ ...a, tags: { ...a.tags } })),
+        updatedAt: '2026-01-31T00:00:00.000Z',
+      }],
+    };
+    await openWith(page, state);
+
+    // 两条校验条各归各的 Tab：资产侧的缺口不得在消费记录页冒出来
+    await expect(page.locator('#tagcheck-bar-expense')).toBeHidden();
+    await gotoAssetsTab(page);
+    await expect(page.locator('#tagcheck-bar-assets')).toBeVisible();
+    await expect(page.locator('#tagcheck-bar-assets')).toContainText('3');
+    await expect(page.locator('#tagcheck-bar-assets')).toContainText('资产大类');
+
+    await page.locator('#tagcheck-bar-assets button:has-text("去校验")').click();
+    await expect(page.locator('#tagcheck-modal')).toBeVisible();
+    // 资产侧必须先说清历史快照不随补，否则用户会以为历史图表会跟着变
+    await expect(page.locator('#tagcheck-hint')).toContainText('快照');
+    await page.locator('#tagcheck-groups .tagcheck-batch .tag-choice', { hasText: '股票型' }).click();
+    await expectToast(page, '已为 3 条记录打上「股票型」');
+
+    const st = await readStored(page);
+    expect(st.assets.map((a) => a.tags['cat-new'])).toEqual(['股票型', '股票型', '股票型']);
+    expect(st.snapshots[0].assets.every((a) => a.tags['cat-new'] === undefined)).toBe(true);
+  });
+});
+
 test.describe('持久化与迁移', () => {
   test('刷新后数据不变（localStorage 存档落地）', async ({ appPage: page }) => {
     // 关键：断言的是「改动过的存档」在刷新后仍在。
