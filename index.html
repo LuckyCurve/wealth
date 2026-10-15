@@ -493,11 +493,16 @@ tailwind.config = {
      （两边各写一遍的后果是改一处忘一处, 表头与内容错位）。
      必须定义在 .asset-row 之后：同特异性下后者胜 */
   .cols-expenses { grid-template-columns: 1fr 1fr 2fr 1.5fr 130px; }
-  .cols-expense-month { grid-template-columns: 1fr 1fr 2fr 1.5fr; }
+  .cols-expense-month { grid-template-columns: 96px 1fr 2fr 1.5fr; }
   .cols-income { grid-template-columns: 1.8fr 1fr 0.8fr 0.8fr 1fr 1fr 1fr; }
   .cols-segment { grid-template-columns: 2fr 1fr 0.7fr 1.3fr 0.7fr; }
   .cols-compare { grid-template-columns: 2fr 1.2fr 1.2fr 1.5fr 1fr; }
-  .cols-expense-segment { grid-template-columns: 1fr 1fr 0.8fr 2.6fr; }
+  .cols-expense-segment { grid-template-columns: 96px 1fr 0.8fr 2.6fr; }
+  /* 构成明细表（三张表都只在 560px 的弹窗里出现）：列宽按 fr 分配时单元格之间**没有留白**，
+     全靠内容本身短才显得有空隙 —— 内容一长就贴在一起。实测：日期栏 90px vs 日期文本 77.8px，
+     金额紧贴日期只剩 13.7px；资产侧金额拉长后与货币码之间只剩 2.7px。给真正的列间距，
+     并把日期栏定宽（日期是定长文本 YYYY-MM-DD，按 fr 分配就永远贴着内容宽、挤不出白）。 */
+  .cols-segment, .cols-expense-month, .cols-expense-segment { column-gap: 16px; }
   .asset-row.grid-wide {
     grid-template-columns: 28px 1.45fr 1fr 0.55fr 1.1fr 1.25fr 1.9fr 92px;
   }

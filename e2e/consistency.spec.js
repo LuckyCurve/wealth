@@ -115,6 +115,55 @@ test.describe('版式一致性', () => {
     }
   });
 
+  test('弹窗里的构成明细表：相邻单元格之间留出列间距（日期不贴金额）', async ({ appPage: page }) => {
+    await visitAllTabs(page);
+    // 资产侧金额拉长（×100）才能复现「金额与货币码贴在一起」——列宽按 fr 分配，
+    // 内容一长就没有留白，这正是回归的场景
+    await page.evaluate(() => {
+      state.snapshots = [{
+        month: '2026-01', note: '', totalCNY: 0, currencyRates: { ...state.rates },
+        assets: state.assets.map((a) => ({ ...a, amount: a.amount * 100 })),
+      }];
+    });
+    /** 相邻单元格的**文本**间距：量的不是格子边界，而是肉眼看到的两个内容的间隙 */
+    const textGaps = () =>
+      page.evaluate(() => {
+        const range = document.createRange();
+        const rect = (el) => { range.selectNodeContents(el); return range.getBoundingClientRect(); };
+        return [...document.querySelectorAll('#snapshot-detail-content .asset-row:not(.list-head)')].map((row) => {
+          const rects = [...row.children].map(rect);
+          return rects.slice(1).map((r, i) => r.left - rects[i].right);
+        });
+      });
+
+    await page.locator('#mode-expenses').click();
+    await page.locator('#tabs-expenses .tab-btn[data-tab="expense-trend"]').click();
+    await page.evaluate(() => viewExpenseSegment('2026-02', 'ec-type', '餐饮'));
+    const segment = await textGaps();
+    await page.keyboard.press('Escape');
+    await page.evaluate(() => viewExpenseMonth('2026-02'));
+    const month = await textGaps();
+    await page.keyboard.press('Escape');
+    await page.locator('#mode-assets').click();
+    await page.evaluate(() => viewHistorySegment('2026-01', 'cat-type', '活期现金'));
+    const history = await textGaps();
+
+    for (const [name, rows] of [['消费构成明细', segment], ['月度消费明细', month], ['资产构成明细', history]]) {
+      expect(rows.length, `${name}：没有数据行，用例并未覆盖到`).toBeGreaterThan(0);
+      for (const row of rows) {
+        for (const gap of row) {
+          expect(gap, `${name}：相邻单元格贴在一起（只剩 ${gap.toFixed(1)}px）`).toBeGreaterThanOrEqual(15);
+        }
+      }
+    }
+    // 日期栏定宽：日期串与列宽同量级，间距必须明显大于列间距本身，否则仍是「读成一串」
+    for (const [name, rows] of [['消费构成明细', segment], ['月度消费明细', month]]) {
+      for (const row of rows) {
+        expect(row[0], `${name}：日期紧贴金额（只剩 ${row[0].toFixed(1)}px）`).toBeGreaterThanOrEqual(24);
+      }
+    }
+  });
+
   test('按钮档位：同一档位内 padding/字号一致；主按钮不再各自内联', async ({ appPage: page }) => {
     await visitAllTabs(page);
     await once(await uniqStyles(page, '.btn-sm', ['padding', 'fontSize']));

@@ -1393,11 +1393,11 @@ describe('UI 接线契约：版式一致性（同类结构同一套 class）', (
     assert.strictEqual(count(/style="[^"]*grid-template-columns/g), 0, '列宽不许内联');
     for (const [cls, tpl] of [
       ['cols-expenses', '1fr 1fr 2fr 1.5fr 130px'],
-      ['cols-expense-month', '1fr 1fr 2fr 1.5fr'],
+      ['cols-expense-month', '96px 1fr 2fr 1.5fr'],
       ['cols-income', '1.8fr 1fr 0.8fr 0.8fr 1fr 1fr 1fr'],
       ['cols-segment', '2fr 1fr 0.7fr 1.3fr 0.7fr'],
       ['cols-compare', '2fr 1.2fr 1.2fr 1.5fr 1fr'],
-      ['cols-expense-segment', '1fr 1fr 0.8fr 2.6fr'],
+      ['cols-expense-segment', '96px 1fr 0.8fr 2.6fr'],
     ]) {
       assert.match(html, new RegExp(`\\.${cls} \\{[^}]*grid-template-columns: ${tpl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')};`),
         `${cls} 模板在 CSS 里定义`);
@@ -1408,6 +1408,18 @@ describe('UI 接线契约：版式一致性（同类结构同一套 class）', (
     for (const name of ['cols-segment', 'cols-compare', 'cols-expense-segment']) {
       assert.match(html, new RegExp(`const cols = '${name}'`), `${name} 走常量`);
     }
+  });
+
+  test('弹窗里的构成明细表：单元格之间有列间距，日期栏不被压到文本宽', () => {
+    // 回归：这三张表只在 560px 弹窗里出现，列宽按 fr 分配 —— 日期列宽（90px）必然逼近
+    // 日期文本本身（77.8px），金额紧贴日期（实测 13.7px，读成一串）；资产侧金额一长更甚
+    // （1,234,567.89 与货币码之间只剩 2.7px）。间距与日期栏定宽都收在这一处。
+    const rule = html.match(/\n  \.cols-segment, \.cols-expense-month, \.cols-expense-segment \{ column-gap: (\d+)px; \}/);
+    assert.ok(rule, '三张构成明细表共用一处列间距（同类结构只此一份规格）');
+    assert.ok(Number(rule[1]) >= 12, '列间距要够看（≥12px）');
+    // 日期栏定宽：日期是定长文本（YYYY-MM-DD），按 fr 分配就永远贴着内容宽
+    assert.match(html, /\n  \.cols-expense-month \{ grid-template-columns: 96px 1fr 2fr 1\.5fr; \}/, '月度明细的日期栏定宽');
+    assert.match(html, /\n  \.cols-expense-segment \{ grid-template-columns: 96px 1fr 0\.8fr 2\.6fr; \}/, '构成明细的日期栏定宽');
   });
 
   test('按钮尺寸只有两档小号（.btn-sm / .btn-xs），同类按钮不再各自内联', () => {
