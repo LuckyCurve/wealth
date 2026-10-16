@@ -495,6 +495,42 @@ describe('分类 pill 配色对比度（AA 4.5:1，亮/暗 × 每个插值点）
       assert.notStrictEqual(L.pillColors(base, 0, true).bg, L.pillColors(base, 1, true).bg);
     }
   });
+
+  /*
+   * 图表色板的文字对比度（旭日图/堆叠柱把标签印在色块上）。
+   * 为什么需要：pill 那套有 assert，图表这套一直只靠「看着还行」——实测 10 个基色里
+   * **7 个**的白字低于 4.5:1（最差 2.27，来自琥珀色），而标签色一度写死在
+   * buildSunburstOption 里（`color: '#fff'`），改色板也不会有人发现。
+   * 不变量：每个基色自带一个达标的字色（label），外环三阶也都有达标字色。
+   */
+  test('CATEGORY_PALETTE 每个条目都带达标字色（内环基色 / 外环三阶各自一个）', () => {
+    // 内外环的字色**分开给**：内环是饱和深底（白字），外环是同色相浅底（墨字）。
+    // 早先只有写死的白字，外环浅底上白字实测只有 2.0~3.7:1——这张表此前根本没人查。
+    assert.ok(L.CHART_INK, '外环浅阶的字色（墨）应为具名常量，供三图共用');
+    const bad = [];
+    for (const [i, p] of L.CATEGORY_PALETTE.entries()) {
+      assert.match(p.base, /^#[0-9a-f]{6}$/i, `#${i} 基色格式`);
+      assert.match(p.label, /^#[0-9a-f]{6}$/i, `#${i} 内环字色必须显式给出（不得靠调用方写死白色）`);
+      const rb = ratio(p.label, p.base);
+      if (rb < 4.5) bad.push(`#${i} 内环 ${p.base}←${p.label} = ${rb.toFixed(2)}`);
+      for (const s of p.shades) {
+        const rs = ratio(L.CHART_INK, s);
+        if (rs < 4.5) bad.push(`#${i} 外环 ${s}←${L.CHART_INK} = ${rs.toFixed(2)}`);
+      }
+    }
+    assert.deepStrictEqual(bad, []);
+  });
+
+  test('外环三阶彼此可分辨（同分类下的兄弟条目靠它区分）', () => {
+    for (const [i, p] of L.CATEGORY_PALETTE.entries()) {
+      assert.strictEqual(p.shades.length, 3, `#${i} 外环阶数`);
+      const ls = p.shades.map(s => L.hexToHsl(s).l);
+      for (const [a, b] of [[0, 1], [1, 2]]) {
+        assert.ok(ls[b] - ls[a] >= 5,
+          `#${i} 外环第 ${a}/${b} 阶明度只差 ${(ls[b] - ls[a]).toFixed(1)}%，挤在一起看不出是两个条目`);
+      }
+    }
+  });
 });
 
 // ========== 图表数据构造（旭日图 / 占比）==========
@@ -527,16 +563,109 @@ describe('图表数据构造 buildSunburstData / pctStr / percentSeriesData', ()
     assert.strictEqual(data[0].children[0]._assetId, 'x');
   });
 
+  test('buildSunburstData 把字色写在节点上（实测 levels 回调不生效）', () => {
+    // 回归：字色一度写成 levels[].label.color 的函数，ECharts 5 在真实图上不逐节点求值，
+    // 内环退回默认黑字——HKD 深绿底上的黑字实测只有 2.15:1（像素级量出来的）。
+    // 写在节点上确定生效，且能被这条断言直接钉住。
+    const data = L.buildSunburstData(
+      { id: 'c', name: '分类', tags: ['T1'] },
+      { T1: [{ name: 'A', value: 1 }, { name: 'B', value: 1 }] },
+      x => x.value,
+    );
+    const pal = L.CATEGORY_PALETTE[0];
+    assert.strictEqual(data[0].label.color, pal.label, '内环用色板自带的 label');
+    assert.strictEqual(data[0].children[0].label.color, L.CHART_INK, '外环浅阶一律墨字');
+    assert.strictEqual(data[0].children[1].label.color, L.CHART_INK);
+    // 字色必须与底色同源（同一份色板），否则改了色板忘了改字就是隐形回归
+    assert.strictEqual(data[0].itemStyle.color, pal.base);
+    assert.strictEqual(data[0].children[0].itemStyle.color, L.shadeAt(pal, 0));
+    assert.strictEqual(data[0].children[1].itemStyle.color, L.shadeAt(pal, 1));
+  });
+
   test('buildSunburstData 空 groups 返回空数组', () => {
     assert.deepStrictEqual(L.buildSunburstData(cat, {}, c => c.value), []);
   });
 
-  test('CATEGORY_PALETTE 每项含 base 与 3 档 shades', () => {
+  test('CATEGORY_PALETTE 每项含 base、label 与 3 档 shades', () => {
     assert.strictEqual(L.CATEGORY_PALETTE.length, 10);
     L.CATEGORY_PALETTE.forEach(p => {
       assert.match(p.base, /^#[0-9a-fA-F]{6}$/);
+      assert.match(p.label, /^#[0-9a-fA-F]{6}$/, '内环字色随色板给，不得由调用方写死');
       assert.strictEqual(p.shades.length, 3);
     });
+  });
+
+  test('shadeAt 按序轮转外环色阶（三阶用完回第一阶）', () => {
+    const pal = { base: '#000000', label: '#FFFFFF', shades: ['a', 'b', 'c'] };
+    assert.strictEqual(L.shadeAt(pal, 0), 'a');
+    assert.strictEqual(L.shadeAt(pal, 2), 'c');
+    assert.strictEqual(L.shadeAt(pal, 3), 'a', '第四个条目回到第一阶（条目多于色阶是常态）');
+    assert.strictEqual(L.shadeAt(pal, 7), 'b');
+  });
+
+  /*
+   * 旭日图右侧的构成清单：图的左右各有近 1/3 画布是空的（外径受高度限制，
+   * 只能到 88%），那一片白拿着没用——不如把每个分类的金额与占比列出来，
+   * 顺带把「谁占多少」从悬停才能看到变成一眼可读。
+   * 占比分母与 tooltip 必须是同一个（同一张卡上两个「占比」各算各的口径就是 bug）。
+   */
+  test('sunburstBreakdown 按值降序列出分类与占比（分母同 tooltip）', () => {
+    const data = [
+      { name: '现金', value: 100 },
+      { name: '股票', value: 300 },
+      { name: '零头', value: 0 },
+    ];
+    const out = L.sunburstBreakdown(data, 400);
+    assert.deepStrictEqual(out.map(x => x.name), ['股票', '现金', '零头']);
+    assert.strictEqual(out[0].pct, '75.0');
+    assert.strictEqual(out[1].pct, '25.0');
+    assert.strictEqual(out[2].pct, '0.0');
+    // idx 必须指向**原 data** 里的位置（清单按值降序排过，行号 ≠ dataIndex）：
+    // 悬停联动靠它定位扇区，用行号就会「悬停 A、高亮 B」
+    assert.deepStrictEqual(out.map(x => x.idx), [1, 0, 2], 'idx 跟着条目走，不随排序重编');
+  });
+
+  test('sunburstBreakdown 边界：空数组 / 缺 value / 分母为零 / 缺失入参', () => {
+    assert.deepStrictEqual(L.sunburstBreakdown([], 100), []);
+    assert.deepStrictEqual(L.sunburstBreakdown(null, 100), []);
+    assert.deepStrictEqual(L.sunburstBreakdown(undefined, undefined), []);
+    const out = L.sunburstBreakdown([{ name: 'A', value: '30' }, { name: 'B' }], 0);
+    // 分母为零时占比归 '0.0'（不出现 Infinity/NaN），值非数字归 0（不污染排序）
+    assert.deepStrictEqual(out.map(x => [x.name, x.value, x.pct]), [['A', 30, '0.0'], ['B', 0, '0.0']]);
+  });
+
+  test('sunburstBreakdown 对「只有 children、没有 value」的分类节点按子项求和', () => {
+    // 回归：buildSunburstData 只给**叶子**写 value，内环分类节点没有 value——
+    // ECharts 是按 children 求和定扇区大小的，清单若直接读 n.value 会全部得到 0，
+    // 实测表现是清单里满屏「¥0.00 / 0.0%」而图是正常的（真实浏览器里才看得见）。
+    const data = L.buildSunburstData(
+      { id: 'c', name: '分类', tags: ['现金', '股票'] },
+      { '现金': [{ name: '招行', value: 100 }, { name: '汇丰', value: 50 }], '股票': [{ name: '沪深300', value: 250 }] },
+      x => x.value,
+    );
+    const out = L.sunburstBreakdown(data, 400);
+    assert.deepStrictEqual(out.map(x => [x.name, x.value, x.pct]), [
+      ['股票', 250, '62.5'],
+      ['现金', 150, '37.5'],
+    ]);
+  });
+
+  test('nodeValue 边界：叶子取自身值 / 无 value 无 children 归零 / 字符串值不予采纳', () => {
+    assert.strictEqual(L.nodeValue({ value: 12 }), 12);
+    assert.strictEqual(L.nodeValue({ value: 0 }), 0, 'value 为 0 是合法值，不该被当成缺失');
+    assert.strictEqual(L.nodeValue({ children: [{ value: 1 }, { children: [{ value: 2 }] }] }), 3, '递归求和');
+    assert.strictEqual(L.nodeValue({ name: '空' }), 0);
+    assert.strictEqual(L.nodeValue(null), 0);
+    assert.strictEqual(L.nodeValue(undefined), 0);
+    assert.strictEqual(L.nodeValue({ value: '30' }), 30, '数字字符串照 ECharts 的惯例采纳（两处口径一致）');
+    assert.strictEqual(L.nodeValue({ value: 'abc' }), 0, '非数字字符串归零，不污染求和');
+  });
+
+  test('sunburstBreakdown 不改写入参（图表 setOption 复用同一份 data 数组）', () => {
+    const data = [{ name: 'A', value: 1 }, { name: 'B', value: 2 }];
+    const snapshot = JSON.stringify(data);
+    L.sunburstBreakdown(data, 3);
+    assert.strictEqual(JSON.stringify(data), snapshot, '排序必须在副本上做');
   });
 
   test('pctStr 占比字符串与分母为零兜底', () => {

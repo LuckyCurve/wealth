@@ -786,6 +786,30 @@ tailwind.config = {
   }
   .dark .masthead-amount { text-shadow: 0 1px 0 rgba(0, 0, 0, 0.6); }
   .masthead-sub { margin-top: 14px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; font-size: var(--fs-body); color: var(--muted); }
+  /* 分布图两栏：旭日图 + 构成清单。
+     为什么并列：旭日要正圆，外径受**高度**限制（容器 520 高 → 直径至多 ~458），
+     而卡片宽 1100+——实测 1054×520 的画布里左右各有 293px 纯白（占 56% 宽度）。
+     那一片白正好放「谁占多少」：图给比例直觉，清单给确切金额与占比（不必悬停）。
+     窄屏回落单栏：图形正圆优先，清单接在下面。 */
+  .chart-split { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: 28px; align-items: start; }
+  /* 图容器高度由列宽与容器高度共同决定，这里只限制上限（保持正圆由 ECharts 自己算） */
+  .chart-split > .chart-canvas { min-width: 0; }
+  @media (max-width: 900px) {
+    .chart-split { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  }
+  /* 构成清单：每行 = 色块 + 分类名 + 金额 + 占比（占比右侧对齐便于扫读） */
+  .chart-legend { display: flex; flex-direction: column; gap: 2px; margin-top: 6px; }
+  .chart-legend-row {
+    display: grid; grid-template-columns: 10px minmax(0, 1fr) auto auto;
+    align-items: center; gap: 10px; padding: 7px 8px; border-radius: 6px;
+    cursor: default; transition: background 0.15s;
+  }
+  .chart-legend-row:hover, .chart-legend-row.on { background: var(--bg-2); }
+  .chart-legend-swatch { width: 10px; height: 10px; border-radius: 2px; }
+  .chart-legend-name { font-size: var(--fs-body); color: var(--fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .chart-legend-amt { font-size: var(--fs-body); color: var(--fg); font-variant-numeric: tabular-nums; }
+  .chart-legend-pct { font-size: var(--fs-micro); color: var(--muted); font-variant-numeric: tabular-nums; min-width: 3.6em; text-align: right; }
+  .chart-legend-empty { font-size: var(--fs-body); color: var(--muted); padding: 7px 8px; }
   /* 分布图总数（资产/消费旭日图共用）：旭日图只给各部分占比，卡片上方补一个合计。
      与扇区同源、随右上角筛选联动；字号沿用主读数档，颜色走 fg（不抢报头的主角）。 */
   .chart-total {
@@ -1028,7 +1052,10 @@ tailwind.config = {
     </div>
     <div class="card">
       <p class="chart-total" id="chart-total"></p>
-      <div id="sunburst-chart" style="width:100%; height:520px;"></div>
+      <div class="chart-split">
+        <div class="chart-canvas"><div id="sunburst-chart" style="width:100%; height:520px;"></div></div>
+        <div><p class="meta-label muted">构成</p><div class="chart-legend" id="chart-legend"></div></div>
+      </div>
       <div id="chart-empty" class="empty-state" style="display:none;">
         <div class="empty-rule"></div>
         <p class="empty-title">还没有资产记录</p>
@@ -1155,7 +1182,10 @@ tailwind.config = {
           <select id="income-chart-category-select" onchange="renderIncomeChart()" class="select-field"></select>
         </div>
       </div>
-      <div id="income-chart" style="width:100%; height:320px;"></div>
+      <div class="chart-split">
+        <div class="chart-canvas"><div id="income-chart" style="width:100%; height:320px;"></div></div>
+        <div><p class="meta-label muted">构成</p><div class="chart-legend" id="income-chart-legend"></div></div>
+      </div>
     </div>
     </section>
   </div><!-- /content-assets -->
@@ -1237,7 +1267,10 @@ tailwind.config = {
       </div>
       <div class="card">
         <p class="chart-total" id="expense-chart-total"></p>
-        <div id="expense-sunburst-chart" style="width:100%; height:520px;"></div>
+        <div class="chart-split">
+          <div class="chart-canvas"><div id="expense-sunburst-chart" style="width:100%; height:520px;"></div></div>
+          <div><p class="meta-label muted">构成</p><div class="chart-legend" id="expense-chart-legend"></div></div>
+        </div>
         <div id="expense-chart-empty" class="empty-state" style="display:none;">
           <div class="empty-rule"></div>
           <p class="empty-title">还没有消费记录</p>
@@ -2559,6 +2592,41 @@ function showChartOrEmpty(chartEl, emptyEl, show) {
   emptyEl.style.display = show ? 'none' : '';
 }
 
+// 分布图右侧的构成清单（资产/消费两张旭日图共用，单一实现）。
+// 数据与排序、占比口径都在 logic.js（sunburstBreakdown），这里只管 DOM：
+//   · elId   清单容器
+//   · data   喂给 echarts 的同一份 data（顶层分类 = 内环节点，顺序一致）
+//   · total  占比分母——**必须与 tooltip 百分比同一个变量**（口径分裂在「分布图总数」踩过一次）
+//   · chartObj 悬停清单行时高亮对应扇区，两栏才是「同一张量表」而不是两张无关的表
+// 色块取 CATEGORY_PALETTE（与图同色板），不混用 pill 调色板：两套色板各司其职。
+// data 为空（空态）时清空容器：它与图同生共死，留着上一次的行会在空态提示旁
+// 显示一份过期数据（同 hideChartTotal 的理由）。
+function renderSunburstLegend(elId, data, total, chartObj) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  const rows = sunburstBreakdown(data, total);
+  if (rows.length === 0) {
+    el.innerHTML = '';
+    return;
+  }
+  // 色板与扇区同源：r.idx 就是该分类在 data 里的下标，与 buildSunburstData 的取色规则一致
+  // （同一个分类在两栏里两个颜色就是硬伤）
+  el.innerHTML = rows.map((r) =>
+    `<div class="chart-legend-row" data-idx="${r.idx}" title="${esc(r.name)}">` +
+    `<span class="chart-legend-swatch" style="background:${CATEGORY_PALETTE[r.idx % CATEGORY_PALETTE.length].base}"></span>` +
+    `<span class="chart-legend-name">${esc(r.name)}</span>` +
+    `<span class="chart-legend-amt tabular">${formatCNY(r.value)}</span>` +
+    `<span class="chart-legend-pct tabular">${r.pct}%</span></div>`
+  ).join('');
+  // 悬停联动用事件委派挂在容器上（行数随分类变，逐行挂监听会随重绘越积越多）
+  const at = (e) => {
+    const row = e.target.closest ? e.target.closest('.chart-legend-row') : null;
+    return row ? +row.dataset.idx : -1;
+  };
+  el.onmouseover = (e) => { const i = at(e); if (i >= 0 && chartObj) chartObj.dispatchAction({ type: 'highlight', seriesIndex: 0, dataIndex: i }); };
+  el.onmouseout = (e) => { const i = at(e); if (i >= 0 && chartObj) chartObj.dispatchAction({ type: 'downplay', seriesIndex: 0, dataIndex: i }); };
+}
+
 // 分布图总数（资产/消费旭日图共用）：旭日图只给各部分占比，这里补一个「当前筛选」的合计。
 // 与 showChartOrEmpty 同判据——空态时一并收起，否则会留下一个孤零零的数字压在空态提示上。
 function renderChartTotal(el, value) {
@@ -2699,23 +2767,26 @@ function buildSunburstOption(data, tooltipFormatter) {
     series: [{
       type: 'sunburst',
       data: data,
-      radius: ['12%', '90%'],
+      radius: ['12%', '88%'],
       sort: null,
       emphasis: { focus: 'ancestor' },
+      // 字色**不在这一层写**：层级 label 的函数型 color 在 ECharts 5 的 sunburst 上
+      // 不保证逐节点求值（实测内环退回默认黑字，HKD 深底黑字只有 2.15:1）。
+      // 改由 buildSunburstData 写在节点 label.color 上——确定生效，且色与字同表可单测。
       levels: [
         {},
         {
           r0: '12%', r: '50%',
           itemStyle: { borderWidth: 2, borderColor: th.card },
-          label: { rotate: 'tangential', fontSize: 13, fontWeight: 600, fontFamily: '"IBM Plex Mono", monospace', color: '#fff',
+          label: { rotate: 'tangential', fontSize: 13, fontWeight: 600, fontFamily: '"IBM Plex Mono", monospace',
             minAngle: 12, // 扇区小于 12°(≈3.3%) 时隐藏标签
             formatter: function(p) { return truncateLabel(p.name, 13, 132); }
           }
         },
         {
-          r0: '50%', r: '90%',
+          r0: '50%', r: '88%',
           itemStyle: { borderWidth: 1, borderColor: th.card },
-          label: { rotate: 'radial', fontSize: 11, fontFamily: '"IBM Plex Mono", monospace', color: '#211b10',
+          label: { rotate: 'radial', fontSize: 11, fontFamily: '"IBM Plex Mono", monospace',
             minAngle: 8, // 扇区小于 8°(≈2.2%) 时隐藏标签
             formatter: function(p) { return truncateLabel(p.name, 11, 96); }
           }
@@ -3105,6 +3176,7 @@ function renderChart() {
   if (state.assets.length === 0) {
     showChartOrEmpty(chartEl, emptyEl, false);
     hideChartTotal(totalEl);
+    renderSunburstLegend('chart-legend', [], 0, null);
     return;
   }
   showChartOrEmpty(chartEl, emptyEl, true);
@@ -3126,6 +3198,7 @@ function renderChart() {
   if (data.length === 0) {
     showChartOrEmpty(chartEl, emptyEl, false);
     hideChartTotal(totalEl);
+    renderSunburstLegend('chart-legend', [], 0, null);
     return;
   }
 
@@ -3141,6 +3214,7 @@ function renderChart() {
 
   const th = chartTheme();
   chart.setOption(buildSunburstOption(data, p => sunburstTooltipContent(p, th, totalCNY)), true);
+  renderSunburstLegend('chart-legend', data, totalCNY, chart);
 }
 
 // ========== HISTORY SNAPSHOTS ==========
@@ -3945,6 +4019,7 @@ function renderIncomeChart() {
   const rateAssets = state.assets.filter(a => getAssetRate(a) > 0);
   if (rateAssets.length === 0) {
     el.style.display = 'none';
+    renderSunburstLegend('income-chart-legend', [], 0, null);
     return;
   }
   el.style.display = '';
@@ -3979,6 +4054,7 @@ function renderIncomeChart() {
 
   if (data.length === 0) {
     el.style.display = 'none';
+    renderSunburstLegend('income-chart-legend', [], 0, null);
     return;
   }
 
@@ -3996,6 +4072,7 @@ function renderIncomeChart() {
     }
     return sunburstTooltipContent(p, th, totalIncome, { prefix: modeLabel, pctLabel: '占比 ' });
   }), true);
+  renderSunburstLegend('income-chart-legend', data, totalIncome, incomeChart);
 }
 
 // ========== DRAG REORDER ==========
@@ -4813,6 +4890,7 @@ function renderExpenseChart() {
   if (!catId || filtered.length === 0) {
     showChartOrEmpty(chartEl, emptyEl, false);
     hideChartTotal(totalEl);
+    renderSunburstLegend('expense-chart-legend', [], 0, null);
     return;
   }
   showChartOrEmpty(chartEl, emptyEl, true);
@@ -4852,6 +4930,7 @@ function renderExpenseChart() {
 
   const th = chartTheme();
   expenseChart.setOption(buildSunburstOption(data, p => sunburstTooltipContent(p, th, total)), true);
+  renderSunburstLegend('expense-chart-legend', data, total, expenseChart);
 }
 
 // ========== EXPENSE TREND ==========

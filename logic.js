@@ -897,22 +897,40 @@
   // ========== 图表数据构造（纯，可单测）==========
   // 旭日图 / 堆叠柱调色板：资产/收入/消费/历史/趋势五图共用同一套暖色配色。
   // 原定义在 index.html，迁移至此处以便逻辑与单测共用同一份数据源。
+  // 图表色板（旭日图/堆叠柱共用）。条目三个字段各有契约：
+  //   base  内环分类基色
+  //   label 印在**内环**上的字色——不是固定白字：琥珀/铜这类浅底上白字只有 2.3:1，
+  //         得改用墨字。早先字色写死在 buildSunburstOption 里（color: '#fff'），实测 10 个
+  //         基色有 7 个不达 AA；收进表里才能被单测逐条钉住（同 CATEGORY_COLORS 的思路）。
+  //   shades 外环条目三阶：同色相浅阶、彼此明度差 ≥5%（兄弟条目要看得出来）
+  // 外环浅阶一律用 CHART_INK（墨）——浅底上白字只有 2.0~3.7:1，两种环的字色天然不同。
+  const CHART_INK = '#211B10';
   const CATEGORY_PALETTE = [
-    { base: '#BF4A3A', shades: ['#D57262', '#E4988C', '#F2C2BA'] },
-    { base: '#4A8C6F', shades: ['#72A88E', '#97C3AE', '#C0DACE'] },
-    { base: '#E0A038', shades: ['#EABB69', '#F2D197', '#F8E6C5'] },
-    { base: '#4A7BA7', shades: ['#6B9DC5', '#8FB9DB', '#B5D3ED'] },
-    { base: '#B06A4B', shades: ['#C58D74', '#D8B09D', '#EBD1C4'] },
-    { base: '#7A6E9E', shades: ['#9B91BA', '#BAB3D3', '#D8D3E8'] },
-    { base: '#C0803C', shades: ['#D3A16A', '#E2BF98', '#F0DDC6'] },
-    { base: '#3D8A80', shades: ['#69A69B', '#92C1B8', '#BBDAD4'] },
-    { base: '#C75B39', shades: ['#D98367', '#E7A99A', '#F4CFC5'] },
-    { base: '#A0635A', shades: ['#B9877E', '#CEABA5', '#E3CDCA'] },
+    { base: '#BB5647', label: '#FFFFFF', shades: ['#AF776F', '#BF938C', '#D0AFAA'] },
+    { base: '#428069', label: '#FFFFFF', shades: ['#60907E', '#79A595', '#94B7AA'] },
+    { base: '#AE7D29', label: '#211B10', shades: ['#A18047', '#B8975E', '#C6AB7E'] },
+    { base: '#4977AB', label: '#FFFFFF', shades: ['#6D88A7', '#899FB8', '#A6B6C9'] },
+    { base: '#A1664C', label: '#FFFFFF', shades: ['#A37E6E', '#B5978A', '#C7B0A6'] },
+    { base: '#7F6BA1', label: '#FFFFFF', shades: ['#8D80A3', '#A59AB6', '#BDB5C9'] },
+    { base: '#B6783A', label: '#211B10', shades: ['#A77E56', '#B79573', '#C7AC91'] },
+    { base: '#3E7E7C', label: '#FFFFFF', shades: ['#5D8E8C', '#74A4A3', '#90B7B5'] },
+    { base: '#B6593D', label: '#FFFFFF', shades: ['#AF7867', '#BF9385', '#CFADA3'] },
+    { base: '#A3626F', label: '#FFFFFF', shades: ['#A17D84', '#B4979D', '#C7B2B6'] },
   ];
+
+  // 同分类下「第几个条目」→ 外环色阶（buildSunburstData 与堆叠柱共用一套轮转规则，
+  // 避免两处各写一遍 `ai % shades.length` 而漂移）
+  function shadeAt(pal, i) {
+    return pal.shades[i % pal.shades.length];
+  }
 
   // 旭日图数据构造（资产/收入/消费三图共用）：给定分类与「按标签分组的子项数组」，
   // 统一套用 CATEGORY_PALETTE 配色。childValue(child) 决定扇区数值；
   // child 可携带 extra 字段（如 _assetId）透传到 ECharts 节点。数值统一四舍五入两位。
+  // **字色写在节点上（label.color）**，不靠 levels[].label.color 的回调：实测 ECharts 5
+  // 对 sunburst 层级 label 的函数型 color 不保证逐节点求值（本项目的真实图上量到 2.15:1，
+  // 说明回调没生效、退回默认黑字）；节点级静态色则确定生效。写在数据里还有个好处：
+  // 色与字仍同表（CATEGORY_PALETTE.label / CHART_INK）且可被单测直接断言。
   function buildSunburstData(cat, groups, childValue) {
     return cat.tags
       .filter(t => (groups[t] || []).length > 0)
@@ -922,18 +940,45 @@
           const node = {
             name: child.name,
             value: Math.round(childValue(child) * 100) / 100,
-            itemStyle: { color: pal.shades[ai % pal.shades.length] },
+            itemStyle: { color: shadeAt(pal, ai) },
+            label: { color: CHART_INK }, // 外环是同色相浅阶 → 一律墨字
           };
           if (child.extra) Object.assign(node, child.extra);
           return node;
         });
-        return { name: tag, itemStyle: { color: pal.base }, children };
+        return { name: tag, itemStyle: { color: pal.base }, label: { color: pal.label }, children };
       });
   }
 
   // 占比百分比字符串（1 位小数），用于图表 tooltip / 标签；分母为 0 时返回 '0.0'
   function pctStr(value, total) {
     return total > 0 ? ((value / total) * 100).toFixed(1) : '0.0';
+  }
+
+  // 旭日图节点的「有效值」：叶子节点用 value；**分类节点（内环）本身不带 value**——
+  // ECharts 是按 children 求和来定扇区大小的（buildSunburstData 也只给叶子写 value），
+  // 故取值必须同一个口径：自己求和。曾直接读 n.value，于是内环全算出 0（清单里满屏 ¥0.00）。
+  function nodeValue(n) {
+    if (!n) return 0;
+    const own = Number(n.value);
+    if (Number.isFinite(own)) return own;
+    if (Array.isArray(n.children)) return n.children.reduce((s, c) => s + nodeValue(c), 0);
+    return 0;
+  }
+
+  // 旭日图右侧的构成清单：把顶层分类（内环）排成一张可读的列表。
+  // 为什么需要：外径受容器高度限制只能到 88%，画布左右各有近 1/3 宽是空的（实测 1054 宽里
+  // 左右共 586px 是白），而那一片白正好够放「谁占多少」——不必悬停才能看见。
+  // 占比分母由调用方传入（与 tooltip **同一个变量**）：同一张卡上两个「占比」各算各的
+  // 就是口径分裂（这条在「分布图总数」上已经踩过一次）。
+  // 不改写入参：入参就是喂给 echarts 的同一份 data 数组，就地 sort 会让图的顺序跟着变。
+  function sunburstBreakdown(data, total) {
+    const t = Number(total) || 0;
+    return (data || [])
+      // idx = 该分类在**原 data 里的下标**：清单按值排序后，行号与图的 dataIndex 不再一致，
+      // 悬停联动必须靠 idx 定位扇区（用行号会让「悬停 A 高亮 B」——排序一变就错位）
+      .map((n, idx) => ({ idx, name: (n && n.name) || '', value: nodeValue(n), pct: pctStr(nodeValue(n), t) }))
+      .sort((a, b) => b.value - a.value);
   }
 
   // 堆叠柱状图图例选中态清理（历史净值/消费趋势共用）：
@@ -1059,6 +1104,6 @@
     esc, escRegExp, highlightMatch, moneyStr, jsAttr,
     truncateLabel,
     hexToRgba, hexToHsl, hslToHex, pillColors, basePill, CATEGORY_COLORS,
-    CATEGORY_PALETTE, buildSunburstData, pctStr, percentSeriesData, pruneLegendSelected, sortTagsByTotal, amountAtRates, sumAmountCNY,
+    CATEGORY_PALETTE, CHART_INK, shadeAt, buildSunburstData, nodeValue, sunburstBreakdown, pctStr, percentSeriesData, pruneLegendSelected, sortTagsByTotal, amountAtRates, sumAmountCNY,
   };
 });

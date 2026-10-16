@@ -1780,3 +1780,77 @@ describe('UI 接线契约：内联脚本必须能通过解析', () => {
     assert.throws(() => new Function('let a = 1;\nconst a = 2;'), SyntaxError);
   });
 });
+
+/*
+ * 分布图的版式：旭日图 + 构成清单并列。
+ * --------------------------------------------------------------------------
+ * 旭日图的外径受容器**高度**限制（要正圆），而卡片宽度有 1100px 左右 ——
+ * 实测 1054×520 的画布里，左右各有 293px 是纯白（共占 56% 宽度）。
+ * 与其让那一片白空着，不如把「谁占多少」列出来：图给比例直觉，清单给确切数字，
+ * 顺带把占比从「悬停才看得见」变成一眼可读。
+ */
+describe('UI 接线契约：分布图的两栏（图 + 构成清单）', () => {
+  test('两张旭日图都在 .chart-split 里，右侧清单容器各一处', () => {
+    for (const [chartId, listId] of [['sunburst-chart', 'chart-legend'], ['expense-sunburst-chart', 'expense-chart-legend'], ['income-chart', 'income-chart-legend']]) {
+      // chart-split 与图容器必须相邻（中间只隔着 chart-canvas 这层），
+      // 用「两 id 之间的距离」判定，比嵌套正则稳
+      const split = html.indexOf('class="chart-split"');
+      assert.ok(split >= 0, '.chart-split 存在');
+      const blocks = html.split('class="chart-split"').slice(1);
+      assert.ok(blocks.some(b => b.indexOf(chartId) >= 0 && b.indexOf(chartId) < 400),
+        `${chartId} 应紧跟在 .chart-split 内（否则又回落到一片白的居中布局）`);
+      assert.strictEqual(count(new RegExp(`id="${listId}"`, 'g')), 1, `${listId} 容器唯一`);
+    }
+    assert.strictEqual(count(/class="chart-legend"/g), 3, '三张旭日图各一处（同类结构不许只改两张）');
+  });
+
+  test('清单渲染走 logic.js 的 sunburstBreakdown（占比口径单一来源）', () => {
+    assert.strictEqual(count(/function renderSunburstLegend\(/g), 1, '清单渲染只此一处实现');
+    const src = fnSource('renderSunburstLegend');
+    assert.match(src, /sunburstBreakdown\(/, '排序与占比下沉 logic.js');
+    // 占比不得在页面里再算一遍（同一张卡上两个「占比」各算各的口径就是 bug）
+    assert.ok(!/\/\s*total\s*\*\s*100/.test(stripComments(src)), '不得内联重写百分比');
+    assert.match(src, /formatCNY\(/, '金额走统一格式化');
+  });
+
+  test('清单与图共用同一个分母（总数、tooltip 百分比、清单百分比三者同源）', () => {
+    // 三处（卡片总数显示 / tooltip 百分比 / 清单占比）必须都指向同一个变量名
+    const cases = [
+      ['renderChart', 'totalCNY'],
+      ['renderExpenseChart', 'total'],
+    ];
+    for (const [fn, name] of cases) {
+      const src = fnSource(fn);
+      // 用字面量包含判定，不用 RegExp：`\(` 在 JS 字符串里会退化成分组括号，
+      // 于是 `f(a)` 变成「f 后紧跟 a」而永远匹配不上（这个坑刚踩过）
+      assert.ok(src.includes(`const ${name} = `), `${fn} 应有总数变量 ${name}`);
+      assert.ok(src.includes(`sunburstTooltipContent(p, th, ${name})`), `${fn}: tooltip 分母同源`);
+      assert.ok(src.includes(`renderChartTotal(totalEl, ${name})`), `${fn}: 卡片总数同源`);
+      // 清单调用跨行，按「整条调用语句包含该变量」判（不用跨行通配，行尾是 CRLF）。
+      // 每个函数里 renderSunburstLegend 出现两次：空态传 []/0（清空用），有数据时传 data/该 total。
+      // 这里只对**带 data 的那一次**断言分母，否则会误抓到空态那次。
+      const calls = src.split('renderSunburstLegend(').slice(1).map(c => c.slice(0, c.indexOf(')')));
+      assert.ok(calls.length >= 1, `${fn}: 应调用 renderSunburstLegend`);
+      const dataCall = calls.find(c => !/^'[^']*', *\[\]/.test(c));
+      assert.ok(dataCall, `${fn}: 应有带 data 的清单调用`);
+      assert.ok(dataCall.includes(name), `${fn}: 清单占比必须用与 tooltip 同一个 ${name}`);
+    }
+  });
+
+  test('悬停清单行联动高亮扇区（按原 data 下标定位，不用行号）', () => {
+    const src = fnSource('renderSunburstLegend');
+    assert.match(src, /dispatchAction\(\{ *type: *'highlight'/, '悬停高亮对应扇区');
+    assert.match(src, /dispatchAction\(\{ *type: *'downplay'/, '移出恢复');
+    assert.match(src, /dataIndex: i/, 'dataIndex 取自行上带的原 data 下标');
+    // 清单按值降序排过，行号 ≠ dataIndex：必须把 r.idx 写进 data-idx，
+    // 用 map 的第二参（行号）就会「悬停 A 高亮 B」（这个 bug 刚犯过一次）
+    assert.match(src, /data-idx="\$\{r\.idx\}"/, 'data-idx 用 r.idx（原 data 下标）');
+    assert.ok(!/data-idx="\$\{i\}"/.test(src), '不得用行号当 dataIndex');
+  });
+
+  test('清单行的色块取自同一个色板（不另起一套分类色）', () => {
+    const src = fnSource('renderSunburstLegend');
+    assert.match(src, /CATEGORY_PALETTE\[/, '色块用图表色板');
+    assert.ok(!/catColor|expenseCatColor/.test(src), '不混用 pill 调色板（两套色板各司其职）');
+  });
+});

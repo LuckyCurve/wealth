@@ -100,7 +100,7 @@ async function stubCdn(page, rates) {
       status: 200,
       contentType: 'text/javascript',
       body: `
-        window.__echartsCalls = { init: [], setOption: [], on: [], resize: 0, dispose: 0 };
+        window.__echartsCalls = { init: [], setOption: [], on: [], dispatch: [], resize: 0, dispose: 0 };
         function FakeChart(dom) {
           this._dom = dom;
           this._handlers = {};
@@ -115,6 +115,8 @@ async function stubCdn(page, rates) {
         FakeChart.prototype.dispose = function () { window.__echartsCalls.dispose++; };
         FakeChart.prototype.getOption = function () { return {}; };
         FakeChart.prototype.dispatchAction = function (a) {
+          // 记录 + 触发 click 监听：前者供「高亮/下钻联动」类断言，后者保留原有下钻用法
+          window.__echartsCalls.dispatch.push({ id: this._dom && this._dom.id, action: a });
           (this._handlers.click || []).forEach(function (fn) { fn(a); });
         };
         window.echarts = {
@@ -324,6 +326,7 @@ async function collectOffThemeColors(page) {
     addPill(expenseCatColor, state.expenseCategories);
     CATEGORY_PALETTE.forEach((p) => {
       const c = canon(p.base); if (c) allowed.add(c);
+      const l = canon(p.label); if (l) allowed.add(l); // 内环字色也是主题色板的一部分
       p.shades.forEach((s) => { const cc = canon(s); if (cc) allowed.add(cc); });
     });
 

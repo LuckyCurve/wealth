@@ -1035,3 +1035,133 @@ test.describe('台灯掠光（纸面光跟随指针）', () => {
     expect(hidden).toBe('none');
   });
 });
+
+/*
+ * 分布图的构成清单（旭日图右侧那一栏）。
+ * --------------------------------------------------------------------------
+ * 清单是**纯 DOM**（数据来自 buildSunburstData，不依赖 echarts 渲染），所以这一组
+ * 照旧走 stub 装置、不碰外网（见 AGENTS.md：E2E 断网也要能跑）。
+ * 要钉住的坑：内环分类节点本身**不带 value**（ECharts 是按 children 求和定扇区大小），
+ * 清单若直接读 n.value 就会满屏 ¥0.00 —— 而图是正常的，只看图发现不了。
+ */
+test.describe('分布图的构成清单（与图同源）', () => {
+  const legendRows = (page, listId) =>
+    page.evaluate((id) =>
+      [...document.querySelectorAll(`#${id} .chart-legend-row`)].map((r) => ({
+        idx: r.dataset.idx,
+        name: r.querySelector('.chart-legend-name').textContent.trim(),
+        amt: r.querySelector('.chart-legend-amt').textContent.trim(),
+        pct: r.querySelector('.chart-legend-pct').textContent.trim(),
+        swatch: getComputedStyle(r.querySelector('.chart-legend-swatch')).backgroundColor,
+      })), listId);
+
+  test('资产分布：金额与占比非零，百分比之和为 100，且按值降序', async ({ appPage: page }) => {
+    await gotoAssets(page, 'chart');
+    await expect(page.locator('#chart-legend .chart-legend-row').first()).toBeVisible();
+    const rows = await legendRows(page, 'chart-legend');
+    // sampleState：CNY 50,000 + 80,000；HKD 50,000 ÷ 0.92 = 54,347.83 → 合计 184,347.83
+    expect(rows.map((r) => r.name)).toEqual(['CNY', 'HKD']);
+    expect(rows[0].amt).toBe('¥130,000.00');
+    expect(rows[1].amt).toBe('¥54,347.83');
+    for (const r of rows) {
+      expect(r.amt, `「${r.name}」金额不得为 0（内环节点不带 value 的坑）`).not.toBe('¥0.00');
+      expect(parseFloat(r.pct)).toBeGreaterThan(0);
+    }
+    const sum = rows.reduce((s, r) => s + parseFloat(r.pct), 0);
+    expect(sum).toBeGreaterThan(99.5);
+    expect(sum).toBeLessThan(100.5);
+  });
+
+  test('切到空维度：清单与图同生共死，不留上一次的行', async ({ appPage: page }) => {
+    // 回归：清单容器是 chart 的兄弟节点，图被 showChartOrEmpty 藏起来时它不会自动消失，
+    // 于是空态提示旁边会站着一份过期数据（同 hideChartTotal 的理由）
+    await gotoAssets(page, 'chart');
+    await expect(page.locator('#chart-legend .chart-legend-row').first()).toBeVisible();
+
+    // 新建一个没有任何资产归类的维度并选中
+    await page.evaluate(() => {
+      state.categories.push({ id: 'cat-empty', name: '空维度', builtin: false, tags: ['甲', '乙'] });
+      saveState(); renderCategories();
+    });
+    await gotoAssets(page, 'chart');
+    await page.selectOption('#chart-category-select', 'cat-empty');
+    await expect(page.locator('#chart-empty')).toBeVisible();
+    await expect(page.locator('#chart-total')).toBeHidden();          // 总数早已会收起
+    await expect(page.locator('#chart-legend .chart-legend-row')).toHaveCount(0); // 清单也必须清空
+  });
+
+  test('清单的色块与扇区同色板（idx 即 data 下标，不是排序后的行号）', async ({ appPage: page }) => {
+    await gotoAssets(page, 'chart');
+    await expect(page.locator('#chart-legend .chart-legend-row').first()).toBeVisible();
+    const rows = await legendRows(page, 'chart-legend');
+    // data 顺序 = 分类里的标签序（CNY 第 0、HKD 第 1），清单按值排但 idx 必须仍指向原位
+    expect(rows.map((r) => r.idx)).toEqual(['0', '1']);
+    const palette = await page.evaluate(() => CATEGORY_PALETTE.slice(0, 2).map((p) => p.base));
+    const toRgb = (hex) => {
+      const n = parseInt(hex.slice(1), 16);
+      return `rgb(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255})`;
+    };
+    expect(rows[0].swatch).toBe(toRgb(palette[0]));
+    expect(rows[1].swatch).toBe(toRgb(palette[1]));
+  });
+
+  test('收益分布：清单按当前口径（现金/总收益）列出，非零且随口径切换', async ({ appPage: page }) => {
+    await gotoAssets(page, 'income');
+    await expect(page.locator('#income-chart-legend .chart-legend-row').first()).toBeVisible();
+    const cash = await legendRows(page, 'income-chart-legend');
+    for (const r of cash) {
+      expect(r.amt, `「${r.name}」金额不得为 0（内环节点不带 value 的坑）`).not.toBe('¥0.00');
+    }
+    const sum = cash.reduce((s, r) => s + parseFloat(r.pct), 0);
+    expect(sum).toBeGreaterThan(99.5);
+
+    // 切到总收益：同一批分类的金额应变化（现金口径 ≤ 总收益口径），占比各自仍为 100%
+    await page.locator('#income-chart-mode-total').click();
+    await expect.poll(async () => (await legendRows(page, 'income-chart-legend'))[0].amt).not.toBe(cash[0].amt);
+    const total = await legendRows(page, 'income-chart-legend');
+    expect(total.reduce((s, r) => s + parseFloat(r.pct), 0)).toBeGreaterThan(99.5);
+  });
+
+  test('消费分布：清单随月份筛选联动（切月后金额跟着变）', async ({ appPage: page }) => {
+    await page.locator('#tabs-expenses .tab-btn[data-tab="expense-chart"]').click();
+    await expect(page.locator('#expense-chart-legend .chart-legend-row').first()).toBeVisible();
+    const all = await legendRows(page, 'expense-chart-legend');
+    expect(all.reduce((s, r) => s + parseFloat(r.pct), 0)).toBeGreaterThan(99.5);
+
+    // sampleState 的消费：2026-01（微信 88.5 / 支付宝 3200）、2026-02（微信 42）
+    await page.selectOption('#expense-chart-month-select', '2026-02');
+    await expect.poll(async () => (await legendRows(page, 'expense-chart-legend')).length).toBe(1);
+    const feb = await legendRows(page, 'expense-chart-legend');
+    expect(feb[0].name).toBe('微信');
+    expect(feb[0].amt).toBe('¥42.00');
+    expect(feb[0].pct).toBe('100.0%');
+  });
+
+  test('悬停清单行高亮**对应**扇区：用 idx 而非排序后的行号', async ({ appPage: page }) => {
+    // 刻意用消费分布：它的清单按值降序（支付宝 3200 > 微信 88.5），
+    // 而 data 顺序是分类标签序（微信在前）——**行号与 dataIndex 错位**，
+    // 于是「用行号当 dataIndex」的写法会在这里暴露（资产分布那组数据恰好同序，测不出来）。
+    await page.locator('#tabs-expenses .tab-btn[data-tab="expense-chart"]').click();
+    await expect(page.locator('#expense-chart-legend .chart-legend-row').first()).toBeVisible();
+    // 默认选中最新月份（2026-02 只有微信）；切到 1 月才有两个分类可比
+    await page.selectOption('#expense-chart-month-select', '2026-01');
+    await expect.poll(async () => (await legendRows(page, 'expense-chart-legend')).length).toBe(2);
+    const rows = await legendRows(page, 'expense-chart-legend');
+    expect(rows.map((r) => r.name), '清单按值降序').toEqual(['支付宝', '微信']);
+    expect(rows.map((r) => r.idx), 'idx 仍指向 data 原位').toEqual(['1', '0']);
+
+    const dispatched = () => page.evaluate(() =>
+      (window.__echartsCalls.dispatch || []).filter((d) => d.id === 'expense-sunburst-chart').map((d) => d.action));
+    await page.evaluate(() => { window.__echartsCalls.dispatch.length = 0; });
+
+    // 悬停第一行（支付宝，在 data 里是 1）：若用行号 0 就会高亮错扇区
+    await page.locator('#expense-chart-legend .chart-legend-row').first().hover();
+    await expect.poll(dispatched).toEqual([{ type: 'highlight', seriesIndex: 0, dataIndex: 1 }]);
+
+    await page.mouse.move(0, 0);
+    await expect.poll(dispatched).toEqual([
+      { type: 'highlight', seriesIndex: 0, dataIndex: 1 },
+      { type: 'downplay', seriesIndex: 0, dataIndex: 1 },
+    ]);
+  });
+});
