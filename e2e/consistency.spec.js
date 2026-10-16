@@ -209,6 +209,11 @@ test.describe('版式一致性', () => {
  * 用户抱怨「有点看不清」不能只靠人眼——这里把每个可见文字的实际前景/背景算出来比对。
  * 背景取「最近的非透明祖先背景色」并逐层叠加（元素自身可能半透明，祖先也可能）；
  * 渐变底（.btn-gold / .seg-btn.active）无法还原真实背景色，跳过。
+ *
+ * 跳过是有代价的：页头曾用**内联** linear-gradient 做背景，于是页头里每一个元素
+ * （标题、设置、模式按钮）都被判定为「在渐变上」而默默豁免——最显眼的几行字反而不在
+ * 巡检范围内。故页头背景收回 CSS 变量类（.app-header），不再用渐变。
+ * 巡检自查：若某次改动让被跳过的元素骤增，下面的「未覆盖到的元素数」会报出来。
  * KNOWN_DIMMED 是「有意淡出」的白名单：未设利率的收益行、日期选择器里的非本月日期——
  * 它们是状态提示而非待读内容，与主题巡检的 KNOWN_HARDCODED 同性质，只减不增。
  */
@@ -239,6 +244,9 @@ test.describe('可读性：文字对比度达 AA（亮/暗两套）', () => {
         }
         return false;
       };
+      // 渐变底上无法还原真实背景色（无法取到渐变上的实际取色点），只能跳过；
+      // 但「跳过了多少」必须可见，否则整块区域会静默地离开巡检范围
+      let skipped = 0;
       const bgOf = (el) => {
         let acc = null;
         for (let n = el; n && n !== document.documentElement; n = n.parentElement) {
@@ -262,7 +270,7 @@ test.describe('可读性：文字对比度达 AA（亮/暗两套）', () => {
         if (!rect.width || !rect.height) return;
         const fg = parse(cs.color);
         if (!fg) return;
-        if (hasGradient(el)) return;
+        if (hasGradient(el)) { skipped++; return; }
         const bg = bgOf(el);
         const eff = over({ ...fg, a: fg.a * opOf(el) }, bg);
         const fs = parseFloat(cs.fontSize);
@@ -273,7 +281,7 @@ test.describe('可读性：文字对比度达 AA（亮/暗两套）', () => {
           bad.push(`${got.toFixed(2)}<${need} ${fs}px w${cs.fontWeight} ${el.tagName.toLowerCase()}.${String(el.className).trim().split(/\s+/).slice(0, 2).join('.')} ${hex(fg)}@${opOf(el).toFixed(2)} on ${hex(bg)} 「${text.slice(0, 12)}」`);
         }
       });
-      return bad;
+      return { bad, skipped };
     }, dimmed);
 
   test('亮色与暗色下都无低对比文字', async ({ appPage: page }) => {
@@ -284,8 +292,17 @@ test.describe('可读性：文字对比度达 AA（亮/暗两套）', () => {
     await page.keyboard.press('Escape');
     await expect(page.locator('html')).toHaveClass(/dark/);
     const dark = await scan(page, KNOWN_DIMMED);
-    expect(light, `亮色下这些文字对比度不足 AA：\n  ${light.join('\n  ')}`).toEqual([]);
-    expect(dark, `暗色下这些文字对比度不足 AA：\n  ${dark.join('\n  ')}`).toEqual([]);
+    expect(light.bad, `亮色下这些文字对比度不足 AA：\n  ${light.bad.join('\n  ')}`).toEqual([]);
+    expect(dark.bad, `暗色下这些文字对比度不足 AA：\n  ${dark.bad.join('\n  ')}`).toEqual([]);
+  });
+
+  test('渐变底豁免不得吞掉整块区域（页头曾在巡检范围外）', async ({ appPage: page }) => {
+    await visitAllTabs(page);
+    const { skipped } = await scan(page, KNOWN_DIMMED);
+    // 实测：页头收回 CSS 后，全站只剩 .btn-gold 与 .seg-btn.active 两块渐变底，
+    // 且它们各自只包着一个文字元素（按钮自身的文字）。
+    // 若哪天又有一整块区域被渐变包住（页头曾如此），数字会立刻蹿上去。
+    expect(skipped, '被渐变底豁免的文字元素过多，是否又有一整块区域退出了巡检？').toBeLessThanOrEqual(3);
   });
 });
 

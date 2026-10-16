@@ -967,3 +967,71 @@ test.describe('汇率', () => {
     await expect(page.locator('#masthead-whole')).toHaveText('180,000'); // HKD 按 1:1
   });
 });
+
+/*
+ * 台灯掠光（跟随指针的纸面光）。
+ * 单测只能守「换算函数正确」与「接线唯一」，守不住「事件真的接上了、值真的写进去了」——
+ * 这一组在真实浏览器里跑一遍指针，把「手一动纸面就亮」钉住。
+ */
+test.describe('台灯掠光（纸面光跟随指针）', () => {
+  /** 读固定层上的两个 CSS 变量（灯的位置全在这里） */
+  const lampPos = (page) =>
+    page.evaluate(() => {
+      const el = document.querySelector('.lamp-layer');
+      return {
+        x: el.style.getPropertyValue('--lamp-x'),
+        y: el.style.getPropertyValue('--lamp-y'),
+        on: el.classList.contains('on'),
+      };
+    });
+
+  /**
+   * 这组用例不能用 appPage：它在 fixtures 里统一开了 emulateMedia({reducedMotion:'reduce'})
+   * 给整套提速，而减动效下台灯本来就该关掉。要验灯就得按普通环境起页。
+   */
+  const lampPage = async (page, opts) => {
+    await stubCdn(page);
+    await seed(page, sampleState());
+    await page.goto(INDEX_URL);
+    await waitReady(page);
+  };
+
+  test('指针移动：纸面光跟到指针处（坐标为视口百分比）', async ({ page }) => {
+    await lampPage(page);
+    const size = page.viewportSize();
+    await page.mouse.move(size.width * 0.25, size.height * 0.5);
+    await expect.poll(async () => (await lampPos(page)).x).toBe('25%');
+    await expect.poll(async () => (await lampPos(page)).y).toBe('50%');
+    await expect.poll(async () => (await lampPos(page)).on).toBe(true);
+
+    await page.mouse.move(size.width * 0.75, size.height * 0.25);
+    await expect.poll(async () => (await lampPos(page)).x).toBe('75%');
+    await expect.poll(async () => (await lampPos(page)).y).toBe('25%');
+  });
+
+  test('窗口尺寸变化后按新尺寸重算（否则灯会停在指针左边）', async ({ page }) => {
+    await lampPage(page);
+    // 回归：setLampAt 之前复用 updateLamp(e) 的入参形状，resize 路径传的是 {x,y} 而函数读 e.clientX，
+    // 于是守卫静默丢弃、灯再也不重算——指针在 25% 处，放大窗口后灯还赖在 25%（应为 12.5%）
+    await page.setViewportSize({ width: 1000, height: 800 });
+    await page.mouse.move(250, 400); // 25% / 50%
+    await expect.poll(async () => (await lampPos(page)).x).toBe('25%');
+
+    await page.setViewportSize({ width: 2000, height: 800 });
+    await expect.poll(async () => (await lampPos(page)).x, { message: '同一坐标在新宽度下应变成 12.5%' }).toBe('12.5%');
+  });
+
+  test('减动效下不跟随（要求安静时不该还有一层光在动）', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await lampPage(page);
+    // 不用 waitForTimeout（AGENTS.md 禁止）：pointermove → setLampAt → syncLamp 是同步的，
+    // 而 page.evaluate 本身就是一次往返，回到这里时处理早已完成
+    await page.mouse.move(300, 300);
+    const st = await lampPos(page);
+    expect(st.on, '减动效下不得点亮').toBe(false);
+    expect(st.x, '减动效下坐标都不该被写入').toBe('');
+    // CSS 侧也有一道闸：即使 JS 漏了，光层也不该被画出来
+    const hidden = await page.evaluate(() => getComputedStyle(document.querySelector('.lamp-layer')).display);
+    expect(hidden).toBe('none');
+  });
+});

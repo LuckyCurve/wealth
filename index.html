@@ -61,6 +61,15 @@ tailwind.config = {
     --shadow: rgba(33, 27, 16, 0.07);
     --card-edge: rgba(255, 255, 255, 0.55);
     --tick: rgba(33, 27, 16, 0.22);
+    /* 台灯（纸面掠光）: 一盏斜射的灯——两条平行光带随指针位置横扫纸面，
+       正落在指针处的一小枚圆芯是灯的中心。不用大圆霍：半径一大就变成「一圈发光背景」，
+       那是模板式光晕；斜光带有方向，才像一束真打在纸上的光。 */
+    --lamp-tint: rgba(255, 255, 255, 0.6);
+    --lamp-glow: rgba(176, 124, 16, 0.13);
+    /* 报头底纹（阴阳纹/机器雕版）: 线色与线宽。亮色下细金线在纸面上会向灰偏移，
+       故明度压深、线略粗（实测 0.7px 会脏成灰色，1.1px 才读得出是金色的） */
+    --engrave: rgba(163, 115, 10, 0.62);
+    --engrave-w: 1.1px;
   }
   :root.dark {
     --bg: #15110a;
@@ -80,6 +89,12 @@ tailwind.config = {
     --shadow: rgba(0, 0, 0, 0.4);
     --card-edge: rgba(255, 255, 255, 0.04);
     --tick: rgba(236, 228, 208, 0.22);
+    /* 暗色纸是深棕，光要更弱、更黄：否则在漆黑夜纸上是一片刺眼的白斑 */
+    --lamp-tint: rgba(255, 240, 200, 0.08);
+    --lamp-glow: rgba(217, 178, 94, 0.08);
+    /* 暗色纸是深棕，金线可以直接用亮金（亮色下反而要压深才不泛灰） */
+    --engrave: rgba(217, 178, 94, 0.5);
+    --engrave-w: 1px;
   }
   .dark .asset-row { border-bottom-color: var(--rule); }
   .dark .card { border-color: var(--border); }
@@ -161,10 +176,37 @@ tailwind.config = {
   * { box-sizing: border-box; }
   html { -webkit-text-size-adjust: 100%; }
   body { background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: var(--fs-body); font-weight: var(--fw-medium); font-feature-settings: 'tnum' 1; }
+  /* ===== 纸纹与掠光：这个产品的隐喻是「一张摊在桌面上的账页」=====
+     两层各司其职：
+     ①  body::before = 纸纤维（静止的、材质的; 原有的十字纹保留）
+     ②  .lamp-layer   = 台灯（跟随指针的、活的一层）
+     分开的理由：纸纹属于纸张，灯属于环境。把它们合进一层后，换灯就带动了纸，
+     换纸又带动了灯；而且灯需要 z-index 高于纸纹才能「照亮纸」。
+     为何两都用 z-index: -1 却仍可见（实测，不是推论）：负 z-index 只是落到
+     **在流内容的后面**，并不会落到根背景后面；根背景（html/body 的 background）先画，
+     所以 -1 的固定层依然在纸面上显形。这样写的好处是不必给任何内容抬 z-index，
+     日后新增的元素天然在灯之上，不存在「忘了抬就被盖住」的隐陷阱。 */
   body::before {
     content: ''; position: fixed; inset: 0; z-index: -1; opacity: 0.035; pointer-events: none;
     background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23000' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
   }
+  /* 台灯掠光: 两条斜光带（同一角度、错开位置） + 指针处的小圆芯。
+     带子用 calc(var(--lamp-x) ± …) 定位——光带跟着指针的横向位置扫，纵向只由圆芯微调，
+     所以鼠标横移时纸面像被灯拂过，而不是一个球在跳。
+     坐标只认 --lamp-x/--lamp-y（percent），由 updateLamp 写入（换算在 logic.js lampPos）。
+     默认 50% 50% = 居中，故未启用（触屏/减动效）时它就是一层静止的柔和照射。 */
+  .lamp-layer {
+    position: fixed; inset: 0; z-index: -1; pointer-events: none;
+    background-image:
+      linear-gradient(104deg, transparent calc(var(--lamp-x, 50%) - 34%), var(--lamp-glow) calc(var(--lamp-x, 50%) - 16%), transparent calc(var(--lamp-x, 50%) - 2%)),
+      linear-gradient(104deg, transparent calc(var(--lamp-x, 50%) + 6%), var(--lamp-glow) calc(var(--lamp-x, 50%) + 20%), transparent calc(var(--lamp-x, 50%) + 36%)),
+      radial-gradient(110px 110px at var(--lamp-x, 50%) var(--lamp-y, 50%), var(--lamp-tint), transparent 72%);
+    opacity: 0; transition: opacity 0.5s ease;
+  }
+  /* 指针进入后淡入（避免首帧在 50%/50% 处闪一下） */
+  .lamp-layer.on { opacity: 1; }
+  /* 减动效：明确要求安静就不画灯（与 logic.js lampEnabled 同一道闸，双重保险） */
+  @media (prefers-reduced-motion: reduce) { .lamp-layer { display: none; } }
   .font-display { font-family: var(--font-display); }
   .font-masthead { font-family: var(--font-numeric); font-feature-settings: 'lnum' 1, 'tnum' 1; }
   .tabular { font-variant-numeric: tabular-nums; font-feature-settings: 'tnum' 1; }
@@ -212,6 +254,12 @@ tailwind.config = {
     box-shadow: inset 0 1px 0 var(--card-edge), 0 1px 3px var(--shadow); padding: 24px;
     transition: box-shadow 0.2s, border-color 0.2s;
   }
+  /* 页头：底色走变量（原来是内联 linear-gradient——渐变底无法校对比度，
+     于是页头里每一行字都被巡检默默跳过了） */
+  .app-header { background: var(--bg); border-bottom: 1px solid var(--border); }
+  /* 卡片悬停：只抬阴影与描边（不做跟随指针的卡片光晕——全站只此一盏灯，
+     逐卡片再加一层 radial-gradient 会变成一屏十几个光源、互相打架） */
+  .card:hover { box-shadow: inset 0 1px 0 var(--card-edge), 0 2px 10px var(--shadow); }
   .card-interactive { cursor: pointer; }
   .card-interactive:hover { box-shadow: inset 0 1px 0 var(--card-edge), 0 4px 16px var(--shadow); border-color: var(--accent-soft); }
   input, select {
@@ -688,8 +736,23 @@ tailwind.config = {
   ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
 
   /* ===== Masthead / net-worth hero =====
-     签名语言是四角裁切标记（::after）——左缘渐变条是纯装饰、且最像模板式渐变强调，已移除。 */
+     签名语言是报头底纹（::before，阴阳纹/机器雕版）+ 四角裁切标记（::after）——
+     底纹共用最显眼的两条曲线，把眼睛从空白引向大数字；它是本页唯一的装饰性印刷语言，
+     其余部分保持素面（全站只此一处，第二个元素再刻就变成了壁纸）。 */
   .masthead { position: relative; padding: 30px 28px 26px; border-radius: 12px; overflow: hidden; }
+  /* 报头底纹：两枚同心的重复径向渐变（模拟机器雕版的阴阳纹）错开叠合，
+     干涉出牡丹纹般的细密线簇。用 mask 让它只管右半张纸（不碰左侧的读数与小字），
+     衰减到 72% 处收干净，线条自然消失而非被硬边切断。 */
+  .masthead::before {
+    content: ''; position: absolute; inset: 0; z-index: 0; pointer-events: none;
+    background-image:
+      repeating-radial-gradient(circle at 145% 46%, transparent 0 7px, var(--engrave) 7px calc(7px + var(--engrave-w))),
+      repeating-radial-gradient(circle at 165% 58%, transparent 0 7px, var(--engrave) 7px calc(7px + var(--engrave-w)));
+    -webkit-mask-image: radial-gradient(140% 180% at 155% 52%, #000 0%, transparent 72%);
+    mask-image: radial-gradient(140% 180% at 155% 52%, #000 0%, transparent 72%);
+  }
+  /* 内容抬到底纹之上（底纹是绝对定位的同级层，在流子元素默认比它先画） */
+  .masthead > * { position: relative; z-index: 1; }
   .masthead-eyebrow {
     font-family: var(--font-body); font-size: var(--fs-micro); letter-spacing: 0.22em;
     text-transform: uppercase; color: var(--muted); margin-bottom: 6px; display: flex; align-items: center; gap: 8px;
@@ -703,7 +766,8 @@ tailwind.config = {
   }
   .masthead-amount .currency-mark { font-size: 0.42em; color: var(--accent-ink); font-weight: var(--fw-strong); transform: translateY(-0.55em); }
   .masthead-amount .cents { font-size: 0.4em; color: var(--muted); font-weight: var(--fw-medium); }
-  /* 报头四角裁切标记（register ticks）: 像一张刚从印刷版上裁下的账页 */
+  /* 报头四角裁切标记（register ticks）: 像一张刚从印刷版上裁下的账页。
+     z-index 必须高于底纹（同名属性下后写的胜，故这里的 1 与 ::before 的 0 不冲突） */
   .masthead::after {
     content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 1;
     background:
@@ -827,8 +891,13 @@ tailwind.config = {
 </head>
 <body class="min-h-screen">
 
+<!-- 纸面掠光层: 跟随指针的「台灯」——账本摊在桌上，灯在纸上游走。
+     固定视口层, 不吃指针事件; --lamp-x/--lamp-y 由 updateLamp 写（换算在 logic.js lampPos）。
+     z-index: -1 = 落在在流内容之后、根背景之前（为何仍可见见 CSS 里的实测说明）。 -->
+<div class="lamp-layer" aria-hidden="true"></div>
+
 <!-- Header -->
-<header style="border-bottom: 1px solid var(--border); background: linear-gradient(180deg, var(--card-2), transparent);">
+<header class="app-header">
   <div class="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between gap-4 flex-wrap">
     <div class="flex items-center gap-6 flex-wrap">
       <div class="flex items-center gap-3">
@@ -1684,6 +1753,7 @@ let sortDir = 'asc';
     // 自动下载在 maybeAutoBackup 内部延迟数秒，避开首屏渲染高峰
     checkBackupStale();
     maybeAutoBackup(ratePromise);
+    syncLamp(); // 判定开关（此时还没指针坐标，灯不会亮；首枚坐标到达时再由 setLampAt 点亮）
   });
 
   // 从 bfcache 恢复（后退/前进、恢复标签页）时，DOMContentLoaded 不会再次触发，
@@ -1905,6 +1975,72 @@ function enterAssets() {
     { okLabel: '查看资产', tone: 'gold' });
 }
 
+// ========== 台灯掠光（跟随指针的纸面光）==========
+// 账本摊在桌上，灯在纸上游走：指针即光源。全站唯一的常驻动效，其余都是一次性/状态性的。
+// 位置换算与开关判定在 logic.js（lampPos / lampEnabled），这里只负责取信号、写变量、收事件。
+// 减动效查询与取值：与 masthead 计数动画共用同一份（两处各查一遍 matchMedia，
+// 就是同一件事在文件里出现两次；且同名 const 重复声明会让整个脚本死在解析期）
+const _reduceMotionQuery = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
+// 粗指针 = 触屏（没有悬停可言），不跟：省掉一幅全屏固定层的逐帧重绘
+const _coarsePointer = window.matchMedia ? window.matchMedia('(pointer: coarse)').matches : false;
+let _reduceMotion = _reduceMotionQuery ? _reduceMotionQuery.matches : false;
+let _lampPending = null; // 待写的指针坐标（同一帧内多次 move 只写最后一枚）
+let _lampLast = null;    // 最后一枚已收到的坐标（resize 重算用）
+let _lampRaf = 0;
+
+// 灯该不该亮：三种「不跟」的情况（减动效/触屏/页面不可见），
+// 外加**还没收到过指针坐标就不亮** —— 灯是「跟指针」的，首帧在正中央先亮起一团光
+// 再跳到指针处，那不像一盏灯，像是没加载完。
+function syncLamp() {
+  const layer = document.querySelector('.lamp-layer');
+  if (!layer) return;
+  const on = lampEnabled({
+    reducedMotion: _reduceMotion,
+    coarsePointer: _coarsePointer,
+    hidden: document.hidden,
+  }) && _lampLast !== null;
+  layer.classList.toggle('on', on);
+}
+
+// 指针坐标 → CSS 变量。每帧只写一次（rAF 合并）——
+// pointermove 在 120Hz 屏上每秒百次，逐次写变量会让固定层的渐变重算成为主要开销。
+// 坐标先归一成 {x, y} 再排帧：resize 重算要复用同一入口，
+// 而那里手上是一对坐标、不是事件对象（曾经直接回传旧对象，于是 resize 后灯再也不重算）
+function setLampAt(x, y) {
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+  _lampLast = { x: x, y: y };
+  _lampPending = _lampLast;
+  syncLamp(); // 首枚坐标到达 = 可以亮灯了
+  if (_lampRaf) return;
+  _lampRaf = requestAnimationFrame(flushLamp);
+}
+
+function updateLamp(e) {
+  if (!e) return;
+  setLampAt(e.clientX, e.clientY);
+}
+
+function flushLamp() {
+  _lampRaf = 0;
+  const p = _lampPending;
+  _lampPending = null;
+  if (!p) return;
+  const layer = document.querySelector('.lamp-layer');
+  if (!layer || !layer.classList.contains('on')) return;
+  const pos = lampPos(p.x, p.y, window.innerWidth, window.innerHeight);
+  layer.style.setProperty('--lamp-x', pos.x + '%');
+  layer.style.setProperty('--lamp-y', pos.y + '%');
+}
+
+// resize 后旧百分比对应的是新尺寸上的另一个位置（灯会偏离指针），依最后一枚坐标重算
+window.addEventListener('resize', () => { if (_lampLast) setLampAt(_lampLast.x, _lampLast.y); });
+document.addEventListener('pointermove', updateLamp);
+// 切回标签页/减动效设置改变时重判（matchMedia 变化在移动端很常见：接上鼠标/压下系统开关）
+document.addEventListener('visibilitychange', syncLamp);
+if (_reduceMotionQuery && _reduceMotionQuery.addEventListener) {
+  _reduceMotionQuery.addEventListener('change', (ev) => { _reduceMotion = ev.matches; syncLamp(); });
+}
+
 // ========== RENDER ==========
 function renderAll() {
   renderAssets();
@@ -1975,7 +2111,7 @@ function renderAssets() {
 // ===== Masthead / net-worth hero =====
 let _mastheadRaf = null;
 let _mastheadPrev = 0;
-const _reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+// _reduceMotion 定义在台灯一节（文件顶部）：两处都读同一个信号，此处不得再声明一次
 
 function renderMasthead(total) {
   const wholeEl = document.getElementById('masthead-whole');

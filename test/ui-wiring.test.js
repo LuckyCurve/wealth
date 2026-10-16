@@ -1657,3 +1657,126 @@ describe('UI 接线契约：分布图总数（与扇区同源，随筛选联动�
     }
   });
 });
+
+/*
+ * 视觉增强（台灯掠光 + 纸面质感）的接线契约。
+ * --------------------------------------------------------------------------
+ * 这一批改动的共同风险：①「跟随指针」的换算被写成第二份（CSS 一处、JS 一处），
+ * 改了一处另一处不跟；②光晕层挂在有定位/拖拽语义的元素上，反而换了行为；
+ * ③动效没有减动效出口，或整个地写死了 pointer 事件，触屏上白耗性能。
+ */
+describe('UI 接线契约：台灯掠光（跟随指针的纸面光）', () => {
+  test('位置换算与开关判定都在 logic.js，页面只写 CSS 变量', () => {
+    assert.match(html, /logic\.js/, 'logic.js 由页面脚本加载');
+    const logic = fs.readFileSync(path.join(__dirname, '..', 'logic.js'), 'utf8');
+    assert.match(logic, /function lampPos\(/, '坐标换算下沉 logic.js');
+    assert.match(logic, /function lampEnabled\(/, '开关判定下沉 logic.js');
+    // 页面里只允许出现「读坐标 → 调 lampPos → 写变量」这一种写法，不允许自己算百分比
+    const src = fnSource('flushLamp');
+    assert.match(src, /lampPos\(/, '走纯函数换算');
+    assert.match(src, /setProperty\('--lamp-x'/, '只写 CSS 变量');
+    assert.match(src, /setProperty\('--lamp-y'/, '只写 CSS 变量');
+    assert.ok(!/\/\s*(window\.)?innerWidth/.test(stripComments(src)), '不得在页面里再算一遍百分比');
+    // 逐次写变量会让全屏固定层的渐变每帧重算：坐标必须靠 rAF 合并
+    assert.match(html, /_lampRaf = requestAnimationFrame\(flushLamp\)/, '每帧只写一次');
+  });
+
+  test('事件注册唯一：pointermove 只挂一处，且不在被 patch 的元素上重复注册', () => {
+    assert.strictEqual(count(/addEventListener\('pointermove', updateLamp\)/g), 1, '指针移动只挂一次');
+    assert.strictEqual(count(/function updateLamp\(/g), 1, 'handler 唯一');
+    // 光晕层本身必须不吃事件：否则 hover/拖拽/点击全被它挡在下面
+    assert.match(html, /\n  \.lamp-layer \{[^}]*pointer-events: none/, '光晕层不吃指针事件');
+    assert.match(html, /\n  \.lamp-layer \{[^}]*position: fixed/, '光晕层脱离文档流');
+    // z-index: -1 = 在流内容之后、根背景之前；实测仍可见（负 z-index 不会落到根背景后面）。
+    // 用它就不必给任何内容抬 z-index，日后新增元素天然在灯之上
+    assert.match(html, /\n  \.lamp-layer \{[^}]*z-index: -1/, '灯在内容之后（不给内容留抬升负担）');
+    assert.ok(!/header, main \{ position: relative; z-index/.test(html), '不得靠逐个抬内容 z-index 让灯可见');
+  });
+
+  test('减动效 / 粗指针 / 页面不可见三种情况都不跟（判定单一来源）', () => {
+    const src = fnSource('lampEnabled_');
+    assert.strictEqual(count(/lampEnabled\(/g), 1, '页面只调用、不重写判定');
+    assert.match(html, /prefers-reduced-motion/, '减动效有出口');
+    assert.match(html, /pointer: coarse/, '触屏不跟（无悬停可言）');
+    assert.match(fnSource('syncLamp'), /lampEnabled\(/, '开关走纯函数');
+  });
+
+  test('还没收到指针坐标前不亮灯（首帧在正中先亮一团光再跳走，不像灯）', () => {
+    const src = fnSource('syncLamp');
+    assert.match(src, /_lampLast !== null/, '未收到坐标时不得点亮');
+    assert.match(fnSource('setLampAt'), /syncLamp\(\);/, '首枚坐标到达时点亮');
+  });
+
+  test('掠光是纸面光学，不该给卡片/行另加一套悬停渐变（各部件各有自己的 hover 语义）', () => {
+    // 表格行的 hover 是「当前行」的指示，曾经就是纯底色；不得被光晕改写
+    assert.match(html, /\n  \.asset-row:hover \{ background: var\(--card-2\); \}/, '行悬停语义不变');
+    // 不允许再出现第二套「跟随指针的光晕」（如逐卡片的 radial-gradient hover）
+    const mats = html.match(/radial-gradient\(\d+px \d+px at var\(--lamp-x/g) || [];
+    assert.strictEqual(mats.length, 1, '指针处的小圆芯只此一处');
+    const lampCss = html.match(/\.lamp-layer \{[^}]*\}/)[0];
+    assert.match(lampCss, /var\(--lamp-x, 50%\)/, '未收到指针时停在居中兜底值');
+    // 光带靠 calc(--lamp-x ± …) 跟随指针横扫；写成固定角度的死值就退化成「装饰条纹」而非「掠光」
+    assert.match(lampCss, /transparent calc\(var\(--lamp-x, 50%\) [-+]/, '光带位置随指针（而非固定条纹）');
+    // 大半径圆霍 = 「一圈发光背景」（模板式），不是打在纸上的光
+    assert.ok(!/radial-gradient\(5\d\dpx/.test(lampCss), '不得用大半径圆霍冒充光');
+  });
+});
+
+describe('UI 接线契约：纸面质感与印刷细节', () => {
+  test('页头背景收回 CSS 变量类（内联渐变会让 AA 巡检整块跳过）', () => {
+    const header = html.match(/<!-- Header -->[\s\S]*?<\/header>/)[0];
+    assert.ok(!/style="[^"]*background/.test(header), '页头不得内联背景（渐变底无法校对比度，会整块豁免）');
+    assert.match(header, /class="app-header/, '背景改由类名承担');
+    assert.match(html, /\n  \.app-header \{[^}]*background: var\(--bg\)/, '页头底色走主题变量');
+  });
+
+  test('纸纹与灯具的颜色全部走 CSS 变量（两套主题一一对应）', () => {
+    for (const v of ['--lamp-tint', '--lamp-glow', '--engrave', '--engrave-w']) {
+      const decls = (html.match(new RegExp(`${v}:`, 'g')) || []).length;
+      assert.strictEqual(decls, 2, `${v} 必须在亮/暗两套 :root 里各定义一次（实得 ${decls} 处）`);
+    }
+    // theme.spec.js 的两套变量一一对应巡检只扫 :root / :root.dark，
+    // 这三条正在这两块里（漏定义会让暗色下回落到亮色的暖白灯——一片刺眼白斑）
+  });
+
+  test('关键动效均可在减动效下关停（光晕在减动效下直接不画）', () => {
+    // 光晕靠 pointermove + rAF 驱动，必须有一条 CSS 侧的硬出口
+    // （logic.js 的 lampEnabled 是另一道闸，两重保险：JS 不写 + CSS 不画）
+    assert.match(html, /@media \(prefers-reduced-motion: reduce\) \{ \.lamp-layer \{ display: none; \} \}/, '光晕在减动效下直接不画');
+    assert.match(fnSource('syncLamp'), /lampEnabled\(/, 'JS 侧也走同一道判定');
+  });
+});
+
+/*
+ * 脚本自身可解析性：单文件 SPA 没有构建步骤，也没人为每个 <script> 跑 lint，
+ * 一个重复的顶层声明（哪怕一个是 let、一个是 const）就会让整段脚本死在解析期——
+ * 症状是「页面在，但没有数字」，renderAll 之后的所有接线都不存在（点设置没反应、图表不画），
+ * 而浏览器只在控制台留一行 SyntaxError。实测代价：台灯一节重复声明了 masthead 已有的
+ * _reduceMotion，全套 E2E 红了 26 条。
+ *
+ * 这里用 new Function 做**真正的解析**（只解析、不执行，也不需要 DOM）：
+ * 比手写正则数重名可靠得多——正则只看同类声明，漏掉 let 与 const 撞名这类真错。
+ */
+describe('UI 接线契约：内联脚本必须能通过解析', () => {
+  const inlineScript = () => {
+    const i = html.lastIndexOf('<script>');
+    const j = html.lastIndexOf('</script>');
+    return html.slice(i + '<script>'.length, j);
+  };
+
+  test('内联脚本可解析（顶层声明重名会在此现形）', () => {
+    const src = inlineScript();
+    assert.ok(src.length > 10000, '应取到内联脚本全文（正则/切片是否失效？）');
+    assert.doesNotThrow(() => new Function(src), '内联脚本存在语法错误（顶层声明重名等）——整段脚本都不会执行');
+  });
+
+  test('logic.js 可解析', () => {
+    const logic = fs.readFileSync(path.join(__dirname, '..', 'logic.js'), 'utf8');
+    assert.doesNotThrow(() => new Function(logic));
+  });
+
+  test('顶层声明去重检查本身有效（对重名样本报错）', () => {
+    // 自检：确认这层防护不是空转
+    assert.throws(() => new Function('let a = 1;\nconst a = 2;'), SyntaxError);
+  });
+});

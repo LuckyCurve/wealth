@@ -1234,6 +1234,35 @@ describe('长按送达资产页 modePressProgress / modePressDecision', () => {
   });
 });
 
+describe('台灯掠光 lampEnabled / lampPos（跟随指针的纸面光）', () => {
+  test('指针坐标 → 视口百分比（CSS 直接可用）', () => {
+    assert.deepStrictEqual(L.lampPos(500, 250, 1000, 500), { x: 50, y: 50 });
+    assert.deepStrictEqual(L.lampPos(0, 0, 1000, 500), { x: 0, y: 0 });
+    assert.deepStrictEqual(L.lampPos(1000, 500, 1000, 500), { x: 100, y: 100 });
+  });
+
+  test('越界坐标夹在 0~100（指针在窗口外时不该把光晕送出纸面）', () => {
+    assert.deepStrictEqual(L.lampPos(-40, 900, 1000, 500), { x: 0, y: 100 });
+    assert.deepStrictEqual(L.lampPos(99999, -1, 1000, 500), { x: 100, y: 0 });
+  });
+
+  test('尺寸未知/坐标非法一律居中兜底（NaN% 会让整条 gradient 失效）', () => {
+    assert.deepStrictEqual(L.lampPos(100, 100, 0, 0), { x: 50, y: 50 });
+    assert.deepStrictEqual(L.lampPos(NaN, undefined, 1000, 500), { x: 50, y: 50 });
+    assert.deepStrictEqual(L.lampPos(100, 100, null, undefined), { x: 50, y: 50 });
+    assert.deepStrictEqual(L.lampPos(Infinity, 100, 1000, 500), { x: 50, y: 20 });
+  });
+
+  test('是否点灯：减动效 / 粗指针（触屏无悬停）/ 页面不可见 时都不跟', () => {
+    assert.strictEqual(L.lampEnabled(), true, '无参数也不抛错，默认跟随');
+    assert.strictEqual(L.lampEnabled({}), true);
+    assert.strictEqual(L.lampEnabled({ reducedMotion: true }), false, '明确要求安静就不点灯');
+    assert.strictEqual(L.lampEnabled({ coarsePointer: true }), false, '触屏没有悬停');
+    assert.strictEqual(L.lampEnabled({ hidden: true }), false, '页面不可见时不必描');
+    assert.strictEqual(L.lampEnabled({ reducedMotion: false, coarsePointer: false, hidden: false }), true);
+  });
+});
+
 describe('堆叠柱标签排序 sortTagsByTotal（历史净值/消费趋势共用）', () => {
   const cat = { id: 'c', tags: ['a', 'b', 'c'] };
 

@@ -123,6 +123,29 @@
     return '长按 ' + (Number.isInteger(sec) ? sec : sec.toFixed(1)) + ' 秒进入资产页';
   }
 
+  // ===== 台灯掠光（跟随指针的纸面光，全站唯一的常驻动效）=====
+  // 物理隐喻：账本摊在桌上，台灯在纸上游走——换一个指针位置就等于换一个光源位置。
+  // 位置换算与「是否该亮」的判定收在这里：CSS 只认两个百分比变量，
+  // 页面里不再算一遍（resize 后重新推算是页面的事，不是判定的事）。
+
+  // 指针坐标 → 视口百分比。越界夹在 0~100（指针在窗口外时不该把光晕送出纸面）；
+  // 尺寸未知/坐标非法一律给 50（居中兜底）—— NaN% 会让整条 radial-gradient 失效，
+  // 表现为「灯忽然坏了」而非报错。
+  function lampPos(x, y, w, h) {
+    const pct = (v, size) => {
+      if (!(size > 0) || !Number.isFinite(v)) return 50;
+      return Math.round(Math.min(100, Math.max(0, (v / size) * 100)) * 100) / 100;
+    };
+    return { x: pct(x, w), y: pct(y, h) };
+  }
+
+  // 是否需要这盏灯：减动效（明确要求安静）/ 粗指针（触屏没有悬停，徒耗性能）/ 页面不可见
+  // 三种情况都不跟。判定为纯函数，DOM 层只负责把三个信号取出来。
+  function lampEnabled(opts) {
+    const o = opts || {};
+    return !o.reducedMotion && !o.coarsePointer && !o.hidden;
+  }
+
   // 消费记录出现过的月份列表（去重、降序）：月份筛选下拉与趋势图维度下拉共用。
   // 防御缺失/空 date 的脏记录（filter(Boolean)），两处推导原先一份防御一份不防御，现统一单一来源
   function expenseMonths(expenses) {
@@ -1023,6 +1046,7 @@
     rateFallbackNotice,
     nextSortState, inlineEditKeyAction, expenseMonths,
     MODE_PRESS_MS, modePressProgress, modePressDecision, modePressHint,
+    lampEnabled, lampPos,
     tagFilterValue, parseTagFilter, expenseTagFilterGroups, hasTagFilterOption,
     isUntaggedItem, missingTagGroups, setTag, backfillTag,
     migrateTagRefs, migrateRunwayTagRefs, countTagRefs,
