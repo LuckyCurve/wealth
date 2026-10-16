@@ -97,13 +97,30 @@
     return null;
   }
 
-  // 标签页键盘导航：在当前标签组内前/后移一位的目标下标（Tab/Shift+Tab），
-  // 组首/组尾循环回绕（顶端资产/消费只有两项，Tab 即在两者间轮流切换）。
-  // total<=0 返回 null 供调用方跳过；防御 current 非法/越界（取模前先归一到非负）。
-  function nextTabIndex(current, total, shift) {
-    if (!(total > 0)) return null;
-    const step = (Number(current) || 0) + (shift ? -1 : 1);
-    return ((step % total) + total) % total;
+  // ===== 进入资产页的长按门槛 =====
+  // 按住「资产」需满 MODE_PRESS_MS 才算出货（提高从消费页进入资产页的成本：
+  // 资产价格短期波动天然大，日常高频查看只会放大情绪噪音）。
+  // 阈值、进度比例与「按满/仅提示」判定都收在这里：文案要报时长，判定要用时长，
+  // 分散在页面里改一处忘一处就会出现「文案说 1.2 秒、实际 1 秒」这类漂移。
+  const MODE_PRESS_MS = 1000;
+
+  // 已按住时长 → 进度比例（0~1，供进度动画取宽度；超时封顶不溢出）
+  function modePressProgress(heldMs) {
+    if (!(heldMs > 0)) return 0;
+    return Math.min(1, heldMs / MODE_PRESS_MS);
+  }
+
+  // 松手时的处置：'enter' = 放行到确认框；'hint' = 短击，弹一句「长按多久」的教学。
+  // 无有效按住时长（0/负值/NaN）视为没按，不响应
+  function modePressDecision(heldMs) {
+    if (!(heldMs > 0)) return 'ignore';
+    return heldMs >= MODE_PRESS_MS ? 'enter' : 'hint';
+  }
+
+  // 短击提示文案：时长由常量派生，页面不再写一遍。默认取阈值，参数留给单测验两种小数形态
+  function modePressHint(ms) {
+    const sec = (ms === undefined ? MODE_PRESS_MS : ms) / 1000;
+    return '长按 ' + (Number.isInteger(sec) ? sec : sec.toFixed(1)) + ' 秒进入资产页';
   }
 
   // 消费记录出现过的月份列表（去重、降序）：月份筛选下拉与趋势图维度下拉共用。
@@ -1004,7 +1021,8 @@
     daysBetweenStr,
     BACKUP_STALE_DAYS, normalizeBackupFreq, backupNoteText, hasAnyBackupWorthyData, shouldAutoBackup, backupStaleDays,
     rateFallbackNotice,
-    nextSortState, nextTabIndex, inlineEditKeyAction, expenseMonths,
+    nextSortState, inlineEditKeyAction, expenseMonths,
+    MODE_PRESS_MS, modePressProgress, modePressDecision, modePressHint,
     tagFilterValue, parseTagFilter, expenseTagFilterGroups, hasTagFilterOption,
     isUntaggedItem, missingTagGroups, setTag, backfillTag,
     migrateTagRefs, migrateRunwayTagRefs, countTagRefs,

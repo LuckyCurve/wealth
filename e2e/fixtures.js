@@ -218,6 +218,27 @@ async function disableMotion(page) {
 }
 
 /**
+ * 进入资产模式（E2E 的单一入口，两个 spec 共用）。
+ * 资产入口有长按门槛（见 index.html 的长按门槛一处），这里走**键盘激活**：
+ * 合成的 click 的 detail 为 0，直通确认框——既不必等满按住时长（logic.js 的 MODE_PRESS_MS），
+ * 也顺带护住「不用鼠标的人不该被挡在门外」这条路径。
+ * 长按手势本身由 app.spec.js 的专测用真实鼠标/触摸覆盖。
+ *
+ * @param {string} [tab] 进入后再切到的资产子 Tab（默认停在「资产管理」）
+ */
+async function gotoAssets(page, tab) {
+  // 幂等：已在资产模式就别再走一次门（第二次长按确认框不会出现——门上本来就有「已在里面就失效」这道闸）
+  if (!(await page.locator('#tabs-assets').isVisible())) {
+    await page.locator('#mode-assets').focus();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#confirm-modal')).toBeVisible();
+    await page.locator('#confirm-ok-btn').click();
+    await expect(page.locator('#tabs-assets')).toBeVisible();
+  }
+  if (tab) await page.locator(`#tabs-assets .tab-btn[data-tab="${tab}"]`).click();
+}
+
+/**
  * 走遍所有可见视图，让「懒渲染」的内容都进 DOM。
  * 主题色一致性必须覆盖全部 Tab：分类管理/图表/历史/收益/趋势里的 pill、徽章、
  * 空态只在各自 Tab 首次进入时才渲染（switchTab 里的 setTimeout 重绘）。
@@ -231,7 +252,7 @@ async function visitAllTabs(page) {
     // 面板翻转同步发生：直接断言，不 sleep
     await expect(page.locator(`#tab-${tab}`)).toBeVisible();
   };
-  await page.locator('#mode-assets').click();
+  await gotoAssets(page);
   for (const t of ['assets', 'categories', 'chart', 'history', 'income']) await showPanel('#tabs-assets', t);
   await page.locator('#mode-expenses').click();
   for (const t of ['expenses', 'expense-categories', 'expense-chart', 'expense-trend']) await showPanel('#tabs-expenses', t);
@@ -339,6 +360,6 @@ const UA_DEFAULT_COLORS = new Set([
 
 module.exports = {
   test, expect, stubCdn, seed, waitReady, disableMotion, readAppState,
-  visitAllTabs, collectOffThemeColors, UA_DEFAULT_COLORS,
+  visitAllTabs, gotoAssets, collectOffThemeColors, UA_DEFAULT_COLORS,
   sampleState, EMPTY_STATE, LS_KEY, INDEX_URL,
 };

@@ -869,26 +869,89 @@ describe('UI 接线契约：行内金额编辑键位（小键盘 Enter 同 Tab�
   });
 });
 
-describe('UI 接线契约：键盘 Tab 在顶端资产/消费之间轮流切换', () => {
-  test('Tab 导航处理器唯一、走 nextTabIndex 纯函数、只注册一次', () => {
-    assert.strictEqual(count(/function handleTabKeyNav\(/g), 1, 'handler 应唯一');
-    assert.match(fnSource('handleTabKeyNav'), /nextTabIndex\(/, '循环下标下沉 logic.js，不内联重写');
-    assert.strictEqual(count(/addEventListener\('keydown', handleTabKeyNav\)/g), 1, '只注册一次');
+describe('UI 接线契约：键盘 Tab 不再切换资产/消费', () => {
+  test('旧键盘接管整块移除，不回潮', () => {
+    assert.strictEqual(count(/handleTabKeyNav/g), 0, '键盘 Tab 接管处理器应保持移除');
+    assert.strictEqual(count(/nextTabIndex/g), 0, '组内循环下标纯函数随之移除');
+    // 子 Tab 栏与模式按钮都不再有 keydown 接管：Tab 恢复浏览器默认焦点顺序
+    const bar = html.match(/<div id="tabs-assets"[\s\S]*?<\/div>/)[0];
+    assert.ok(!/onkeydown/.test(bar), '子 Tab 栏不得接管键位');
+  });
+});
+
+describe('UI 接线契约：资产页只能靠长按送达（提高日常查看成本）', () => {
+  test('模式按钮是长按接线：按下起计时、松手/移开收尾', () => {
+    assert.match(html, /id="mode-assets"[^>]*onpointerdown="startModePress\(event\)"/, '按下即起计时（pointer 事件对鼠标/触摸同一套）');
+    assert.match(html, /id="mode-assets"[^>]*onpointerleave="cancelModePress\(\)"/, '指针移开即放弃');
+    // 松手必须收在 document 上：在按钮外松手时 pointerup 不落到按钮上，
+    // 挂在按钮上会漏收尾，墨线留在满格、下一次按下被误判成就绪
+    assert.match(html, /document\.addEventListener\('pointerup', endModePress\)/, '松手收尾挂在 document');
+    assert.strictEqual(count(/onclick="switchMode\('assets'\)"/g), 0, '旧「点一下就进」入口应保持移除');
   });
 
-  test('仅接管顶端模式选择，不再接管子 Tab（.tab-btn）与其它 seg-control', () => {
-    const src = fnSource('handleTabKeyNav');
-    assert.match(src, /#mode-assets, #mode-expenses/, '只认顶端资产/消费两个按钮');
-    assert.ok(!/tab-btn/.test(src), '不得再接管子 Tab');
-    assert.ok(!/tabs-assets|tabs-expenses/.test(src), '不得再引用子 Tab 栏');
-    assert.strictEqual(count(/nextTabIndex\b/g), 1, '纯函数定义在 logic.js，index.html 只调用一次');
+  test('合成长按不再放行：只有 detail 为 0 的激活（键盘/读屏器）才直通确认框', () => {
+    assert.match(html, /id="mode-assets"[^>]*onclick="modePressClick\(event\)"/, 'click 走单一处置函数');
+    assert.match(fnSource('modePressClick'), /e\.detail === 0/, '只有合成激活直通；鼠标/触摸的 detail 是 1，被挡住');
+    // detail 的取值不是猜的：app.spec.js 用真实触摸与键盘各跑一遍把它钉住
+    assert.match(html, /if \(e\.detail === 0\) enterAssets\(\)/, '不在页面里重写第二套判据');
   });
 
-  test('页面未聚焦时的首次 Tab 也切换（补偿浏览器默认先聚焦按钮，避免需按第二次）', () => {
-    const src = fnSource('handleTabKeyNav');
-    assert.match(src, /document\.activeElement/, '需读取当前焦点');
-    assert.match(src, /document\.body/, '识别未聚焦状态（activeElement 为 body）');
-    assert.match(src, /#mode-assets\.active, #mode-expenses\.active/, '以当前激活模式按钮为起点');
+  test('右键不参与长按（option+点击是「想开菜单」，不是想进门）', () => {
+    assert.match(fnSource('startModePress'), /e\.button !== 0/, '忽略非主按键');
+    assert.match(fnSource('endModePress'), /e\.button !== 0/, '非主按键松开不替主键的按住收尾');
+  });
+
+  test('已在资产页时入口整体失效（再问一次「现在确实要看？」是荒谬的）', () => {
+    const src = fnSource('assetsEntryOpen');
+    assert.match(src, /currentMode !== 'assets'/, '判据单一来源');
+    assert.match(fnSource('startModePress'), /assetsEntryOpen\(\)/, '按下前先问这道闸');
+    assert.match(fnSource('enterAssets'), /assetsEntryOpen\(\)/, '进门链路也得问（键盘通直也不例外）；重入路径不留缺口');
+  });
+
+  test('收尾后的残留帧不报错（cancel 排在下一帧之前时 rAF 仍会跑到）', () => {
+    assert.match(fnSource('tickModePress'), /modePressStart === null/, '推进帧先查按下是否还在');
+  });
+
+  test('消费按钮仍是一次点击直达（成本只加在资产侧）', () => {
+    assert.match(html, /id="mode-expenses"[^>]*onclick="switchMode\('expenses'\)"/, '回消费不受惩罚');
+    assert.strictEqual(count(/onclick="switchMode\('expenses'\)"/g), 1);
+  });
+
+  test('满时长判定与进度走 logic.js 单一来源，不得内联重写阈值', () => {
+    assert.match(fnSource('endModePress'), /modePressDecision\(/, '送达判定下沉 logic.js');
+    assert.match(fnSource('tickModePress'), /modePressProgress\(/, '进度比例下沉 logic.js');
+    // 阈值只在 logic.js 定义一次；页面脚本里不得出现裸的毫秒字面量（文案里的「1 秒」由常量派生）
+    const src = ['startModePress', 'tickModePress', 'endModePress', 'cancelModePress', 'enterAssets']
+      .map(fnSource).join('\n');
+    assert.ok(!/\b\d{3,}\b/.test(src), '按下/松手链路不得内联毫秒阈值');
+    assert.strictEqual(count(/MODE_PRESS_MS\s*=/g), 0, '常量定义只在 logic.js');
+  });
+
+  test('长按有可见进度反馈（填充完全由 CSS 画，JS 只同步一个变量）', () => {
+    assert.match(html, /\n  \.mode-press::after \{[^}]*width: calc\(var\(--mode-press, 0\) \* 100%\)/, '墨线宽度换算在 CSS 一处，不逐帧写 style.width');
+    assert.match(fnSource('tickModePress'), /style\.setProperty\('--mode-press'/, 'JS 只同步 CSS 变量，不逐帧改 class');
+    assert.match(html, /\n  \.mode-press\.armed \{/, '满时长有独立可见态（就绪）');
+  });
+
+  test('按下不弹窗：满时长只亮就绪态，松手才确认（手指还按着时弹窗会被误触）', () => {
+    const tick = fnSource('tickModePress');
+    assert.ok(!/showConfirm\(/.test(tick), '推进帧内不得弹确认框');
+    assert.ok(!/enterAssets\(/.test(tick), '推进帧内不得进门');
+    assert.match(tick, /classList\.add\('armed'\)/, '满时长只亮就绪态');
+    assert.match(fnSource('endModePress'), /enterAssets\(/, '松手时才走进门链路');
+  });
+
+  test('送达前有过一次确认：挡住「顺手点开看看」', () => {
+    const src = fnSource('enterAssets');
+    assert.match(src, /showConfirm\(/, '送达资产页前必须确认');
+    assert.match(src, /switchMode\('assets'\)/, '确认回调里才真正切换');
+    assert.ok(src.indexOf('showConfirm(') < src.indexOf("switchMode('assets')"), '切换只能发生在确认回调内');
+  });
+
+  test('确认框的按钮文案/色调每次重置（金调不得粘到下一个删除确认上）', () => {
+    const src = fnSource('showConfirm');
+    assert.match(src, /ok\.textContent = opts\.okLabel \|\| '确认'/, '文案默认回「确认」');
+    assert.match(src, /ok\.className = opts\.tone === 'gold' \? 'btn-gold' : 'btn-danger'/, '色调默认回危险色');
   });
 });
 

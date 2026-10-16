@@ -1197,25 +1197,40 @@ describe('行内金额编辑键位语义 inlineEditKeyAction', () => {
   });
 });
 
-describe('标签页键盘导航 nextTabIndex（Tab/Shift+Tab 组内循环）', () => {
-  test('向后/向前移一位', () => {
-    assert.strictEqual(L.nextTabIndex(0, 5, false), 1);
-    assert.strictEqual(L.nextTabIndex(3, 5, true), 2);
+describe('长按送达资产页 modePressProgress / modePressDecision', () => {
+  const MS = L.MODE_PRESS_MS;
+
+  test('按住时长按比例推进（供进度动画取宽度）', () => {
+    assert.strictEqual(L.modePressProgress(0), 0);
+    assert.strictEqual(L.modePressProgress(MS / 2), 0.5);
+    assert.strictEqual(L.modePressProgress(MS), 1);
   });
 
-  test('组首/组尾循环回绕（资产/消费轮流切换）', () => {
-    assert.strictEqual(L.nextTabIndex(4, 5, false), 0);
-    assert.strictEqual(L.nextTabIndex(0, 5, true), 4);
-    assert.strictEqual(L.nextTabIndex(1, 2, false), 0);
-    assert.strictEqual(L.nextTabIndex(0, 2, false), 1);
-    assert.strictEqual(L.nextTabIndex(1, 2, true), 0);
+  test('满时长判定：松手时按满才送达', () => {
+    assert.strictEqual(L.modePressDecision(MS - 1), 'hint');
+    assert.strictEqual(L.modePressDecision(MS), 'enter');
+    assert.strictEqual(L.modePressDecision(MS + 400), 'enter', '按过头也算送达');
   });
 
-  test('非法/边界输入防御', () => {
-    assert.strictEqual(L.nextTabIndex(-1, 5, false), 0);
-    assert.strictEqual(L.nextTabIndex(99, 5, false), 0);
-    assert.strictEqual(L.nextTabIndex(0, 0, false), null);
-    assert.strictEqual(L.nextTabIndex(undefined, 2, false), 1);
+  test('短击给一句提示（教会长按），没有按下时长则不响应', () => {
+    assert.strictEqual(L.modePressDecision(150), 'hint');
+    assert.strictEqual(L.modePressDecision(1), 'hint', '真按过一下就该知道为什么要长按');
+    assert.strictEqual(L.modePressDecision(0), 'ignore');
+  });
+
+  test('边界：负值/NaN/缺失均归零，不推进也不送达', () => {
+    assert.strictEqual(L.modePressProgress(-120), 0);
+    assert.strictEqual(L.modePressProgress(NaN), 0);
+    assert.strictEqual(L.modePressProgress(undefined), 0);
+    assert.strictEqual(L.modePressProgress(MS * 99), 1, '超时后仍以 1 封顶，不溢出进度条');
+    assert.strictEqual(L.modePressDecision(NaN), 'ignore');
+    assert.strictEqual(L.modePressDecision(undefined), 'ignore');
+  });
+
+  test('提示文案里的秒数由阈值派生（整数秒不带小数尾巴，非整数补一位）', () => {
+    assert.strictEqual(L.modePressHint(), '长按 ' + MS / 1000 + ' 秒进入资产页', '文案与常量同源：改阈值即改文案');
+    assert.strictEqual(L.modePressHint(1500), '长按 1.5 秒进入资产页');
+    assert.strictEqual(L.modePressHint(1000), '长按 1 秒进入资产页', '整数秒不带 .0');
   });
 });
 

@@ -570,6 +570,27 @@ tailwind.config = {
   .seg-btn { border: none; background: transparent; color: var(--muted); font-size: var(--fs-micro); font-family: var(--font-body); padding: 5px 18px; border-radius: 6px; cursor: pointer; transition: background 0.15s, color 0.15s; }
   .seg-btn:hover { color: var(--fg); }
   .seg-btn.active { background: linear-gradient(180deg, #d9b25e, #b4841a); color: #211b10; font-weight: var(--fw-strong); box-shadow: inset 0 1px 0 rgba(255,255,255,0.25), 0 1px 2px var(--shadow); }
+  /* ===== 进入资产页的长按门槛：按住时金色墨线沿底边自左向右浸满按钮 =====
+     填充宽度 = --mode-press × 100%（JS 每帧只同步这个变量，百分比换算只此一处）。
+     刻意不做 CSS transition：它跟随手指的按住时长，不是装饰动效——reduced-motion 下也保留，
+     它同时是「还要按多久」的唯一反馈，去掉就把门槛变成了黑箱。
+     资产已在前台时入口整体失效（见 assetsEntryOpen），所以 .pressing 与 .seg-btn.active
+     不会同时出现，按下态用不提亮的底色即可。 */
+  .mode-press {
+    position: relative; overflow: hidden;
+    user-select: none; -webkit-user-select: none;
+    /* 长按在触屏上不该被浏览器当作滚动/菜单：吃掉默认手势，让 pointerdown 按住不放 */
+    touch-action: manipulation; -webkit-touch-callout: none;
+  }
+  .mode-press::after {
+    content: ''; position: absolute; left: 0; bottom: 0; height: 2px; border-radius: 0 2px 2px 0;
+    /* 墨线用 --accent-ink 而非 --accent：按住时按钮底是 card-2，--accent 在亮色下只有 3.0:1
+       （卡在非图形元素 3:1 的下限上，动一点色板就掉出去），accent-ink 有 5.5:1；
+       且它与 .armed 的字色同源 —— 墨线涨满、整枚按钮转成同一道墨色 */
+    width: calc(var(--mode-press, 0) * 100%); background: var(--accent-ink);
+  }
+  .mode-press.pressing { color: var(--fg); background: var(--card-2); }
+  .mode-press.armed { color: var(--accent-ink); }
   /* ===== 设置弹窗: 账本「凡例」页 —— 每条设置如一条目录, 标签居左、控件居右、发丝线分章 ===== */
   .setting-row { display: flex; align-items: center; justify-content: space-between; gap: 14px 24px; flex-wrap: wrap; }
   .setting-info { flex: 1 1 260px; min-width: 200px; }
@@ -827,7 +848,9 @@ tailwind.config = {
         </div>
       </div>
       <div class="seg-control">
-        <button id="mode-assets" onclick="switchMode('assets')" class="seg-btn">资产</button>
+        <!-- 资产入口是长按门槛（成本只加在资产侧）: 按住满时长才送达, 短按只弹一句提示;
+             键盘 / 读屏器等合成 click 不经过按住链路，由 modePressClick 直通确认框 -->
+        <button id="mode-assets" class="seg-btn mode-press" onpointerdown="startModePress(event)" onpointerleave="cancelModePress()" onclick="modePressClick(event)">资产</button>
         <button id="mode-expenses" onclick="switchMode('expenses')" class="seg-btn active">消费</button>
       </div>
     </div>
@@ -1738,8 +1761,9 @@ async function fetchRates() {
 // ========== TABS ==========
 function switchMode(mode) {
   currentMode = mode;
-  document.getElementById('mode-assets').className = mode === 'assets' ? 'seg-btn active' : 'seg-btn';
-  document.getElementById('mode-expenses').className = mode === 'expenses' ? 'seg-btn active' : 'seg-btn';
+  // 只切 'active'，不用 className 整体赋值：模式按钮上还挂着长按专用的 .mode-press
+  document.getElementById('mode-assets').classList.toggle('active', mode === 'assets');
+  document.getElementById('mode-expenses').classList.toggle('active', mode === 'expenses');
 
   document.getElementById('tabs-assets').style.display = mode === 'assets' ? '' : 'none';
   document.getElementById('tabs-expenses').style.display = mode === 'expenses' ? '' : 'none';
@@ -1790,28 +1814,96 @@ function switchTab(tab) {
   }
 }
 
-// ========== 键盘 Tab 在顶端资产/消费之间轮流切换 ==========
-// 焦点落在顶端模式选择（资产/消费）上时，Tab/Shift+Tab 在两者之间轮流切换（组内循环）；
-// 整页尚未聚焦时（首次 Tab）也直接以当前激活模式为起点切换。
-// 不接管子 Tab，也不影响设置弹窗等其它 seg-control。
-function handleTabKeyNav(e) {
-  if (e.key !== 'Tab' || e.altKey || e.ctrlKey || e.metaKey) return;
-  // 焦点已在模式按钮上时以它为起点；若整页尚未聚焦（首次 Tab，activeElement 为 body），
-  // 浏览器默认行为只会先把焦点移到按钮上、需再按一次才切换——这里以当前激活模式按钮为起点，
-  // 让首次 Tab 就直接切换。其余情况放行默认行为。
-  const active = document.activeElement;
-  const focused = active && active.closest ? active.closest('#mode-assets, #mode-expenses') : null;
-  const nothingFocused = active === document.body || active === document.documentElement;
-  const start = focused || (nothingFocused ? document.querySelector('#mode-assets.active, #mode-expenses.active') : null);
-  if (!start) return;
-  const btns = [...start.closest('.seg-control').querySelectorAll('.seg-btn')];
-  const idx = nextTabIndex(btns.indexOf(start), btns.length, e.shiftKey);
-  if (idx === null) return;
-  e.preventDefault();
-  btns[idx].focus();
-  btns[idx].click();
+// ========== 进入资产页的长按门槛 ==========
+// 按住「资产」满 MODE_PRESS_MS 才算送达：资产短期波动天然大，日常顺手点开只会被涨跌牵着走。
+// 按住期间底边墨线浸满按钮（每帧只写 --mode-press，宽度换算在 CSS），短按只弹一句
+// 「长按多久」的教学。**松手才弹确认框** —— 满时长就弹的话，抬起的手指会立刻点到刚出现的遮罩上。
+let modePressStart = null;
+let modePressRaf = 0;
+
+// 已经在资产页时入口整体失效：再问一次「现在确实要看？」是荒谬的。
+// 抽成函数是因为按下与进门两条路径都要这道闸，而它是「门的语义」而非权限校验
+function assetsEntryOpen() {
+  return currentMode !== 'assets';
 }
-document.addEventListener('keydown', handleTabKeyNav);
+
+function startModePress(e) {
+  if (!assetsEntryOpen()) return;
+  if (e && e.button !== 0) return; // 只认左键/触摸：右键是「想开菜单」，不是想进门
+  cancelModePress(); // 上一次没收尾的按下（指针被系统夺走等）先清干净
+  modePressStart = performance.now();
+  const btn = document.getElementById('mode-assets');
+  btn.classList.add('pressing');
+  btn.style.setProperty('--mode-press', 0);
+  modePressRaf = requestAnimationFrame(tickModePress);
+}
+
+function tickModePress() {
+  if (modePressStart === null) return; // 已被收尾的残留帧（cancel 后仍排到的那一帧）
+  const held = performance.now() - modePressStart;
+  const btn = document.getElementById('mode-assets');
+  btn.style.setProperty('--mode-press', modePressProgress(held));
+  if (modePressDecision(held) !== 'enter') {
+    modePressRaf = requestAnimationFrame(tickModePress);
+    return;
+  }
+  // 满时长：亮起就绪态并停帧（墨线已满），进门留给松手
+  modePressRaf = 0;
+  btn.classList.add('armed');
+}
+
+// 松手收尾：按满则确认，短按只教一句。**弹窗只能在这里出现**——
+// 满时长就弹的话，跟着抬起的手指会落到刚出现的遮罩上，直接把确认框点掉
+function endModePress(e) {
+  if (modePressStart === null) return; // 没有进行中的按下（在页面别处松手），不响应
+  if (e && e.button !== 0) return;     // 右键松开不该替左键的按住收尾
+  const decision = modePressDecision(performance.now() - modePressStart);
+  resetModePress();
+  if (decision === 'enter') enterAssets();
+  else if (decision === 'hint') toast(modePressHint(), 'info');
+}
+
+// click 的处置：键盘 Enter/Space、读屏器与程序化激活的 click 都不带指针按压过程，
+// detail 为 0（浏览器就是这样标注「不是人手点出来的」，鼠标与触摸点出来的是 1，E2E 已验证）——
+// 这类激活按住链路没经手，直通确认框：门槛只该加在「顺手点一下」上，
+// 不该把用键盘与辅助技术的人挡在门外
+function modePressClick(e) {
+  if (e.detail === 0) enterAssets();
+}
+
+// 指针移开/被系统夺走：放弃本次按下，既不提示也不进门
+function cancelModePress() {
+  if (modePressStart === null) return;
+  resetModePress();
+}
+
+// 用 null（而非 0）标记「没有进行中的按下」：performance.now() 在小数上是合法值，
+// 拿 0 当哨兵会让「页面刚打开就按下」那次被当成没按过（门的语义不该取决于时间原点）
+function resetModePress() {
+  if (modePressRaf) cancelAnimationFrame(modePressRaf);
+  modePressRaf = 0;
+  modePressStart = null;
+  const btn = document.getElementById('mode-assets');
+  btn.classList.remove('pressing', 'armed');
+  // 移除而不是置 0：置 0 会在元素上永远留一条内联样式（CSS 默认值本来就是 0）
+  btn.style.removeProperty('--mode-press');
+}
+
+// 收尾挂在 document 上而非按钮上：在按钮外松手时 pointerup 不会落到按钮上，
+// 挂在按钮上会漏收尾——墨线留在满格、下一次按下直接被误判成就绪
+document.addEventListener('pointerup', endModePress);
+document.addEventListener('pointercancel', cancelModePress);
+
+// 进入资产页的唯一入口（长按送达与合成 click 共用）：这道闸的作用是让人先掂量一下，
+// 不是权限校验，所以文案只说理由与后果
+function enterAssets() {
+  if (!assetsEntryOpen()) return;
+  showConfirm(
+    '资产价格短期波动大，反复看容易被涨跌牵着走。现在确实要看？',
+    () => switchMode('assets'),
+    '进入资产页',
+    { okLabel: '查看资产', tone: 'gold' });
+}
 
 // ========== RENDER ==========
 function renderAll() {
@@ -3997,12 +4089,18 @@ function closeModal(id) {
 
 // custom confirm dialog
 let _confirmCallback = null;
-function showConfirm(msg, onOk, title) {
+function showConfirm(msg, onOk, title, opts) {
+  opts = opts || {};
   document.getElementById('confirm-msg').textContent = msg;
   document.getElementById('confirm-title').textContent = title || '确认操作';
+  // 按钮文案与色调每次都重置：确认框全站共用，上一个调用留下的「查看资产/金色」
+  // 绝不能粘到下一个（删除这类真危险动作）确认上
+  const ok = document.getElementById('confirm-ok-btn');
+  ok.textContent = opts.okLabel || '确认';
+  ok.className = opts.tone === 'gold' ? 'btn-gold' : 'btn-danger';
   openModal('confirm-modal');
   _confirmCallback = onOk;
-  document.getElementById('confirm-ok-btn').focus();
+  ok.focus();
 }
 function confirmCancel() {
   closeModal('confirm-modal');

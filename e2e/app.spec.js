@@ -9,7 +9,7 @@
  */
 const {
   test, expect, LS_KEY, INDEX_URL,
-  stubCdn, seed, waitReady, disableMotion, readAppState, sampleState,
+  stubCdn, seed, waitReady, disableMotion, readAppState, sampleState, gotoAssets,
 } = require('./fixtures');
 
 /** 读 localStorage 原文：验证「已落盘」（增删改后应用都会 saveState） */
@@ -62,10 +62,7 @@ const openSettings = async (page) => {
   await expect(page.locator('#settings-modal')).toBeVisible();
 };
 
-const gotoAssetsTab = async (page, tab = 'assets') => {
-  await page.locator('#mode-assets').click();
-  if (tab !== 'assets') await page.locator(`#tabs-assets .tab-btn[data-tab="${tab}"]`).click();
-};
+const gotoAssetsTab = (page, tab) => gotoAssets(page, tab === 'assets' ? undefined : tab);
 
 test.describe('首屏渲染', () => {
   test('全新用户：默认消费模式 + 空态引导', async ({ blankPage: page }) => {
@@ -99,8 +96,7 @@ test.describe('首屏渲染', () => {
 
 test.describe('模式与 Tab 导航', () => {
   test('切换顶端模式：资产 ↔ 消费，面板互斥', async ({ appPage: page }) => {
-    await page.locator('#mode-assets').click();
-    await expect(page.locator('#tabs-assets')).toBeVisible();
+    await gotoAssets(page);
     await expect(page.locator('#content-assets')).toBeVisible();
     await expect(page.locator('#tabs-expenses')).toBeHidden();
     await expect(page.locator('#content-expenses')).toBeHidden();
@@ -108,6 +104,49 @@ test.describe('模式与 Tab 导航', () => {
     await page.locator('#mode-expenses').click();
     await expect(page.locator('#tabs-expenses')).toBeVisible();
     await expect(page.locator('#tabs-assets')).toBeHidden();
+  });
+
+  test('已在资产页时入口失效：不再弹「现在确实要看？」（键盘通直也被挡）', async ({ appPage: page }) => {
+    await gotoAssets(page);
+    // 按完整条链路（真实鼠标长按）也不应该再弹一次
+    const box = await page.locator('#mode-assets').boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.mouse.up();
+    await page.locator('#mode-assets').focus();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#confirm-modal')).toBeHidden();
+    await expect(page.locator('#content-assets')).toBeVisible();
+  });
+
+  test('确认框的按钮文案随调用重置（金调的「查看资产」不粘到删除确认上）', async ({ appPage: page }) => {
+    // 先用长按链路把确认框染成金色，再用同框做一次删除确认
+    await page.locator('#mode-assets').focus();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#confirm-ok-btn')).toHaveText('查看资产');
+    await page.locator('#confirm-modal button:has-text("取消")').click();
+
+    await gotoAssets(page);
+    await page.locator('#assets-rows .asset-row').first().getByRole('button', { name: '删除' }).click();
+    await expect(page.locator('#confirm-ok-btn')).toHaveText('确认');
+    await expect(page.locator('#confirm-ok-btn')).toHaveClass(/btn-danger/);
+  });
+
+  test('触摸轻点不进门（手机上顺手一摸不该放行；detail 的取值靠真实触摸钉住）', async ({ appPage: page, browser }) => {
+    // 新建一个带触摸的上下文：appPage 是桌面设备，触摸路径得亲自跑一遍
+    const ctx = await browser.newContext({ hasTouch: true, viewport: { width: 420, height: 800 }, isMobile: true });
+    const touch = await ctx.newPage();
+    await touch.goto('index.html');
+    await waitReady(touch);
+    await touch.locator('#mode-assets').tap();
+    await expect(touch.locator('#content-assets')).toBeHidden();
+    await expect(touch.locator('#confirm-modal')).toBeHidden();
+    await expect(touch.locator('#toast-area .toast', { hasText: '长按' })).toBeVisible();
+    // 键盘仍然可达（辅助技术不被挡在门外）
+    await touch.locator('#mode-assets').focus();
+    await touch.keyboard.press('Enter');
+    await expect(touch.locator('#confirm-modal')).toBeVisible();
+    await ctx.close();
   });
 
   test('资产模式五个子 Tab 互斥可见且按钮回显 active', async ({ appPage: page }) => {
@@ -137,13 +176,67 @@ test.describe('模式与 Tab 导航', () => {
     }
   });
 
-  test('键盘 Tab 在资产/消费间轮流切换（单次按键即生效）', async ({ appPage: page }) => {
-    await expect(page.locator('#mode-expenses')).toHaveClass(/active/);
-    await page.keyboard.press('Tab');
-    await expect(page.locator('#mode-assets')).toHaveClass(/active/);
+  test('资产入口是长按门槛：短按不进门只给提示，按满再确认才进', async ({ appPage: page }) => {
+    const assets = page.locator('#mode-assets');
+    // 短按：不进门，只给一句「长按多久」
+    await assets.click();
+    await expect(page.locator('#content-assets')).toBeHidden();
+    await expect(page.locator('#toast-area .toast', { hasText: '长按' })).toBeVisible();
+
+    // 长按：按住期间墨线浸满（--mode-press 由 rAF 推进），松手弹确认框
+    const box = await assets.boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await expect(assets).toHaveClass(/pressing/);
+    await expect
+      .poll(() => assets.evaluate((el) => parseFloat(el.style.getPropertyValue('--mode-press'))))
+      .toBeGreaterThan(0.2);
+    await expect(assets).toHaveClass(/armed/, { timeout: 5000 });
+    await page.mouse.up();
+
+    // 满时长只弹确认框，还没进门；确认后才切换，且按钮回常态
+    await expect(page.locator('#confirm-modal')).toBeVisible();
+    await expect(page.locator('#confirm-title')).toHaveText('进入资产页');
+    await expect(page.locator('#confirm-ok-btn')).toHaveText('查看资产');
+    await expect(page.locator('#content-assets')).toBeHidden();
+    await page.locator('#confirm-ok-btn').click();
     await expect(page.locator('#content-assets')).toBeVisible();
-    await page.keyboard.press('Tab');
+    await expect(page.locator('#mode-assets')).toHaveClass(/active/);
+    await expect(page.locator('#mode-assets')).not.toHaveClass(/pressing|armed/);
+  });
+
+  test('长按中途取消：指针移开即放弃，不留满格墨线', async ({ appPage: page }) => {
+    const assets = page.locator('#mode-assets');
+    const box = await assets.boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await expect(assets).toHaveClass(/pressing/);
+    await page.mouse.move(box.x + box.width / 2, box.y + 200); // 拖出按钮
+    await page.mouse.up();
+    await expect(assets).not.toHaveClass(/pressing|armed/);
+    await expect(page.locator('#content-assets')).toBeHidden();
+    await expect(page.locator('#confirm-modal')).toBeHidden();
+  });
+
+  test('取消确认框：留在消费页', async ({ appPage: page }) => {
+    await page.locator('#mode-assets').click(); // 短按只提示，不弹确认
+    await expect(page.locator('#content-assets')).toBeHidden();
+    // 键盘激活（detail === 0）直通确认框：不用鼠标的人不该被长按挡在门外
+    await page.locator('#mode-assets').focus();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#confirm-modal')).toBeVisible();
+    await page.locator('#confirm-modal button:has-text("取消")').click();
+    await expect(page.locator('#confirm-modal')).toBeHidden();
+    await expect(page.locator('#content-expenses')).toBeVisible();
+    await expect(page.locator('#content-assets')).toBeHidden();
+  });
+
+  test('键盘 Tab 不再在资产/消费间切换（交还浏览器默认焦点顺序）', async ({ appPage: page }) => {
     await expect(page.locator('#mode-expenses')).toHaveClass(/active/);
+    await page.keyboard.press('Tab');
+    await expect(page.locator('#mode-assets')).toBeFocused();
+    await expect(page.locator('#mode-assets')).not.toHaveClass(/active/);
+    await expect(page.locator('#content-assets')).toBeHidden();
   });
 });
 

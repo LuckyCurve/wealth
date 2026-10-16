@@ -9,7 +9,7 @@
  * 判据统一为「同类元素的计算样式集合大小 == 1」，集合里直接打印越界值，失败信息可读。
  * 与主题巡检（theme.spec.js）同思路：不写死期望值，从页面自身求值。
  */
-const { test, expect, visitAllTabs, sampleState, seed, waitReady, stubCdn } = require('./fixtures');
+const { test, expect, visitAllTabs, gotoAssets, sampleState, seed, waitReady, stubCdn } = require('./fixtures');
 
 /**
  * 本文件要按「指定存档」打开页面（fixtures 只导出工厂，组合放在这里）。
@@ -22,11 +22,9 @@ async function openWith(page, state) {
   await waitReady(page);
 }
 
-/** 跳到资产侧指定 Tab（与 app.spec.js 的 gotoAssetsTab 同动作） */
-async function gotoAssetsTab(page, tab = 'assets') {
-  await page.locator('#mode-assets').click();
-  await page.locator(`#tabs-assets .tab-btn[data-tab="${tab}"]`).click();
-}
+// 进入资产侧的入口统一用 fixtures.gotoAssets（长按门槛的键盘通道），
+// 原先 app.spec / consistency.spec 各写一份同样的动作，改门槛时两边都要改
+const gotoAssetsTab = (page, tab) => gotoAssets(page, tab === 'assets' ? undefined : tab);
 
 /** 收集当前 DOM 里同类元素的指定计算样式，返回去重后的列表（>1 即为不一致） */
 const uniqStyles = (page, selector, props) =>
@@ -83,7 +81,7 @@ test.describe('版式一致性', () => {
     await page.getByRole('button', { name: '对比两月' }).click();            // 消费对比（cols-compare）
     await expect(page.locator('#expense-compare-modal')).toBeVisible();
     await page.keyboard.press('Escape');
-    await page.locator('#mode-assets').click();
+    await gotoAssets(page);
     await page.locator('#tabs-assets .tab-btn[data-tab="history"]').click();
     await page.getByRole('button', { name: '对比快照' }).click();            // 快照对比（cols-compare）
     await expect(page.locator('#compare-modal')).toBeVisible();
@@ -144,7 +142,7 @@ test.describe('版式一致性', () => {
     await page.evaluate(() => viewExpenseMonth('2026-02'));
     const month = await textGaps();
     await page.keyboard.press('Escape');
-    await page.locator('#mode-assets').click();
+    await gotoAssets(page);
     await page.evaluate(() => viewHistorySegment('2026-01', 'cat-type', '活期现金'));
     const history = await textGaps();
 
@@ -191,7 +189,7 @@ test.describe('版式一致性', () => {
   });
 
   test('弹窗正文（表单）字段标签一致：字号/字重/颜色/块级', async ({ appPage: page }) => {
-    await page.locator('#mode-assets').click();
+    await gotoAssets(page);
     await page.locator('#tabs-assets .tab-btn[data-tab="assets"]').click();
     await page.locator('#tab-assets button:has-text("登记资产")').click();
     await expect(page.locator('#asset-modal')).toBeVisible();
@@ -515,7 +513,7 @@ test.describe('可读性：平铺 chip 未选中态跨分类一致', () => {
 
 test.describe('版式一致性：真实数据下的读数层级', () => {
   test('收益摘要与对比弹窗的主读数同字号（同一个 .hero-figure）', async ({ appPage: page }) => {
-    await page.locator('#mode-assets').click();
+    await gotoAssets(page);
     await page.locator('#tabs-assets .tab-btn[data-tab="income"]').click();
     await expect(page.locator('#income-summary')).toBeVisible();
     await once(await uniqStyles(page, '.hero-figure', ['fontSize', 'fontWeight']));
@@ -525,7 +523,7 @@ test.describe('版式一致性：真实数据下的读数层级', () => {
     // 「同字号一致」只保证同一类内部统一，挡不住两个角色被并成同一个 token ——
     // 曾把 .hero-figure 与 .modal-title 都指到 --fs-hero，卡片主读数从 32px 被压到 22px。
     // 这里钉死层级本身：读数必须最大，且逐档递减。
-    await page.locator('#mode-assets').click();
+    await gotoAssets(page);
     await page.locator('#tabs-assets .tab-btn[data-tab="income"]').click();
     await expect(page.locator('#income-summary')).toBeVisible();
     // .card-title-sm 只在「数据校验」面板里出现（与旁边那个用例同一召出手法）
@@ -549,7 +547,7 @@ test.describe('版式一致性：真实数据下的读数层级', () => {
   });
 
   test('分类卡片标题与校验面板分组标题各成一档（不再逐处内联字号）', async ({ appPage: page }) => {
-    await page.locator('#mode-assets').click();
+    await gotoAssets(page);
     await page.locator('#tabs-assets .tab-btn[data-tab="categories"]').click();
     await once(await uniqStyles(page, '.card-title', ['fontSize', 'fontWeight']));
 
