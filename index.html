@@ -941,10 +941,13 @@ tailwind.config = {
         </div>
       </div>
       <div class="seg-control">
+        <!-- 次序有意：消费在左、资产在右。默认模式是消费，落在浏览起点的第一项；
+             资产侧带长按门槛，不占顺手位（位置本身也在劝人少误触）。
+             次序同时决定 Tab 焦点次序（Tab 键已交还浏览器，不接管）。 -->
+        <button id="mode-expenses" onclick="switchMode('expenses')" class="seg-btn active">消费</button>
         <!-- 资产入口是长按门槛（成本只加在资产侧）: 按住满时长才送达, 短按只弹一句提示;
              键盘 / 读屏器等合成 click 不经过按住链路，由 modePressClick 直通确认框 -->
         <button id="mode-assets" class="seg-btn mode-press" onpointerdown="startModePress(event)" onpointerleave="cancelModePress()" onclick="modePressClick(event)">资产</button>
-        <button id="mode-expenses" onclick="switchMode('expenses')" class="seg-btn active">消费</button>
       </div>
     </div>
     <div class="flex items-center gap-3">

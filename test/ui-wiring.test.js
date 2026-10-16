@@ -1854,3 +1854,29 @@ describe('UI 接线契约：分布图的两栏（图 + 构成清单）', () => {
     assert.ok(!/catColor|expenseCatColor/.test(src), '不混用 pill 调色板（两套色板各司其职）');
   });
 });
+
+/*
+ * 顶端模式选择的左右次序：消费在左、资产在右。
+ * --------------------------------------------------------------------------
+ * 理由（为什么值得一条断言守着）：
+ *   ① 默认模式是消费 —— 首屏选中的那个落在左边，读写方向与「第一项 = 默认」的直觉对齐；
+ *   ② 资产侧是有门槛的（长按 + 确认），把它放在顺手的第一位，等于用位置在劝人误触；
+ *      放右侧让它明确是「退一步才做的动作」。
+ * 这不是纯装饰：按钮次序还决定了键盘 Tab 的焦点次序（Tab 键早已交还浏览器），
+ * 排错了会让人第一次按 Tab 就落在门槛按钮上。
+ */
+describe('UI 接线契约：顶端模式按钮的次序（消费在左 / 资产在右）', () => {
+  test('DOM 次序即消费在前、资产在后（同时决定 Tab 焦点次序）', () => {
+    const bar = html.match(/<div class="seg-control">\s*<!--[\s\S]*?<\/div>/);
+    assert.ok(bar, '页头模式选择存在');
+    const order = [...bar[0].matchAll(/id="(mode-assets|mode-expenses)"/g)].map((m) => m[1]);
+    assert.deepStrictEqual(order, ['mode-expenses', 'mode-assets'],
+      '消费必须在资产之前（默认模式落在左边；资产是带门槛的动作，不该占顺手位）');
+  });
+
+  test('默认高亮仍在消费（换位不得顺手改了默认模式）', () => {
+    assert.match(html, /id="mode-expenses"[^>]*class="seg-btn active"/, '消费默认 active');
+    assert.ok(!/id="mode-assets"[^>]*class="seg-btn[^"]*active/.test(html), '资产不得默认 active');
+    assert.match(html, /let currentMode = 'expenses'/, '初始模式仍是消费');
+  });
+});

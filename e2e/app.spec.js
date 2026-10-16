@@ -234,9 +234,14 @@ test.describe('模式与 Tab 导航', () => {
   test('键盘 Tab 不再在资产/消费间切换（交还浏览器默认焦点顺序）', async ({ appPage: page }) => {
     await expect(page.locator('#mode-expenses')).toHaveClass(/active/);
     await page.keyboard.press('Tab');
-    await expect(page.locator('#mode-assets')).toBeFocused();
-    await expect(page.locator('#mode-assets')).not.toHaveClass(/active/);
+    // 只断言「Tab 走了普通焦点、没有切换模式」，**不写死第一个焦点是谁**：
+    // 顶端按钮的左右次序是设计决定（消费在左），把它钉在 E2E 里会让一次换位连带改测试；
+    // 次序本身由 ui-wiring 的契约测试守（那条才是「有意为之」的载体）
+    const focused = await page.evaluate(() => document.activeElement && document.activeElement.id);
+    expect(['mode-expenses', 'mode-assets']).toContain(focused);
+    await expect(page.locator('#content-expenses')).toBeVisible();
     await expect(page.locator('#content-assets')).toBeHidden();
+    await expect(page.locator('#mode-expenses')).toHaveClass(/active/, { timeout: 1000 });
   });
 });
 
