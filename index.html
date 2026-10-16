@@ -70,6 +70,19 @@ tailwind.config = {
        故明度压深、线略粗（实测 0.7px 会脏成灰色，1.1px 才读得出是金色的） */
     --engrave: rgba(163, 115, 10, 0.62);
     --engrave-w: 1.1px;
+    /* ===== 卡片材质：液态玻璃（半透明 + 背光模糊 + 光泽边）=====
+       为什么半透明才是关键：纸纹与台灯要能透过卡片看见，卡面才会随背景与指针活起来；
+       纯色底无论怎么调都还是「一块白板」。四层各司其职（同 Liquid Glass 的材质分层）：
+         fill  半透明染色（让背后的纸透上来）
+         edge  玻璃的边缘（比纸略深一档，卡片才不会糊在纸里）
+         rim   顶边受光的高光（「玻璃有厚度」的第一来源）
+         inner 内描边辉光（光在玻璃内部的一圈漫射）
+       注意：**不得给 .card 写 background-image**——渐变底会让 AA 巡检对卡片内每一行字
+       静默跳过（上一轮页头就是这么漏检的）。光泽边只能走 box-shadow。 */
+    --glass-fill: rgba(255, 253, 246, 0.62);
+    --glass-edge: rgba(214, 202, 170, 0.72);
+    --glass-rim: rgba(255, 255, 255, 0.85);
+    --glass-inner: rgba(255, 255, 255, 0.30);
   }
   :root.dark {
     --bg: #15110a;
@@ -95,6 +108,12 @@ tailwind.config = {
     /* 暗色纸是深棕，金线可以直接用亮金（亮色下反而要压深才不泛灰） */
     --engrave: rgba(217, 178, 94, 0.5);
     --engrave-w: 1px;
+    /* 暗色玻璃：深棕半透明（不是黑——黑玻璃会把暖色纸面压死），高光也压得很低，
+       否则在暗背景上会是一圈刺眼的白描边 */
+    --glass-fill: rgba(58, 47, 30, 0.58);
+    --glass-edge: rgba(92, 78, 52, 0.60);
+    --glass-rim: rgba(255, 246, 214, 0.10);
+    --glass-inner: rgba(255, 240, 200, 0.05);
   }
   .dark .asset-row { border-bottom-color: var(--rule); }
   .dark .card { border-color: var(--border); }
@@ -249,19 +268,31 @@ tailwind.config = {
   .row-btn.danger:hover { background: var(--down); color: #fff; }
   .dark .row-btn.danger { color: #d98a86; }
   .dark .row-btn.danger:hover { color: #fff; }
+  /* 卡片 = 一块压在纸上的玻璃（材质变量与理由见 :root 的 --glass-* 注释）。
+     --glass-shadow 把「顶边高光 + 内辉光」打包，好让 :hover 只换外阴影而不用重抄一遍
+     （重抄就会出现第二处 --glass-rim，材质就不再是单一定义了）；
+     自定义属性写在 .card 自身，:hover 的规则里照样读得到。 */
   .card {
-    background: var(--card); border: 1px solid var(--border); border-radius: 8px;
-    box-shadow: inset 0 1px 0 var(--card-edge), 0 1px 3px var(--shadow); padding: 24px;
+    --glass-shadow: inset 0 1px 0 var(--glass-rim), inset 0 0 0 1px var(--glass-inner);
+    background: var(--glass-fill);
+    border: 1px solid var(--glass-edge);
+    border-radius: 10px;
+    /* 背光模糊 + 轻微提饱和：玻璃会把背后的颜色揉开并让它更「润」 */
+    backdrop-filter: blur(18px) saturate(1.6);
+    -webkit-backdrop-filter: blur(18px) saturate(1.6);
+    box-shadow: var(--glass-shadow), 0 1px 2px var(--shadow), 0 14px 30px -22px var(--shadow);
+    padding: 24px;
     transition: box-shadow 0.2s, border-color 0.2s;
   }
   /* 页头：底色走变量（原来是内联 linear-gradient——渐变底无法校对比度，
      于是页头里每一行字都被巡检默默跳过了） */
   .app-header { background: var(--bg); border-bottom: 1px solid var(--border); }
-  /* 卡片悬停：只抬阴影与描边（不做跟随指针的卡片光晕——全站只此一盏灯，
-     逐卡片再加一层 radial-gradient 会变成一屏十几个光源、互相打架） */
-  .card:hover { box-shadow: inset 0 1px 0 var(--card-edge), 0 2px 10px var(--shadow); }
+  /* 卡片悬停：只抬外阴影（玻璃自身的高光不动，否则卡片会在指针下「变色」）；
+     不做跟随指针的卡片光晕——全站只此一盏灯，逐卡片再加一层 radial-gradient
+     会变成一屏十几个光源、互相打架 */
+  .card:hover { box-shadow: var(--glass-shadow), 0 2px 4px var(--shadow), 0 20px 40px -24px var(--shadow); }
   .card-interactive { cursor: pointer; }
-  .card-interactive:hover { box-shadow: inset 0 1px 0 var(--card-edge), 0 4px 16px var(--shadow); border-color: var(--accent-soft); }
+  .card-interactive:hover { box-shadow: var(--glass-shadow), 0 4px 18px -6px var(--shadow); border-color: var(--accent-soft); }
   input, select {
     font-family: var(--font-body); font-size: var(--fs-body); font-variant-numeric: tabular-nums;
     border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px;
@@ -810,6 +841,21 @@ tailwind.config = {
   .chart-legend-amt { font-size: var(--fs-body); color: var(--fg); font-variant-numeric: tabular-nums; }
   .chart-legend-pct { font-size: var(--fs-micro); color: var(--muted); font-variant-numeric: tabular-nums; min-width: 3.6em; text-align: right; }
   .chart-legend-empty { font-size: var(--fs-body); color: var(--muted); padding: 7px 8px; }
+  /* 清单标题槽：未选中时就是「构成」二字，选中某分类后换成「‹ 全部分类 + 当前分类名」。
+     返回入口必须显式给（否则用户钻进去之后不知道自己在哪一层、也回不去） */
+  .chart-legend-head { display: flex; align-items: center; gap: 8px; margin: 0; min-height: 1.6em; }
+  .chart-legend-head .legend-scope { font-size: var(--fs-body); font-weight: var(--fw-strong); color: var(--fg); }
+  .legend-back {
+    border: 1px solid var(--border); background: transparent; color: var(--muted);
+    font-family: var(--font-body); font-size: var(--fs-micro); border-radius: 6px;
+    padding: 2px 8px; cursor: pointer; transition: color 0.15s, border-color 0.15s;
+  }
+  .legend-back:hover { color: var(--accent-ink); border-color: var(--accent); }
+  /* 清单行可点（选中分类 / 返回）：指针与键盘都要能看出来 */
+  .chart-legend-row[data-top] { cursor: pointer; }
+  .chart-legend-row[data-top]:hover { background: var(--bg-2); }
+  .chart-legend-row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .chart-legend-row[data-top] .chart-legend-name { font-weight: var(--fw-strong); }
   /* 分布图总数（资产/消费旭日图共用）：旭日图只给各部分占比，卡片上方补一个合计。
      与扇区同源、随右上角筛选联动；字号沿用主读数档，颜色走 fg（不抢报头的主角）。 */
   .chart-total {
@@ -1057,7 +1103,7 @@ tailwind.config = {
       <p class="chart-total" id="chart-total"></p>
       <div class="chart-split">
         <div class="chart-canvas"><div id="sunburst-chart" style="width:100%; height:520px;"></div></div>
-        <div><p class="meta-label muted">构成</p><div class="chart-legend" id="chart-legend"></div></div>
+        <div><p class="chart-legend-head" id="chart-legend-head"><span class="meta-label muted">构成</span></p><div class="chart-legend" id="chart-legend"></div></div>
       </div>
       <div id="chart-empty" class="empty-state" style="display:none;">
         <div class="empty-rule"></div>
@@ -1187,7 +1233,7 @@ tailwind.config = {
       </div>
       <div class="chart-split">
         <div class="chart-canvas"><div id="income-chart" style="width:100%; height:320px;"></div></div>
-        <div><p class="meta-label muted">构成</p><div class="chart-legend" id="income-chart-legend"></div></div>
+        <div><p class="chart-legend-head" id="income-chart-legend-head"><span class="meta-label muted">构成</span></p><div class="chart-legend" id="income-chart-legend"></div></div>
       </div>
     </div>
     </section>
@@ -1272,7 +1318,7 @@ tailwind.config = {
         <p class="chart-total" id="expense-chart-total"></p>
         <div class="chart-split">
           <div class="chart-canvas"><div id="expense-sunburst-chart" style="width:100%; height:520px;"></div></div>
-          <div><p class="meta-label muted">构成</p><div class="chart-legend" id="expense-chart-legend"></div></div>
+          <div><p class="chart-legend-head" id="expense-chart-legend-head"><span class="meta-label muted">构成</span></p><div class="chart-legend" id="expense-chart-legend"></div></div>
         </div>
         <div id="expense-chart-empty" class="empty-state" style="display:none;">
           <div class="empty-rule"></div>
@@ -2607,27 +2653,94 @@ function showChartOrEmpty(chartEl, emptyEl, show) {
 function renderSunburstLegend(elId, data, total, chartObj) {
   const el = document.getElementById(elId);
   if (!el) return;
-  const rows = sunburstBreakdown(data, total);
+  const selected = sunburstLegendSel[elId] || null;
+  const rows = sunburstLegendRows(data, total, selected);
+  // 选中态在当前数据里已不存在（换了分类维度/月份，或那个分类被删）→ 顺势清掉。
+  // 只靠 sunburstLegendRows 回落是不够的：状态会一直卡着，等用户切回一个恰好含同名分类的
+  // 维度时就会莫名其妙地「又是下钻态」（像见了鬼）。
+  // 不在当前数据里就归零（一行写完：两个分支各写一次会让「选中态写入点」难以数清）
+  const atTop = !selected || !data.some(n => n && n.name === selected);
+  sunburstLegendSel[elId] = atTop ? null : selected;
   if (rows.length === 0) {
     el.innerHTML = '';
     return;
   }
-  // 色板与扇区同源：r.idx 就是该分类在 data 里的下标，与 buildSunburstData 的取色规则一致
-  // （同一个分类在两栏里两个颜色就是硬伤）
-  el.innerHTML = rows.map((r) =>
-    `<div class="chart-legend-row" data-idx="${r.idx}" title="${esc(r.name)}">` +
-    `<span class="chart-legend-swatch" style="background:${CATEGORY_PALETTE[r.idx % CATEGORY_PALETTE.length].base}"></span>` +
-    `<span class="chart-legend-name">${esc(r.name)}</span>` +
-    `<span class="chart-legend-amt tabular">${formatCNY(r.value)}</span>` +
-    `<span class="chart-legend-pct tabular">${r.pct}%</span></div>`
-  ).join('');
+  // 色板与扇区同源：顶层行的 idx 就是该分类在 data 里的下标，与 buildSunburstData 的取色规则一致
+  // （同一个分类在两栏里两个颜色就是硬伤）；明细行沿用其父分类的色相，深浅按序进一层
+  const swatchOf = (r) => {
+    const catIdx = atTop ? r.idx : data.findIndex(n => n && n.name === r.path[0]);
+    const pal = CATEGORY_PALETTE[(catIdx < 0 ? 0 : catIdx) % CATEGORY_PALETTE.length];
+    return atTop ? pal.base : shadeAt(pal, r.idx);
+  };
+  el.innerHTML = rows.map((r) => {
+    // data-idx 是**扁平树下标**（供图上高亮定位），path 是 [分类名, 序] 或 null（与图上同序）
+    const flat = sunburstNodePath(data, atTop ? r.idx : data.findIndex(n => n && n.name === r.path[0]), atTop ? null : r.idx);
+    return `<div class="chart-legend-row" data-idx="${r.idx}" data-flat="${flat === null ? '' : flat}" data-top="${atTop ? '1' : ''}"` +
+      ` data-name="${esc(r.name)}" title="${esc(r.name)}">` +
+      `<span class="chart-legend-swatch" style="background:${swatchOf(r)}"></span>` +
+      `<span class="chart-legend-name">${esc(r.name)}</span>` +
+      `<span class="chart-legend-amt tabular">${formatCNY(r.value)}</span>` +
+      `<span class="chart-legend-pct tabular">${r.pct}%</span></div>`;
+  }).join('');
+  // 顶部标题：选中后换成一个返回条，否则用户不知道自己在哪一层、也回不去
+  const head = document.getElementById(elId + '-head');
+  if (head) {
+    head.innerHTML = atTop
+      ? '<span class="meta-label muted">构成</span>'
+      : `<button type="button" class="legend-back" data-back="1">‹ 全部分类</button>` +
+        `<span class="legend-scope">${esc(selected)}</span>`;
+  }
   // 悬停联动用事件委派挂在容器上（行数随分类变，逐行挂监听会随重绘越积越多）
   const at = (e) => {
     const row = e.target.closest ? e.target.closest('.chart-legend-row') : null;
-    return row ? +row.dataset.idx : -1;
+    return row ? { flat: row.dataset.flat === '' ? null : +row.dataset.flat } : null;
   };
-  el.onmouseover = (e) => { const i = at(e); if (i >= 0 && chartObj) chartObj.dispatchAction({ type: 'highlight', seriesIndex: 0, dataIndex: i }); };
-  el.onmouseout = (e) => { const i = at(e); if (i >= 0 && chartObj) chartObj.dispatchAction({ type: 'downplay', seriesIndex: 0, dataIndex: i }); };
+  el.onmouseover = (e) => { const a = at(e); if (a && a.flat !== null && chartObj) chartObj.dispatchAction({ type: 'highlight', seriesIndex: 0, dataIndex: a.flat }); };
+  el.onmouseout = (e) => { const a = at(e); if (a && a.flat !== null && chartObj) chartObj.dispatchAction({ type: 'downplay', seriesIndex: 0, dataIndex: a.flat }); };
+  // 点击行：顶层行 → 下钻到该分类；明细行 → 只高亮（不再往下，sunburst 只有两层）
+  el.onclick = (e) => {
+    const row = e.target.closest ? e.target.closest('.chart-legend-row') : null;
+    if (!row) return;
+    drillSunburst(elId, row.dataset.top ? row.dataset.name : (sunburstLegendSel[elId] || null));
+  };
+  if (head) head.onclick = (e) => { if (e.target.dataset && e.target.dataset.back) drillSunburst(elId, null); };
+}
+
+// 旭日图的「选中分类」状态：按清单容器各存一份（三个图各自独立）。
+// 存名字而不是下标：切分类维度/月份后下标会指向别的分类，名字能靠 sunburstLegendRows 校验后回落
+// （指向不存在的分类 → 当作未选中），不会留下悬空状态。
+let sunburstLegendSel = {};
+
+// 选中某分类（null = 回到全部分类）。唯一入口：图上扇区点击与清单行点击都走这里。
+// 选中只改清单内容，不动图表数据——图始终展示全貌，清单负责「钻进去看」。
+// 重绘回调按清单容器登记（三个图各一份）：用一个全局回调会被后注册的那张图覆盖掉，
+// 点 A 图的清单却刷了 C 图。
+const sunburstLegendRerender = {};
+
+function drillSunburst(elId, catName) {
+  const next = catName || null;
+  if ((sunburstLegendSel[elId] || null) === next) return;
+  sunburstLegendSel[elId] = next;
+  const fn = sunburstLegendRerender[elId];
+  if (typeof fn === 'function') fn();
+}
+
+// 图上的扇区点击 → 选中该分类（走到内环分类即为「下钻」）。
+// 单一接线函数供三张旭日图共用（资产/消费/收益分布），避免三处各写一遍而漂移：
+//   · 只有**顶层分类**才下钻（树只有两层，点明细没有更下一层可去）；
+//   · 判层级用 ECharts 给的 treePathInfo（祖先路径），而不是 dataIndex 猜—
+//     dataIndex 是扁平树下标，拿它反推层级就是自找差一。
+function wireSunburstDrill(chartObj, elId, metaGetter) {
+  if (!chartObj) return;
+  chartObj.on('click', (p) => {
+    const meta = metaGetter && metaGetter();
+    if (!meta) return;
+    const path = p.treePathInfo || [];
+    // path 形如 [虚拟根, 顶层分类, (条目…)]；长度 2 = 点在顶层分类上
+    const node = path[1];
+    if (path.length !== 2 || !node) return;
+    drillSunburst(elId, node.name);
+  });
 }
 
 // 分布图总数（资产/消费旭日图共用）：旭日图只给各部分占比，这里补一个「当前筛选」的合计。
@@ -3217,7 +3330,10 @@ function renderChart() {
 
   const th = chartTheme();
   chart.setOption(buildSunburstOption(data, p => sunburstTooltipContent(p, th, totalCNY)), true);
+  // 清单重绘回调按容器登记：drillSunburst 只改选中态，数据从哪来由这里提供
+  sunburstLegendRerender['chart-legend'] = () => renderSunburstLegend('chart-legend', data, totalCNY, chart);
   renderSunburstLegend('chart-legend', data, totalCNY, chart);
+  wireSunburstDrill(chart, 'chart-legend', () => data);
 }
 
 // ========== HISTORY SNAPSHOTS ==========
@@ -4075,7 +4191,9 @@ function renderIncomeChart() {
     }
     return sunburstTooltipContent(p, th, totalIncome, { prefix: modeLabel, pctLabel: '占比 ' });
   }), true);
+  sunburstLegendRerender['income-chart-legend'] = () => renderSunburstLegend('income-chart-legend', data, totalIncome, incomeChart);
   renderSunburstLegend('income-chart-legend', data, totalIncome, incomeChart);
+  wireSunburstDrill(incomeChart, 'income-chart-legend', () => data);
 }
 
 // ========== DRAG REORDER ==========
@@ -4933,7 +5051,9 @@ function renderExpenseChart() {
 
   const th = chartTheme();
   expenseChart.setOption(buildSunburstOption(data, p => sunburstTooltipContent(p, th, total)), true);
+  sunburstLegendRerender['expense-chart-legend'] = () => renderSunburstLegend('expense-chart-legend', data, total, expenseChart);
   renderSunburstLegend('expense-chart-legend', data, total, expenseChart);
+  wireSunburstDrill(expenseChart, 'expense-chart-legend', () => data);
 }
 
 // ========== EXPENSE TREND ==========

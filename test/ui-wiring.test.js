@@ -221,7 +221,13 @@ describe('UI 接线契约：堆叠柱下钻与图例记忆', () => {
   test('点击下钻接线单一来源 wireStackedBarDrill，两图各接一次，内联 chart.on(click) 不回潮', () => {
     assert.match(html, /function wireStackedBarDrill\(/, 'helper 定义存在');
     assert.strictEqual(count(/wireStackedBarDrill\(/g), 3, '定义一处 + 两图 init 各一次');
-    assert.strictEqual(count(/\.on\('click'/g), 1, 'chart click 仅允许 wireStackedBarDrill 内一处，不得散落内联注册');
+    // chart click 只允许出现在两个「单一接线函数」里：堆叠柱下钻 + 旭日选中分类。
+    // 散落在 render* 里的内联 chart.on('click') 仍不允许（那正是这条要防的）
+    assert.strictEqual(count(/\.on\('click'/g), 2, 'chart click 仅限 wireStackedBarDrill / wireSunburstDrill 内各一处');
+    const inlineOn = html.split(String.fromCharCode(10))
+      .filter((l) => l.indexOf(".on('click'") >= 0 && !/^\s*(\/\/|\*)/.test(l))
+      .filter((l) => l.indexOf("chartObj.on('click'") < 0);
+    assert.deepStrictEqual(inlineOn, [], 'render* 里不得内联注册 click');
     assert.match(fnSource('renderHistoryChart'), /viewHistorySegment/, '历史图下钻到资产构成');
     assert.match(fnSource('renderExpenseTrendChart'), /viewExpenseSegment/, '趋势图下钻到消费记录');
   });
@@ -1807,7 +1813,7 @@ describe('UI 接线契约：分布图的两栏（图 + 构成清单）', () => {
   test('清单渲染走 logic.js 的 sunburstBreakdown（占比口径单一来源）', () => {
     assert.strictEqual(count(/function renderSunburstLegend\(/g), 1, '清单渲染只此一处实现');
     const src = fnSource('renderSunburstLegend');
-    assert.match(src, /sunburstBreakdown\(/, '排序与占比下沉 logic.js');
+    assert.match(src, /sunburstLegendRows\(/, '排序/占比/选中口径下沉 logic.js');
     // 占比不得在页面里再算一遍（同一张卡上两个「占比」各算各的口径就是 bug）
     assert.ok(!/\/\s*total\s*\*\s*100/.test(stripComments(src)), '不得内联重写百分比');
     assert.match(src, /formatCNY\(/, '金额走统一格式化');
@@ -1841,11 +1847,13 @@ describe('UI 接线契约：分布图的两栏（图 + 构成清单）', () => {
     const src = fnSource('renderSunburstLegend');
     assert.match(src, /dispatchAction\(\{ *type: *'highlight'/, '悬停高亮对应扇区');
     assert.match(src, /dispatchAction\(\{ *type: *'downplay'/, '移出恢复');
-    assert.match(src, /dataIndex: i/, 'dataIndex 取自行上带的原 data 下标');
+    assert.match(src, /dataIndex: a\.flat/, 'dataIndex 取自行上带的扁平树下标');
     // 清单按值降序排过，行号 ≠ dataIndex：必须把 r.idx 写进 data-idx，
     // 用 map 的第二参（行号）就会「悬停 A 高亮 B」（这个 bug 刚犯过一次）
     assert.match(src, /data-idx="\$\{r\.idx\}"/, 'data-idx 用 r.idx（原 data 下标）');
     assert.ok(!/data-idx="\$\{i\}"/.test(src), '不得用行号当 dataIndex');
+    // 顶层 idx 不是 ECharts 的 dataIndex（虚拟根占 0）——必须经 sunburstNodePath 换算并存进 data-flat
+    assert.match(src, /data-flat="\$\{flat/, '扁平树下标由 sunburstNodePath 算出后写在行上');
   });
 
   test('清单行的色块取自同一个色板（不另起一套分类色）', () => {
@@ -1878,5 +1886,103 @@ describe('UI 接线契约：顶端模式按钮的次序（消费在左 / 资产�
     assert.match(html, /id="mode-expenses"[^>]*class="seg-btn active"/, '消费默认 active');
     assert.ok(!/id="mode-assets"[^>]*class="seg-btn[^"]*active/.test(html), '资产不得默认 active');
     assert.match(html, /let currentMode = 'expenses'/, '初始模式仍是消费');
+  });
+});
+
+/*
+ * 卡片材质：液态玻璃（半透明 + 背光模糊 + 光泽边）。
+ * --------------------------------------------------------------------------
+ * 为什么值得契约守：
+ *   ① **底必须是半透明的**（不再是纯白 `--card`）——这是「液态」的全部来源：
+ *      纸纹与台灯要能透过卡片看见，卡面才会随背景与指针「活」起来；
+ *   ② **不得给 .card 写 background-image**：渐变底会让 AA 巡检对卡片内**每一行字**
+ *      静默跳过（上一轮页头就是这么漏检的）。光泽边只能靠 box-shadow / 伪元素；
+ *   ③ 玻璃色必须是 CSS 变量且亮/暗各一套：写死就做不到两套主题，也会被 theme 巡检判为越界。
+ */
+describe('UI 接线契约：卡片的液态玻璃材质', () => {
+  test('.card 半透明 + 背光模糊，且不写 background-image（否则 AA 巡检整块跳过）', () => {
+    const card = html.match(/\n  \.card \{[\s\S]*?\n  \}/)[0];
+    assert.match(card, /background: var\(--glass-fill\)/, '底走玻璃变量（半透明）');
+    assert.match(card, /backdrop-filter: blur\(/, '背光模糊是「玻璃」的核心');
+    assert.match(card, /-webkit-backdrop-filter: blur\(/, 'Safari 前缀');
+    assert.ok(!/background-image/.test(card), '卡片不得用渐变作底（AA 巡检会整块豁免）');
+    // 光泽边只允许走 box-shadow（.masthead 已占用 ::before/::after，再加一套会互相覆盖）。
+    // 注意 :hover 只换外阴影，故高光/内辉光被打包进 --glass-shadow（材质仍单一定义）
+    assert.match(card, /--glass-shadow: inset 0 1px 0 var\(--glass-rim\), inset 0 0 0 1px var\(--glass-inner\)/,
+      '光泽边与内辉光走 box-shadow（打包成 --glass-shadow 供 :hover 复用）');
+    assert.match(card, /box-shadow: var\(--glass-shadow\)/, '外阴影与材质叠加');
+  });
+
+  test('玻璃材质只在 .card 一处定义（同类结构同一实现，不逐个组件重写）', () => {
+    assert.strictEqual(count(/var\(--glass-fill\)/g), 1, '玻璃底色只此一处使用');
+    assert.strictEqual(count(/var\(--glass-rim\)/g), 1, '高光边只此一处使用');
+    assert.strictEqual(count(/var\(--glass-inner\)/g), 1, '内辉光只此一处使用');
+  });
+
+  test('玻璃色在亮/暗两套 :root 各定义一次（否则暗色回落成亮色的一层白）', () => {
+    for (const v of ['--glass-fill', '--glass-rim', '--glass-inner']) {
+      const decls = (html.match(new RegExp(`${v}:`, 'g')) || []).length;
+      assert.strictEqual(decls, 2, `${v} 必须在亮/暗各定义一次（实得 ${decls} 处）`);
+    }
+  });
+
+  test('半透明底不得靠 opacity 实现（那会把卡片里的字一起淡化掉）', () => {
+    const card = html.match(/\n  \.card \{[\s\S]*?\n  \}/)[0];
+    assert.ok(!/^\s*opacity:/m.test(card), '透明度只能靠颜色 alpha，不能用 opacity');
+  });
+});
+
+/*
+ * 旭日图的「选中分类 → 右侧清单联动」。
+ * --------------------------------------------------------------------------
+ * 需求原话：「选中其中一个层级的时候，他右边的标签可以联动成选中的当前分类下的一些标签」。
+ * 两个入口（点图上的扇区、点清单里的分类行）必须走**同一条**路径——否则两处行为会各自漂移。
+ * 另：ECharts 的 dataIndex 是扁平树下标（虚拟根占 0），高亮定位必须经 sunburstNodePath 换算，
+ * 直接传顶层下标会差一个（曾真的高亮到隔壁扇区）。
+ */
+describe('UI 接线契约：旭日图选中分类后清单联动', () => {
+  test('清单数据走 logic.js sunburstLegendRows（选中态与占比口径单一来源）', () => {
+    const src = fnSource('renderSunburstLegend');
+    assert.match(src, /sunburstLegendRows\(/, '选中态/分母口径下沉 logic.js');
+    assert.ok(!/\/\s*sub\s*\*\s*100/.test(stripComments(src)), '不得在页面里重写百分比');
+  });
+
+  test('高亮定位经 sunburstNodePath 换算（dataIndex 是扁平树下标，不是顶层下标）', () => {
+    const src = fnSource('renderSunburstLegend');
+    assert.match(src, /sunburstNodePath\(/, '下标换算下沉 logic.js');
+    // 不得直接把顶层 idx 当 dataIndex 用（那就是差一个的老 bug）
+    assert.ok(!/dataIndex: *i *[,}]/.test(src), '不得把清单行下标直接当 dataIndex');
+  });
+
+  test('选中态是单一来源的模块级状态，且按图表容器各存一份', () => {
+    const src = fnSource('renderSunburstLegend');
+    assert.match(src, /sunburstLegendSel/, '选中态存在模块级映射里（重绘后要能续上）');
+    assert.match(fnSource('drillSunburst'), /sunburstLegendSel\[/, '切换选中走单一入口');
+    assert.strictEqual(count(/function drillSunburst\(/g), 1, '入口唯一');
+  });
+
+  test('图上的扇区点击与清单行点击走同一条路径（两处行为不许各自漂移）', () => {
+    assert.strictEqual(count(/function wireSunburstDrill\(/g), 1, '接线函数唯一');
+    // 三个图各自接一次（资产/消费/收益分布）
+    assert.strictEqual(count(/wireSunburstDrill\(/g), 4, '定义一处 + 三张图各接一次');
+    const src = fnSource('wireSunburstDrill');
+    assert.match(src, /drillSunburst\(/, '点击扇区 → 选中该分类');
+    assert.match(src, /treePathInfo/, '用 ECharts 给的祖先路径判层级（顶层分类才下钻）');
+    // 清单行的点击入口在 renderSunburstLegend 里（DOM 归它管），但也只能调 drillSunburst
+    const legend = fnSource('renderSunburstLegend');
+    assert.match(legend, /el\.onclick = /, '清单行点击挂在自己的渲染函数里');
+    assert.match(legend, /drillSunburst\(elId/, '行点击 → 同一个 drillSunburst 入口');
+    // 选中态只有两个合法写入点：① 用户切换（drillSunburst）；② 渲染时发现选中分类
+    // 在当前数据里已不存在，顺势清掉（否则状态会卡着，切回同名维度时莫名又进下钻态）。
+    // 除此之外任何地方写它都是绕过这两道的「第二套状态管理」
+    const writes = (html.match(/sunburstLegendSel\[[^\]]+\] = /g) || []);
+    assert.strictEqual(writes.length, 2, `选中态只允许这两个写入点（实得 ${writes.length}）`);
+  });
+
+  test('空态/换维度时选中态被清掉，不留悬空分类', () => {
+    // 空态分支必须同时清清单与选中态，否则切回来还停在上次的分类里
+    const emptyCalls = html.match(/renderSunburstLegend\('[^']+', \[\], 0, null\)/g) || [];
+    assert.ok(emptyCalls.length >= 5, `三个图的空态都要清清单（实得 ${emptyCalls.length} 处）`);
+    assert.match(fnSource('renderSunburstLegend'), /selected[\s\S]*?sunburstLegendRows/, '选中态由纯函数校验后回落');
   });
 });

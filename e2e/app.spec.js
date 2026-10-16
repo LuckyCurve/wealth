@@ -1127,6 +1127,61 @@ test.describe('分布图的构成清单（与图同源）', () => {
     expect(total.reduce((s, r) => s + parseFloat(r.pct), 0)).toBeGreaterThan(99.5);
   });
 
+  test('选中分类后清单联动成该分类下的条目，能返回；换维度时选中态归零', async ({ appPage: page }) => {
+    await gotoAssets(page, 'chart');
+    await expect(page.locator('#chart-legend .chart-legend-row').first()).toBeVisible();
+    const names = () => page.evaluate(() =>
+      [...document.querySelectorAll('#chart-legend .chart-legend-name')].map((e) => e.textContent.trim()));
+    const head = () => page.evaluate(() => document.getElementById('chart-legend-head').textContent.trim());
+
+    // 初始：顶层分类（货币维度）
+    expect(await names()).toEqual(['CNY', 'HKD']);
+    expect(await head()).toBe('构成');
+
+    // 点分类行 → 清单换成该分类下的资产；占比分母换成该分类合计（加起来 100%）
+    await page.locator('#chart-legend .chart-legend-row').first().click();
+    await expect.poll(names).toEqual(['沪深300指数', '招商银行活期']);
+    expect(await head()).toContain('CNY');
+    const pcts = await page.evaluate(() =>
+      [...document.querySelectorAll('#chart-legend .chart-legend-pct')].map((e) => parseFloat(e.textContent)));
+    expect(pcts.reduce((a, b) => a + b, 0)).toBeCloseTo(100, 1);
+    // 明细金额之和 = 该分类合计（分母与图上扇区同源）
+    const amts = await page.evaluate(() =>
+      [...document.querySelectorAll('#chart-legend .chart-legend-amt')].map((e) => Number(e.textContent.replace(/[^0-9.]/g, ''))));
+    expect(amts.reduce((a, b) => a + b, 0)).toBeCloseTo(130000, 0);
+
+    // 返回全部分类
+    await page.locator('#chart-legend-head .legend-back').click();
+    await expect.poll(names).toEqual(['CNY', 'HKD']);
+
+    // 再下钻一次后换维度：选中态必须归零（否则切回同名维度会莫名又是下钻态）
+    await page.locator('#chart-legend .chart-legend-row').first().click();
+    await expect.poll(head).toContain('CNY');
+    await page.selectOption('#chart-category-select', 'cat-type');
+    await expect.poll(names).toEqual(['活期现金', '权益基金']);
+    expect(await head()).toBe('构成');
+    expect(await page.evaluate(() => JSON.stringify(sunburstLegendSel['chart-legend']))).toBe('null');
+
+    // 点图上的扇区也能下钻：用 ECharts 替身派发一次真实形态的 click 事件
+    // （params 形如 ECharts 给的：带 treePathInfo 祖先路径）。替身没有 canvas，
+    // 点不到真扇区，但「点击参数 → 下钻 → 清单联动」这条链路能验；
+    // 真实点击已由 logic 层的 sunburstNodePath 断言 + 本地真库探针覆盖
+    await page.selectOption('#chart-category-select', 'currency');
+    await expect.poll(names).toEqual(['CNY', 'HKD']);
+    await page.evaluate(() => {
+      // 用页面自己的 chart 变量（替身的 getInstanceByDom 返回 null）
+      chart.dispatchAction({ type: 'click', name: 'HKD', dataIndex: 2, treePathInfo: [{ name: '', value: 0 }, { name: 'HKD', value: 1 }] });
+    });
+    await expect.poll(head).toContain('HKD');
+    // 点到条目层（长度 3）不下钻：树只有两层，再钻没有下一层可去
+    await page.locator('#chart-legend-head .legend-back').click();
+    await expect.poll(names).toEqual(['CNY', 'HKD']);
+    await page.evaluate(() => {
+      chart.dispatchAction({ type: 'click', name: '招商银行活期', dataIndex: 3, treePathInfo: [{ name: '', value: 0 }, { name: 'CNY', value: 1 }, { name: '招商银行活期', value: 2 }] });
+    });
+    expect(await head(), '点条目不应下钻（明细已是最后一层）').toBe('构成');
+  });
+
   test('消费分布：清单随月份筛选联动（切月后金额跟着变）', async ({ appPage: page }) => {
     await page.locator('#tabs-expenses .tab-btn[data-tab="expense-chart"]').click();
     await expect(page.locator('#expense-chart-legend .chart-legend-row').first()).toBeVisible();
@@ -1142,10 +1197,14 @@ test.describe('分布图的构成清单（与图同源）', () => {
     expect(feb[0].pct).toBe('100.0%');
   });
 
-  test('悬停清单行高亮**对应**扇区：用 idx 而非排序后的行号', async ({ appPage: page }) => {
-    // 刻意用消费分布：它的清单按值降序（支付宝 3200 > 微信 88.5），
-    // 而 data 顺序是分类标签序（微信在前）——**行号与 dataIndex 错位**，
-    // 于是「用行号当 dataIndex」的写法会在这里暴露（资产分布那组数据恰好同序，测不出来）。
+  test('悬停清单行高亮**对应**扇区：dataIndex 必须是扁平树下标（不是行号、也不是顶层下标）', async ({ appPage: page }) => {
+    // 三种下标一次分清（这个坑踩过两次）：
+    //   行号       —— 清单按值降序后的位置；用它就是「悬停 A 高亮 B」
+    //   顶层下标   —— data 数组里的位置；**仍不对**：ECharts 的 dataIndex 是扁平树下标，
+    //                 虚拟根占 0，于是顶层分类 N 对应 N+1（差一个），明细还要再加前面兄弟的份额
+    //   扁平树下标 —— 唯一对的（logic.js sunburstNodePath 负责换算）
+    // 用消费分布：清单按值降序（支付宝 3200 > 微信 88.5）而 data 是标签序（微信在前），
+    // 三种下标互不相等，谁也糊弄不过去。
     await page.locator('#tabs-expenses .tab-btn[data-tab="expense-chart"]').click();
     await expect(page.locator('#expense-chart-legend .chart-legend-row').first()).toBeVisible();
     // 默认选中最新月份（2026-02 只有微信）；切到 1 月才有两个分类可比
@@ -1153,20 +1212,21 @@ test.describe('分布图的构成清单（与图同源）', () => {
     await expect.poll(async () => (await legendRows(page, 'expense-chart-legend')).length).toBe(2);
     const rows = await legendRows(page, 'expense-chart-legend');
     expect(rows.map((r) => r.name), '清单按值降序').toEqual(['支付宝', '微信']);
-    expect(rows.map((r) => r.idx), 'idx 仍指向 data 原位').toEqual(['1', '0']);
+    expect(rows.map((r) => r.idx), 'idx 仍指向 data 原位（色板取色用）').toEqual(['1', '0']);
 
     const dispatched = () => page.evaluate(() =>
       (window.__echartsCalls.dispatch || []).filter((d) => d.id === 'expense-sunburst-chart').map((d) => d.action));
     await page.evaluate(() => { window.__echartsCalls.dispatch.length = 0; });
 
-    // 悬停第一行（支付宝，在 data 里是 1）：若用行号 0 就会高亮错扇区
+    // 2026-01 的树：root=0, 微信=1, 午餐=2, 支付宝=3, 房租=4
+    // → 悬停「支付宝」（data 顶层下标 1、清单行号 0）必须发 dataIndex 3
     await page.locator('#expense-chart-legend .chart-legend-row').first().hover();
-    await expect.poll(dispatched).toEqual([{ type: 'highlight', seriesIndex: 0, dataIndex: 1 }]);
+    await expect.poll(dispatched).toEqual([{ type: 'highlight', seriesIndex: 0, dataIndex: 3 }]);
 
     await page.mouse.move(0, 0);
     await expect.poll(dispatched).toEqual([
-      { type: 'highlight', seriesIndex: 0, dataIndex: 1 },
-      { type: 'downplay', seriesIndex: 0, dataIndex: 1 },
+      { type: 'highlight', seriesIndex: 0, dataIndex: 3 },
+      { type: 'downplay', seriesIndex: 0, dataIndex: 3 },
     ]);
   });
 });

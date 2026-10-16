@@ -966,18 +966,54 @@
     return 0;
   }
 
-  // 旭日图右侧的构成清单：把顶层分类（内环）排成一张可读的列表。
-  // 为什么需要：外径受容器高度限制只能到 88%，画布左右各有近 1/3 宽是空的（实测 1054 宽里
-  // 左右共 586px 是白），而那一片白正好够放「谁占多少」——不必悬停才能看见。
-  // 占比分母由调用方传入（与 tooltip **同一个变量**）：同一张卡上两个「占比」各算各的
-  // 就是口径分裂（这条在「分布图总数」上已经踩过一次）。
-  // 不改写入参：入参就是喂给 echarts 的同一份 data 数组，就地 sort 会让图的顺序跟着变。
-  function sunburstBreakdown(data, total) {
-    const t = Number(total) || 0;
+  // 旭日图节点在**扁平化树**里的下标（ECharts 的 dataIndex 就是这一套）。
+  // 实测（真实 ECharts 5）：点内环分类返回 dataIndex = 顶层下标 + 1，因为虚拟根占了 0；
+  // 于是「分类 N」= 1 + N，「分类 N 下的第 k 个条目」= 2 + N + k（前面的兄弟分掉了序号）。
+  // 不换算就会差一个：悬停清单第一行会高亮到隔壁扇区（这个 bug 曾真的发生）。
+  // 越界一律 null：调用方据此跳过 highlight，而不是乱亮一个不相干的扇区。
+  function sunburstNodePath(data, catIdx, childIdx) {
+    const list = data || [];
+    if (!Number.isInteger(catIdx) || catIdx < 0 || catIdx >= list.length) return null;
+    let flat = 1; // 虚拟根占 0
+    for (let i = 0; i < catIdx; i++) {
+      flat += 1 + childCount(list[i]);
+    }
+    if (childIdx === null || childIdx === undefined) return flat;
+    const kids = (list[catIdx] && Array.isArray(list[catIdx].children)) ? list[catIdx].children : [];
+    if (!Number.isInteger(childIdx) || childIdx < 0 || childIdx >= kids.length) return null;
+    return flat + 1 + childIdx;
+  }
+
+  // 节点的子项数（children 不是数组时按 0——脏数据不该让整个清单崩掉）
+  function childCount(node) {
+    return (node && Array.isArray(node.children)) ? node.children.length : 0;
+  }
+
+  // 旭日图右侧清单的数据：**未选中**时列顶层分类；**选中某分类**时列它下面的条目。
+  // 需求原话：「选中其中一个层级的时候，他右边的标签可以联动成选中的当前分类下的一些标签」。
+  // 三点口径：
+  //   ① selected 指向不存在的分类（被删掉/换了维度）→ 回落为顶层列表，不留悬空状态；
+  //   ② 条目级占比的**分母是该分类合计**（条目加起来正好 100%），不是全局合计；
+  //   ③ 每条带 idx / path，供「清单 → 扇区」高亮定位（path 交给 sunburstNodePath 换算）。
+  // 不改写入参：入参就是喂给 echarts 的同一份 data。
+  function sunburstLegendRows(data, total, selected) {
+    const list = data || [];
+    const sel = list.find(n => n && n.name === selected);
+    if (sel) {
+      const kids = Array.isArray(sel.children) ? sel.children : [];
+      const sub = nodeValue(sel); // 条目级分母 = 该分类合计（与图上这个扇区的大小同源）
+      return kids
+        .map((k, i) => ({
+          idx: i,
+          name: (k && k.name) || '',
+          value: nodeValue(k),
+          pct: pctStr(nodeValue(k), sub),
+          path: [sel.name, i],
+        }))
+        .sort((a, b) => b.value - a.value);
+    }
     return (data || [])
-      // idx = 该分类在**原 data 里的下标**：清单按值排序后，行号与图的 dataIndex 不再一致，
-      // 悬停联动必须靠 idx 定位扇区（用行号会让「悬停 A 高亮 B」——排序一变就错位）
-      .map((n, idx) => ({ idx, name: (n && n.name) || '', value: nodeValue(n), pct: pctStr(nodeValue(n), t) }))
+      .map((n, idx) => ({ idx, name: (n && n.name) || '', value: nodeValue(n), pct: pctStr(nodeValue(n), Number(total) || 0), path: null }))
       .sort((a, b) => b.value - a.value);
   }
 
@@ -1104,6 +1140,6 @@
     esc, escRegExp, highlightMatch, moneyStr, jsAttr,
     truncateLabel,
     hexToRgba, hexToHsl, hslToHex, pillColors, basePill, CATEGORY_COLORS,
-    CATEGORY_PALETTE, CHART_INK, shadeAt, buildSunburstData, nodeValue, sunburstBreakdown, pctStr, percentSeriesData, pruneLegendSelected, sortTagsByTotal, amountAtRates, sumAmountCNY,
+    CATEGORY_PALETTE, CHART_INK, shadeAt, buildSunburstData, nodeValue, childCount, sunburstLegendRows, sunburstNodePath, pctStr, percentSeriesData, pruneLegendSelected, sortTagsByTotal, amountAtRates, sumAmountCNY,
   };
 });

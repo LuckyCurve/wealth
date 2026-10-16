@@ -609,13 +609,13 @@ describe('图表数据构造 buildSunburstData / pctStr / percentSeriesData', ()
    * 顺带把「谁占多少」从悬停才能看到变成一眼可读。
    * 占比分母与 tooltip 必须是同一个（同一张卡上两个「占比」各算各的口径就是 bug）。
    */
-  test('sunburstBreakdown 按值降序列出分类与占比（分母同 tooltip）', () => {
+  test('sunburstLegendRows 按值降序列出分类与占比（分母同 tooltip）', () => {
     const data = [
       { name: '现金', value: 100 },
       { name: '股票', value: 300 },
       { name: '零头', value: 0 },
     ];
-    const out = L.sunburstBreakdown(data, 400);
+    const out = L.sunburstLegendRows(data, 400, null);
     assert.deepStrictEqual(out.map(x => x.name), ['股票', '现金', '零头']);
     assert.strictEqual(out[0].pct, '75.0');
     assert.strictEqual(out[1].pct, '25.0');
@@ -625,16 +625,16 @@ describe('图表数据构造 buildSunburstData / pctStr / percentSeriesData', ()
     assert.deepStrictEqual(out.map(x => x.idx), [1, 0, 2], 'idx 跟着条目走，不随排序重编');
   });
 
-  test('sunburstBreakdown 边界：空数组 / 缺 value / 分母为零 / 缺失入参', () => {
-    assert.deepStrictEqual(L.sunburstBreakdown([], 100), []);
-    assert.deepStrictEqual(L.sunburstBreakdown(null, 100), []);
-    assert.deepStrictEqual(L.sunburstBreakdown(undefined, undefined), []);
-    const out = L.sunburstBreakdown([{ name: 'A', value: '30' }, { name: 'B' }], 0);
+  test('sunburstLegendRows 边界：空数组 / 缺 value / 分母为零 / 缺失入参', () => {
+    assert.deepStrictEqual(L.sunburstLegendRows([], 100, null), []);
+    assert.deepStrictEqual(L.sunburstLegendRows(null, 100, null), []);
+    assert.deepStrictEqual(L.sunburstLegendRows(undefined, undefined, null), []);
+    const out = L.sunburstLegendRows([{ name: 'A', value: '30' }, { name: 'B' }], 0);
     // 分母为零时占比归 '0.0'（不出现 Infinity/NaN），值非数字归 0（不污染排序）
     assert.deepStrictEqual(out.map(x => [x.name, x.value, x.pct]), [['A', 30, '0.0'], ['B', 0, '0.0']]);
   });
 
-  test('sunburstBreakdown 对「只有 children、没有 value」的分类节点按子项求和', () => {
+  test('sunburstLegendRows 对「只有 children、没有 value」的分类节点按子项求和', () => {
     // 回归：buildSunburstData 只给**叶子**写 value，内环分类节点没有 value——
     // ECharts 是按 children 求和定扇区大小的，清单若直接读 n.value 会全部得到 0，
     // 实测表现是清单里满屏「¥0.00 / 0.0%」而图是正常的（真实浏览器里才看得见）。
@@ -643,7 +643,7 @@ describe('图表数据构造 buildSunburstData / pctStr / percentSeriesData', ()
       { '现金': [{ name: '招行', value: 100 }, { name: '汇丰', value: 50 }], '股票': [{ name: '沪深300', value: 250 }] },
       x => x.value,
     );
-    const out = L.sunburstBreakdown(data, 400);
+    const out = L.sunburstLegendRows(data, 400, null);
     assert.deepStrictEqual(out.map(x => [x.name, x.value, x.pct]), [
       ['股票', 250, '62.5'],
       ['现金', 150, '37.5'],
@@ -661,10 +661,110 @@ describe('图表数据构造 buildSunburstData / pctStr / percentSeriesData', ()
     assert.strictEqual(L.nodeValue({ value: 'abc' }), 0, '非数字字符串归零，不污染求和');
   });
 
-  test('sunburstBreakdown 不改写入参（图表 setOption 复用同一份 data 数组）', () => {
+  /*
+   * 点内环分类 → 右侧清单换成「该分类下的条目」。
+   * ------------------------------------------------------------------------
+   * 需求原话：「选中其中一个层级的时候，他右边的标签可以联动成选中的当前分类下的一些标签」。
+   * 落地要解决三件事，全部下沉到这个纯函数：
+   *   ① 显式选中优先于默认（默认 = 全部，即顶层分类列表）；
+   *   ② 选中的分类必须真实存在（点完又被删掉/换维度时不能留下悬空状态）；
+   *   ③ 条目级占比的**分母是该分类合计**，不是全局合计（否则一条明细的百分比加起来不是 100%）。
+   */
+  test('sunburstLegendRows 未选中时列顶层分类，占比分母为全局合计', () => {
+    const data = [
+      { name: '现金', children: [{ name: '招行', value: 100 }, { name: '汇丰', value: 50 }] },
+      { name: '股票', children: [{ name: '沪深300', value: 250 }] },
+    ];
+    const out = L.sunburstLegendRows(data, 400, null);
+    assert.deepStrictEqual(out.map(x => [x.name, x.value, x.pct]), [
+      ['股票', 250, '62.5'],
+      ['现金', 150, '37.5'],
+    ]);
+    assert.strictEqual(out[0].idx, 1, 'idx 仍指原 data 下标（供高亮联动）');
+    assert.strictEqual(out[0].path, null, '未选中时无父节点路径');
+  });
+
+  test('sunburstLegendRows 选中分类后列其条目，占比分母换成该分类合计', () => {
+    const data = [
+      { name: '现金', children: [{ name: '招行', value: 100 }, { name: '汇丰', value: 50 }] },
+      { name: '股票', children: [{ name: '沪深300', value: 250 }] },
+    ];
+    // 选中「现金」→ 两条明细，分母 = 150（不是 400）
+    const out = L.sunburstLegendRows(data, 400, '现金');
+    assert.deepStrictEqual(out.map(x => [x.name, x.value, x.pct]), [
+      ['招行', 100, '66.7'],
+      ['汇丰', 50, '33.3'],
+    ]);
+    // 明细要能反查到自己的父分类与在原 data 里的位置（高亮要定位到这条明细的扇区）
+    assert.deepStrictEqual(out.map(x => x.path), [['现金', 0], ['现金', 1]]);
+    assert.deepStrictEqual(out.map(x => x.idx), [0, 1], '分类内序号（同分类下高亮用）');
+  });
+
+  test('sunburstLegendRows 选中不存在的分类时回落为未选中（不留悬空状态）', () => {
+    const data = [{ name: '现金', children: [{ name: '招行', value: 100 }] }];
+    const missing = L.sunburstLegendRows(data, 100, '已被删掉的分类');
+    assert.deepStrictEqual(missing.map(x => x.name), ['现金'], '回落为顶层列表');
+    assert.strictEqual(missing[0].path, null);
+  });
+
+  test('sunburstLegendRows 选中无子项的分类时返回空列表（不抛错）', () => {
+    const data = [{ name: '空分类', children: [] }];
+    assert.deepStrictEqual(L.sunburstLegendRows(data, 0, '空分类'), []);
+  });
+
+  test('sunburstLegendRows 边界：缺失入参 / 未知形态的 children / 分母为零', () => {
+    assert.deepStrictEqual(L.sunburstLegendRows(null, 100, null), []);
+    assert.deepStrictEqual(L.sunburstLegendRows(undefined, undefined, undefined), []);
+    // children 不是数组（脏数据）时按「无子项」处理，而不是崩掉整个清单
+    const dirty = [{ name: 'A', children: 'oops' }, { name: 'B', children: [{ name: 'b', value: 5 }] }];
+    const top = L.sunburstLegendRows(dirty, 5, null);
+    assert.deepStrictEqual(top.map(x => x.name), ['B', 'A'], '脏节点按 0 计值，仍参与排序');
+    assert.deepStrictEqual(L.sunburstLegendRows(dirty, 5, 'A'), [], '选中脏节点 → 空列表');
+    // 分母为零：占比一律 '0.0'，不出现 NaN/Infinity
+    const zero = L.sunburstLegendRows([{ name: 'X', children: [{ name: 'x', value: 0 }] }], 0, 'X');
+    assert.deepStrictEqual(zero.map(x => [x.name, x.pct]), [['x', '0.0']]);
+  });
+
+  test('sunburstLegendRows 不改写入参', () => {
+    const data = [{ name: 'A', children: [{ name: 'a', value: 2 }, { name: 'b', value: 1 }] }];
+    const snap = JSON.stringify(data);
+    L.sunburstLegendRows(data, 3, 'A');
+    L.sunburstLegendRows(data, 3, null);
+    assert.strictEqual(JSON.stringify(data), snap, '排序只在副本上做');
+  });
+
+  /*
+   * 清单条目 → 图上扇区的路径。
+   * 实测（真实 ECharts 5）：旭日图的 dataIndex 是**扁平化的树下标**，虚拟根占 0，
+   * 于是「data 数组里的分类 N」对应的 path 是 [N]，「分类 N 下的第 k 个条目」是 [N, k]。
+   * 曾经直接传顶层数组下标，导致悬停清单高亮到隔壁扇区（差一个）。
+   */
+  test('sunburstNodePath 给出「顶层下标 → 扁平树下标」的换算', () => {
+    const data = [
+      { name: '现金', children: [{ name: '招行' }, { name: '汇丰' }] },
+      { name: '股票', children: [{ name: '沪深300' }] },
+    ];
+    // 扁平序：root(0), 现金(1), 招行(2), 汇丰(3), 股票(4), 沪深300(5)
+    assert.deepStrictEqual(L.sunburstNodePath(data, 0, null), 1, '第 0 个分类 → 扁平下标 1');
+    assert.deepStrictEqual(L.sunburstNodePath(data, 1, null), 4, '第 1 个分类 → 扁平下标 4');
+    assert.deepStrictEqual(L.sunburstNodePath(data, 0, 1), 3, '现金下第 1 个条目 → 扁平下标 3');
+    assert.deepStrictEqual(L.sunburstNodePath(data, 1, 0), 5, '股票下第 0 个条目 → 扁平下标 5');
+  });
+
+  test('sunburstNodePath 边界：越界/缺失入参返回 null（调用方跳过高亮而不是乱亮）', () => {
+    const data = [{ name: 'A', children: [{ name: 'a' }] }];
+    assert.strictEqual(L.sunburstNodePath(null, 0, null), null);
+    assert.strictEqual(L.sunburstNodePath(data, 5, null), null, '分类越界');
+    assert.strictEqual(L.sunburstNodePath(data, 0, 7), null, '条目越界');
+    assert.strictEqual(L.sunburstNodePath(data, -1, null), null);
+    // 该分类没有 children 时，条目下标任何值都无意义
+    assert.strictEqual(L.sunburstNodePath([{ name: 'A' }], 0, 0), null);
+  });
+
+  test('sunburstLegendRows 不改写入参（图表 setOption 复用同一份 data 数组）', () => {
     const data = [{ name: 'A', value: 1 }, { name: 'B', value: 2 }];
     const snapshot = JSON.stringify(data);
-    L.sunburstBreakdown(data, 3);
+    L.sunburstLegendRows(data, 3, null);
     assert.strictEqual(JSON.stringify(data), snapshot, '排序必须在副本上做');
   });
 
