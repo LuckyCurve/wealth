@@ -1500,6 +1500,28 @@ describe('UI 接线契约：版式一致性（同类结构同一套 class）', (
     }
   });
 
+  test('旭日图的高度由列宽决定（不写死像素，否则清单只有一行时右侧塌成一片空白）', () => {
+    // 实测：消费分布卡高 619px，其中图纸写死 520px，而右侧构成清单只有 35px（一行）。
+    // 图纸是正圆形，高度写死就与「这张卡实际有多少内容」脱钩——分类少时整卡被空白撑起。
+    // 圆在 CSS 里没有确定尺寸（由 ECharts 按容器算），故高度只能由列宽推出来。
+    const heights = html.match(/id="(sunburst-chart|income-chart|expense-sunburst-chart)"[^>]*style="[^"]*height:\s*(\d+)px/g) || [];
+    assert.strictEqual(heights.length, 0,
+      `图纸高度不得写死像素：${heights.map((h) => h.slice(0, 60)).join(' / ')}`);
+    // 三张旭日图共用同一套宽高比（同类结构同一实现）
+    assert.match(html, /\.chart-canvas \{[^}]*aspect-ratio/, '高度由列宽与宽高比推出');
+    assert.strictEqual((html.match(/class="chart-canvas[ "]/g) || []).length, 3, "三张旭日图都走同一个容器类（高度比例只在类里定义）");
+  });
+
+  test('新增标签的输入框按标签体量给宽（不靠 flex-1 撑满整行）', () => {
+    // 实测：这一行输入框占满卡片整宽（约 990px），而它只用来敲一个 2–4 字的标签；
+    // 「添加」按钮还被推到整页右端——一件控件被拉成两半。
+    // flex-1 是 Tailwind 类：CDN 空壳下既不生效也不可测，必须换成自有 CSS 的宽度上限。
+    assert.strictEqual(count(/placeholder="新增标签（回车添加）"[^>]*flex-1/g), 0,
+      '新增标签输入框不得再靠 flex-1 撑满（Tailwind 空壳下不可测）');
+    assert.match(html, /\n  \.new-tag-row \{[^}]*max-width/, '宽度上限在自有 CSS 里定义');
+    assert.match(html, /class="new-tag-row"/, '那一行挂上同一套 class（资产/消费两侧共用）');
+  });
+
   test('所有列宽模板共用一处列间距（列宽按 fr 分配时单元格是紧贴的）', () => {
     // 回归：最初只有弹窗里那三张窄表给了 column-gap，而列表页的三张表**完全没有**——
     // 列宽按 fr 分配时单元格之间是紧贴的，「看着有空隙」只是因为内容短。实测：
@@ -1838,7 +1860,7 @@ describe('UI 接线契约：分布图的两栏（图 + 构成清单）', () => {
         `${chartId} 应紧跟在 .chart-split 内（否则又回落到一片白的居中布局）`);
       assert.strictEqual(count(new RegExp(`id="${listId}"`, 'g')), 1, `${listId} 容器唯一`);
     }
-    assert.strictEqual(count(/class="chart-legend"/g), 3, '三张旭日图各一处（同类结构不许只改两张）');
+    assert.strictEqual((html.match(/class="chart-canvas[ "]/g) || []).length, 3, "三张旭日图都走同一个容器类（高度比例只在类里定义）");
   });
 
   test('清单渲染走 logic.js 的 sunburstBreakdown（占比口径单一来源）', () => {

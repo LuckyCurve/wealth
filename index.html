@@ -716,6 +716,12 @@ tailwind.config = {
      （原来同规格按钮有 6px 14px / 6px 10px / 6px 12px / 4px 12px / 2px 8px / 2px 10px 六种写法） */
   .btn-sm, .btn-xs { padding: 6px 14px; font-size: var(--fs-micro); white-space: nowrap; }
   .btn-xs { padding: 4px 10px; font-size: var(--fs-micro); }
+  /* 「新增标签」行：输入框的宽度**按标签体量**给（一个标签只有 2–4 个字），
+     不靠 flex-1 撑满整行——那样它会把「添加」按钮推到整页右端，一件控件被拉成两半。
+     宽度上限写在自有 CSS 里（Tailwind 空壳下 flex-1 既不生效也不可测）。
+     资产/消费两侧的标签录入共用这一套（两侧行为必须一致）。 */
+  .new-tag-row { display: flex; gap: 8px; max-width: 320px; }
+  .new-tag-row input { flex: 1 1 auto; min-width: 0; padding: 6px 10px; }
   /* 行内金额快速编辑: 账页「铅笔批注」——悬停金线+铅笔示意可改, 编辑态由 input 接管 */
   .amount-cell { position: relative; padding-left: 16px; display: flex; justify-content: flex-end; align-items: center; cursor: pointer; border-bottom: 1px dashed transparent; transition: border-bottom-color 0.15s; }
   /* 编辑态 input 要占满整格（整格右靠之后，inline 宽度会让光标停在半空） */
@@ -945,8 +951,15 @@ tailwind.config = {
      那一片白正好放「谁占多少」：图给比例直觉，清单给确切金额与占比（不必悬停）。
      窄屏回落单栏：图形正圆优先，清单接在下面。 */
   .chart-split { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: 28px; align-items: start; }
-  /* 图容器高度由列宽与容器高度共同决定，这里只限制上限（保持正圆由 ECharts 自己算） */
-  .chart-split > .chart-canvas { min-width: 0; }
+  /* 图纸高度**由列宽推出来**（宽高比 + 上限），不写死像素：圆是正圆、尺寸由 ECharts 按容器算，
+     而容器的像素高度一旦写死就与「这张卡实际有多少内容」脱钩——先前的 520px 让分类很少时
+     整卡被空白撑起（右侧清单只有一行 35px）。
+     但**只给比例也不行**：单栏宽度下 1:1 会把圆放到 624px，卡片反而更高（实测 619→723）。
+     故比例 + max-height 双管：宽的时候不超上限（圆不会失控），窄的时候按列宽自然收小。 */
+  .chart-split > .chart-canvas { min-width: 0; aspect-ratio: 1 / 1; max-height: 440px; }
+  .chart-split > .chart-canvas > div { width: 100%; height: 100%; }
+  /* 收益分布是小图（同一张卡里还有收益摘要），比例压扁一点 */
+  .chart-canvas.chart-canvas-compact { aspect-ratio: 16 / 9; max-height: 300px; }
   @media (max-width: 900px) {
     .chart-split { grid-template-columns: minmax(0, 1fr); gap: 12px; }
   }
@@ -1224,7 +1237,7 @@ tailwind.config = {
     <div class="card">
       <p class="chart-total" id="chart-total"></p>
       <div class="chart-split">
-        <div class="chart-canvas"><div id="sunburst-chart" style="width:100%; height:520px;"></div></div>
+        <div class="chart-canvas"><div id="sunburst-chart"></div></div>
         <div><p class="chart-legend-head" id="chart-legend-head"><span class="meta-label muted">构成</span></p><div class="chart-legend" id="chart-legend"></div></div>
       </div>
       <div id="chart-empty" class="empty-state" style="display:none;">
@@ -1354,7 +1367,7 @@ tailwind.config = {
         </div>
       </div>
       <div class="chart-split">
-        <div class="chart-canvas"><div id="income-chart" style="width:100%; height:320px;"></div></div>
+        <div class="chart-canvas chart-canvas-compact"><div id="income-chart"></div></div>
         <div><p class="chart-legend-head" id="income-chart-legend-head"><span class="meta-label muted">构成</span></p><div class="chart-legend" id="income-chart-legend"></div></div>
       </div>
     </div>
@@ -1439,7 +1452,7 @@ tailwind.config = {
       <div class="card">
         <p class="chart-total" id="expense-chart-total"></p>
         <div class="chart-split">
-          <div class="chart-canvas"><div id="expense-sunburst-chart" style="width:100%; height:520px;"></div></div>
+          <div class="chart-canvas"><div id="expense-sunburst-chart"></div></div>
           <div><p class="chart-legend-head" id="expense-chart-legend-head"><span class="meta-label muted">构成</span></p><div class="chart-legend" id="expense-chart-legend"></div></div>
         </div>
         <div id="expense-chart-empty" class="empty-state" style="display:none;">
@@ -3196,8 +3209,8 @@ function renderCategoryCards(side) {
       </div>
       <div class="flex flex-wrap gap-2 mb-3">${tagPills}</div>
       ${cat.builtin ? '' : `
-      <div class="flex gap-2">
-        <input type="text" id="${cfg.newTagPrefix}${cat.id}" placeholder="新增标签（回车添加）" class="t-body flex-1" style="padding:6px 10px;" autocomplete="off" onkeydown="if(event.key==='Enter'&&!event.isComposing){event.preventDefault();${addTagCall};}">
+      <div class="new-tag-row">
+        <input type="text" id="${cfg.newTagPrefix}${cat.id}" placeholder="新增标签（回车添加）" class="t-body" autocomplete="off" onkeydown="if(event.key==='Enter'&&!event.isComposing){event.preventDefault();${addTagCall};}">
         <button onclick="${addTagCall}" class="btn-ghost btn-sm">添加</button>
       </div>`}
       ${gap ? `<div class="tagcheck-strip">
