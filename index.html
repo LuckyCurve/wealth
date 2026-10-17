@@ -71,18 +71,31 @@ tailwind.config = {
     --engrave: rgba(163, 115, 10, 0.62);
     --engrave-w: 1.1px;
     /* ===== 卡片材质：液态玻璃（半透明 + 背光模糊 + 光泽边）=====
-       为什么半透明才是关键：纸纹与台灯要能透过卡片看见，卡面才会随背景与指针活起来；
-       纯色底无论怎么调都还是「一块白板」。四层各司其职（同 Liquid Glass 的材质分层）：
-         fill  半透明染色（让背后的纸透上来）
-         edge  玻璃的边缘（比纸略深一档，卡片才不会糊在纸里）
-         rim   顶边受光的高光（「玻璃有厚度」的第一来源）
-         inner 内描边辉光（光在玻璃内部的一圈漫射）
+       为什么半透明才是关键：纸纹与桌光要能透过卡片看见，卡面才会随背景与指针活起来；
+       纯色底无论怎么调都还是「一块白板」。六层各司其职（同 Liquid Glass 的材质分层）：
+         fill   半透明染色（让背后的纸与桌光透上来）
+         edge   玻璃的边缘（一根发丝线，不是描边）
+         rim    顶边受光（「玻璃有厚度」的第一条线）
+         sheen  左上角的柔光（光在玻璃厚度里漫开）
+         shade  底边与右下角的背光（远端边缘转开）——没有它四边等亮，就还是有描边的白板
+         inner  内描边辉光（光在玻璃内部的一圈漫射）
        注意：**不得给 .card 写 background-image**——渐变底会让 AA 巡检对卡片内每一行字
-       静默跳过（上一轮页头就是这么漏检的）。光泽边只能走 box-shadow。 */
-    --glass-fill: rgba(255, 253, 246, 0.62);
-    --glass-edge: rgba(214, 202, 170, 0.72);
-    --glass-rim: rgba(255, 255, 255, 0.85);
-    --glass-inner: rgba(255, 255, 255, 0.30);
+       静默跳过（上一轮页头就是这么漏检的）。所有光泽都只能走 box-shadow。
+       透光率有意过半（fill 的 alpha ≤ 0.5）：不过半时纸色与桌光都透不上来。
+       左上/右下的柔光只允许落在**内边距带**里（reach = 偏移 + 模糊 - 扩展，小于卡片内边距）——
+       它们会把局部底色提亮，而 AA 巡检按 fill 这个平底色算，故不能让柔光爬到正文底下。 */
+    --glass-fill: rgba(255, 253, 246, 0.48);
+    --glass-edge: rgba(206, 192, 158, 0.42);
+    --glass-rim: rgba(255, 255, 255, 0.95);
+    --glass-sheen: rgba(255, 255, 255, 0.34);
+    --glass-shade: rgba(74, 58, 26, 0.10);
+    --glass-inner: rgba(255, 255, 255, 0.22);
+    /* 桌面光照（静止的一层）：灯在头顶偏左，纸面向右下退光。
+       为什么必须存在：卡片是半透明玻璃，**透光材质得背后有东西可透**——原先背后只有
+       一层 3.5% 的纸纹，blur 揉过去等于空转，卡片就退化成一块白板。
+       为什么它是静的：跟指针走的光只允许出在 .lamp-layer 一处（见「只允许一盏灯」）。 */
+    --desk-lit: rgba(255, 252, 240, 0.42);
+    --desk-fall: rgba(72, 56, 24, 0.12);
   }
   :root.dark {
     --bg: #15110a;
@@ -108,15 +121,20 @@ tailwind.config = {
     /* 暗色纸是深棕，金线可以直接用亮金（亮色下反而要压深才不泛灰） */
     --engrave: rgba(217, 178, 94, 0.5);
     --engrave-w: 1px;
-    /* 暗色玻璃：深棕半透明（不是黑——黑玻璃会把暖色纸面压死），高光也压得很低，
-       否则在暗背景上会是一圈刺眼的白描边 */
-    --glass-fill: rgba(58, 47, 30, 0.58);
-    --glass-edge: rgba(92, 78, 52, 0.60);
-    --glass-rim: rgba(255, 246, 214, 0.10);
+    /* 暗色玻璃：深棕半透明（不是黑——黑玻璃会把暖色纸面压死）；受光与背光的量级都压得很低，
+       否则在暗背景上会是一圈刺眼的白描边。透光率同样过半，桌光才透得上来。 */
+    --glass-fill: rgba(58, 47, 30, 0.46);
+    --glass-edge: rgba(126, 108, 74, 0.40);
+    --glass-rim: rgba(255, 246, 214, 0.14);
+    --glass-sheen: rgba(255, 246, 214, 0.06);
+    --glass-shade: rgba(0, 0, 0, 0.24);
     --glass-inner: rgba(255, 240, 200, 0.05);
+    /* 暗色桌面：纸已经很暗，桌光只能是一点点暖调（压太狠会让四角发黑发脏） */
+    --desk-lit: rgba(255, 240, 200, 0.04);
+    --desk-fall: rgba(0, 0, 0, 0.30);
   }
   .dark .asset-row { border-bottom-color: var(--rule); }
-  .dark .card { border-color: var(--border); }
+  /* 卡片的边缘色不再另设一套（原先 .dark .card 改回 --border，等于材质的边缘有两处定义） */
   /* ===== 排版 token（字号 / 字重 / 字体族）=====
      放在 :root, :root.dark 合并选择器上：它们与明暗无关，写进两套主题块就等于同一个值
      声明两遍，改一处忘一处。主题变量（颜色）仍各自成块，theme.spec.js 的「两套变量一一
@@ -195,16 +213,30 @@ tailwind.config = {
   * { box-sizing: border-box; }
   html { -webkit-text-size-adjust: 100%; }
   body { background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: var(--fs-body); font-weight: var(--fw-medium); font-feature-settings: 'tnum' 1; }
-  /* ===== 纸纹与掠光：这个产品的隐喻是「一张摊在桌面上的账页」=====
-     两层各司其职：
-     ①  body::before = 纸纤维（静止的、材质的; 原有的十字纹保留）
-     ②  .lamp-layer   = 台灯（跟随指针的、活的一层）
-     分开的理由：纸纹属于纸张，灯属于环境。把它们合进一层后，换灯就带动了纸，
-     换纸又带动了灯；而且灯需要 z-index 高于纸纹才能「照亮纸」。
-     为何两都用 z-index: -1 却仍可见（实测，不是推论）：负 z-index 只是落到
+  /* ===== 纸纹与桌光：这个产品的隐喻是「一张摊在桌面上、被灯照着的账页」=====
+     三层各司其职：
+     ①  body::after  = 桌面（静止的、铺满视口的**光照层次**）
+     ②  body::before = 纸纤维（静止的、材质的; 原有的十字纹保留）
+     ③  .lamp-layer  = 台灯（跟随指针的、唯一「活」的一层）
+     分开的理由：桌光属于环境、纸纹属于纸张、灯属于工具；三者合一后就再也调不动任何一个。
+     桌光为什么是必需的（不是装饰）：卡片是半透明玻璃，**透光材质得背后有东西可透**。
+       原先背后只有一层 3.5% 的纸纹与纯色 --bg，blur 揉过去等于空转——卡面与背景只差
+       一个色号，看着就是「一块白板」（用户原话「看着比较廉价」）。桌光给出大尺度的
+       明暗（左上受光、右下退光），纸纹给出小尺度的纹理，两者相加卡片才有东西可透。
+     为何三层都用负 z-index 却仍可见（实测，不是推论）：负 z-index 只是落到
      **在流内容的后面**，并不会落到根背景后面；根背景（html/body 的 background）先画，
-     所以 -1 的固定层依然在纸面上显形。这样写的好处是不必给任何内容抬 z-index，
+     所以 -1 / -2 的固定层依然在纸面上显形。这样写的好处是不必给任何内容抬 z-index，
      日后新增的元素天然在灯之上，不存在「忘了抬就被盖住」的隐陷阱。 */
+  body::after {
+    content: ''; position: fixed; inset: 0; z-index: -2; pointer-events: none;
+    /* 光的落点与退光的起点都要**避开页头**：页头为了让 AA 巡检看得见字，底色必须是不透明
+       纯色（见 .app-header），于是桌光在它下边沿会露出一道台阶（实测：退光起得早、落点在
+       页头那一带时，页头右端底下有 4/255 的台阶——看着就是一道淡淡的边）。
+       故落点压到内容区（椭圆的纵向半径也只有视口的 62%），退光推到 46% 之后。 */
+    background-image:
+      radial-gradient(115% 62% at 14% 58%, var(--desk-lit), transparent 62%),
+      linear-gradient(168deg, transparent 46%, var(--desk-fall));
+  }
   body::before {
     content: ''; position: fixed; inset: 0; z-index: -1; opacity: 0.035; pointer-events: none;
     background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23000' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
@@ -269,18 +301,33 @@ tailwind.config = {
   .dark .row-btn.danger { color: #d98a86; }
   .dark .row-btn.danger:hover { color: #fff; }
   /* 卡片 = 一块压在纸上的玻璃（材质变量与理由见 :root 的 --glass-* 注释）。
-     --glass-shadow 把「顶边高光 + 内辉光」打包，好让 :hover 只换外阴影而不用重抄一遍
-     （重抄就会出现第二处 --glass-rim，材质就不再是单一定义了）；
+     --glass-shadow 把「受光边 + 背光边 + 两角柔光 + 内描边」打包：一是 :hover 只换外阴影
+     而不必重抄一遍材质（重抄就会出现第二处材质定义，材质就不再是单一定义了），
+     二是让「光泽只走 box-shadow」这条约束在源码里一眼可见。
      自定义属性写在 .card 自身，:hover 的规则里照样读得到。 */
   .card {
-    --glass-shadow: inset 0 1px 0 var(--glass-rim), inset 0 0 0 1px var(--glass-inner);
+    --glass-shadow:
+      inset 0 1px 0 var(--glass-rim),
+      inset 0 -1px 0 var(--glass-shade),
+      inset 8px 8px 13px -12px var(--glass-sheen),
+      inset -8px -8px 13px -12px var(--glass-shade),
+      inset 0 0 0 1px var(--glass-inner);
+    /* 外阴影（深度）与材质分开打包：材质只有 --glass-shadow 一处定义，:hover 只换深度。
+       三层影各有职责：接触影（贴地的一线）+ 近影 + 远影（环境遮蔽）——只有一层时卡片像贴纸。 */
+    --glass-depth: 0 1px 1px -1px var(--glass-shade), 0 2px 4px -2px var(--shadow), 0 18px 34px -20px var(--shadow);
+    --glass-depth-lift: 0 1px 1px -1px var(--glass-shade), 0 4px 8px -2px var(--shadow), 0 26px 46px -22px var(--shadow);
     background: var(--glass-fill);
     border: 1px solid var(--glass-edge);
     border-radius: 10px;
-    /* 背光模糊 + 轻微提饱和：玻璃会把背后的颜色揉开并让它更「润」 */
-    backdrop-filter: blur(18px) saturate(1.6);
-    -webkit-backdrop-filter: blur(18px) saturate(1.6);
-    box-shadow: var(--glass-shadow), 0 1px 2px var(--shadow), 0 14px 30px -22px var(--shadow);
+    /* 背光模糊 + 轻微提饱和：玻璃会把背后的颜色揉开并让它更「润」。
+       半径有意从 18px 收到 10px：纸纹的周期是 60px、十字笔画只 2px 宽，模糊半径超过
+       纸纹周期的一半就等于把背后的纸面整个揉平，那样 blur 只是一笔没有观感的开销
+       （glass-material.spec.js 拿纸纹周期当参照量这一条）。 */
+    backdrop-filter: blur(10px) saturate(1.6);
+    -webkit-backdrop-filter: blur(10px) saturate(1.6);
+    /* 外阴影分三层：接触影（贴地的一线）+ 近影 + 远影（环境遮蔽）。
+       只有一层时卡片像贴纸，三层才有「压在某物上」的深度。 */
+    box-shadow: var(--glass-shadow), var(--glass-depth);
     padding: 24px;
     transition: box-shadow 0.2s, border-color 0.2s;
   }
@@ -290,9 +337,9 @@ tailwind.config = {
   /* 卡片悬停：只抬外阴影（玻璃自身的高光不动，否则卡片会在指针下「变色」）；
      不做跟随指针的卡片光晕——全站只此一盏灯，逐卡片再加一层 radial-gradient
      会变成一屏十几个光源、互相打架 */
-  .card:hover { box-shadow: var(--glass-shadow), 0 2px 4px var(--shadow), 0 20px 40px -24px var(--shadow); }
+  .card:hover { box-shadow: var(--glass-shadow), var(--glass-depth-lift); }
   .card-interactive { cursor: pointer; }
-  .card-interactive:hover { box-shadow: var(--glass-shadow), 0 4px 18px -6px var(--shadow); border-color: var(--accent-soft); }
+  .card-interactive:hover { box-shadow: var(--glass-shadow), var(--glass-depth-lift); border-color: var(--accent-soft); }
   input, select {
     font-family: var(--font-body); font-size: var(--fs-body); font-variant-numeric: tabular-nums;
     border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px;

@@ -1899,45 +1899,89 @@ describe('UI 接线契约：顶端模式按钮的次序（消费在左 / 资产�
 });
 
 /*
- * 卡片材质：液态玻璃（半透明 + 背光模糊 + 光泽边）。
+ * 卡片材质：液态玻璃（半透明 + 背光模糊 + 受光方向 + 深度）。
  * --------------------------------------------------------------------------
  * 为什么值得契约守：
- *   ① **底必须是半透明的**（不再是纯白 `--card`）——这是「液态」的全部来源：
- *      纸纹与台灯要能透过卡片看见，卡面才会随背景与指针「活」起来；
+ *   ① **底必须透光过半**（不再是纯白 `--card`）——这是「液态」的全部来源：
+ *      纸面与桌光要能透过卡片看见，卡面才会随背景与指针「活」起来；
  *   ② **不得给 .card 写 background-image**：渐变底会让 AA 巡检对卡片内**每一行字**
- *      静默跳过（上一轮页头就是这么漏检的）。光泽边只能靠 box-shadow / 伪元素；
- *   ③ 玻璃色必须是 CSS 变量且亮/暗各一套：写死就做不到两套主题，也会被 theme 巡检判为越界。
+ *      静默跳过（上一轮页头就是这么漏检的）。所有光泽都只能靠 box-shadow；
+ *   ③ 玻璃色必须是 CSS 变量且亮/暗各一套：写死就做不到两套主题，也会被 theme 巡检判为越界；
+ *   ④ **受光方向**：顶面接光、远端转开。四边一圈等亮时，玻璃就只是一块有描边的白板。
+ * 这里守「写下来的东西」（源码文本）；「渲染出来对不对」由 e2e/glass-material.spec.js
+ * 在真实浏览器里量像素——同一改动的两半。
  */
 describe('UI 接线契约：卡片的液态玻璃材质', () => {
+  const cardRule = () => html.match(/\n  \.card \{[\s\S]*?\n  \}/)[0];
+
   test('.card 半透明 + 背光模糊，且不写 background-image（否则 AA 巡检整块跳过）', () => {
-    const card = html.match(/\n  \.card \{[\s\S]*?\n  \}/)[0];
+    const card = cardRule();
     assert.match(card, /background: var\(--glass-fill\)/, '底走玻璃变量（半透明）');
     assert.match(card, /backdrop-filter: blur\(/, '背光模糊是「玻璃」的核心');
     assert.match(card, /-webkit-backdrop-filter: blur\(/, 'Safari 前缀');
     assert.ok(!/background-image/.test(card), '卡片不得用渐变作底（AA 巡检会整块豁免）');
-    // 光泽边只允许走 box-shadow（.masthead 已占用 ::before/::after，再加一套会互相覆盖）。
-    // 注意 :hover 只换外阴影，故高光/内辉光被打包进 --glass-shadow（材质仍单一定义）
-    assert.match(card, /--glass-shadow: inset 0 1px 0 var\(--glass-rim\), inset 0 0 0 1px var\(--glass-inner\)/,
-      '光泽边与内辉光走 box-shadow（打包成 --glass-shadow 供 :hover 复用）');
-    assert.match(card, /box-shadow: var\(--glass-shadow\)/, '外阴影与材质叠加');
+    assert.ok(!/\.card::(before|after)/.test(html), '材质不得另加伪元素：它会让正文底下的真实取色偏离 AA 巡检的假设');
+  });
+
+  test('材质打包进 --glass-shadow，:hover 只换外阴影（不重抄一遍材质）', () => {
+    // 重抄就会出现第二处材质定义，往后改材质必漏一处
+    const shadowVar = html.match(/--glass-shadow:[\s\S]*?;/g) || [];
+    assert.strictEqual(shadowVar.length, 1, '--glass-shadow 只能定义一次');
+    assert.match(shadowVar[0], /var\(--glass-rim\)/, '受光边在里面');
+    assert.match(shadowVar[0], /var\(--glass-shade\)/, '背光边在里面');
+    assert.match(cardRule(), /box-shadow: var\(--glass-shadow\)/, '外阴影与材质叠加');
+    const hovers = html.match(/\n  \.card[^\n{]*:hover[^\n{]*\{[^}]*\}/g) || [];
+    assert.ok(hovers.length > 0, ':hover 规则还在（没被合并进基础规则）');
+    for (const h of hovers) {
+      assert.ok(!/inset/.test(h), `:hover 不得重抄材质（只换外阴影）：${h.slice(0, 60)}`);
+      assert.match(h, /var\(--glass-depth-lift\)/, ':hover 的深度也走打包变量（不重写一遍影层）');
+    }
+  });
+
+  test('受光方向靠 box-shadow 的偏移实现（受光在上、背光在下）', () => {
+    const shadow = html.match(/--glass-shadow:[\s\S]*?;/)[0];
+    assert.match(shadow, /inset 0 1px 0 var\(--glass-rim\)/, '顶边 1px 受光');
+    assert.match(shadow, /inset 0 -1px 0 var\(--glass-shade\)/, '底边 1px 背光（远端转开）');
+    assert.match(shadow, /inset \d+px \d+px[^,]*var\(--glass-sheen\)/, '左上角柔光：偏移为正（光在厚度里漫开）');
+    assert.match(shadow, /inset -\d+px -\d+px[^,]*var\(--glass-shade\)/, '右下角内暗：偏移为负（与掠光相反）');
+  });
+
+  test('柔光的涉足范围小于卡片内边距（不然它会把正文底下的真实取色改掉）', () => {
+    // 涉足 = 偏移 + 模糊 + 扩展。掠光会把局部底色提亮，而 AA 巡检按 fill 这个平底色算，
+    // 故它只允许待在内边距带里（实测：正文首行的实取色对比仍有 6.4:1，见 AGENTS）。
+    const shadow = html.match(/--glass-shadow:[\s\S]*?;/)[0];
+    const reach = [...shadow.matchAll(/inset (-?\d+)px (-?\d+)px (\d+)px (-?\d+)px/g)]
+      .map((m) => Math.max(+m[1], +m[2]) + +m[3] + +m[4]);
+    const padding = parseFloat(cardRule().match(/padding: (\d+)px/)[1]);
+    for (const r of reach) assert.ok(r < padding, `柔光涉足 ${r}px 超过了内边距 ${padding}px`);
   });
 
   test('玻璃材质只在 .card 一处定义（同类结构同一实现，不逐个组件重写）', () => {
-    assert.strictEqual(count(/var\(--glass-fill\)/g), 1, '玻璃底色只此一处使用');
-    assert.strictEqual(count(/var\(--glass-rim\)/g), 1, '高光边只此一处使用');
-    assert.strictEqual(count(/var\(--glass-inner\)/g), 1, '内辉光只此一处使用');
+    // 材质变量只允许出现在 .card 自身的规则块里；别处出现就是有组件在自己的规则里重写了材质
+    const card = cardRule();
+    for (const v of ['--glass-fill', '--glass-edge', '--glass-rim', '--glass-sheen', '--glass-shade', '--glass-inner']) {
+      const uses = (html.match(new RegExp(`var\\(${v}\\)`, 'g')) || []).length;
+      const inCard = (card.match(new RegExp(`var\\(${v}\\)`, 'g')) || []).length;
+      assert.strictEqual(uses, inCard, `${v} 只允许在 .card 的材质里使用（实得 ${uses} 处，其中材质 ${inCard} 处）`);
+    }
   });
 
-  test('玻璃色在亮/暗两套 :root 各定义一次（否则暗色回落成亮色的一层白）', () => {
-    for (const v of ['--glass-fill', '--glass-rim', '--glass-inner']) {
+  test('玻璃色与桌光色在亮/暗两套 :root 各定义一次（否则暗色回落成亮色的一套）', () => {
+    for (const v of ['--glass-fill', '--glass-edge', '--glass-rim', '--glass-sheen', '--glass-shade', '--glass-inner', '--desk-lit', '--desk-fall']) {
       const decls = (html.match(new RegExp(`${v}:`, 'g')) || []).length;
       assert.strictEqual(decls, 2, `${v} 必须在亮/暗各定义一次（实得 ${decls} 处）`);
     }
   });
 
+  test('桌光是静止的一层（唯一跟指针走的光仍是台灯）', () => {
+    const desk = html.match(/body::after \{[\s\S]*?\}/)[0];
+    assert.match(desk, /position: fixed/, '铺满视口，不跟着滚动跑');
+    assert.match(desk, /z-index: -2/, '落在纸纹之后（纸是铺在桌上的）');
+    assert.ok(!/--lamp/.test(desk), '桌光不得跟指针走（那就成了第二盏灯）');
+  });
+
   test('半透明底不得靠 opacity 实现（那会把卡片里的字一起淡化掉）', () => {
-    const card = html.match(/\n  \.card \{[\s\S]*?\n  \}/)[0];
-    assert.ok(!/^\s*opacity:/m.test(card), '透明度只能靠颜色 alpha，不能用 opacity');
+    assert.ok(!/^\s*opacity:/m.test(cardRule()), '透明度只能靠颜色 alpha，不能用 opacity');
   });
 });
 

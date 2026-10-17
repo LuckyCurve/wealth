@@ -369,8 +369,47 @@ const UA_DEFAULT_COLORS = new Set([
   'rgb(255, 255, 255)',
 ]);
 
+/**
+ * 取**渲染后的真实像素**（不是计算样式）。
+ * --------------------------------------------------------------------------
+ * 为什么需要它：材质这类改动的验收标准就是「看着对不对」，而「class 写对了但被覆盖 /
+ * 被后来的一层盖住」在计算样式里看不出来（那正是 consistency.spec.js 存在的理由）。
+ * 截图交给**浏览器自己的解码器**（Image + canvas），免得手写 PNG 解码器；
+ * 传入与读回的都是 CSS 像素（截图是设备像素，故内部按 devicePixelRatio 换算）。
+ * 坐标以视口为参照（getBoundingClientRect 即视口坐标），调用方不要中途滚动页面。
+ */
+async function samplePixels(page, points) {
+  const dpr = await page.evaluate(() => window.devicePixelRatio || 1);
+  const png = (await page.screenshot()).toString('base64');
+  return page.evaluate(
+    async ([b64, pts, scale]) => {
+      const img = await new Promise((res, rej) => {
+        const i = new Image();
+        i.onload = () => res(i);
+        i.onerror = () => rej(new Error('截图解码失败'));
+        i.src = 'data:image/png;base64,' + b64;
+      });
+      const cv = document.createElement('canvas');
+      cv.width = img.width;
+      cv.height = img.height;
+      const ctx = cv.getContext('2d');
+      ctx.drawImage(img, 0, 0);
+      return pts.map(([x, y]) => {
+        const d = ctx.getImageData(Math.round(x * scale), Math.round(y * scale), 1, 1).data;
+        return { r: d[0], g: d[1], b: d[2], a: d[3] };
+      });
+    },
+    [png, points, dpr]
+  );
+}
+
+/** 相对亮度：与 AA 巡检同一套公式（那份在浏览器里内联，无法直接引用）——
+ *  两处口径必须一致，否则「更亮/更暗」的判据会与可读性巡检对不上 */
+const pixelLum = ({ r, g, b }) => (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+
 module.exports = {
   test, expect, stubCdn, seed, waitReady, disableMotion, readAppState,
   visitAllTabs, gotoAssets, collectOffThemeColors, UA_DEFAULT_COLORS,
   sampleState, EMPTY_STATE, LS_KEY, INDEX_URL,
+  samplePixels, pixelLum,
 };
