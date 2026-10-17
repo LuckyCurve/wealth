@@ -1084,10 +1084,31 @@ describe('UI 接线契约：所选标签的钱 ÷ 预期月消费（消费趋势
     assert.match(tip[0], /同一分类内多选为「或」/);
     assert.match(tip[0], /不同分类之间为「且」/);
     assert.match(tip[0], /某个分类不选则不参与过滤/);
-    assert.match(html, /\.tip:hover \.tip-bubble/, 'hover 展示');
-    assert.match(html, /\.tip:focus-within \.tip-bubble/, '键盘 focus 也要能看到');
+    // 展示条件改由 JS 加 .placed（气泡展示时要搬到 body 下，见 placeTipBubble 注释）
+    assert.match(html, /\.tip-bubble\.placed \{[^}]*visibility: visible/, '定位后即展示');
+    assert.match(html, /document\.addEventListener\('mouseover'/, '指针进入时定位');
+    assert.match(html, /document\.addEventListener\('focusin'/, '键盘 focus 也能定位');
     assert.match(html, /prefers-reduced-motion: reduce\) \{ \.tip-mark, \.tip-bubble \{ transition: none; \} \}/,
       '减弱动效须盖住两个会过渡的元素（只写气泡会漏掉 ? 图标）');
+  });
+
+  test('气泡不得被祖先的层叠上下文/裁剪困住（卡片有 backdrop-filter，会自成一层）', () => {
+    // 用户实测：收益测算里「缺口」旁的 ? hover 后，气泡下半部分被下面那张表格卡片盖住。
+    // 根因不是 z-index 太小——**卡片自身有 backdrop-filter**，于是它自成层叠上下文，
+    // 气泡的 z-index 只在卡片内部有效；后面那张卡片在文档里更靠后，就整块盖上来。
+    // 同理，弹窗正文 overflow-y:auto 与窄屏表格 overflow-x:auto 会直接裁掉溢出的气泡。
+    // 故气泡必须**脱离**这些祖先：position: fixed + 由 JS 按视口定位（tipBubblePos）。
+    const bubble = html.match(/\n  \.tip-bubble \{[\s\S]*?\n  \}/)[0];
+    assert.match(bubble, /position: fixed/, '气泡必须相对视口定位（否则被祖先的层叠上下文困住）');
+    assert.doesNotMatch(bubble, /position: absolute/, 'absolute 会落进祖先的层叠上下文');
+    // 定位在 logic.js（纯函数，可单测），页面只做一次赋值
+    // 定位换算是纯函数（在 logic.js，可单测）；页面只负责量尺寸并写两个 CSS 变量
+    const logicSrc = fs.readFileSync(path.join(__dirname, '..', 'logic.js'), 'utf8');
+    assert.match(logicSrc, /function tipBubblePos\(/, '定位换算有单一入口（logic.js 纯函数）');
+    assert.match(html, /function placeTipBubble\(/, '页面只做「量尺寸 + 写变量」这一件事');
+    assert.match(html, /--tip-x/, '坐标经 CSS 变量写入');
+    assert.doesNotMatch(html, /bubble\.style\.(left|top)\s*=/, '不得直接写 left/top（与 CSS 变量两套来源）');
+    assert.match(html, /document\.addEventListener\('mouseout'/, '收起时把气泡搬回原处（否则它会一直显示）');
   });
 
   test('弹窗正文不再写说明段落（标题→chips→预览，说明交给 ? 提示）', () => {

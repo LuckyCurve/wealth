@@ -139,6 +139,41 @@
     return { x: pct(x, w), y: pct(y, h) };
   }
 
+  // 悬停提示气泡的视口坐标（气泡用 position: fixed 挂在视口上，不挂在 ? 图标上）。
+  //
+  // 为什么要脱离祖先：卡片自身有 backdrop-filter，于是**自成层叠上下文**——气泡的 z-index
+  // 只在卡片内部有效，后面那张卡片在文档里更靠后，就整块盖上来（用户实测：收益测算里
+  // 「缺口」旁的气泡下半被下面的表格盖住）。弹窗正文的 overflow-y:auto 与窄屏表格的
+  // overflow-x:auto 也会直接裁掉溢出的气泡。fixed 定位一次解决这两类。
+  //
+  // 三条约束：默认落在锚点下方并与锚点左对齐；下方放不下就翻到上方；右侧放不下就向左收
+  // （始终夹在视口内——越界只会让气泡消失或凭空多出横向滚动条）。
+  // 锚点矩形、气泡尺寸与视口都由调用方量好传进来，本函数只管算术，故可单测。
+  const TIP_GAP = 8;   // 锚点与气泡之间的间距
+  const TIP_EDGE = 8;  // 气泡与视口边缘的最小留白
+  function tipBubblePos(anchor, bw, bh, viewport) {
+    const num = (v, dflt) => (Number.isFinite(v) ? v : dflt);
+    const a = anchor || {};
+    const vw = num(viewport && viewport.w, 0);
+    const vh = num(viewport && viewport.h, 0);
+    const width = Math.max(0, num(bw, 0));
+    const height = Math.max(0, num(bh, 0));
+    const left0 = num(a.left, TIP_EDGE);
+    const top0 = num(a.top, TIP_EDGE);
+    const bottom0 = num(a.bottom, top0);
+    // 横向：与锚点左对齐，右侧放不下就向左收；比视口还宽时贴左边缘
+    let left = left0;
+    if (vw > 0 && left + width > vw - TIP_EDGE) left = vw - TIP_EDGE - width;
+    if (left < TIP_EDGE) left = TIP_EDGE;
+    // 纵向：优先下方；下方放不下且上方更宽裕就翻上去
+    let top = bottom0 + TIP_GAP;
+    if (vh > 0 && top + height > vh - TIP_EDGE) {
+      const above = top0 - TIP_GAP - height;
+      top = above >= TIP_EDGE ? above : Math.max(TIP_EDGE, vh - TIP_EDGE - height);
+    }
+    return { left: Math.round(left), top: Math.round(top) };
+  }
+
   // 是否需要这盏灯：减动效（明确要求安静）/ 粗指针（触屏没有悬停，徒耗性能）/ 页面不可见
   // 三种情况都不跟。判定为纯函数，DOM 层只负责把三个信号取出来。
   function lampEnabled(opts) {
@@ -1143,7 +1178,7 @@
     rateFallbackNotice,
     nextSortState, inlineEditKeyAction, expenseMonths,
     MODE_PRESS_MS, modePressProgress, modePressDecision, modePressHint,
-    lampEnabled, lampPos,
+    lampEnabled, lampPos, tipBubblePos, TIP_GAP, TIP_EDGE,
     tagFilterValue, parseTagFilter, expenseTagFilterGroups, hasTagFilterOption,
     isUntaggedItem, missingTagGroups, setTag, backfillTag,
     migrateTagRefs, migrateRunwayTagRefs, countTagRefs,

@@ -566,15 +566,27 @@ tailwind.config = {
     cursor: help; transition: color 0.15s, border-color 0.15s;
   }
   .tip-mark:hover, .tip-mark:focus-visible { color: var(--fg); border-color: var(--accent); }
-  /* 气泡向下展开: 弹窗容器 overflow-y:auto 会裁掉向上溢出的内容 */
+  /* 气泡**相对视口**定位（position: fixed），不挂在 ? 图标上：
+     ① 卡片自身有 backdrop-filter，会自成层叠上下文——气泡的 z-index 只在卡片内部有效，
+        后面那张卡片就整块盖上来（用户实测：「缺口」旁气泡的下半被下面的表格盖住）；
+     ② 弹窗正文 overflow-y:auto、窄屏表格 overflow-x:auto 会直接裁掉溢出的气泡。
+     fixed 一次解决这两类；坐标由 JS 调 logic.js tipBubblePos 写入（--tip-x/--tip-y），
+     故这里不写 left/top（写了会与内联变量打架）。 */
   .tip-bubble {
-    position: absolute; left: -10px; top: calc(100% + 8px); z-index: 5; width: max-content; max-width: 250px;
+    /* z-index 必须高于弹窗（.modal-overlay 是 100）与遮罩：气泡要能从弹窗正文里
+       探到弹窗之外（它现在是 fixed 挂在 body 下），层级不够就会被遮罩压住。
+       仍低于便条（200）——便条是全局知会，应当永远压在最上层。 */
+    position: fixed; inset: var(--tip-y, 0) auto auto var(--tip-x, 0); z-index: 150; width: max-content; max-width: 250px;
     padding: 8px 10px; border-radius: 6px; background: var(--card-2); border: 1px solid var(--border);
     box-shadow: 0 4px 14px var(--shadow); color: var(--fg); font-size: var(--fs-body); font-weight: var(--fw-medium);
     letter-spacing: 0; line-height: 1.7; text-align: left; white-space: normal;
     opacity: 0; visibility: hidden; pointer-events: none; transition: opacity 0.15s ease, visibility 0.15s;
   }
-  .tip:hover .tip-bubble, .tip:focus-within .tip-bubble { opacity: 0.96; visibility: visible; }
+  /* 显示条件：**已定位**（.placed 由 placeTipBubble 在 hover/focus 时加上）。
+     为什么不再用 `.tip:hover .tip-bubble`：气泡展示时要搬到 body 下（见 placeTipBubble 注释），
+     那时它已不是 .tip 的子孙，这条选择器自然失效。收起时 unplaceTipBubble 会摘掉 .placed
+     并把它搬回原处，所以两条状态不会同时成立。 */
+  .tip-bubble.placed { opacity: 0.96; visibility: visible; }
   @media (prefers-reduced-motion: reduce) { .tip-mark, .tip-bubble { transition: none; } }
   .tag-pill {
     display: inline-flex; align-items: center; gap: 3px;
@@ -592,7 +604,6 @@ tailwind.config = {
   }
   .tag-pill .tag-val { font-weight: var(--fw-strong); }
   .tag-pill.active { border-color: var(--accent); border-left-color: var(--accent); }
-  .tag-pill:hover { filter: brightness(0.94); }
   /* pill 内的行内控件（✕ 删除 / ✎ 改名）：只给 color 的话 background/border 会走浏览器 UA
      默认（灰底黑边的系统按钮），在暖色古纸主题上很突兀。这里剥掉原生外观，只留一个字形。
      不设 opacity：它们是真控件，压淡会让它们从 pill 上「消失」（实测 2.8:1）。
@@ -2781,8 +2792,7 @@ function removeTag(catId, tagName) {
   removeTagGeneric('asset', catId, tagName);
 }
 
-// 标签重命名就地完成（卡片上的 ✎）：两个单侧包装与 addTag/removeTag 同形，
-// 改名实现只有 renameTagGeneric 一处。传 this 便于定位是哪一枚 pill。
+// 标签改名入口（长按胶囊 / 键盘回车）：改名实现只有 renameTagGeneric 一处。
 function renameTag(btn, catId, tagName) {
   startTagRename(btn, 'asset', catId, tagName);
 }
@@ -4020,6 +4030,7 @@ function renderCoverageMeter() {
     const { need, rate } = coverShortfallPrincipal(numerator, expectation, annualBase, principal);
     shortfallTip = shortfallTipHtml(need, rate);
   }
+  dropDetachedBubbles(); // 先扔掉上一帧挂在 body 上的气泡（见函数注释）
   reading.innerHTML =
     `<span>覆盖 <span class="tabular readout-strong" style="color:${ok ? 'var(--verdigris)' : 'var(--fg)'};opacity:${ok ? '1' : '0.85'};">${pct.toFixed(1)}%</span></span>` +
     ` · <span>${g.word} <span class="tabular readout-strong" style="color:${diffColor};">¥${g.amt.toLocaleString('zh-CN')}</span>/月</span>` +
@@ -4604,6 +4615,75 @@ function importData(e) {
 }
 
 // ========== UTILS ==========
+/* 悬停气泡的定位：把气泡钉在 ? 图标下方（视口坐标）。
+   为什么需要 JS：气泡是 position: fixed（脱离祖先的层叠上下文与 overflow 裁剪，见 CSS 注释），
+   于是它不再跟着图标走——位置只能每次显示时按当前滚动/布局算一次。
+   纯算术在 logic.js tipBubblePos（可单测），这里只负责量尺寸与写两个 CSS 变量。
+   九个 tip 共用这一套（气泡是单一实现，不再逐个写定位）。 */
+function placeTipBubble(tip) {
+  if (!tip) return;
+  const bubble = tip.querySelector('.tip-bubble');
+  const mark = tip.querySelector('.tip-mark');
+  if (!bubble || !mark) return;
+  // **先搬家再量**：`fixed` 的包含块不是视口本身——祖先若带 backdrop-filter（卡片就有），
+  // 它就成了包含块，坐标会相对那张卡片算（实测 left:725 渲染到 814，正好差一个内边距）。
+  // 搬到 body 下才真正相对视口；隐藏时再搬回去，`.tip:hover .tip-bubble` 这条选择器
+  // 才不会失效（那条只认结构上的子孙关系）。
+  if (bubble.parentElement !== document.body) document.body.appendChild(bubble);
+  bubble.classList.add('placed');
+  const a = mark.getBoundingClientRect();
+  const b = bubble.getBoundingClientRect();
+  const pos = tipBubblePos(a, b.width, b.height, { w: window.innerWidth, h: window.innerHeight });
+  bubble.style.setProperty('--tip-x', pos.left + 'px');
+  bubble.style.setProperty('--tip-y', pos.top + 'px');
+  tip.__bubble = bubble;
+}
+// 重绘前的收尾：挂在 body 下的气泡已经不在原来那棵 DOM 里了，重绘会再生成一份同 id 的，
+// 两份同时存在 → `getElementById` 拿到哪一份取决于顺序（实测 E2E 报「resolved to 2 elements」）。
+// 故任何会重绘这块内容的路径都先调它，把遗留的那份扔掉（它的宿主已经不存在）。
+function dropDetachedBubbles() {
+  document.querySelectorAll('body > .tip-bubble').forEach(b => b.remove());
+}
+
+// 收起时把气泡还回原处（原处是 `<span class="tip">` 里，紧随 ? 图标）
+function unplaceTipBubble(tip) {
+  if (!tip || !tip.__bubble) return;
+  const b = tip.__bubble;
+  b.classList.remove('placed');
+  if (b.parentElement === document.body) {
+    const mark = tip.querySelector('.tip-mark');
+    if (mark && mark.nextSibling) tip.insertBefore(b, mark.nextSibling);
+    else tip.appendChild(b);
+  }
+  tip.__bubble = null;
+}
+// 单一入口：事件委托（tip 是动态渲染的，逐个挂监听会在每次重绘时留下悬挂的闭包）
+document.addEventListener('mouseover', e => {
+  const tip = e.target.closest && e.target.closest('.tip');
+  if (tip) placeTipBubble(tip);
+});
+document.addEventListener('focusin', e => {
+  const tip = e.target.closest && e.target.closest('.tip');
+  if (tip) placeTipBubble(tip);
+});
+// 指针/焦点离开就搬回原处：否则气泡留在 body 上，`:hover` 那条选择器再也够不到它
+// （表现是「展开过一次之后，之后永远显示」）。relatedTarget 仍在同一个 tip 里就不算离开。
+// 判「真的离开了」要看两处：仍在 .tip 里，或者移到了**已搬家的气泡**上（它现在挂在 body 下，
+// 不再算 .tip 的子孙——只看 tip.contains 会把「指针移到气泡上」当成离开，气泡当场消失）。
+const tipStillActive = (tip, next) => !next || tip.contains(next) || tip.__bubble === next || (tip.__bubble && tip.__bubble.contains(next));
+document.addEventListener('mouseout', e => {
+  const tip = e.target.closest && e.target.closest('.tip');
+  if (tip && !tipStillActive(tip, e.relatedTarget)) unplaceTipBubble(tip);
+});
+document.addEventListener('focusout', e => {
+  const tip = e.target.closest && e.target.closest('.tip');
+  if (tip && !tipStillActive(tip, e.relatedTarget)) unplaceTipBubble(tip);
+});
+// 视口尺寸变了要重算（否则气泡会停在被裁掉的旧位置）
+window.addEventListener('resize', () => {
+  document.querySelectorAll('.tip:hover, .tip:focus-within').forEach(placeTipBubble);
+});
+
 function catColor(catId, tagName) {
   return catColorImpl(state.categories, catId, tagName);
 }

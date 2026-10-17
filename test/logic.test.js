@@ -1508,6 +1508,46 @@ describe('长按送达资产页 modePressProgress / modePressDecision', () => {
   });
 });
 
+describe('气泡定位 tipBubblePos（脱离祖先层叠上下文，按视口定位）', () => {
+  // 用户实测：收益测算里「缺口」旁的 ? hover 后，气泡下半被下面那张卡片盖住。
+  // 根因是卡片有 backdrop-filter 会自成层叠上下文，气泡的 z-index 只在自己卡片内有效。
+  // 故气泡改为 position:fixed + 按视口定位；这里守的是「不越出视口」这条硬约束。
+  const anchorRect = { left: 700, top: 300, right: 715, bottom: 315 };
+  const vp = { w: 1280, h: 720 };
+
+  test('默认挂在锚点下方、与锚点左对齐', () => {
+    const p = L.tipBubblePos(anchorRect, 240, 80, vp);
+    assert.strictEqual(p.left, 700);
+    assert.ok(p.top >= anchorRect.bottom, '落在锚点下方');
+  });
+
+  test('底部放不下时翻到锚点上方（弹窗里靠下的 ? 不会掉出视口）', () => {
+    const low = { left: 400, top: 660, right: 415, bottom: 675 };
+    const p = L.tipBubblePos(low, 240, 100, vp);
+    assert.ok(p.top + 100 <= vp.h, `气泡底部 ${p.top + 100} 越出视口 ${vp.h}`);
+    assert.ok(p.top <= low.top, '翻到锚点上方');
+  });
+
+  test('右侧放不下时向左收（气泡不越出右边缘）', () => {
+    const right = { left: 1250, top: 300, right: 1265, bottom: 315 };
+    const p = L.tipBubblePos(right, 240, 80, vp);
+    assert.ok(p.left + 240 <= vp.w, `气泡右缘 ${p.left + 240} 越出视口 ${vp.w}`);
+    assert.ok(p.left >= 0, '也不得被推到负数');
+  });
+
+  test('气泡比视口还宽时贴左边并从视口左缘起算（不让它跑到负坐标）', () => {
+    const p = L.tipBubblePos(anchorRect, 2000, 80, { w: 400, h: 720 });
+    assert.strictEqual(p.left, 8);
+  });
+
+  test('脏输入不产出 NaN', () => {
+    for (const bad of [null, undefined, {}, { left: NaN }]) {
+      const p = L.tipBubblePos(bad, NaN, NaN, null);
+      assert.ok(Number.isFinite(p.left) && Number.isFinite(p.top), `${JSON.stringify(bad)} → ${JSON.stringify(p)}`);
+    }
+  });
+});
+
 describe('台灯掠光 lampEnabled / lampPos（跟随指针的纸面光）', () => {
   test('指针坐标 → 视口百分比（CSS 直接可用）', () => {
     assert.deepStrictEqual(L.lampPos(500, 250, 1000, 500), { x: 50, y: 50 });

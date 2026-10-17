@@ -9,7 +9,7 @@
  * 判据统一为「同类元素的计算样式集合大小 == 1」，集合里直接打印越界值，失败信息可读。
  * 与主题巡检（theme.spec.js）同思路：不写死期望值，从页面自身求值。
  */
-const { test, expect, visitAllTabs, gotoAssets, sampleState, seed, waitReady, stubCdn } = require('./fixtures');
+const { test, expect, visitAllTabs, gotoAssets, sampleState, seed, waitReady, stubCdn, samplePixels } = require('./fixtures');
 
 /**
  * 本文件要按「指定存档」打开页面（fixtures 只导出工厂，组合放在这里）。
@@ -635,6 +635,106 @@ test.describe('可读性：平铺 chip 未选中态跨分类一致', () => {
  * **表头也必须在同一个数上对齐**：只改数据行的话，表头「金额」还留在左边，
  * 上下两行字各指一个方向，比全左对齐更难看（这次改完就出现了，故把两者绑在一起断言）。
  */
+/*
+ * 悬停气泡不得被盖住 / 被裁掉。
+ * --------------------------------------------------------------------------
+ * 用户实测：收益测算里「缺口」旁的 ? hover 后，气泡下半部分被下面那张表格卡片盖住。
+ * 根因是卡片自身有 backdrop-filter → 自成层叠上下文，气泡的 z-index 只在卡片内有效。
+ * 判据只能用**命中测试**（elementFromPoint）：这是唯一能回答「这块像素上到底是谁」的办法，
+ * 计算样式与 z-index 都看不出层叠上下文的边界。
+ */
+test.describe('可读性：悬停气泡必须完整可见', () => {
+  /** 悬停某个 tip，返回气泡矩形 + 其上是否被别的元素盖住 */
+  const hoverTip = async (page, sel) => {
+    await page.locator(sel).first().scrollIntoViewIfNeeded();
+    await page.locator(sel).first().hover();
+    // 气泡展示时会被搬到 body 下（绕开祖先的层叠上下文/裁剪），故按 id 找：
+    // `aria-describedby` 指向的就是它，这也正是读屏器认的那条关联。
+    await expect
+      .poll(async () =>
+        page.evaluate((s) => {
+          const mark = document.querySelector(s);
+          const id = mark && mark.getAttribute('aria-describedby');
+          const b = id && document.getElementById(id);
+          return b ? getComputedStyle(b).visibility : 'none';
+        }, sel)
+      )
+      .toBe('visible');
+    return page.evaluate((s) => {
+      const mark = document.querySelector(s);
+      const id = mark.getAttribute('aria-describedby');
+      const bubble = document.getElementById(id);
+      const r = bubble.getBoundingClientRect();
+      // 沿气泡的四个角与下边缘中点做命中测试：任何一处落在气泡外＝被盖住或被裁掉
+      const pts = [
+        [r.left + 4, r.top + 4],
+        [r.right - 4, r.top + 4],
+        [r.left + r.width / 2, r.bottom - 4],
+        [r.right - 4, r.bottom - 4],
+      ];
+      return {
+        rect: { l: Math.round(r.left), t: Math.round(r.top), r: Math.round(r.right), b: Math.round(r.bottom) },
+        vw: innerWidth, vh: innerHeight,
+        // 气泡底色（钉的是 --card-2，见 CSS）与四个采样点：稍后按像素核对
+        bg: getComputedStyle(bubble).backgroundColor,
+        pts: [
+          { x: Math.round(r.left + 6), y: Math.round(r.top + 6) },
+          { x: Math.round(r.right - 6), y: Math.round(r.top + 6) },
+          { x: Math.round(r.left + r.width / 2), y: Math.round(r.bottom - 6) },
+          { x: Math.round(r.right - 6), y: Math.round(r.bottom - 6) },
+        ],
+      };
+    }, sel);
+  };
+
+  test('收益测算：「缺口」旁的气泡不被下方表格卡片盖住', async ({ appPage: page }) => {
+    await gotoAssets(page, 'income');
+    await page.evaluate(() => renderIncomeTab());
+    const m = await hoverTip(page, '#income-summary .tip-mark');
+    expect(m.rect.t).toBeGreaterThanOrEqual(0);
+    expect(m.rect.l).toBeGreaterThanOrEqual(0);
+    expect(m.rect.r, '气泡越出视口右缘').toBeLessThanOrEqual(m.vw);
+    expect(m.rect.b, '气泡越出视口下缘').toBeLessThanOrEqual(m.vh);
+    // 判据只看像素：气泡是 pointer-events:none（它不该吃指针），命中测试永远穿过它，
+    // 故「有没有被盖住」只能问渲染结果——采样点必须真的是气泡的底色。
+    const px = await samplePixels(page, m.pts.map((p) => [p.x, p.y]));
+    const want = m.bg.match(/[\d.]+/g).map(Number);
+    for (const [i, c] of px.entries()) {
+      const d = Math.abs(c.r - want[0]) + Math.abs(c.g - want[1]) + Math.abs(c.b - want[2]);
+      expect(d, `(${m.pts[i].x},${m.pts[i].y}) 处不是气泡底色 rgb(${want.slice(0, 3)})，实际 rgb(${c.r},${c.g},${c.b})——被盖住了`)
+        .toBeLessThan(12);
+    }
+  });
+
+  test('重绘之后不得留下两份同 id 的气泡（它会一直显示，且 getElementById 结果不定）', async ({ appPage: page }) => {
+    // 气泡展示时被搬到 body 下；卡片一重绘又会生成一份同 id 的，两份同时存在就出双份。
+    await gotoAssets(page, 'income');
+    await page.evaluate(() => renderIncomeTab());
+    const tip = page.locator('#income-summary .tip-mark');
+    await tip.hover();
+    await expect.poll(async () => page.locator('#cov-shortfall-tip').count()).toBe(1);
+    // 触发重绘（改安全边际 = 重算读数 = 重建那段 HTML）
+    await page.evaluate(() => { state.incomeSafetyFactor = 80; renderIncomeTab(); });
+    await expect.poll(async () => page.locator('#cov-shortfall-tip').count(), {
+      message: '重绘后应仍只有一个气泡（遗留的那份必须被丢掉）',
+    }).toBe(1);
+  });
+
+  test('弹窗内的气泡不被 scroll 容器裁掉（标签与月消费弹窗）', async ({ appPage: page }) => {
+    await page.locator('#tabs-expenses .tab-btn[data-tab="expense-trend"]').click();
+    await page.evaluate(() => openRunwayModal());
+    await expect(page.locator('#runway-modal')).toBeVisible();
+    const m = await hoverTip(page, '#runway-modal .tip-mark');
+    expect(m.rect.b, '气泡越出视口下缘（弹窗正文会裁掉它）').toBeLessThanOrEqual(m.vh);
+    const px = await samplePixels(page, m.pts.map((p) => [p.x, p.y]));
+    const want = m.bg.match(/[\d.]+/g).map(Number);
+    for (const [i, c] of px.entries()) {
+      const d = Math.abs(c.r - want[0]) + Math.abs(c.g - want[1]) + Math.abs(c.b - want[2]);
+      expect(d, `(${m.pts[i].x},${m.pts[i].y}) 处不是气泡底色——弹窗正文把它裁了或盖了`).toBeLessThan(12);
+    }
+  });
+});
+
 test.describe('版式一致性：数字列右对齐（账本对齐小数点）', () => {
   /** 某张表里第 idx 列：表头与数据行的对齐方式、列宽、数字排布 */
   const col = (page, listSel, idx) =>
