@@ -8,7 +8,7 @@
 index.html          # 全部 HTML/CSS/JS
 logic.js            # 与 DOM 无关的纯函数（UMD：浏览器挂全局 / Node require）
 test/               # node --test（logic.test.js 纯逻辑 + ui-wiring.test.js 接线契约 + e2e-server.test.js）
-e2e/                # Playwright 端到端（app.spec.js + theme.spec.js + consistency.spec.js + fixtures.js + server.js）
+e2e/                # Playwright 端到端（app / theme / consistency / glass-material / chart-resize / entrance + fixtures.js + server.js）
 playwright.config.js
 package.json        # 仅 devDependency: @playwright/test（无构建步骤）
 .github/workflows/  # CI：三平台 node --test + Linux Playwright E2E
@@ -102,7 +102,8 @@ interface Expense {
 - **分类标签回车录入** — 「新增标签」回车即添加；**必须带 IME `isComposing` 守卫**（中文输入法确认候选字也是回车，无守卫会在组字中提前提交并销毁输入框）；添加后整体重绘并把焦点交回同分类新输入框（可连击回车），不得再写已脱离文档的旧 input；资产/消费两侧收敛到同一实现。
 - **数据校验（缺标签补齐）** — 缺口口径（缺 key / 空值 / 指向已删标签）由 logic.js 单一函数定义，**校验条、面板、分类卡片提示条、新建分类后检测四处共用**；口径为全局、不随列表筛选缩小；批量只填空缺、绝不覆盖已归类。**资产/消费两侧都启用**，共用同一弹窗（按侧别取集合/色板/行内摘要），两条校验条各在自己 Tab 内。UI 层不直接给 `tags` 赋值。
   - **资产侧校验不碰历史快照**：快照是历史事实（深拷贝了当时的资产），补齐只对当前资产生效——回填等于篡改历史。面板顶部必须写明这一点，否则用户会以为历史图表会跟着变。
-- **ECharts 单例** — 五个图表实例统一 `setOption(data, true)` 更新；`window resize` 在 `DOMContentLoaded` 顶层统一注册。
+- **ECharts 单例** — 五个图表实例统一 `setOption(data, true)` 更新。
+  - **尺寸唯一来源是容器的可见尺寸**：每张图在 `init` 时 `observeChartSize`（`ResizeObserver`），不允许回到 `window resize` 统一 resize——它覆盖不到「切 Tab 的 `display` 翻转」这一种变化。容器不可见（0×0）时**不得** resize：拿 0 去 resize 才是把图做废的那一步，之后 `setOption` 也修不回来（真 ECharts 5 实测）。`ui-wiring` 数「`init` 紧跟 `observeChartSize`」防止新增图漏登记。
 - **版式单一来源（样式同样适用「≥2 次即收敛」）** — 同类结构（章节头 / 表格 / 按钮 / 弹窗页脚与宽度 / 表单字段 / 筛选控件 / 卡片标题 / 主读数 / 文字色）共用同一套 class，布局与规格定义在 `<style>` 里；**页面不准内联重复样式**（`style="color:var(--muted)"`、`style="grid-template-columns:…"`、按钮上的 `padding`/`font-size`/`white-space` 等一律收回 CSS）。
   - 判据同代码：同一结构出现 ≥2 次就下沉单一实现。规格成「档位」（语义固定、可复用）而非随手值；**完整档位清单即 `<style>` 里的常量类**，不在此处重列（列了就会随实现漂移）。数据驱动色值（`color:${compareColor(d)}`）无法用类名表达，不在此列。
   - **表格列宽必须单一来源**：表头与数据行引用同一个 `cols-*` class 或同一个 `cols` 常量，不允许各写一遍——两边各写一串的下场是改一处忘一处、表头与内容错位。`.cols-*` 须定义在 `.asset-row` 之后（同特异性下后者胜）。
@@ -118,13 +119,18 @@ interface Expense {
   - **`e2e/theme.spec.js` 会自动巡检**：扫全部元素的计算色，凡不在「主题允许集」里的都报出来。允许集在页面内从主题自身求值（当前模式的 CSS 变量 ∪ pill 调色板 ∪ 图表调色板），所以加变量/改分类色不需要改测试。
   - 越界分两类，**判据不同**：①**写死色值**——直接违反本条约定，现状快照在 `KNOWN_HARDCODED`（只减不增，修一处删一行）；②**浏览器 UA 默认色**——症状是「漏设样式」（如只给 `color` 的 `<button>` 会吃到灰底黑边），同样算缺陷但不进清单。
   - 两套模式的 CSS 变量必须一一对应，漏定义一个会在暗色下回落成亮色值或透明。
-  - **卡片材质 = 液态玻璃**（`--glass-fill/edge/rim/inner`）：半透明染色 + `backdrop-filter: blur() saturate()` + 顶边高光与内辉光。三条硬约束：
-    ① **底必须半透明**——纸纹与台灯要能透过卡片看见，卡面才会随背景与指针「活」起来；纯色底无论怎么调都还是白板。
-    ② **不得给 `.card` 写 `background-image`**：渐变底会让 AA 巡检对卡片内每一行字**静默跳过**（页头曾这么漏检）——光泽边只能走 `box-shadow`。
-    ③ 玻璃色写进 `--glass-*`（亮/暗各一套）：写死则暗色回落成亮色的一层白，且会被 theme 巡检判为越界。
+  - **原生控件的明暗由页面的 `color-scheme` 决定**，不写 `light dark` 跟随系统：主题是应用内自己切的，两者不一致时（系统暗 + 页面亮）原生下拉弹层会反色成一张白/黑面板。
+  - **卡片材质 = 液态玻璃**（`--glass-*`）：半透明染色 + `backdrop-filter: blur() saturate()` + 受光边/背光边/两角柔光/内描边 + 三层外阴影深度。硬约束：
+    ① **底必须透光过半**——透光材质得**背后有东西可透**，故另有一层静止的桌面光（`body::after`，只为卡片提供可透的明暗）；纯色底无论怎么调都还是白板。
+    ② **不得给 `.card` 写 `background-image`**：渐变底会让 AA 巡检对卡片内每一行字**静默跳过**（页头曾这么漏检）——所有光泽只能走 `box-shadow`。
+    ③ 玻璃色与桌光色写进变量（亮/暗各一套）：写死则暗色回落成亮色的一套，且会被 theme 巡检判为越界。
+    ④ **要有受光方向**：四边一圈等亮时玻璃就只是一块有描边的白板。柔光的涉足范围必须小于卡片内边距——它会把局部底色提亮，而 AA 巡检按 fill 这个平底色算。
+    - 这类「看着对不对」的改动**只有像素能验收**（class 写对了但被覆盖，计算样式看不出来），`e2e/glass-material.spec.js` 读截图解码后的真实像素。取样点落在边中点而非四角：圆角处的抗锯齿会给出与材质无关的假读数。
 - **动效** — 缓动/过渡须尊重 `prefers-reduced-motion`。
   - **只允许一盏灯（跟随指针的纸面光）**：隐喻是「账本摊在桌上，灯在纸上游走」，故光只从这一层（`.lamp-layer`）出，**逐卡片/逐元素再加悬停光晕会变成一屏十几个光源互相打架**。位置换算与开关判定在 logic.js（`lampPos` / `lampEnabled`），页面每帧只写一个 CSS 变量（rAF 合并）。
   - **贴纸式的固定特效要克制**：这类效果的价值全在「少」——全站装饰性印刷语言只保留报头底纹一处（再刻第二处就成壁纸了）。它必须用 mask 衰减收边，且两套主题各自给色（亮色下细金线会向灰偏移，需压深加粗）。
+  - **开屏是非阻塞入场，不是 splash**：遮住首屏的数字等于扣分。两态 transition（`booting` → `ready`）而**不是** `@keyframes`——动画会在隐藏容器（另一个模式的 Tab 栏）里停在起始帧，那块东西就永远隐形；且 base 即最终态，脚本没跑也看得见，另有一道看门狗兜底。减动效要连 `delay` 一起归零，只关时长的话带 delay 的入场会停在「还没出来」。
+  - **内容栏宽度/边距是单一来源**（`--content-max` / `--content-pad`）：页头与正文共用同一套左右轴，不得再各自挂 Tailwind 工具类——Tailwind 走 CDN，E2E 里是空壳。
   - **验证视觉改动的办法是量，不是看**：注释里写下的因果（“-1 会消失”“触屏 detail 不是 1”）都必须在真实浏览器里验一遍。本项目的 z-index 注释就曾与实际相反，至今仍可见的 `-1` 层被误当成不可见。
 - **资产表单验证** — 非 `currency` 分类的标签必选；`expectedRateMin ≤ expectedRateMax`（空值用另一值补齐）。
 - **货币符号** — `HKD $` / `USD $` 区分，CNY 用 `formatCNY()` 输出 `¥`。
