@@ -950,6 +950,22 @@
       });
   }
 
+  // 旭日图的「视图」：喂给图的数据与占比分母，由清单的选中态派生。
+  // 为什么不让 ECharts 自己下钻（nodeClick:'rootToNode'）：那会引入**第二套**视图状态——
+  // 图的 viewRoot 与清单的选中态各自为政，于是「‹ 全部分类」只清了清单、图仍停在下钻层
+  // （用户实测：「返回到整个全景的时候，依然展示的是具体分类的值」）。
+  // 改成一个派生函数后，图与清单读的是同一份选中态，不可能再漂。
+  //   · 未选中（null/''/undefined，或指向已不存在的分类）→ 原样返回全量 + 调用方的筛选合计；
+  //   · 选中 → 只喂该分类（图的内环就是它，外环是它的条目），分母换成该分类合计
+  //     （与清单条目级占比同源，条目加起来正好 100%）。
+  // 不改写入参：未选中时直接复用入参数组（每帧重建一份没意义，也会让 ECharts 重排）。
+  function sunburstDrillView(data, total, selected) {
+    const list = Array.isArray(data) ? data : [];
+    const sel = selected ? list.find(n => n && n.name === selected) : null;
+    if (!sel) return { data: list, total: Number(total) || 0 };
+    return { data: [sel], total: nodeValue(sel) };
+  }
+
   // 占比百分比字符串（1 位小数），用于图表 tooltip / 标签；分母为 0 时返回 '0.0'
   function pctStr(value, total) {
     return total > 0 ? ((value / total) * 100).toFixed(1) : '0.0';
@@ -1140,6 +1156,6 @@
     esc, escRegExp, highlightMatch, moneyStr, jsAttr,
     truncateLabel,
     hexToRgba, hexToHsl, hslToHex, pillColors, basePill, CATEGORY_COLORS,
-    CATEGORY_PALETTE, CHART_INK, shadeAt, buildSunburstData, nodeValue, childCount, sunburstLegendRows, sunburstNodePath, pctStr, percentSeriesData, pruneLegendSelected, sortTagsByTotal, amountAtRates, sumAmountCNY,
+    CATEGORY_PALETTE, CHART_INK, shadeAt, buildSunburstData, nodeValue, childCount, sunburstLegendRows, sunburstDrillView, sunburstNodePath, pctStr, percentSeriesData, pruneLegendSelected, sortTagsByTotal, amountAtRates, sumAmountCNY,
   };
 });

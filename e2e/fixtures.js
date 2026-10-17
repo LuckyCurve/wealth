@@ -108,6 +108,14 @@ async function stubCdn(page, rates) {
         }
         FakeChart.prototype.setOption = function (opt, notMerge) {
           window.__echartsCalls.setOption.push({ id: this._dom && this._dom.id, notMerge: !!notMerge, seriesCount: (opt && opt.series || []).length });
+          // 记录旭日图实际喂进去的数据节点名（顶层）。这是「图本身下没下钻」唯一可观察的证据：
+          // 下钻 = 只喂选中那一个分类，返回 = 又喂回全量。不记录就只能验清单、验不到图。
+          const series = (opt && opt.series) || [];
+          series.forEach(function (s) {
+            if (s && s.type === 'sunburst') {
+              window.__echartsCalls.sunburstData = (s.data || []).map(function (n) { return n && n.name; });
+            }
+          });
         };
         FakeChart.prototype.on = function (evt, fn) { (this._handlers[evt] = this._handlers[evt] || []).push(fn); window.__echartsCalls.on.push({ id: this._dom && this._dom.id, evt: evt }); };
         FakeChart.prototype.off = function () {};

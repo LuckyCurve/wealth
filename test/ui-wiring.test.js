@@ -1641,8 +1641,11 @@ describe('UI 接线契约：分布图总数（与扇区同源，随筛选联动�
       const decl = src.match(/const (\w*[Tt]otal\w*) = (?!document\.)[^;]+;/);
       assert.ok(decl, `${fn} 应有一个金额合计变量（实测 ${JSON.stringify(src.slice(0, 60))}）`);
       const name = decl[1];
-      assert.match(src, new RegExp(`renderChartTotal\\(\\w+, ${name}\\)`), `${fn}: 显示的总数用该变量`);
-      assert.match(src, new RegExp(`sunburstTooltipContent\\(p, th, ${name}\\)`), `${fn}: tooltip 分毋用同一个变量`);
+      // 分母经 sunburstDrillView 派生（下钻时换成该分类合计），但**仍然只有一个变量**：
+      // 卡片总数、tooltip、清单三处都读 view.total，不再各算一遍
+      assert.match(src, new RegExp(`sunburstDrillView\\(data, ${name}, `), `${fn}: 派生以该筛选合计为起点`);
+      assert.match(src, /renderChartTotal\(totalEl, view\.total\)/, `${fn}: 显示的总数用派生分母`);
+      assert.match(src, /sunburstTooltipContent\(p, th, view\.total\)/, `${fn}: tooltip 分毋同源`);
     }
   });
 
@@ -1830,8 +1833,11 @@ describe('UI 接线契约：分布图的两栏（图 + 构成清单）', () => {
       // 用字面量包含判定，不用 RegExp：`\(` 在 JS 字符串里会退化成分组括号，
       // 于是 `f(a)` 变成「f 后紧跟 a」而永远匹配不上（这个坑刚踩过）
       assert.ok(src.includes(`const ${name} = `), `${fn} 应有总数变量 ${name}`);
-      assert.ok(src.includes(`sunburstTooltipContent(p, th, ${name})`), `${fn}: tooltip 分母同源`);
-      assert.ok(src.includes(`renderChartTotal(totalEl, ${name})`), `${fn}: 卡片总数同源`);
+      // 下钻后分母换成该分类合计，但派生只有一个来源（sunburstDrillView），
+      // 卡片总数 / tooltip / 清单三处都读同一个 view.total
+      assert.ok(src.includes(`sunburstDrillView(data, ${name}, `), `${fn}: 派生分母以筛选合计为起点`);
+      assert.ok(src.includes('sunburstTooltipContent(p, th, view.total)'), `${fn}: tooltip 分母同源`);
+      assert.ok(src.includes('renderChartTotal(totalEl, view.total)'), `${fn}: 卡片总数同源`);
       // 清单调用跨行，按「整条调用语句包含该变量」判（不用跨行通配，行尾是 CRLF）。
       // 每个函数里 renderSunburstLegend 出现两次：空态传 []/0（清空用），有数据时传 data/该 total。
       // 这里只对**带 data 的那一次**断言分母，否则会误抓到空态那次。
@@ -1839,7 +1845,7 @@ describe('UI 接线契约：分布图的两栏（图 + 构成清单）', () => {
       assert.ok(calls.length >= 1, `${fn}: 应调用 renderSunburstLegend`);
       const dataCall = calls.find(c => !/^'[^']*', *\[\]/.test(c));
       assert.ok(dataCall, `${fn}: 应有带 data 的清单调用`);
-      assert.ok(dataCall.includes(name), `${fn}: 清单占比必须用与 tooltip 同一个 ${name}`);
+      assert.ok(dataCall.includes('view.total'), `${fn}: 清单占比必须用与 tooltip 同一个分母`);
     }
   });
 
@@ -1856,9 +1862,12 @@ describe('UI 接线契约：分布图的两栏（图 + 构成清单）', () => {
     assert.match(src, /data-flat="\$\{flat/, '扁平树下标由 sunburstNodePath 算出后写在行上');
   });
 
-  test('清单行的色块取自同一个色板（不另起一套分类色）', () => {
+  test('清单行的色块直接取数据节点的 itemStyle.color（与扇区同一份色值）', () => {
     const src = fnSource('renderSunburstLegend');
-    assert.match(src, /CATEGORY_PALETTE\[/, '色块用图表色板');
+    // 不再按「分类在 data 里的下标」重算色板：下钻时 data 已被裁成单个分类，
+    // 下标恒为 0，于是 HKD（绿）的色块会变成 CNY 的红色（真实浏览器实测过）
+    assert.match(src, /itemStyle\.color/, '色块取节点自带的色值');
+    assert.ok(!/CATEGORY_PALETTE\[/.test(src), '不得在清单里重算色板（下钻后下标会失真）');
     assert.ok(!/catColor|expenseCatColor/.test(src), '不混用 pill 调色板（两套色板各司其职）');
   });
 });
@@ -1980,9 +1989,85 @@ describe('UI 接线契约：旭日图选中分类后清单联动', () => {
   });
 
   test('空态/换维度时选中态被清掉，不留悬空分类', () => {
-    // 空态分支必须同时清清单与选中态，否则切回来还停在上次的分类里
-    const emptyCalls = html.match(/renderSunburstLegend\('[^']+', \[\], 0, null\)/g) || [];
-    assert.ok(emptyCalls.length >= 5, `三个图的空态都要清清单（实得 ${emptyCalls.length} 处）`);
+    // 空态分支必须同时清清单与选中态，否则切回来还停在上次的分类里。
+    // 只数总数是不够的：曾有 5 处而消费分布的空维度分支恰恰是漏的那个（总数达标、
+    // 那个分支还是不清）。改为「每个 showChartOrEmpty(..., false) 分支里都得清清单」。
+    for (const [fn, elId] of [['renderChart', 'chart-legend'], ['renderExpenseChart', 'expense-chart-legend']]) {
+      const src = fnSource(fn);
+      const branches = src.split('showChartOrEmpty(').slice(1);
+      const empties = branches.filter(b => b.startsWith('chartEl, emptyEl, false'));
+      assert.ok(empties.length >= 2, `${fn} 应有空态分支（实得 ${empties.length}）`);
+      for (const b of empties) {
+        assert.ok(b.slice(0, 220).includes(`renderSunburstLegend('${elId}', [], 0, null)`),
+          `${fn} 的每个空态分支都要清清单（图与清单同生共死）`);
+      }
+    }
     assert.match(fnSource('renderSunburstLegend'), /selected[\s\S]*?sunburstLegendRows/, '选中态由纯函数校验后回落');
+  });
+
+  /*
+   * 图本身也要下钻，且与清单同一套状态。
+   * ------------------------------------------------------------------------
+   * 修的真 bug：ECharts 自带 nodeClick:'rootToNode' 会维护自己的 view root，
+   * 与清单的 sunburstLegendSel 是两套状态。于是「‹ 全部分类」只清了清单，
+   * 图还停在下钻层（用户原话：「返回到整个全景的时候，依然展示的是具体分类的值」）。
+   * 修法：关掉原生下钻，图的数据由选中态派生（sunburstDrillView）。
+   */
+  test('关掉 ECharts 原生下钻（nodeClick:false），否则图上会有第二套视图状态', () => {
+    const src = fnSource('buildSunburstOption');
+    assert.match(src, /nodeClick: *false/, '必须显式关掉原生下钻');
+    // 回潮即报错：两个原生入口（点击下钻、内环点击返回）都只由 nodeClick 驱动
+    assert.doesNotMatch(src, /nodeClick: *'rootToNode'/, '不得交回 ECharts 自己管视图');
+    assert.doesNotMatch(stripComments(html), /sunburstRootToNode/, '不得到处 dispatch 原生下钻动作');
+  });
+
+  test('三张旭日图的数据都经 sunburstDrillView 派生（图与清单同一套选中态）', () => {
+    assert.strictEqual(count(/function sunburstDrillView\(/g), 0, '派生逻辑下沉 logic.js，页面不另写一份');
+    for (const fn of ['renderChart', 'renderIncomeChart', 'renderExpenseChart']) {
+      const src = fnSource(fn);
+      assert.match(src, /sunburstDrillView\(/, `${fn}: 喂给图的数据必须由选中态派生`);
+    }
+    // 派生结果必须是**同一个变量**同时喂给图、tooltip、清单（否则又是一处口径分裂）
+    const src = fnSource('renderChart');
+    assert.match(src, /const view = sunburstDrillView\(/, '派生结果收在 view 里');
+    assert.match(src, /buildSunburstOption\(view\.data, /, '图用派生后的数据');
+    assert.match(src, /renderSunburstLegend\('chart-legend', view\.data, view\.total/, '清单与图同源');
+  });
+
+  test('点清单行 / 点扇区 / 返回全部分类 都只走 drillSunburst（含重绘图）', () => {
+    const src = fnSource('drillSunburst');
+    assert.match(src, /sunburstRerender\[/, '重绘回调按容器取');
+    // 登记的回调必须是**整个渲染函数**（清单 + setOption），否则图不会跟着下钻；
+    // 只重绘清单会让「返回全部分类」后的图停在下钻层（就是这个 bug）
+    for (const [fn, elId] of [['renderChart', 'chart-legend'], ['renderIncomeChart', 'income-chart-legend'], ['renderExpenseChart', 'expense-chart-legend']]) {
+      const body = fnSource(fn);
+      assert.ok(body.includes(`sunburstRerender['${elId}'] = ${fn}`), `${fn}: 重绘回调应登记为整个渲染函数`);
+    }
+    // 回潮即报错：选中态不得在别处被赋值（写入点仍只两处）
+    const writes = (html.match(/sunburstLegendSel\[[^\]]+\] = /g) || []);
+    assert.strictEqual(writes.length, 2, `选中态只允许两个写入点（实得 ${writes.length}）`);
+  });
+
+  test('下钻接线只在 init 时注册一次（每帧 on(click) 会累积监听器）', () => {
+    // 监听器累积的实际症状：点一下触发 N 次下钻，N 为偶数时 toggle 回原位 =「点了没反应」。
+    // 与堆叠柱下钻同惯例：wire 在 if (!chart) 分支里。
+    for (const [fn, id] of [['renderChart', 'chart-legend'], ['renderIncomeChart', 'income-chart-legend'], ['renderExpenseChart', 'expense-chart-legend']]) {
+      const src = fnSource(fn);
+      const initBlock = src.slice(src.indexOf('echarts.init'), src.indexOf('}', src.indexOf('echarts.init')));
+      assert.ok(initBlock.includes(`wireSunburstDrill(`), `${fn}: 接线放在 init 分支内（只注册一次）`);
+      assert.strictEqual(count(new RegExp(`wireSunburstDrill\\([^)]*'${id}'\\)`, 'g')), 1, `${id}: 接线只出现一次`);
+    }
+  });
+
+  test('setOption 前先清掉强调态（否则 blur 会粘在新扇区上）', () => {
+    // 真实 ECharts 5 实测：下钻/返回后，setOption 重建的扇区会继承上一帧的 blur(0.2)，
+    // 表现为几个扇区一直是灰的。三张旭日图都必须在 setOption 前 downplay。
+    for (const fn of ['renderChart', 'renderIncomeChart', 'renderExpenseChart']) {
+      const src = stripComments(fnSource(fn));
+      const downplay = src.indexOf("dispatchAction({ type: 'downplay' })");
+      const setOption = src.indexOf('setOption(');
+      assert.ok(downplay >= 0, `${fn}: 重绘前应清强调态`);
+      assert.ok(downplay < setOption, `${fn}: downplay 必须在 setOption 之前（否则清的是旧扇区）`);
+    }
   });
 });

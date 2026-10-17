@@ -768,6 +768,51 @@ describe('图表数据构造 buildSunburstData / pctStr / percentSeriesData', ()
     assert.strictEqual(JSON.stringify(data), snapshot, '排序必须在副本上做');
   });
 
+  /*
+   * 旭日图的「视图」：喂给图的数据与分母，必须由清单的选中态派生。
+   * ------------------------------------------------------------------------
+   * 修的是一个真 bug：ECharts 自己还有一套 view root（nodeClick 会改它），
+   * 与清单的 sunburstLegendSel 各自为政，于是「返回全部分类」只清了清单，
+   * 图仍停在下钻层（用户原话：「返回到整个全景的时候，依然展示的是具体分类的值」）。
+   * 让喂给图的数据就是选中分类本身，图上便没有第二套状态可漂。
+   */
+  test('sunburstDrillView 未选中时原样返回全量与给定分母', () => {
+    const data = [{ name: '现金', children: [{ name: '招行', value: 100 }] }, { name: '股票', value: 250 }];
+    const snap = JSON.stringify(data);
+    const view = L.sunburstDrillView(data, 400, null);
+    assert.strictEqual(view.data, data, '未下钻时直接复用入参（每帧重建数组没有意义）');
+    assert.strictEqual(view.total, 400, '分母仍是调用方给的筛选合计');
+    assert.strictEqual(JSON.stringify(data), snap, '不改写入参');
+    // 空选中值（'' / undefined）与 null 同义
+    assert.strictEqual(L.sunburstDrillView(data, 400, '').data, data);
+    assert.strictEqual(L.sunburstDrillView(data, 400, undefined).total, 400);
+  });
+
+  test('sunburstDrillView 选中分类时只喂该分类，分母换成该分类合计', () => {
+    const data = [
+      { name: '现金', children: [{ name: '招行', value: 100 }, { name: '汇丰', value: 50 }] },
+      { name: '股票', children: [{ name: '沪深300', value: 250 }] },
+    ];
+    const view = L.sunburstDrillView(data, 400, '现金');
+    assert.deepStrictEqual(view.data.map(x => x.name), ['现金'], '下钻 = 图的数据只剩该分类');
+    // 分类节点不带 value，分母必须按 children 求和（与扇区大小同源）
+    assert.strictEqual(view.total, 150, '分母换成该分类合计，不是全局 400');
+    assert.strictEqual(L.sunburstDrillView(data, 400, '股票').total, 250);
+  });
+
+  test('sunburstDrillView 边界：缺失入参 / 选中不存在的分类 / 分母非数字 / 空分类', () => {
+    assert.deepStrictEqual(L.sunburstDrillView(null, 100, '现金'), { data: [], total: 100 });
+    assert.deepStrictEqual(L.sunburstDrillView(undefined, undefined, null), { data: [], total: 0 });
+    const data = [{ name: '现金', children: [{ name: '招行', value: 100 }] }];
+    // 选中的分类不在当前数据里（被删/换维度）→ 回落为全量，与 sunburstLegendRows 同口径
+    assert.strictEqual(L.sunburstDrillView(data, 100, '已被删掉的分类').data, data);
+    assert.strictEqual(L.sunburstDrillView(data, 100, '已被删掉的分类').total, 100);
+    // 分母非数字/NaN 归 0，不把 NaN 传给 tooltip（会渲染成「NaN%」）
+    assert.strictEqual(L.sunburstDrillView(data, 'abc', null).total, 0);
+    // 选中没有 children 的分类：数据只剩它，分母 0（占比由 pctStr 兜成 0.0）
+    assert.deepStrictEqual(L.sunburstDrillView([{ name: '空' }], 100, '空').total, 0);
+  });
+
   test('pctStr 占比字符串与分母为零兜底', () => {
     assert.strictEqual(L.pctStr(50, 200), '25.0');
     assert.strictEqual(L.pctStr(1, 3), '33.3');

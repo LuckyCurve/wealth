@@ -1108,6 +1108,14 @@ test.describe('分布图的构成清单（与图同源）', () => {
     };
     expect(rows[0].swatch).toBe(toRgb(palette[0]));
     expect(rows[1].swatch).toBe(toRgb(palette[1]));
+
+    // 下钻后色块必须仍是该分类的颜色：data 被裁成单个分类后下标恒为 0，
+    // 若按下标重算色板，HKD（绿）的色块会变成 CNY 的红色（真实浏览器实测过）
+    await page.locator('#chart-legend .chart-legend-row').nth(1).click();
+    await expect(page.locator('#chart-legend .chart-legend-row')).toHaveCount(1);
+    const drilled = await legendRows(page, 'chart-legend');
+    const green = await page.evaluate(() => CATEGORY_PALETTE[1].shades[0]);
+    expect(drilled[0].swatch, '下钻后色块跟着该分类走，不得变回第一个分类的色').toBe(toRgb(green));
   });
 
   test('收益分布：清单按当前口径（现金/总收益）列出，非零且随口径切换', async ({ appPage: page }) => {
@@ -1142,6 +1150,10 @@ test.describe('分布图的构成清单（与图同源）', () => {
     await page.locator('#chart-legend .chart-legend-row').first().click();
     await expect.poll(names).toEqual(['沪深300指数', '招商银行活期']);
     expect(await head()).toContain('CNY');
+    // 图本身也跟着下钻：喂给 ECharts 的数据只剩该分类（与清单同一套选中态）
+    await expect.poll(() => page.evaluate(() => window.__echartsCalls.sunburstData)).toEqual(['CNY']);
+    // 卡片总数也跟着换成该分类合计（否则图里的扇区与上方的数对不上）
+    await expect(page.locator('#chart-total')).toHaveText('¥130,000.00');
     const pcts = await page.evaluate(() =>
       [...document.querySelectorAll('#chart-legend .chart-legend-pct')].map((e) => parseFloat(e.textContent)));
     expect(pcts.reduce((a, b) => a + b, 0)).toBeCloseTo(100, 1);
@@ -1153,6 +1165,10 @@ test.describe('分布图的构成清单（与图同源）', () => {
     // 返回全部分类
     await page.locator('#chart-legend-head .legend-back').click();
     await expect.poll(names).toEqual(['CNY', 'HKD']);
+    // 图本身也必须回到全景：这是用户报的那个 bug——清单回来了、图仍停在下钻层
+    // （ECharts 原生 nodeClick 维护的 viewRoot 与清单选中态是两套状态）
+    await expect.poll(() => page.evaluate(() => window.__echartsCalls.sunburstData)).toEqual(['CNY', 'HKD']);
+    await expect(page.locator('#chart-total')).toHaveText('¥184,347.83');
 
     // 再下钻一次后换维度：选中态必须归零（否则切回同名维度会莫名又是下钻态）
     await page.locator('#chart-legend .chart-legend-row').first().click();
@@ -1180,6 +1196,17 @@ test.describe('分布图的构成清单（与图同源）', () => {
       chart.dispatchAction({ type: 'click', name: '招商银行活期', dataIndex: 3, treePathInfo: [{ name: '', value: 0 }, { name: 'CNY', value: 1 }, { name: '招商银行活期', value: 2 }] });
     });
     expect(await head(), '点条目不应下钻（明细已是最后一层）').toBe('构成');
+
+    // 再点一次已选中的分类 = 返回全部分类（原生下钻已关，内环仍能点回去）
+    await page.evaluate(() => {
+      chart.dispatchAction({ type: 'click', name: 'HKD', dataIndex: 2, treePathInfo: [{ name: '', value: 0 }, { name: 'HKD', value: 1 }] });
+    });
+    await expect.poll(head).toContain('HKD');
+    await page.evaluate(() => {
+      chart.dispatchAction({ type: 'click', name: 'HKD', dataIndex: 2, treePathInfo: [{ name: '', value: 0 }, { name: 'HKD', value: 1 }] });
+    });
+    await expect.poll(head).toBe('构成');
+    await expect.poll(() => page.evaluate(() => window.__echartsCalls.sunburstData)).toEqual(['CNY', 'HKD']);
   });
 
   test('消费分布：清单随月份筛选联动（切月后金额跟着变）', async ({ appPage: page }) => {

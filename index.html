@@ -2665,15 +2665,21 @@ function renderSunburstLegend(elId, data, total, chartObj) {
     el.innerHTML = '';
     return;
   }
-  // 色板与扇区同源：顶层行的 idx 就是该分类在 data 里的下标，与 buildSunburstData 的取色规则一致
-  // （同一个分类在两栏里两个颜色就是硬伤）；明细行沿用其父分类的色相，深浅按序进一层
+  // 色块直接取数据节点自带的 itemStyle.color——那就是扇区的颜色（buildSunburstData 一处写入）。
+  // **不能**按「分类在 data 里的下标」重算色板：下钻时 data 已被裁成单个分类，
+  // 下标恒为 0，于是 HKD（绿）的色块会变成 CNY 的红色（真实浏览器实测）。
+  const nodeOf = (r) => {
+    if (atTop) return data[r.idx];
+    const parent = data.find(n => n && n.name === r.path[0]);
+    const kids = parent && Array.isArray(parent.children) ? parent.children : [];
+    return kids[r.idx];
+  };
   const swatchOf = (r) => {
-    const catIdx = atTop ? r.idx : data.findIndex(n => n && n.name === r.path[0]);
-    const pal = CATEGORY_PALETTE[(catIdx < 0 ? 0 : catIdx) % CATEGORY_PALETTE.length];
-    return atTop ? pal.base : shadeAt(pal, r.idx);
+    const n = nodeOf(r);
+    return (n && n.itemStyle && n.itemStyle.color) || 'transparent';
   };
   el.innerHTML = rows.map((r) => {
-    // data-idx 是**扁平树下标**（供图上高亮定位），path 是 [分类名, 序] 或 null（与图上同序）
+    // data-flat 是**扁平树下标**（供图上高亮定位），path 是 [分类名, 序] 或 null（与图上同序）
     const flat = sunburstNodePath(data, atTop ? r.idx : data.findIndex(n => n && n.name === r.path[0]), atTop ? null : r.idx);
     return `<div class="chart-legend-row" data-idx="${r.idx}" data-flat="${flat === null ? '' : flat}" data-top="${atTop ? '1' : ''}"` +
       ` data-name="${esc(r.name)}" title="${esc(r.name)}">` +
@@ -2709,19 +2715,21 @@ function renderSunburstLegend(elId, data, total, chartObj) {
 // 旭日图的「选中分类」状态：按清单容器各存一份（三个图各自独立）。
 // 存名字而不是下标：切分类维度/月份后下标会指向别的分类，名字能靠 sunburstLegendRows 校验后回落
 // （指向不存在的分类 → 当作未选中），不会留下悬空状态。
+// 这是图的**唯一**视图状态：喂给图的数据由它派生（logic.js sunburstDrillView），
+// 不再让 ECharts 的 nodeClick 自己维护一套 viewRoot（两套状态就是「返回了但图没回来」的根因）。
 let sunburstLegendSel = {};
 
 // 选中某分类（null = 回到全部分类）。唯一入口：图上扇区点击与清单行点击都走这里。
-// 选中只改清单内容，不动图表数据——图始终展示全貌，清单负责「钻进去看」。
+// 选中既改清单内容、也改图的数据——两者都由渲染函数从选中态派生，不存在「只改一边」。
 // 重绘回调按清单容器登记（三个图各一份）：用一个全局回调会被后注册的那张图覆盖掉，
-// 点 A 图的清单却刷了 C 图。
-const sunburstLegendRerender = {};
+// 点 A 图的清单却刷了 C 图。回调是**整个渲染函数**（清单 + setOption），否则图不会跟着下钻。
+const sunburstRerender = {};
 
 function drillSunburst(elId, catName) {
   const next = catName || null;
   if ((sunburstLegendSel[elId] || null) === next) return;
   sunburstLegendSel[elId] = next;
-  const fn = sunburstLegendRerender[elId];
+  const fn = sunburstRerender[elId];
   if (typeof fn === 'function') fn();
 }
 
@@ -2729,17 +2737,20 @@ function drillSunburst(elId, catName) {
 // 单一接线函数供三张旭日图共用（资产/消费/收益分布），避免三处各写一遍而漂移：
 //   · 只有**顶层分类**才下钻（树只有两层，点明细没有更下一层可去）；
 //   · 判层级用 ECharts 给的 treePathInfo（祖先路径），而不是 dataIndex 猜—
-//     dataIndex 是扁平树下标，拿它反推层级就是自找差一。
-function wireSunburstDrill(chartObj, elId, metaGetter) {
+//     dataIndex 是扁平树下标，拿它反推层级就是自找差一；
+//   · 再点已选中的分类 = 返回全部分类（原生下钻被关掉后，内环仍能点回去，
+//     免得「进了下钻只能找那个小返回链接」）。
+// 接线只在图表首次 init 时注册一次（与堆叠柱下钻同惯例，见 renderHistoryChart）：
+// 每帧都 on('click') 会累积监听器，一次点击触发 N 次下钻——N 为偶数时「点了没反应」。
+// 不需要把当前数据传进来：点击参数自带 treePathInfo，选中态在 sunburstLegendSel 里。
+function wireSunburstDrill(chartObj, elId) {
   if (!chartObj) return;
   chartObj.on('click', (p) => {
-    const meta = metaGetter && metaGetter();
-    if (!meta) return;
     const path = p.treePathInfo || [];
     // path 形如 [虚拟根, 顶层分类, (条目…)]；长度 2 = 点在顶层分类上
     const node = path[1];
     if (path.length !== 2 || !node) return;
-    drillSunburst(elId, node.name);
+    drillSunburst(elId, node.name === sunburstLegendSel[elId] ? null : node.name);
   });
 }
 
@@ -2885,6 +2896,10 @@ function buildSunburstOption(data, tooltipFormatter) {
       data: data,
       radius: ['12%', '88%'],
       sort: null,
+      // 关掉 ECharts 原生下钻（默认 'rootToNode'）：它会维护自己的 viewRoot，
+      // 与清单的选中态构成两套视图状态——「‹ 全部分类」只清了清单、图仍停在下钻层
+      // （用户实测：返回全景后图上还是某个分类的值）。下钻改由选中态派生数据（sunburstDrillView）。
+      nodeClick: false,
       emphasis: { focus: 'ancestor' },
       // 字色**不在这一层写**：层级 label 的函数型 color 在 ECharts 5 的 sunburst 上
       // 不保证逐节点求值（实测内环退回默认黑字，HKD 深底黑字只有 2.15:1）。
@@ -3322,18 +3337,25 @@ function renderChart() {
   // 曾一边显示「已归类合计」一边用「全局净资产」做分母，同一张卡上两个「总数」各算各的，
   // 扇区百分比之和对不上显示的总数（口径分裂）
   const totalCNY = totalAssetsCNY();
-  renderChartTotal(totalEl, totalCNY);
+  // 图的数据与分母都由选中态派生（图与清单不可能再漂）：下钻时图只剩该分类、
+  // 分母换成该分类合计——与清单条目级占比、卡片总数三处同源
+  const view = sunburstDrillView(data, totalCNY, sunburstLegendSel['chart-legend']);
+  renderChartTotal(totalEl, view.total);
 
   if (!chart) {
     chart = echarts.init(chartEl);
+    wireSunburstDrill(chart, 'chart-legend');
   }
 
   const th = chartTheme();
-  chart.setOption(buildSunburstOption(data, p => sunburstTooltipContent(p, th, totalCNY)), true);
-  // 清单重绘回调按容器登记：drillSunburst 只改选中态，数据从哪来由这里提供
-  sunburstLegendRerender['chart-legend'] = () => renderSunburstLegend('chart-legend', data, totalCNY, chart);
-  renderSunburstLegend('chart-legend', data, totalCNY, chart);
-  wireSunburstDrill(chart, 'chart-legend', () => data);
+  // 换数据前先清掉强调态：setOption 重建扇区后，旧的 blur(0.2) 会粘在新扇区上，
+  // 于是下钻/返回后有几个扇区一直是灰的（真实 ECharts 5 实测，清掉即恢复）。
+  // 与「只允许一盏灯」同理：扇区亮度只该由悬停决定，不得残留上一帧的强调态。
+  chart.dispatchAction({ type: 'downplay' });
+  chart.setOption(buildSunburstOption(view.data, p => sunburstTooltipContent(p, th, view.total)), true);
+  // 重绘回调登记的是**整个渲染函数**：下钻既换清单也换图，只重绘清单会让图留在上一层
+  sunburstRerender['chart-legend'] = renderChart;
+  renderSunburstLegend('chart-legend', view.data, view.total, chart);
 }
 
 // ========== HISTORY SNAPSHOTS ==========
@@ -4158,6 +4180,7 @@ function renderIncomeChart() {
 
   if (!incomeChart) {
     incomeChart = echarts.init(el);
+    wireSunburstDrill(incomeChart, 'income-chart-legend');
   }
 
   const modeLabel = incomeChartMode === 'cash' ? '月现金收益' : '月总收益';
@@ -4178,7 +4201,11 @@ function renderIncomeChart() {
   }
 
   const th = chartTheme();
-  incomeChart.setOption(buildSunburstOption(data, function(p) {
+  // 图与清单同源：下钻后分母换成该分类合计（与卡片总数、tooltip、清单三处同口径）
+  const view = sunburstDrillView(data, totalIncome, sunburstLegendSel['income-chart-legend']);
+  // 换数据前先清掉强调态（同 renderChart：否则 blur 会粘到新扇区上）
+  incomeChart.dispatchAction({ type: 'downplay' });
+  incomeChart.setOption(buildSunburstOption(view.data, function(p) {
     // ECharts 不会把 data 上的自定义字段展开到 params 顶层, 必须从 p.data 取
     const assetId = p.data && p.data._assetId;
     if (assetId) {
@@ -4186,14 +4213,14 @@ function renderIncomeChart() {
       if (a) {
         const inc = calcAssetIncome(a);
         const rateRange = rateLabelText(a, 1) || '未设置';
-        return `<b>${esc(a.name)}</b><br/>月现金收益 ${formatCNY(inc.cashMonthly)} · 月总收益 ${formatCNY(inc.monthly)}<br/><span style="color:${th.muted}">利率 ${rateRange} · 现金 ${cashRatioPct(a)}% · 占比 ${pctStr(p.value, totalIncome)}%</span>`;
+        return `<b>${esc(a.name)}</b><br/>月现金收益 ${formatCNY(inc.cashMonthly)} · 月总收益 ${formatCNY(inc.monthly)}<br/><span style="color:${th.muted}">利率 ${rateRange} · 现金 ${cashRatioPct(a)}% · 占比 ${pctStr(p.value, view.total)}%</span>`;
       }
     }
-    return sunburstTooltipContent(p, th, totalIncome, { prefix: modeLabel, pctLabel: '占比 ' });
+    return sunburstTooltipContent(p, th, view.total, { prefix: modeLabel, pctLabel: '占比 ' });
   }), true);
-  sunburstLegendRerender['income-chart-legend'] = () => renderSunburstLegend('income-chart-legend', data, totalIncome, incomeChart);
-  renderSunburstLegend('income-chart-legend', data, totalIncome, incomeChart);
-  wireSunburstDrill(incomeChart, 'income-chart-legend', () => data);
+  // 重绘回调登记的是**整个渲染函数**：下钻既换清单也换图，只重绘清单会让图留在上一层
+  sunburstRerender['income-chart-legend'] = renderIncomeChart;
+  renderSunburstLegend('income-chart-legend', view.data, view.total, incomeChart);
 }
 
 // ========== DRAG REORDER ==========
@@ -5040,20 +5067,26 @@ function renderExpenseChart() {
   if (data.length === 0) {
     showChartOrEmpty(chartEl, emptyEl, false);
     hideChartTotal(totalEl);
+    renderSunburstLegend('expense-chart-legend', [], 0, null);
     return;
   }
 
-  renderChartTotal(totalEl, total);
+  // 图与清单同源：下钻后分母换成该分类合计（与卡片总数、tooltip、清单三处同口径）
+  const view = sunburstDrillView(data, total, sunburstLegendSel['expense-chart-legend']);
+  renderChartTotal(totalEl, view.total);
 
   if (!expenseChart) {
     expenseChart = echarts.init(chartEl);
+    wireSunburstDrill(expenseChart, 'expense-chart-legend');
   }
 
   const th = chartTheme();
-  expenseChart.setOption(buildSunburstOption(data, p => sunburstTooltipContent(p, th, total)), true);
-  sunburstLegendRerender['expense-chart-legend'] = () => renderSunburstLegend('expense-chart-legend', data, total, expenseChart);
-  renderSunburstLegend('expense-chart-legend', data, total, expenseChart);
-  wireSunburstDrill(expenseChart, 'expense-chart-legend', () => data);
+  // 换数据前先清掉强调态（同 renderChart：否则 blur 会粘到新扇区上）
+  expenseChart.dispatchAction({ type: 'downplay' });
+  expenseChart.setOption(buildSunburstOption(view.data, p => sunburstTooltipContent(p, th, view.total)), true);
+  // 重绘回调登记的是**整个渲染函数**：下钻既换清单也换图，只重绘清单会让图留在上一层
+  sunburstRerender['expense-chart-legend'] = renderExpenseChart;
+  renderSunburstLegend('expense-chart-legend', view.data, view.total, expenseChart);
 }
 
 // ========== EXPENSE TREND ==========
