@@ -705,7 +705,7 @@ test.describe('弹窗与提示', () => {
 });
 
 test.describe('分类标签改名（迁移引用，不是清空）', () => {
-  test('卡片上的 ✎ 改名：资产与读数卡的引用跟着迁移，不留下空 key', async ({ page }) => {
+  test('长按标签改名：资产与读数卡的引用跟着迁移，不留下空 key', async ({ page }) => {
     // 读数卡所选标签同按「分类 + 名字」引用，一并验证：曾用 pruneRunwayTags 清理，
     // 改名会把用户选好的标签静默取消掉
     const state = { ...sampleState(), runwayTags: [{ catId: 'cat-type', tag: '活期现金' }] };
@@ -713,7 +713,19 @@ test.describe('分类标签改名（迁移引用，不是清空）', () => {
     await gotoAssetsTab(page, 'categories');
 
     const card = page.locator('#categories-list .card', { hasText: '资产类型' });
-    await card.locator('.tag-pill', { hasText: '活期现金' }).getByRole('button', { name: '重命名标签' }).click();
+    // 改名入口是**长按整枚胶囊**（卡片上的编辑图标已去掉）：先短按一次证明它不响应，
+    // 再按满 TAG_PRESS_MS 进入编辑态——两条都测，否则「点一下就进编辑」也会绿。
+    const pill = card.locator('.tag-pill', { hasText: '活期现金' });
+    const box = await pill.boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.mouse.up();
+    await expect(page.locator('#categories-list .tag-rename-input')).toHaveCount(0);
+
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await expect(pill).toHaveClass(/armed/, { timeout: 3000 }); // 按满（进度线走完）
+    await page.mouse.up();
     const input = page.locator('#categories-list .tag-rename-input');
     await expect(input).toBeFocused();
     await input.fill('现金类');

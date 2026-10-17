@@ -1508,6 +1508,29 @@ describe('长按送达资产页 modePressProgress / modePressDecision', () => {
   });
 });
 
+describe('长按判定（pill 长按改名 / 资产入口共用同一套状态机）', () => {
+  // 分类卡片上的 ✎ 图标去掉了：太小、也把每一枚胶囊都变成「带控件的样子」。
+  // 改成长按整枚胶囊就地改名——判定与资产入口的长按同源，只把阈值参数化。
+  test('阈值可传：同一套判定服务不同场景（改名给得更短）', () => {
+    assert.strictEqual(L.TAG_PRESS_MS, 600);
+    assert.strictEqual(L.pressDecision(700, 600), 'done');
+    assert.strictEqual(L.pressDecision(300, 600), 'short');
+    assert.strictEqual(L.pressDecision(0, 600), 'ignore');
+    // 不传阈值时退回资产入口那一档（既有语义不变）
+    assert.strictEqual(L.pressDecision(L.MODE_PRESS_MS), 'done');
+    assert.strictEqual(L.pressDecision(L.MODE_PRESS_MS - 1), 'short');
+  });
+
+  test('进度比例按传入阈值算，封顶不溢出', () => {
+    assert.strictEqual(L.pressProgress(300, 600), 0.5);
+    assert.strictEqual(L.pressProgress(9999, 600), 1);
+    assert.strictEqual(L.pressProgress(-5, 600), 0);
+    // 脏阈值退回资产入口那一档，不产生 NaN/Infinity
+    assert.strictEqual(L.pressProgress(500, 0), L.pressProgress(500, L.MODE_PRESS_MS));
+    assert.strictEqual(L.pressProgress(500, NaN), L.pressProgress(500, L.MODE_PRESS_MS));
+  });
+});
+
 describe('气泡定位 tipBubblePos（脱离祖先层叠上下文，按视口定位）', () => {
   // 用户实测：收益测算里「缺口」旁的 ? hover 后，气泡下半被下面那张卡片盖住。
   // 根因是卡片有 backdrop-filter 会自成层叠上下文，气泡的 z-index 只在自己卡片内有效。

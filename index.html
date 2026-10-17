@@ -604,7 +604,24 @@ tailwind.config = {
   }
   .tag-pill .tag-val { font-weight: var(--fw-strong); }
   .tag-pill.active { border-color: var(--accent); border-left-color: var(--accent); }
-  /* pill 内的行内控件（✕ 删除 / ✎ 改名）：只给 color 的话 background/border 会走浏览器 UA
+  /* 长按改名：按住期间给一条金墨进度线（--tag-press 0→1，换算在 logic.js pressProgress）。
+     为什么必须有：长按是**无声的**手势——不给进度，用户按到一半就放手，永远学不会这个入口。
+     与「进资产页」的长按门槛同一套视觉语言（底边墨线浸满），按住时整枚胶囊微微抬起。
+     用 box-shadow 而非伪元素：胶囊自身有 border-radius 与背景，伪元素还要再对付 overflow。 */
+  .tag-pill:hover { filter: brightness(0.94); }
+  .tag-pill[data-rename] { cursor: pointer; }
+  /* 长按进度：底边一道金墨，随按住时长从 0 长到满宽。
+     **不能用 background-***：胶囊的底色来自内联 style（分类色 tint），内联优先级更高，
+     任何 background-image/size 都会被它盖掉（实测 backgroundImage: none）。
+     故进度走 box-shadow 的 inset（JS 写 --tag-press，这里只换算成像素宽度）——
+     box-shadow 没有被内联样式占用，且天然贴边、不吃布局空间。 */
+  .tag-pill.pressing {
+    filter: brightness(0.94);
+    box-shadow: inset 0 -2px 0 0 var(--accent), 0 0 0 calc(1px + 0px * var(--tag-press, 0)) rgba(180, 132, 26, 0);
+    transition: filter 0.15s;
+  }
+  .tag-pill.armed { filter: brightness(0.88); }
+  /* pill 内的行内控件（✕ 删除）：只给 color 的话 background/border 会走浏览器 UA
      默认（灰底黑边的系统按钮），在暖色古纸主题上很突兀。这里剥掉原生外观，只留一个字形。
      不设 opacity：它们是真控件，压淡会让它们从 pill 上「消失」（实测 2.8:1）。
      color 必须显式 inherit：按钮默认不继承字色，漏了就会吃到 UA 的 ButtonText。 */
@@ -613,7 +630,7 @@ tailwind.config = {
     color: inherit; cursor: pointer; font-size: var(--fs-micro); line-height: 1; font-family: inherit;
     transition: opacity 0.15s;
   }
-  /* 悬停语义分色：✎ 编辑走金墨，✕ 删除是破坏性操作走警示色 */
+  /* 悬停语义分色：✕ 删除是破坏性操作，走警示色 */
   .tag-pill button:hover { color: var(--accent-ink); }
   .tag-pill .pill-del:hover { color: var(--down); }
   /* 标签就地重命名输入框：整枚 pill 被它替换（不嵌进去——pill 的浅 tint 底会和输入框底色打架），
@@ -2794,11 +2811,11 @@ function removeTag(catId, tagName) {
 
 // 标签改名入口（长按胶囊 / 键盘回车）：改名实现只有 renameTagGeneric 一处。
 function renameTag(btn, catId, tagName) {
-  startTagRename(btn, 'asset', catId, tagName);
+  startTagRename(btn && btn.closest ? btn.closest('.tag-pill') : btn, 'asset', catId, tagName);
 }
 
 function renameExpenseTag(btn, catId, tagName) {
-  startTagRename(btn, 'expense', catId, tagName);
+  startTagRename(btn && btn.closest ? btn.closest('.tag-pill') : btn, 'expense', catId, tagName);
 }
 
 // 图表文字/线条随主题取色（ECharts canvas 不识别 CSS 变量, 需读取计算后的值）
@@ -3142,10 +3159,16 @@ function tagPillHtml(cat, tagVal, colorFn, opts) {
   const c = colorFn(cat.id, tagVal);
   const key = opts.showKey === false ? '' : `<span class="tag-key">${opts.keyHtml != null ? opts.keyHtml : esc(cat.name)}</span>`;
   const val = `<span class="tag-val">${opts.valHtml != null ? opts.valHtml : esc(tagVal)}</span>`;
-  // 传 this：就地重命名要知道是哪一枚 pill（删除只需分类 + 标签名）
-  const ren = opts.renameFn ? ` <button class="pill-edit" onclick="${opts.renameFn}(this,'${jsAttr(cat.id)}','${jsAttr(tagVal)}')" title="重命名标签" aria-label="重命名标签">✎</button>` : '';
+  // 改名入口 = **长按整枚胶囊**（卡片上的编辑图标已去掉：它太小，还把每一枚胶囊都变成
+  // 「带控件的样子」）。故这里只带数据，行为由事件委托接（见 startTagPress）：
+  //   data-rename="<side>"  → 长按后走 startTagRename（唯一的改名实现）
+  // 可聚焦 + Enter 直达改名：长按是**手势**，不是权限——键盘与读屏器不该被挡在门外
+  // （与「进资产页」的长按门槛同一条原则）。
+  const ren = opts.renameFn
+    ? ` data-rename="${jsAttr(opts.renameSide || '')}" data-cat="${jsAttr(cat.id)}" data-tag="${jsAttr(tagVal)}" tabindex="0" role="button" title="长按可改名" aria-label="标签 ${jsAttr(tagVal)}，长按或按回车改名" onkeydown="if(event.key==='Enter')renameTagFromKey(event)"`
+    : '';
   const del = opts.removeFn ? ` <button class="pill-del" onclick="${opts.removeFn}('${jsAttr(cat.id)}','${jsAttr(tagVal)}')" aria-label="移除标签">✕</button>` : '';
-  return `<span class="tag-pill" style="background:${c.bg};color:${c.fg};border-left-color:${c.border};">${key}${val}${ren}${del}</span>`;
+  return `<span class="tag-pill"${ren} style="background:${c.bg};color:${c.fg};border-left-color:${c.border};">${key}${val}${del}</span>`;
 }
 
 // 比例尺滑块：同步填充段与等宽读数（现金比例/安全边际两处共用）
@@ -3195,6 +3218,18 @@ const CAT_SIDES = {
   },
 };
 
+// 长按改名的唯一接线处（事件委托）：分类卡片每次重绘都换掉内层 DOM，
+// 逐个挂监听会在每次重绘后留下悬挂闭包（旧胶囊被换掉，监听仍指着它）。
+// 两个分类列表共用这一套（资产/消费）。
+['categories-list', 'expense-categories-list'].forEach(id => {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.addEventListener('pointerdown', e => {
+    const pill = e.target.closest && e.target.closest('.tag-pill[data-rename]');
+    if (pill) startTagPress(e, pill);
+  });
+});
+
 function renderCategoryCards(side) {
   const cfg = CAT_SIDES[side];
   const container = document.getElementById(cfg.listId);
@@ -3202,7 +3237,7 @@ function renderCategoryCards(side) {
   const gaps = cfg.tagCheck ? missingTagGroups(cfg.items(), cfg.cats()) : [];
   const gapOf = id => gaps.find(g => g.catId === id);
   container.innerHTML = cfg.cats().map(cat => {
-    const tagPills = cat.tags.map(t => tagPillHtml(cat, t, cfg.colorFn, { showKey: false, removeFn: cfg.removeTag, renameFn: cfg.renameTag })).join(' ');
+    const tagPills = cat.tags.map(t => tagPillHtml(cat, t, cfg.colorFn, { showKey: false, removeFn: cfg.removeTag, renameFn: cfg.renameTag, renameSide: side })).join(' ');
     // 「添加」按钮与回车共用同一调用表达式, 防两处接线各自漂移
     const addTagCall = `${cfg.addTag}('${jsAttr(cat.id)}')`;
     const gap = gapOf(cat.id);
@@ -3303,7 +3338,7 @@ function saveCategoryGeneric(side, e) {
   if (refs > 0) {
     showConfirm(
       `「${removed.join('、')}」已不在标签列表中，保存后将清空 ${refs} 条记录上的归类。` +
-      '只想改名的话请点标签上的 ✎（会保留归类）。',
+      '只想改名的话，长按那枚标签即可（会保留归类）。',
       apply,
       '移除标签'
     );
@@ -3362,7 +3397,7 @@ function removeTagGeneric(side, catId, tagName) {
   toast('标签已移除', 'success');
 }
 
-// 标签改名（卡片上的 ✎）：**迁移引用**而不是删除重建——旧名若走「已失效引用」清理，
+// 标签改名（长按胶囊）：**迁移引用**而不是删除重建——旧名若走「已失效引用」清理，
 // 资产/消费上的归类会被静默清空（分布/收益随之失真）。本函数只管数据与重绘，
 // 输入框由 startTagRename 就地提供。
 function renameTagGeneric(side, catId, oldName, newName) {
@@ -3386,11 +3421,94 @@ function renameTagGeneric(side, catId, oldName, newName) {
   toast('标签已重命名', 'success');
 }
 
+// ===== 长按胶囊改标签名 =====
+// 为什么用长按而不是一枚编辑图标：图标太小（15px）、又把每一枚胶囊都变成「带控件的样子」；
+// 而改成本身是个低频动作，不该常驻在视觉里。长按的判定与「进资产页」那套**同源**
+// （logic.js pressDecision / pressProgress，只换阈值 TAG_PRESS_MS）。
+//
+// 三条必须守住的：
+//   ① 短按什么都不做——胶囊上的点击本来没有语义，别给它发明一个；
+//   ② 指针移开 / 被系统夺走 = 放弃（与资产入口同一处置，避免「手指滑过去就进了编辑态」）；
+//   ③ 长按是手势不是权限：键盘 Enter 直达改名（renameTagFromKey），读屏器同样可达。
+let tagPress = null; // { el, start, raf, moved }
+
+function startTagPress(e, pill) {
+  if (!pill) return;
+  if (e.button !== undefined && e.button !== 0) return; // 只认左键/触摸
+  // 点在 ✕ 上不是长按（那是删除按钮自己的事）
+  if (e.target && e.target.closest && e.target.closest('.pill-del')) return;
+  cancelTagPress();
+  tagPress = { el: pill, start: performance.now(), raf: 0, moved: false };
+  pill.classList.add('pressing');
+  pill.style.setProperty('--tag-press', 0);
+  // 指针一移开就放弃：长按的对象必须始终是同一枚胶囊
+  const onMove = (ev) => {
+    if (!tagPress) return;
+    const r = pill.getBoundingClientRect();
+    if (ev.clientX < r.left - 4 || ev.clientX > r.right + 4 || ev.clientY < r.top - 4 || ev.clientY > r.bottom + 4) cancelTagPress();
+  };
+  const onUp = (ev) => {
+    document.removeEventListener('pointermove', onMove);
+    document.removeEventListener('pointerup', onUp);
+    endTagPress(ev, pill);
+  };
+  document.addEventListener('pointermove', onMove);
+  document.addEventListener('pointerup', onUp);
+  const tick = () => {
+    if (!tagPress || tagPress.el !== pill) return;
+    const held = performance.now() - tagPress.start;
+    const progress = pressProgress(held, TAG_PRESS_MS);
+    pill.style.setProperty('--tag-press', progress);
+    // 进度条宽度按胶囊实宽算：box-shadow 的 inset 宽度无法用百分比表达
+    pill.style.boxShadow = `inset ${Math.round(progress * pill.offsetWidth)}px 0 0 0 rgba(180, 132, 26, 0.22), inset 0 -2px 0 0 var(--accent)`;
+    if (pressDecision(held, TAG_PRESS_MS) !== 'done') { tagPress.raf = requestAnimationFrame(tick); return; }
+    tagPress.raf = 0;
+    pill.classList.add('armed');
+  };
+  tagPress.raf = requestAnimationFrame(tick);
+}
+
+function endTagPress(e, pill) {
+  if (!tagPress || tagPress.el !== pill) return;
+  const decision = pressDecision(performance.now() - tagPress.start, TAG_PRESS_MS);
+  const side = pill.dataset.rename;
+  const catId = pill.dataset.cat;
+  const tagName = pill.dataset.tag;
+  resetTagPress();
+  if (decision !== 'done') return; // 短按：什么都不做（胶囊上的点击本来没有语义）
+  if (!side) return;
+  startTagRename(pill, side, catId, tagName);
+}
+
+function cancelTagPress() {
+  if (!tagPress) return;
+  resetTagPress();
+}
+
+function resetTagPress() {
+  if (!tagPress) return;
+  if (tagPress.raf) cancelAnimationFrame(tagPress.raf);
+  const el = tagPress.el;
+  if (el) {
+    el.classList.remove('pressing', 'armed');
+    el.style.removeProperty('--tag-press');
+    el.style.removeProperty('box-shadow');
+  }
+  tagPress = null;
+}
+
+// 键盘通道：长按是手势，键盘用户不该被挡在门外（与「进资产页」的长按门槛同一原则）
+function renameTagFromKey(e) {
+  e.preventDefault();
+  const pill = e.currentTarget && e.currentTarget.closest ? e.currentTarget.closest('.tag-pill') : null;
+  if (!pill || !pill.dataset.rename) return;
+  startTagRename(pill, pill.dataset.rename, pill.dataset.cat, pill.dataset.tag);
+}
+
 // 标签就地重命名：把整枚 pill 换成输入框（回车/blur 提交、Esc 取消），与「新增标签」同一交互语言。
 // 中文输入法确认候选字用的也是回车，无 isComposing 守卫会在组字中途提前提交。
-function startTagRename(btn, side, catId, oldName) {
-  const pill = btn && btn.closest ? btn.closest('.tag-pill') : null;
-  if (!pill) return;
+function startTagRename(pill, side, catId, oldName) {
+  if (!pill || !pill.classList || !pill.classList.contains('tag-pill')) return;
   const input = document.createElement('input');
   input.type = 'text';
   input.className = 'tag-rename-input';

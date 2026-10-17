@@ -117,6 +117,26 @@
     return heldMs >= MODE_PRESS_MS ? 'enter' : 'hint';
   }
 
+  // ===== 长按判定（可传阈值）=====
+  // 同一套状态机服务两处：资产入口（门槛高，要拦一下顺手点）与标签胶囊的长按改名
+  // （手势动作，按满即编辑）。阈值参数化而不是复制一份——两份阈值早晚不一致，
+  // 而这类漂移的表现是「同一手势在两个地方手感不同」，很难查。
+  const TAG_PRESS_MS = 600;
+
+  // 已按住时长 → 进度比例（0~1）。脏阈值退回资产入口那一档，绝不产生 NaN/Infinity
+  function pressProgress(heldMs, threshold) {
+    const t = threshold > 0 && Number.isFinite(threshold) ? threshold : MODE_PRESS_MS;
+    if (!(heldMs > 0)) return 0;
+    return Math.min(1, heldMs / t);
+  }
+
+  // 松手处置：'done' = 动作成立；'short' = 短按（教学/无动作）；'ignore' = 没按
+  function pressDecision(heldMs, threshold) {
+    const t = threshold > 0 && Number.isFinite(threshold) ? threshold : MODE_PRESS_MS;
+    if (!(heldMs > 0)) return 'ignore';
+    return heldMs >= t ? 'done' : 'short';
+  }
+
   // 短击提示文案：时长由常量派生，页面不再写一遍。默认取阈值，参数留给单测验两种小数形态
   function modePressHint(ms) {
     const sec = (ms === undefined ? MODE_PRESS_MS : ms) / 1000;
@@ -1178,6 +1198,7 @@
     rateFallbackNotice,
     nextSortState, inlineEditKeyAction, expenseMonths,
     MODE_PRESS_MS, modePressProgress, modePressDecision, modePressHint,
+    TAG_PRESS_MS, pressProgress, pressDecision,
     lampEnabled, lampPos, tipBubblePos, TIP_GAP, TIP_EDGE,
     tagFilterValue, parseTagFilter, expenseTagFilterGroups, hasTagFilterOption,
     isUntaggedItem, missingTagGroups, setTag, backfillTag,

@@ -589,8 +589,12 @@ describe('UI 接线契约：标签改名（迁移引用，不是清空）', () =
     assert.strictEqual(count(/function renameTag\(/g), 1, '资产侧包装只定义一次');
     assert.strictEqual(count(/function renameExpenseTag\(/g), 1, '消费侧包装只定义一次');
     assert.strictEqual(count(/function startTagRename\(/g), 1, '就地重命名交互只定义一次');
-    assert.match(html, /function renameTag\(btn, catId, tagName\) \{\s*startTagRename\(btn, 'asset', catId, tagName\);\s*\}/);
-    assert.match(html, /function renameExpenseTag\(btn, catId, tagName\) \{\s*startTagRename\(btn, 'expense', catId, tagName\);\s*\}/);
+    // 两个单侧包装都只是把 side 定死，交同一 startTagRename（不再各自写一遍交互）
+    for (const [fn, side] of [['renameTag', 'asset'], ['renameExpenseTag', 'expense']]) {
+      const src = fnSource(fn);
+      assert.ok(src.includes(`startTagRename(`) && src.includes(`'${side}'`), `${fn} 走同一 startTagRename`);
+      assert.strictEqual((src.match(/startTagRename\(/g) || []).length, 1, `${fn} 只调一次`);
+    }
     assert.strictEqual(count(/renameTag: '[a-zA-Z]+'/g), 2, '两侧 CAT_SIDES 各声明一次入口名');
   });
 
@@ -623,18 +627,25 @@ describe('UI 接线契约：标签改名（迁移引用，不是清空）', () =
     assert.strictEqual(count(/renameTagGeneric\(/g), 2, '定义一处 + startTagRename 提交处一处（不再有第二条改名路径）');
   });
 
-  test('胶囊上的 ✎ 单一来源：tagPillHtml 分支 + 分类卡片接线一次，内联样式收回 CSS', () => {
+  test('胶囊上不再有 ✎：长按胶囊即改名（长按状态机与资产入口同源）', () => {
     assert.strictEqual(count(/class="tag-pill"/g), 1, '胶囊模板只允许一处');
     const pill = fnSource('tagPillHtml');
-    assert.match(pill, /opts\.renameFn/, '重命名按钮由 opts 开关决定');
-    assert.match(pill, /class="pill-edit"/, '✎ 及样式走类名');
-    assert.match(pill, /class="pill-del"/, '✕ 一并收回类名（同类结构 ≥2 处就下沉）');
-    assert.doesNotMatch(pill, /style="margin-left:2px/, '不再内联 pill 内按钮样式');
-    assert.match(html, /\n  \.tag-pill button \{[^}]*color: inherit;/, '按钮默认不继承字色，必须显式 inherit（否则吃 UA 的 ButtonText）');
-    assert.match(html, /\n  \.tag-pill \.pill-del:hover \{ color: var\(--down\); \}/, '✕ 悬停仍用警示色');
-    assert.match(html, /\n  \.tag-pill button:hover \{ color: var\(--accent-ink\); \}/, '✎ 悬停用金墨（不得跟着变警示色）');
-    assert.match(html, /\n  \.tag-rename-input \{/, '就地改名输入框样式在 CSS 里定义一次');
-    assert.strictEqual(count(/renameFn: cfg\.renameTag/g), 1, '分类卡片只在 tagPillHtml 一处开重命名');
+    // ✎ 图标去掉：它太小、还把每一枚胶囊都变成「带控件的样子」；改成长按整枚胶囊
+    assert.doesNotMatch(pill, /pill-edit/, '不再渲染 ✎ 图标');
+    assert.doesNotMatch(pill, /✎/, '标记里不得再出现 ✎ 字形');
+    assert.strictEqual(count(/✎/g), 0, '全页不留 ✎（提示文案里也不要再指路到图标）');
+    // 长按接线：胶囊挂 press 事件，落点仍走那唯一的改名实现
+    assert.match(pill, /data-rename/, '胶囊带改名所需的分类/标签数据');
+    assert.match(html, /startTagPress\(/, '按下即开始计时');
+    assert.match(html, /endTagPress\(/, '松手判定');
+    // 阈值与进度走 logic.js（与资产入口同一套状态机，只换阈值）
+    const logicSrc = fs.readFileSync(path.join(__dirname, '..', 'logic.js'), 'utf8');
+    assert.match(logicSrc, /function pressDecision\(heldMs, threshold\)/, '判定参数化（不复制第二份阈值逻辑）');
+    assert.match(html, /pressDecision\([^)]*TAG_PRESS_MS/, '改名用 TAG_PRESS_MS 那一档');
+    assert.strictEqual(count(/renameTagGeneric\(/g), 2, '定义一处 + startTagRename 提交处一处（不再有第二条改名路径）');
+    // 键盘/读屏器仍要能改名：长按是手势，不是权限（与资产入口同一原则）
+    assert.match(pill, /tabindex="0"/, '胶囊可聚焦');
+    assert.match(html, /onkeydown="[^"]*renameTagFromKey/, '键盘必须有一条直达改名的路');
   });
 
   test('移除标签前先告知将清空的引用数：确认框与直接保存共用同一段 apply', () => {
