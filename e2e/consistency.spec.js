@@ -113,6 +113,72 @@ test.describe('版式一致性', () => {
     }
   });
 
+  test('每张表的相邻单元格都留出真实间距（文本不得彼此贴合）', async ({ appPage: page }) => {
+    // 回归：列表页的三张表（资产 / 消费 / 收益）当时**完全没有列间距**，而列宽按 fr 分配时
+    // 单元格是紧贴的——「看着有空隙」只是因为内容短。实测：`50,000.00CNY`、`¥50,000.000-0%`，
+    // 表头连成「金额货币」「金额 (CNY)预期年化」。巡检当时只比对列宽是否相等，量不到这件事。
+    await visitAllTabs(page);
+    await gotoAssets(page);
+    /** 每张表：相邻文本单元格之间的间隙（用 Range 取真实字形边缘，不是盒模型） */
+    const gaps = await page.evaluate(() => {
+      const out = [];
+      for (const head of document.querySelectorAll('.list-head')) {
+        if (head.getBoundingClientRect().width === 0) continue;
+        const parent = head.parentElement;
+        const row = parent.querySelector('.asset-row:not(.list-head)')
+          || (parent.nextElementSibling && parent.nextElementSibling.querySelector('.asset-row:not(.list-head)'));
+        if (!row) continue;
+        const cells = [...row.children].filter((c) => c.textContent.trim());
+        for (let i = 1; i < cells.length; i++) {
+          const prev = cells[i - 1], cur = cells[i];
+          // 单元格自己的盒子可能带 flex 容器，取里面最右侧的文字节点
+          const range = document.createRange();
+          const textOf = (el) => {
+            const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+            let last = null, n;
+            while ((n = walker.nextNode())) if (n.textContent.trim()) last = n;
+            return last;
+          };
+          const firstText = textOf(cells[i]);
+          const prevText = textOf(prev);
+          if (!firstText || !prevText) continue;
+          range.selectNodeContents(prevText.parentElement);
+          const prevRight = Math.max(...[...range.getClientRects()].map((r) => r.right));
+          range.selectNodeContents(firstText.parentElement);
+          const curLeft = Math.min(...[...range.getClientRects()].map((r) => r.left));
+          out.push({ head: head.textContent.trim().slice(0, 8), i, gap: Math.round(curLeft - prevRight) });
+        }
+      }
+      return out;
+    });
+    expect(gaps.length, '应量到若干张表').toBeGreaterThan(0);
+    for (const g of gaps) {
+      expect(g.gap, `「${g.head}」第 ${g.i} 与上一列的文本间隙只有 ${g.gap}px（贴在一起了）`).toBeGreaterThanOrEqual(10);
+    }
+  });
+
+  test('列表行：标签列不得折行（折行会让整行高度跳变、左右两侧错开半行）', async ({ appPage: page }) => {
+    // 回归：给宽表加列间距后，标签列被挤窄、两枚 pill 换行，整行高度从 19px 跳到 52px；
+    // 紧跟着的下一行只有 19px，「编辑/删除」与「名称」就错开了半行。
+    // 判据取「标签列高度 ≤ 一行 pill 的高度」：它比「所有行等高」稳（E2E 里 Tailwind 是空壳，
+    // 行内边距本就不一致），又正好指向这次要守的那件事。
+    await gotoAssets(page);
+    const m = await page.evaluate(() => {
+      const rows = [...document.querySelectorAll('#assets-rows .asset-row')];
+      return rows.map((row) => {
+        const cell = row.children[6];
+        const pills = [...cell.children];
+        const oneLine = pills.length ? Math.round(Math.max(...pills.map((p) => p.getBoundingClientRect().height))) : 0;
+        return { cellH: Math.round(cell.getBoundingClientRect().height), oneLine, pills: pills.length };
+      });
+    });
+    expect(m.length).toBeGreaterThan(1);
+    for (const [i, r] of m.entries()) {
+      expect(r.cellH, `第 ${i + 1} 行标签列高 ${r.cellH}px，超过单行 pill 的 ${r.oneLine}px（折行了）`)
+        .toBeLessThanOrEqual(r.oneLine + 2);
+    }
+  });
+
   test('弹窗里的构成明细表：相邻单元格之间留出列间距（日期不贴金额）', async ({ appPage: page }) => {
     await visitAllTabs(page);
     // 资产侧金额拉长（×100）才能复现「金额与货币码贴在一起」——列宽按 fr 分配，
@@ -528,6 +594,66 @@ test.describe('可读性：平铺 chip 未选中态跨分类一致', () => {
   });
 });
 
+/*
+ * 数字列的对齐：记账的习惯是**右对齐、小数点对齐**。
+ * --------------------------------------------------------------------------
+ * 用户看到的是「表格中间一大片空、右边挤成一团」——量下来是备注列 336px 装 28px 文本
+ * （冗余 12 倍）、金额列只有 168px。但只改列宽不够：**所有数字列都左对齐**，
+ * 于是 42.00 与 3,200.00 的小数点错开，读数时要一位一位数——这是账本里最费眼的一件事，
+ * 与列宽无关。故这里守两件事：列宽按内容量给（不定长的两栏拿弹性），
+ * 且金额这一列必须右对齐 + 等宽数字（tabular-nums）。
+ *
+ * **表头也必须在同一个数上对齐**：只改数据行的话，表头「金额」还留在左边，
+ * 上下两行字各指一个方向，比全左对齐更难看（这次改完就出现了，故把两者绑在一起断言）。
+ */
+test.describe('版式一致性：数字列右对齐（账本对齐小数点）', () => {
+  /** 某张表里第 idx 列：表头与数据行的对齐方式、列宽、数字排布 */
+  const col = (page, listSel, idx) =>
+    page.evaluate(([sel, i]) => {
+      const head = document.querySelector(`${sel} .list-head`);
+      const rows = [...document.querySelectorAll(`${sel} .asset-row`)].filter((r) => !r.classList.contains('list-head'));
+      if (!rows.length || !head) return null;
+      const cell = rows[0].children[i];
+      const cs = getComputedStyle(cell);
+      const hcs = getComputedStyle(head.children[i]);
+      return {
+        width: Math.round(cell.getBoundingClientRect().width),
+        headWidth: Math.round(head.children[i].getBoundingClientRect().width),
+        textAlign: cs.textAlign,
+        headAlign: hcs.textAlign,
+        tabular: cs.fontVariantNumeric,
+      };
+    }, [listSel, idx]);
+
+  test('消费列表：金额列表头与数据行都右对齐、等宽数字、列宽相等', async ({ appPage: page }) => {
+    await page.locator('#tabs-expenses .tab-btn[data-tab="expenses"]').click();
+    const amount = await col(page, '#expenses-list', 1);
+    expect(amount, '消费列表应有数据行').not.toBeNull();
+    expect(amount.textAlign, '金额列必须右对齐（左对齐时 42.00 与 3,200.00 的小数点错开）').toBe('right');
+    expect(amount.headAlign, '表头「金额」也要右对齐（否则上下两行字各指一个方向）').toBe('right');
+    expect(amount.tabular, '金额列必须 tabular-nums，否则每一位数字宽度不同').toContain('tabular-nums');
+    expect(amount.width, '表头与数据行必须同宽').toBe(amount.headWidth);
+    // 定宽列：金额要装得下五位数（3,200.00 实测约 66px，另留出千分位与更大的数）
+    expect(amount.width, `金额列 ${amount.width}px 太窄`).toBeGreaterThanOrEqual(100);
+  });
+
+  test('资产列表：金额与金额(CNY) 两列都右对齐（同一张表里两列数字不能一左一右）', async ({ appPage: page }) => {
+    await gotoAssets(page);
+    const idx = await page.evaluate(() =>
+      [...document.querySelectorAll('#assets-list .list-head > div')].findIndex((d) => d.textContent.includes('金额 (CNY)')));
+    expect(idx, '表头里应有「金额 (CNY)」列').toBeGreaterThan(0);
+    // 金额列紧邻其左（中间隔着「货币」列：它是代码不是数字，保持左对齐）
+    const idxAmount = await page.evaluate(() =>
+      [...document.querySelectorAll('#assets-list .list-head > div')].findIndex((d) => d.textContent.trim().startsWith('金额') && !d.textContent.includes('CNY')));
+    expect(idxAmount).toBeGreaterThan(0);
+    for (const i of [idxAmount, idx]) {
+      const c = await col(page, '#assets-list', i);
+      expect(c.textAlign, `第 ${i} 列（金额族）必须右对齐`).toBe('right');
+      expect(c.headAlign, `第 ${i} 列表头必须与数据行同向`).toBe('right');
+      expect(c.tabular).toContain('tabular-nums');
+    }
+  });
+});
 test.describe('版式一致性：真实数据下的读数层级', () => {
   test('收益摘要与对比弹窗的主读数同字号（同一个 .hero-figure）', async ({ appPage: page }) => {
     await gotoAssets(page);

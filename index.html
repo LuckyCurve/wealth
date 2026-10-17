@@ -287,6 +287,11 @@ tailwind.config = {
   }
   .font-masthead { font-family: var(--font-numeric); font-feature-settings: 'lnum' 1, 'tnum' 1; }
   .tabular { font-variant-numeric: tabular-nums; font-feature-settings: 'tnum' 1; }
+  /* 数字列（表格里的金额/折算值）：账本的习惯是**右对齐、小数点对齐**。
+     左对齐时 42.00 与 3,200.00 的小数点错开，读数要一位一位数——这是账本里最费眼的一件事，
+     与列宽给多大无关。故「数字列右对齐 + 等宽数字」提成一个角色类，两处各自手写会漂。
+     .amount-cell 已经在做 tabular 与 padding-left（铅笔批注的留白），这里只补对齐。 */
+  .num { text-align: right; font-variant-numeric: tabular-nums; font-feature-settings: 'tnum' 1; }
   :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
   ::selection { background: rgba(180, 132, 26, 0.28); }
   button:focus-visible, .btn-gold:focus-visible, .btn-ghost:focus-visible, .btn-danger:focus-visible { outline-offset: 2px; }
@@ -666,8 +671,13 @@ tailwind.config = {
   }
   /* 表格列宽模板单一来源：表头与数据行挂同一个 class, 不再各自硬编码同一串列宽
      （两边各写一遍的后果是改一处忘一处, 表头与内容错位）。
-     必须定义在 .asset-row 之后：同特异性下后者胜 */
-  .cols-expenses { grid-template-columns: 1fr 1fr 2fr 1.5fr 130px; }
+     必须定义在 .asset-row 之后：同特异性下后者胜。
+
+     消费记录的列宽按**内容量**分配（不是按下标均分）：实测 fr 版把备注列撑到 336px
+     而文本只有 28px（冗余 12 倍），金额列只得 168px 却要装 3,200.00——中间一大片空、
+     右边挤成一团。故：日期与金额是定长数字，给定宽（数字不缩）；备注与标签才是会长的两栏，
+     拿剩下的弹性；操作列也是定长（三个按钮，与其它表同一档）。 */
+  .cols-expenses { grid-template-columns: 96px 108px minmax(0, 1fr) minmax(0, 1.6fr) 148px; }
   .cols-expense-month { grid-template-columns: 96px 1fr 2fr 1.5fr; }
   .cols-income { grid-template-columns: 1.8fr 1fr 0.8fr 0.8fr 1fr 1fr 1fr; }
   .cols-segment { grid-template-columns: 2fr 1fr 0.7fr 1.3fr 0.7fr; }
@@ -677,9 +687,23 @@ tailwind.config = {
      全靠内容本身短才显得有空隙 —— 内容一长就贴在一起。实测：日期栏 90px vs 日期文本 77.8px，
      金额紧贴日期只剩 13.7px；资产侧金额拉长后与货币码之间只剩 2.7px。给真正的列间距，
      并把日期栏定宽（日期是定长文本 YYYY-MM-DD，按 fr 分配就永远贴着内容宽、挤不出白）。 */
-  .cols-segment, .cols-expense-month, .cols-expense-segment { column-gap: 16px; }
+  /* 列间距：**所有**列宽模板统一的规格（不只是弹窗里那三张窄表）。
+     列宽按 fr 分配时单元格之间是紧贴的，「看着有空隙」只是因为内容短——内容一长就贴在一起。
+     实测（列表页三张表原先完全没有 gap）：`50,000.00CNY`、`¥50,000.000-0%`；
+     表头也连成「金额货币」「金额 (CNY)预期年化」。间距只在这一处定义，
+     consistency.spec.js 量「相邻单元格的文本间隙」把守。 */
+  .cols-expenses, .cols-expense-month, .cols-income, .cols-segment, .cols-compare, .cols-expense-segment,
+  .asset-row.grid-wide { column-gap: 16px; }
+  /* 资产宽表：列数最多（8 列），列间距吃掉 7×16=112px —— 定宽列（拖拽把手 28 / 操作 92）
+     与列间距都先让出来，剩下的才按 fr 分。fr 是在**扣掉 gap 之后**的余量里按比例分，
+     故模板不必为 gap 补偿；需要补偿的是「标签列要装下两枚 pill」（实测合计 232px，
+     挤窄就会换行，整行高度从 19px 跳到 52px，表格立刻失去横向对齐）。 */
   .asset-row.grid-wide {
-    grid-template-columns: 28px 1.45fr 1fr 0.55fr 1.1fr 1.25fr 1.9fr 92px;
+    /* 定宽列先让出（拖拽把手 / 操作 / 货币码），余量再按 fr 分。
+       标签列必须装得下「资产类型 活期现金」+「风险等级 低风险」两枚 pill（实测合计 232px）：
+       给不够就会换行，整行高度从 19px 跳到 52px，表格立刻失去横向对齐。
+       名称列是短中文（实测最长 6 字 ≈ 90px），不必与标签列争宽。 */
+    grid-template-columns: 28px 1.1fr 0.85fr 62px 0.9fr 1.05fr 2.1fr 92px;
   }
   /* 未设利率的收益行淡出：原为逐行内联 opacity, 归到类 */
   .asset-row.is-unrated { opacity: 0.4; }
@@ -693,7 +717,9 @@ tailwind.config = {
   .btn-sm, .btn-xs { padding: 6px 14px; font-size: var(--fs-micro); white-space: nowrap; }
   .btn-xs { padding: 4px 10px; font-size: var(--fs-micro); }
   /* 行内金额快速编辑: 账页「铅笔批注」——悬停金线+铅笔示意可改, 编辑态由 input 接管 */
-  .amount-cell { position: relative; padding-left: 16px; display: inline-flex; align-items: center; cursor: pointer; border-bottom: 1px dashed transparent; transition: border-bottom-color 0.15s; }
+  .amount-cell { position: relative; padding-left: 16px; display: flex; justify-content: flex-end; align-items: center; cursor: pointer; border-bottom: 1px dashed transparent; transition: border-bottom-color 0.15s; }
+  /* 编辑态 input 要占满整格（整格右靠之后，inline 宽度会让光标停在半空） */
+  .amount-cell .inline-edit-input { width: 100%; }
   .amount-cell:hover { border-bottom-color: var(--accent-soft); }
   .amount-cell:focus-within { border-bottom-color: transparent; cursor: text; }
   /* 铅笔批注: 绝对定位于左侧留白（padding-left 让金额统一右移 16px, 铅笔不占布局空间、不推挤文本, 窄列不溢出）;
@@ -1162,9 +1188,9 @@ tailwind.config = {
       <div class="asset-row grid-wide list-head">
         <div></div>
         <div onclick="toggleSort('name')" role="button" tabindex="0" onkeydown="if(event.key==='Enter')toggleSort('name')" style="cursor:pointer;">名称<span class="sort-indicator" id="sort-name"></span></div>
-        <div onclick="toggleSort('amount')" role="button" tabindex="0" onkeydown="if(event.key==='Enter')toggleSort('amount')" style="cursor:pointer;">金额<span class="sort-indicator" id="sort-amount"></span></div>
+        <div class="num" onclick="toggleSort('amount')" role="button" tabindex="0" onkeydown="if(event.key==='Enter')toggleSort('amount')" style="cursor:pointer;">金额<span class="sort-indicator" id="sort-amount"></span></div>
         <div onclick="toggleSort('currency')" role="button" tabindex="0" onkeydown="if(event.key==='Enter')toggleSort('currency')" style="cursor:pointer;">货币<span class="sort-indicator" id="sort-currency"></span></div>
-        <div onclick="toggleSort('cny')" role="button" tabindex="0" onkeydown="if(event.key==='Enter')toggleSort('cny')" style="cursor:pointer;">金额 (CNY)<span class="sort-indicator" id="sort-cny"></span></div>
+        <div class="num" onclick="toggleSort('cny')" role="button" tabindex="0" onkeydown="if(event.key==='Enter')toggleSort('cny')" style="cursor:pointer;">金额 (CNY)<span class="sort-indicator" id="sort-cny"></span></div>
         <div>预期年化</div><div>标签</div><div></div>
       </div>
       <div id="assets-rows" ondragover="onAssetDragOver(event)" ondrop="onAssetDrop(event)"></div>
@@ -1377,7 +1403,7 @@ tailwind.config = {
       <div id="expenses-list" class="card">
         <div class="asset-row list-head cols-expenses">
           <div onclick="toggleExpenseSort('date')" role="button" tabindex="0" onkeydown="if(event.key==='Enter')toggleExpenseSort('date')" style="cursor:pointer;">日期<span class="sort-indicator" id="expense-sort-date"></span></div>
-          <div onclick="toggleExpenseSort('amount')" role="button" tabindex="0" onkeydown="if(event.key==='Enter')toggleExpenseSort('amount')" style="cursor:pointer;">金额<span class="sort-indicator" id="expense-sort-amount"></span></div>
+          <div class="num" onclick="toggleExpenseSort('amount')" role="button" tabindex="0" onkeydown="if(event.key==='Enter')toggleExpenseSort('amount')" style="cursor:pointer;">金额<span class="sort-indicator" id="expense-sort-amount"></span></div>
           <div>备注</div><div>标签</div><div></div>
         </div>
         <div id="expenses-rows"></div>
@@ -2287,12 +2313,12 @@ function renderAssets() {
       return `<div class="asset-row grid-wide" data-id="${esc(a.id)}">
         <div class="drag-handle" title="拖动排序" draggable="true" ondragstart="onAssetDragStart(event)" ondragend="onAssetDragEnd(event)">⠿</div>
         <div class="t-medium t-body">${esc(a.name)}</div>
-        <div class="t-body tabular amount-cell" data-id="${esc(a.id)}" role="button" tabindex="0" title="点击快速更新金额" onclick="startInlineEdit('${jsAttr(a.id)}')" onkeydown="if(event.key==='Enter')startInlineEdit('${jsAttr(a.id)}')">
+        <div class="t-body tabular num amount-cell" data-id="${esc(a.id)}" role="button" tabindex="0" title="点击快速更新金额" onclick="startInlineEdit('${jsAttr(a.id)}')" onkeydown="if(event.key==='Enter')startInlineEdit('${jsAttr(a.id)}')">
           <svg class="edit-pencil" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 3l1 1-9 9-2.5.5.5-2.5L13 3z"/><path d="M10.7 5.3l1 1"/></svg>
           <span>${amountHtml(a)}</span>
         </div>
         <div class="t-body muted">${a.currency}</div>
-        <div class="t-micro tabular muted">${formatCNY(cnyVal)}</div>
+        <div class="t-micro tabular num muted">${formatCNY(cnyVal)}</div>
         <div class="t-body tabular">${rateLabel}${cashTag}</div>
         <div class="flex flex-wrap gap-1">${tagHtml}</div>
         <div class="flex gap-2 justify-end">
@@ -4834,7 +4860,7 @@ function renderExpenses() {
       }).join(' ');
       return `<div class="asset-row cols-expenses">
         <div class="t-body">${highlightMatch(e.date, q)}</div>
-        <div class="t-body">${money2(e.amount)}</div>
+        <div class="t-body num">${money2(e.amount)}</div>
         <div class="t-body muted">${e.note ? highlightMatch(e.note, q) : '—'}</div>
         <div class="flex flex-wrap gap-1">${tagHtml}</div>
         <div class="flex gap-2 justify-end">

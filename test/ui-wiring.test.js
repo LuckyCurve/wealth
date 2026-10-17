@@ -1482,7 +1482,7 @@ describe('UI 接线契约：版式一致性（同类结构同一套 class）', (
     // 内联 style 里不得再出现列宽（原先表头与数据行各写一遍同一串 = 改一处漏一处）
     assert.strictEqual(count(/style="[^"]*grid-template-columns/g), 0, '列宽不许内联');
     for (const [cls, tpl] of [
-      ['cols-expenses', '1fr 1fr 2fr 1.5fr 130px'],
+      ['cols-expenses', '96px 108px minmax(0, 1fr) minmax(0, 1.6fr) 148px'],
       ['cols-expense-month', '96px 1fr 2fr 1.5fr'],
       ['cols-income', '1.8fr 1fr 0.8fr 0.8fr 1fr 1fr 1fr'],
       ['cols-segment', '2fr 1fr 0.7fr 1.3fr 0.7fr'],
@@ -1500,13 +1500,20 @@ describe('UI 接线契约：版式一致性（同类结构同一套 class）', (
     }
   });
 
-  test('弹窗里的构成明细表：单元格之间有列间距，日期栏不被压到文本宽', () => {
-    // 回归：这三张表只在 560px 弹窗里出现，列宽按 fr 分配 —— 日期列宽（90px）必然逼近
-    // 日期文本本身（77.8px），金额紧贴日期（实测 13.7px，读成一串）；资产侧金额一长更甚
-    // （1,234,567.89 与货币码之间只剩 2.7px）。间距与日期栏定宽都收在这一处。
-    const rule = html.match(/\n  \.cols-segment, \.cols-expense-month, \.cols-expense-segment \{ column-gap: (\d+)px; \}/);
-    assert.ok(rule, '三张构成明细表共用一处列间距（同类结构只此一份规格）');
-    assert.ok(Number(rule[1]) >= 12, '列间距要够看（≥12px）');
+  test('所有列宽模板共用一处列间距（列宽按 fr 分配时单元格是紧贴的）', () => {
+    // 回归：最初只有弹窗里那三张窄表给了 column-gap，而列表页的三张表**完全没有**——
+    // 列宽按 fr 分配时单元格之间是紧贴的，「看着有空隙」只是因为内容短。实测：
+    // `50,000.00CNY`、`¥50,000.000-0%`，表头连成「金额货币」「金额 (CNY)预期年化」。
+    // 间距只能在**一处**定义：逐个模板各写一遍迟早漏一张（这正是当初漏掉三张表的原因）。
+    const rules = html.match(/(?:^|\n)  [^{}\n]*(?:\n  [^{}\n]*)*?\{ column-gap: \d+px; \}/g) || [];
+    assert.strictEqual(rules.length, 1, `column-gap 只应有一处定义（实得 ${rules.length} 处）`);
+    const gap = Number(rules[0].match(/column-gap: (\d+)px/)[1]);
+    assert.ok(gap >= 12, '列间距要够看（≥12px）');
+    // 该规则必须覆盖全部六套模板 + 资产宽表
+    for (const cls of ['cols-expenses', 'cols-expense-month', 'cols-income', 'cols-segment', 'cols-compare', 'cols-expense-segment']) {
+      assert.ok(rules[0].includes('.' + cls), `${cls} 也要吃到列间距`);
+    }
+    assert.ok(rules[0].includes('.asset-row.grid-wide'), '资产宽表也要吃到列间距');
     // 日期栏定宽：日期是定长文本（YYYY-MM-DD），按 fr 分配就永远贴着内容宽
     assert.match(html, /\n  \.cols-expense-month \{ grid-template-columns: 96px 1fr 2fr 1\.5fr; \}/, '月度明细的日期栏定宽');
     assert.match(html, /\n  \.cols-expense-segment \{ grid-template-columns: 96px 1fr 0\.8fr 2\.6fr; \}/, '构成明细的日期栏定宽');
