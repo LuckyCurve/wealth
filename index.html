@@ -6,6 +6,12 @@
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='%23d9b25e'/><stop offset='1' stop-color='%238f6713'/></linearGradient></defs><path fill-rule='evenodd' d='M16 2a14 14 0 1 0 0 28 14 14 0 1 0 0-28zM10.5 10.5h11v11h-11z' fill='url(%23g)'/><path d='M10.5 10.5v3M10.5 10.5h3M21.5 10.5v3M21.5 10.5h-3M10.5 21.5v-3M10.5 21.5h3M21.5 21.5v-3M21.5 21.5h-3' stroke='%23211b10' stroke-width='1.8' stroke-linecap='round' fill='none'/></svg>">
 <title>财富管理</title>
 <script>
+  // 开屏入场的两态（见 CSS 里的「落纸」）：booting = 「骨架先说：我要入场了」。
+  // 放在 <head> 同步执行是为了首帧就到「未落定」那一态（晚一帧会先看见内容再跳一下）。
+  // 看门狗是必需的：脚本万一没跑到标记就绪（报错、或这页被当静态文件打开），
+  // 也得自己放行——开屏出问题是小事，页面空白是大事。
+  document.documentElement.classList.add('booting');
+  setTimeout(function () { document.documentElement.classList.add('ready'); }, 1500);
   // 首次访问跟随系统主题；显式切换后以存储值为准（'1'=暗色, ''=亮色）
   (function () {
     var stored = localStorage.getItem('dark-mode');
@@ -285,7 +291,8 @@ tailwind.config = {
   ::selection { background: rgba(180, 132, 26, 0.28); }
   button:focus-visible, .btn-gold:focus-visible, .btn-ghost:focus-visible, .btn-danger:focus-visible { outline-offset: 2px; }
   @media (prefers-reduced-motion: reduce) {
-    *, *::before, *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; scroll-behavior: auto !important; }
+    /* 延迟也要归零：只关时长的话，带 delay 的入场会先停在「还没出来」的状态（延迟仍生效） */
+    *, *::before, *::after { animation-duration: 0.001ms !important; animation-delay: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; transition-delay: 0.001ms !important; scroll-behavior: auto !important; }
   }
   .btn-gold {
     background: linear-gradient(180deg, #d9b25e, #b4841a);
@@ -523,6 +530,28 @@ tailwind.config = {
   }
   @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
   @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+  /* ===== 开屏：落纸 =====
+     不做遮挡数据的 splash——这个应用的全部价值就是首屏那几个数字，遮住它等于扣分。
+     改做一次**非阻塞**入场，两拍：三段纸面（页头 / 子 Tab 栏 / 正文）依次落定，然后台灯升起来。
+
+     为什么用 transition 而不是 @keyframes：动画会在**隐藏容器**（另一个模式的 Tab 栏）里
+     停在起始帧——元素不参与渲染时动画不跑，fill 却把 from 帧留着，那块东西会一直是隐形的。
+     改成两态 transition 后，隐藏元素只是「还没到最终值」而已，不会卡住。
+     为什么要 booting 这一态（而不是直接挂在 :not(.ready)）：脚本万一没跑（报错、或这页面被当
+     静态文件打开），booting 根本不会加上，内容就是正常可见的；即使加上了，<head> 里还有一道
+     看门狗（1.5s 后自己放行）——开屏出问题是小，页面空白是大。
+     ready 由 renderAll 之后那一步加：账号是真的可用了才落纸。 */
+  html.booting:not(.ready) .app-header-inner,
+  html.booting:not(.ready) .tab-bar,
+  html.booting:not(.ready) main.content-column { opacity: 0; transform: translateY(10px); }
+  /* 第二拍：账本落定了，灯才亮（台灯是唯一一盏灯，见「只允许一盏灯」；
+     它本来的 opacity 过渡就是 0.5s，所以这里只需在未落定那一态把它压住）。
+     为什么不拿报头的构成标尺做「落墨」：它在默认（消费）模式里是隐藏的（属于资产侧报头），
+     做出来用户根本看不见——效果不能只存在于另一个模式的 DOM 里。 */
+  html.booting:not(.ready) .lamp-layer { opacity: 0; }
+  html.ready .app-header-inner { transition: opacity 0.42s cubic-bezier(0.22, 0.61, 0.36, 1), transform 0.42s cubic-bezier(0.22, 0.61, 0.36, 1); }
+  html.ready .tab-bar { transition: opacity 0.42s cubic-bezier(0.22, 0.61, 0.36, 1) 0.06s, transform 0.42s cubic-bezier(0.22, 0.61, 0.36, 1) 0.06s; }
+  html.ready main.content-column { transition: opacity 0.5s cubic-bezier(0.22, 0.61, 0.36, 1) 0.12s, transform 0.5s cubic-bezier(0.22, 0.61, 0.36, 1) 0.12s; }
   /* 悬停说明（标题旁 ? 图标）: 自绘提示唯一实现, 说明性文字一律进气泡、不写正文, 后续提示复用它 */
   .tip { position: relative; display: inline-flex; align-items: center; margin-left: 7px; vertical-align: middle; }
   .tip-mark {
@@ -1917,6 +1946,9 @@ function observeChartSize(chart) {
     // dark class 已在 <head> 内联脚本提前设置（避免暗色用户首屏闪烁）；主题切换入口唯一在设置弹窗
     // 字体 CSS 是异步加载（media=print 技巧），canvas 图表初次渲染可能用了回退字体；
     // 字体就绪后重绘当前可见图表，保证标签/数字渲染一致。
+    // 账本真的可用了才落纸（开屏入场挂在 html.ready 上，见 CSS 里的落纸注释）。
+    // 一次 rAF：让浏览器先把「未落定」那一帧画出来，否则两态在同一帧里翻转＝没有过渡。
+    requestAnimationFrame(() => document.documentElement.classList.add('ready'));
     if (document.fonts && document.fonts.ready) {
       document.fonts.ready.then(() => refreshVisibleCharts());
     }

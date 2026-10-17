@@ -2007,6 +2007,56 @@ describe('UI 接线契约：卡片的液态玻璃材质', () => {
 });
 
 /*
+ * 开屏（落纸）与动效约定
+ * --------------------------------------------------------------------------
+ * 用户要的是「开屏或其他特效，提升页面质感」。这里**不做**遮挡数据的 splash：
+ * 这个应用的全部价值就是首屏那几个数字，遮住它等于扣分（也违反「无构建、直开即用」的性子）。
+ * 改做一次非阻塞的入场：页面落到纸上（三段纸面依次落定）+ 台灯随后升起，由 html.ready 门控。
+ *
+ * 为什么用 html.ready 而不是直接写在元素上：base 状态必须是**最终态**（内容可见）。
+ * 万一 JS 没跑（脚本报错、页面被当静态文件打开），必须有东西可看。
+ */
+describe('UI 接线契约：开屏（落纸入场）', () => {
+  test('入场是两态 transition 且只在 booting 那一态才隐藏内容（base 即最终态）', () => {
+    // 两态：booting:not(.ready) = 未落定（透明/下移），ready = 过渡到最终态。
+    assert.match(html, /html\.booting:not\(\.ready\) \.app-header-inner/, '未落定那一态存在');
+    assert.match(html, /html\.ready \.app-header-inner \{[^}]*transition:/, '落定那一态带过渡');
+    assert.match(html, /html\.booting:not\(\.ready\) \.lamp-layer \{[^}]*opacity: 0/, '第二拍：未落定时按住台灯');
+    // 关键：隐藏内容的规则只能挂在 booting 上（脚本不跑时 booting 不存在 → 内容正常可见）
+    const hiding = html.match(/html\.booting:not\(\.ready\)[^{]*\{[^}]*opacity:\s*0[^}]*\}/g) || [];
+    assert.ok(hiding.length > 0, '未落定态确实在隐藏纸面');
+    // 不得用 display/visibility 藏（那会让巡检与读屏器真的一无所见）
+    for (const r of hiding) assert.doesNotMatch(r, /display:\s*none|visibility:\s*hidden/, r.slice(0, 60));
+    // 不得用 @keyframes 做入场：隐藏容器里的元素会卡在 from 帧（实测过的坑）
+    assert.doesNotMatch(html, /@keyframes settle/, '入场不得回到 keyframes 写法');
+  });
+
+  test('booting 与看门狗写在 <head>，ready 在首屏渲染完成后加', () => {
+    const head = html.slice(0, html.indexOf('<style>'));
+    assert.match(head, /classList\.add\('booting'\)/, '首帧前就进入未落定态（否则会先看见内容再跳一下）');
+    assert.match(head, /setTimeout\(function \(\) \{[\s\S]*?classList\.add\('ready'\)/, '看门狗自己放行（脚本万一没跑到就绪，页面不得空白）');
+    // 就绪点在「渲染完成之后」：DOMContentLoaded 里 renderAll 之后才翻转，否则落纸先于内容
+    const boot = html.match(/document\.addEventListener\('DOMContentLoaded'[\s\S]*?classList\.add\('ready'\)/);
+    assert.ok(boot, 'ready 由启动流程翻转');
+    assert.ok(boot[0].indexOf('renderAll()') < boot[0].indexOf("classList.add('ready')"), '先渲染完，再落纸');
+  });
+
+  test('减动效要连延迟一起关（只关时长的话，带 delay 的入场会先停在未落定态）', () => {
+    // 闸门本身是那条「一把关掉全部动效」的全局规则（不写死行号，只认它的形态）
+    const kill = html.match(/\*, \*::before, \*::after \{[^}]*animation-duration: 0\.001ms[^}]*\}/);
+    assert.ok(kill, '全局减动效闸门存在');
+    assert.match(kill[0], /animation-delay:\s*0\.001ms !important/, '动画延迟也要归零');
+    assert.match(kill[0], /transition-delay:\s*0\.001ms !important/, '过渡延迟也要归零');
+  });
+
+  test('不得有遮挡数据的开屏遮罩（全屏 splash / 加载动画都是错的工具）', () => {
+    for (const bad of ['id="splash"', 'class="splash', 'id="boot-overlay"']) {
+      assert.strictEqual(count(new RegExp(bad, 'g')), 0, `${bad} 不该存在`);
+    }
+  });
+});
+
+/*
  * 图表尺寸同步：每张 echarts 实例都要登记「盯住容器」。
  * --------------------------------------------------------------------------
  * 为什么值得契约守：尺寸不对是**静默**的——图还在，只是画在错误尺寸的画布上
