@@ -1437,6 +1437,27 @@ describe('UI 接线契约：排版档位单一来源（字号/字重/字体族�
 describe('UI 接线契约：版式一致性（同类结构同一套 class）', () => {
   const styleOf = (attr) => (html.match(new RegExp(`${attr}[^>]*style="([^"]*)"`)) || [])[1] || '';
 
+  test('内容栏宽度与左右边距单一来源（页头 / 子 Tab / 正文共用一套 token）', () => {
+    // 原先 max-w-6xl + px-6 在 4 处各写一遍：改一处就会让某一行单独错位。
+    // 而且 Tailwind 走 CDN、在 E2E 里是空壳——工具类根本不可测，版式不能建在它上面。
+    assert.strictEqual(count(/class="[^"]*max-w-6xl/g), 0, '内容栏宽度不得再由 Tailwind 工具类承担');
+    for (const sel of ['.app-header-inner', '.content-column']) {
+      assert.match(html, new RegExp(`\\.${sel.slice(1)}\\b[^{]*\\{[^}]*max-width: var\\(--content-max\\)`), `${sel} 走内容栏 token`);
+    }
+    assert.match(html, /--content-max: \d+rem;/, '宽度 token 存在');
+    assert.match(html, /--content-pad: [\d.]+rem;/, '边距 token 存在');
+    // 四个用法处都挂同一个类（页头 / 两个模式的 Tab 栏 / 正文）
+    assert.strictEqual(count(/class="app-header-inner/g), 1, '页头走内容栏');
+    assert.strictEqual(count(/class="content-column/g), 3, '两个 Tab 栏与正文都走内容栏');
+  });
+
+  test('原生控件明暗由页面的 color-scheme 决定（不跟随系统）', () => {
+    // 主题是应用内自己切的：写 light dark 会让「系统暗 + 页面亮」时弹出反色下拉面板
+    assert.match(html, /\n  :root \{[^}]*color-scheme: light;/, ':root 声明亮色');
+    assert.match(html, /\n  :root\.dark \{[^}]*color-scheme: dark;/, ':root.dark 声明暗色');
+    assert.strictEqual(count(/color-scheme: light dark/g), 0, '不得跟随系统（两者可能不一致）');
+  });
+
   test('章节头只有 section-head 一种写法（布局归 CSS，不再复制 flex/mb-6 类串）', () => {
     assert.strictEqual(count(/class="flex items-center justify-between mb-6 section-head/g), 0,
       '章节头的布局类串应收回 .section-head');

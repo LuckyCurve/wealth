@@ -44,6 +44,10 @@ tailwind.config = {
 </script>
 <style>
   :root {
+    /* 原生控件（select 下拉弹层、滚动条、日期控件）的明暗由 color-scheme 决定。
+       按**页面自己的主题**声明，而不是写 light dark 跟随系统：主题是应用内自己切的，
+       两者不一致时（例如系统暗、页面亮）原生弹层会反色成一张白/黑面板。 */
+    color-scheme: light;
     --bg: #f6f1e4;
     --bg-2: #efe8d6;
     --fg: #211b10;
@@ -98,6 +102,7 @@ tailwind.config = {
     --desk-fall: rgba(72, 56, 24, 0.12);
   }
   :root.dark {
+    color-scheme: dark;
     --bg: #15110a;
     --bg-2: #1c1710;
     --fg: #ece4d0;
@@ -162,6 +167,10 @@ tailwind.config = {
     --fw-medium: 500;
     --fw-strong: 600;
     --fw-bold: 700;
+    /* 内容栏宽度与左右边距（页头/子 Tab/正文共用）；
+       与明暗无关，故与字体档位同处一块，不进两套主题块 */
+    --content-max: 72rem;
+    --content-pad: 1.5rem;
   }
   /* 排版档位类：页面一律挂这两个字号 + 两个字重，不再写裸字号/裸字重，也不再用
      Tailwind 的 text-* / font-* 工具类（CDN 空壳下不可测、且会和自有档位漂移）。
@@ -259,6 +268,17 @@ tailwind.config = {
   /* 减动效：明确要求安静就不画灯（与 logic.js lampEnabled 同一道闸，双重保险） */
   @media (prefers-reduced-motion: reduce) { .lamp-layer { display: none; } }
   .font-display { font-family: var(--font-display); }
+  /* 内容栏（页头/子 Tab/正文共用同一套宽度与左右边距）。
+     为什么必须提成单一来源：原先 max-w-6xl + px-6 在 4 处各写一遍，改一处就会让某一行
+     单独错位；「页面的左边缘在哪」必须只有一个答案。而 Tailwind 走 CDN、在 E2E 里是空壳
+     （工具类完全不生效），所以页头/正文的左右轴只能靠自有 CSS 保证。
+     token 声明在 :root, :root.dark 那块里：它与明暗无关，故意不进两套主题块。 */
+  .app-header-inner, .content-column {
+    width: 100%;
+    max-width: var(--content-max);
+    margin-inline: auto;
+    padding-inline: var(--content-pad);
+  }
   .font-masthead { font-family: var(--font-numeric); font-feature-settings: 'lnum' 1, 'tnum' 1; }
   .tabular { font-variant-numeric: tabular-nums; font-feature-settings: 'tnum' 1; }
   :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
@@ -1015,7 +1035,7 @@ tailwind.config = {
 
 <!-- Header -->
 <header class="app-header">
-  <div class="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between gap-4 flex-wrap">
+  <div class="app-header-inner py-4 flex items-center justify-between gap-4 flex-wrap">
     <div class="flex items-center gap-6 flex-wrap">
       <div class="flex items-center gap-3">
         <!-- 品牌标记: 孔方铜钱 = 财富; 方孔以账本四角裁切标记挖出, 与 masthead 同语言 -->
@@ -1050,7 +1070,7 @@ tailwind.config = {
 </header>
 
 <!-- Tabs: Assets -->
-<div id="tabs-assets" class="max-w-6xl mx-auto px-6" style="display:none;">
+<div id="tabs-assets" class="content-column" style="display:none;">
   <div class="tab-bar">
     <button class="tab-btn active" data-tab="assets" onclick="switchTab('assets')">资产管理</button>
     <button class="tab-btn" data-tab="categories" onclick="switchTab('categories')">分类管理</button>
@@ -1061,7 +1081,7 @@ tailwind.config = {
 </div>
 
 <!-- Tabs: Expenses -->
-<div id="tabs-expenses" class="max-w-6xl mx-auto px-6">
+<div id="tabs-expenses" class="content-column">
   <div class="tab-bar">
     <button class="tab-btn active" data-tab="expenses" onclick="switchTab('expenses')">消费记录</button>
     <button class="tab-btn" data-tab="expense-categories" onclick="switchTab('expense-categories')">分类管理</button>
@@ -1071,7 +1091,7 @@ tailwind.config = {
 </div>
 
 <!-- Main Content -->
-<main class="max-w-6xl mx-auto px-6 py-6">
+<main class="content-column py-6">
 
   <!-- ====== ASSETS CONTENT ====== -->
   <div id="content-assets" style="display:none;">
