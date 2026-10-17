@@ -157,6 +157,35 @@ test.describe('版式一致性', () => {
     }
   });
 
+  test('收益测算表：六列数字全部右对齐（与其它表同一套账本对齐）', async ({ appPage: page }) => {
+    // 收益表原先只有「现金比例」一列挂了 tabular，其余五列既不对齐也不等宽；
+    // 而它上面那张汇总卡是居中的——同一页里数字的横向规则各说各话。
+    await gotoAssets(page, 'income');
+    // 收益表由 renderIncomeTab 按「有设利率的资产」决定是否渲染；种子数据里有，但需显式触发一次
+    await page.evaluate(() => renderIncomeTab());
+    const cols = await page.evaluate(() => {
+      const head = document.querySelector('#income-rows .list-head');
+      const row = document.querySelector('#income-rows .asset-row:not(.list-head)');
+      const out = [];
+      for (let i = 1; i < row.children.length; i++) {
+        out.push({
+          i,
+          head: head.children[i].textContent.trim().slice(0, 6),
+          align: getComputedStyle(row.children[i]).textAlign,
+          headAlign: getComputedStyle(head.children[i]).textAlign,
+          tabular: getComputedStyle(row.children[i]).fontVariantNumeric,
+        });
+      }
+      return out;
+    });
+    expect(cols.length).toBeGreaterThanOrEqual(6);
+    for (const c of cols) {
+      expect(c.align, `第 ${c.i} 列「${c.head}」必须右对齐`).toBe('right');
+      expect(c.headAlign, `第 ${c.i} 列表头「${c.head}」也要右对齐`).toBe('right');
+      expect(c.tabular, `第 ${c.i} 列「${c.head}」必须等宽数字`).toContain('tabular-nums');
+    }
+  });
+
   test('列表行：标签列不得折行（折行会让整行高度跳变、左右两侧错开半行）', async ({ appPage: page }) => {
     // 回归：给宽表加列间距后，标签列被挤窄、两枚 pill 换行，整行高度从 19px 跳到 52px；
     // 紧跟着的下一行只有 19px，「编辑/删除」与「名称」就错开了半行。

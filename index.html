@@ -4274,7 +4274,7 @@ function renderIncomeTab() {
   const rows = document.getElementById('income-rows');
   rows.innerHTML = [
     '<div class="asset-row list-head cols-income">',
-    `  <div>名称</div><div>金额 (CNY)</div><div>年利率</div><div>现金比例</div><div>年收益${discounted ? '*' : ''}</div><div>月收益${discounted ? '*' : ''}</div><div>现金/月${discounted ? '*' : ''}</div>`,
+    `  <div>名称</div><div class="num">金额 (CNY)</div><div class="num">年利率</div><div class="num">现金比例</div><div class="num">年收益${discounted ? '*' : ''}</div><div class="num">月收益${discounted ? '*' : ''}</div><div class="num">现金/月${discounted ? '*' : ''}</div>`,
     '</div>',
     ...sorted.map(a => {
       const inc = calcAssetIncome(a);
@@ -4284,12 +4284,12 @@ function renderIncomeTab() {
       const cashPct = cashRatioPct(a);
       return `<div class="${rowClass}">
         <div class="t-medium t-body">${esc(a.name)}</div>
-        <div class="t-body">${money2(inc.cny)}</div>
-        <div class="t-body">${rateLabel}</div>
-        <div class="t-body tabular">${hasRate ? cashPct + '%' : '-'}</div>
-        <div class="t-body">${hasRate ? formatCNY(inc.annual) : '-'}</div>
-        <div class="t-body">${hasRate ? formatCNY(inc.monthly) : '-'}</div>
-        <div class="t-body ink-accent">${hasRate ? formatCNY(inc.cashMonthly) : '-'}</div>
+        <div class="t-body num">${money2(inc.cny)}</div>
+        <div class="t-body num">${rateLabel}</div>
+        <div class="t-body num">${hasRate ? cashPct + '%' : '-'}</div>
+        <div class="t-body num">${hasRate ? formatCNY(inc.annual) : '-'}</div>
+        <div class="t-body num">${hasRate ? formatCNY(inc.monthly) : '-'}</div>
+        <div class="t-body num ink-accent">${hasRate ? formatCNY(inc.cashMonthly) : '-'}</div>
       </div>`;
     }).join('')
   ].join('');
