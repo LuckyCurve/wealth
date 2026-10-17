@@ -95,16 +95,22 @@ async function stubCdn(page, rates) {
 
   // ECharts 替身：真实库是 canvas 渲染 + 异步布局，E2E 里断言像素既慢又脆。
   // 这里记录 init/setOption/on/resize/dispose 的调用，够断言「图表已初始化/已重绘/点击已接线」。
+  // 替身也**建模尺寸**（图 = 容器的 clientWidth/clientHeight，隐藏容器是 0），因为「尺寸是不是还等于
+  // 容器」只能从这里读；真库在隐藏容器上 resize 会把尺寸压成一个最小值（实测 100px 宽）而不是 0，
+  // 但两者的症状同一条：尺寸 ≠ 容器，且 setOption 修不回来。
   await page.route('**/echarts*.js', (route) =>
     route.fulfill({
       status: 200,
       contentType: 'text/javascript',
       body: `
-        window.__echartsCalls = { init: [], setOption: [], on: [], dispatch: [], resize: 0, dispose: 0 };
+        window.__echartsCalls = { init: [], setOption: [], on: [], dispatch: [], resize: 0, dispose: 0, instances: {} };
         function FakeChart(dom) {
           this._dom = dom;
+          this._w = dom ? dom.clientWidth : 0;
+          this._h = dom ? dom.clientHeight : 0;
           this._handlers = {};
           window.__echartsCalls.init.push(dom && dom.id);
+          if (dom && dom.id) window.__echartsCalls.instances[dom.id] = this;
         }
         FakeChart.prototype.setOption = function (opt, notMerge) {
           window.__echartsCalls.setOption.push({ id: this._dom && this._dom.id, notMerge: !!notMerge, seriesCount: (opt && opt.series || []).length });
@@ -119,7 +125,14 @@ async function stubCdn(page, rates) {
         };
         FakeChart.prototype.on = function (evt, fn) { (this._handlers[evt] = this._handlers[evt] || []).push(fn); window.__echartsCalls.on.push({ id: this._dom && this._dom.id, evt: evt }); };
         FakeChart.prototype.off = function () {};
-        FakeChart.prototype.resize = function () { window.__echartsCalls.resize++; };
+        FakeChart.prototype.getDom = function () { return this._dom; };
+        FakeChart.prototype.getWidth = function () { return this._w || 0; };
+        FakeChart.prototype.getHeight = function () { return this._h || 0; };
+        FakeChart.prototype.resize = function () {
+          this._w = this._dom ? this._dom.clientWidth : 0;
+          this._h = this._dom ? this._dom.clientHeight : 0;
+          window.__echartsCalls.resize++;
+        };
         FakeChart.prototype.dispose = function () { window.__echartsCalls.dispose++; };
         FakeChart.prototype.getOption = function () { return {}; };
         FakeChart.prototype.dispatchAction = function (a) {
@@ -358,6 +371,41 @@ async function collectOffThemeColors(page) {
 }
 
 /**
+ * 图表尺寸：读「容器尺寸」与「图自己的尺寸」。
+ * --------------------------------------------------------------------------
+ * ECharts 替身按容器尺寸建模（见 stubCdn），故两边的比较能在无头里做。
+ * 不变量只有一条：**图可见时，它的尺寸必须等于容器的尺寸**——
+ * 历史上它被破坏过两次（只在 window resize 时统一 resize、以及隐藏时 resize 会把图压小
+ * 且 setOption 修不回来），故 chart-resize.spec.js 用它。
+ */
+const chartSize = (page, id) =>
+  page.evaluate((domId) => {
+    const el = document.getElementById(domId);
+    const inst = (window.__echartsCalls.instances || {})[domId];
+    return { container: [el.clientWidth, el.clientHeight], chart: inst ? [inst.getWidth(), inst.getHeight()] : null };
+  }, id);
+
+/** 等某张图被初始化出来（切 Tab 渲染有刻意延时） */
+const waitChart = (page, id) =>
+  expect.poll(() => chartSize(page, id).then((s) => !!s.chart), { message: `${id} 应已初始化` }).toBe(true);
+
+/** 等它对齐（尺寸同步由 ResizeObserver 驱动，异步到下一帧）；失败时把两个尺寸都打出来 */
+const expectChartFit = (page, id, label) =>
+  expect
+    .poll(
+      async () => {
+        const s = await chartSize(page, id);
+        if (!s.chart) return '图还没初始化';
+        if (!s.container[0]) return '容器不可见';
+        return s.chart[0] === s.container[0] && s.chart[1] === s.container[1]
+          ? 'ok'
+          : `图 ${JSON.stringify(s.chart)} ≠ 容器 ${JSON.stringify(s.container)}`;
+      },
+      { message: `${label}：${id} 的尺寸必须等于容器` }
+    )
+    .toBe('ok');
+
+/**
  * 浏览器 UA 默认色：元素压根没设样式时浏览器给的兜底值。
  * 它们是「漏设样式」的症状，不是写死色值；由 KNOWN_HARDCODED 之外单独判定，
  * 避免把浏览器行为当成应用的主题违规。
@@ -411,5 +459,5 @@ module.exports = {
   test, expect, stubCdn, seed, waitReady, disableMotion, readAppState,
   visitAllTabs, gotoAssets, collectOffThemeColors, UA_DEFAULT_COLORS,
   sampleState, EMPTY_STATE, LS_KEY, INDEX_URL,
-  samplePixels, pixelLum,
+  samplePixels, pixelLum, chartSize, waitChart, expectChartFit,
 };

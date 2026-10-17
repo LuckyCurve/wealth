@@ -1861,7 +1861,36 @@ let currentMode = 'expenses';
 let sortBy = '';
 let sortDir = 'asc';
 
-// ========== INIT ==========
+/* ===== 图表尺寸：唯一来源是容器的**可见尺寸** =====
+   为什么不靠 window resize：
+     ① 容器的尺寸还会因为**窗口以外**的原因变——实测到的是切 Tab 的 display 翻转
+        （含消费/资产模式切换），而 window resize 只覆盖窗口变化这一种；
+     ② resize 只挂在窗口事件上，切 Tab 造成的尺寸变化它根本看不到。
+   实测（真 echarts，不是推论）：图在**隐藏**时被 resize 一次，尺寸会被压成 100px 宽，
+   之后再进那个 Tab（渲染只 setOption，不 resize）也修不回来——用户看到的就是
+   「全屏再缩小后图不对」。故每张图盯住自己的容器：容器尺寸一变就对齐，容器不可见
+   （尺寸为 0）时不动它（拿 0 去 resize 才是把图做废的那一步）。
+   这是全文件**唯一**的图表尺寸同步路径（e2e/chart-resize.spec.js 逐个图表面扫）。 */
+function syncChartSize(chart) {
+  if (!chart) return;
+  const el = chart.getDom();
+  if (!el) return;
+  const w = el.clientWidth, h = el.clientHeight;
+  if (!w || !h) return; // 隐藏/未布局：等它可见
+  if (chart.getWidth() !== w || chart.getHeight() !== h) chart.resize();
+}
+// 每张图只在自己的 init 分支里登记一次（5 个图表面各一处）
+function observeChartSize(chart) {
+  if (!chart) return;
+  // 老 WebView 没有 ResizeObserver 时退回窗口级监听：至少覆盖窗口缩放这一种变化
+  if (typeof ResizeObserver === 'undefined') {
+    window.addEventListener('resize', () => syncChartSize(chart));
+    return;
+  }
+  new ResizeObserver(() => syncChartSize(chart)).observe(chart.getDom());
+}
+
+// ========== INIT ===========
   document.addEventListener('DOMContentLoaded', () => {
     loadState();
     // 捕获本次启动的汇率拉取 promise，交给 maybeAutoBackup 复用同一笔请求、
@@ -1883,15 +1912,8 @@ let sortDir = 'asc';
         }
       });
     }
-    // 图表统一 resize：必须在顶层注册（原代码嵌在 renderChart 首次 init 里，
-    // 导致从未进入「资产分布」tab 时其他图表在窗口缩放后不跟随调整）
-    window.addEventListener('resize', () => {
-      if (chart) chart.resize();
-      if (historyChart) historyChart.resize();
-      if (incomeChart) incomeChart.resize();
-      if (expenseChart) expenseChart.resize();
-      if (expenseTrendChart) expenseTrendChart.resize();
-    });
+    // 图表尺寸不在这里登记：每张图在自己的 init 分支里 observeChartSize（盯住容器）。
+    // 原先这里是 window resize 统一 resize，覆盖不到「切 Tab 的 display 翻转」这一种变化。
     // dark class 已在 <head> 内联脚本提前设置（避免暗色用户首屏闪烁）；主题切换入口唯一在设置弹窗
     // 字体 CSS 是异步加载（media=print 技巧），canvas 图表初次渲染可能用了回退字体；
     // 字体就绪后重绘当前可见图表，保证标签/数字渲染一致。
@@ -3411,6 +3433,7 @@ function renderChart() {
 
   if (!chart) {
     chart = echarts.init(chartEl);
+    observeChartSize(chart);
     wireSunburstDrill(chart, 'chart-legend');
   }
 
@@ -3787,6 +3810,7 @@ function renderHistoryChart() {
 
   if (!historyChart) {
     historyChart = echarts.init(chartEl);
+    observeChartSize(historyChart);
     // 图例选中态记忆：用户点击图例隐藏/显示系列时保存，重绘后回灌（切模式/切主题不丢）
     historyChart.on('legendselectchanged', p => { histLegendSel = p.selected; });
     // 点击色块下钻：展开该月该标签的资产构成明细
@@ -4247,6 +4271,7 @@ function renderIncomeChart() {
 
   if (!incomeChart) {
     incomeChart = echarts.init(el);
+    observeChartSize(incomeChart);
     wireSunburstDrill(incomeChart, 'income-chart-legend');
   }
 
@@ -5144,6 +5169,7 @@ function renderExpenseChart() {
 
   if (!expenseChart) {
     expenseChart = echarts.init(chartEl);
+    observeChartSize(expenseChart);
     wireSunburstDrill(expenseChart, 'expense-chart-legend');
   }
 
@@ -5328,6 +5354,7 @@ function renderExpenseTrendChart() {
 
   if (!expenseTrendChart) {
     expenseTrendChart = echarts.init(chartEl);
+    observeChartSize(expenseTrendChart);
     // 图例选中态记忆：用户点击图例隐藏/显示系列时保存，重绘后回灌（切模式/切主题不丢）
     expenseTrendChart.on('legendselectchanged', p => { trendLegendSel = p.selected; });
     // 点击色块下钻：展开该月该标签的消费记录构成明细

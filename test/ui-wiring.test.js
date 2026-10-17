@@ -2007,6 +2007,32 @@ describe('UI 接线契约：卡片的液态玻璃材质', () => {
 });
 
 /*
+ * 图表尺寸同步：每张 echarts 实例都要登记「盯住容器」。
+ * --------------------------------------------------------------------------
+ * 为什么值得契约守：尺寸不对是**静默**的——图还在，只是画在错误尺寸的画布上
+ * （用户报的「全屏再缩小后图不对」就是这么来的），漏登记一张不会有任何报错。
+ */
+describe('UI 接线契约：图表尺寸同步', () => {
+  test('每个 echarts.init 都紧跟一次 observeChartSize（新增第六张图不能漏登记）', () => {
+    const inits = (html.match(/echarts\.init\(/g) || []).length;
+    // 数「紧跟」而不是数全局出现次数：observeChartSize 自己的定义也算一次出现
+    const paired = (html.match(/echarts\.init\([^)]*\);\s*observeChartSize\(/g) || []).length;
+    assert.ok(inits >= 5, `本应用现有 5 个图表面（实得 ${inits}）`);
+    assert.strictEqual(paired, inits, `init ${inits} 处、紧跟登记 ${paired} 处：每张图都要盯住容器`);
+  });
+
+  test('尺寸只以容器的可见尺寸为准（隐藏时不 resize，那才是把图做废的那一步）', () => {
+    const src = fnSource('syncChartSize');
+    assert.match(src, /clientWidth/, '读容器宽');
+    assert.match(src, /clientHeight/, '读容器高');
+    assert.match(src, /if \(!w \|\| !h\) return/, '容器不可见（尺寸 0）时不动它');
+    // 旧的 window resize 统一登记不再保留：它覆盖不到「切 Tab 的 display 翻转」
+    assert.ok(!/window\.addEventListener\('resize', \(\) => \{\s*if \(chart\)/.test(html),
+      '原先那段 window resize 统一 resize 应收敛到 observeChartSize');
+  });
+});
+
+/*
  * 旭日图的「选中分类 → 右侧清单联动」。
  * --------------------------------------------------------------------------
  * 需求原话：「选中其中一个层级的时候，他右边的标签可以联动成选中的当前分类下的一些标签」。
