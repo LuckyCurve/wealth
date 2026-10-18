@@ -829,6 +829,20 @@ describe('UI 接线契约：标签改名（迁移引用，不是清空）', () =
     assert.match(html, /onkeydown="[^"]*renameTagFromKey/, '键盘必须有一条直达改名的路');
   });
 
+  test('长按满时长即进编辑态：先收尾再开输入框，中继态一并删掉', () => {
+    const src = fnSource('startTagPress');
+    // 旧实现满时长只加一枚 armed 就停下，用户还得自己松手（实测「松开才能编辑」）；
+    // 现在与「进资产页」同一处置：满时长那一帧输入框就在原地出现
+    const tick = src.slice(src.indexOf('const tick = ()'));
+    assert.match(tick, /pressDecision\(held, TAG_PRESS_MS\)/, '判定仍与资产入口同源，只换阈值');
+    assert.ok(tick.indexOf('resetTagPress()') < tick.indexOf('startTagRename('),
+      '先收尾再开输入框：不先收尾的话，紧跟的松手会让 endTagPress 再开一次（同一次长按两个入口）');
+    assert.doesNotMatch(src, /add\('armed'\)/, '不再有「按满但还没进去」的中继态');
+    assert.strictEqual(count(/\.tag-pill\.armed/g), 0, '中继态的样式随行为一起删（死样式不留）');
+    // 松手早于下一帧那一线：判定同源，够长就仍然进编辑态
+    assert.match(fnSource('endTagPress'), /startTagRename\(/, '手势够长不该因为少一帧而作废');
+  });
+
   test('移除标签前先告知将清空的引用数：确认框与直接保存共用同一段 apply', () => {
     const src = fnSource('saveCategoryGeneric');
     assert.match(src, /countTagRefs\(cfg\.items\(\), editId, removed\)/, '引用数走 logic.js 口径');

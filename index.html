@@ -656,7 +656,6 @@ tailwind.config = {
     box-shadow: inset 0 -2px 0 0 var(--accent), 0 0 0 calc(1px + 0px * var(--tag-press, 0)) rgba(180, 132, 26, 0);
     transition: filter 0.15s;
   }
-  .tag-pill.armed { filter: brightness(0.88); }
   /* pill 内的行内控件（✕ 删除）：只给 color 的话 background/border 会走浏览器 UA
      默认（灰底黑边的系统按钮），在暖色古纸主题上很突兀。这里剥掉原生外观，只留一个字形。
      不设 opacity：它们是真控件，压淡会让它们从 pill 上「消失」（实测 2.8:1）。
@@ -3694,12 +3693,22 @@ function startTagPress(e, pill) {
     // 进度条宽度按胶囊实宽算：box-shadow 的 inset 宽度无法用百分比表达
     pill.style.boxShadow = `inset ${Math.round(progress * pill.offsetWidth)}px 0 0 0 rgba(180, 132, 26, 0.22), inset 0 -2px 0 0 var(--accent)`;
     if (pressDecision(held, TAG_PRESS_MS) !== 'done') { tagPress.raf = requestAnimationFrame(tick); return; }
+    // 满时长**直接进编辑态**（不再等松手）：墨线涨满的那一瞬输入框就在原地出现——与
+    // 「进资产页」按满即弹同一处置（旧实现让用户「按满—松手」两步，松手前墨线停在满格像卡住）。
+    // 先收尾再开输入框：不先收尾的话，紧跟着的松手会让 endTagPress 再开一次（同一次长按两个入口）。
+    const side = pill.dataset.rename;
+    const catId = pill.dataset.cat;
+    const tagName = pill.dataset.tag;
     tagPress.raf = 0;
-    pill.classList.add('armed');
+    resetTagPress();
+    if (side) startTagRename(pill, side, catId, tagName);
   };
   tagPress.raf = requestAnimationFrame(tick);
 }
 
+// 松手收尾：短按什么都不做（胶囊上的点击本来没有语义）。
+// 满时长一般已在 tick 里进了编辑态、走不到这里；只有「松手早于下一帧」那一线会落到本函数——
+// 那时判定同源，仍然进编辑态（手势够长了，不该因为少一帧而作废）。
 function endTagPress(e, pill) {
   if (!tagPress || tagPress.el !== pill) return;
   const decision = pressDecision(performance.now() - tagPress.start, TAG_PRESS_MS);
@@ -3707,7 +3716,7 @@ function endTagPress(e, pill) {
   const catId = pill.dataset.cat;
   const tagName = pill.dataset.tag;
   resetTagPress();
-  if (decision !== 'done') return; // 短按：什么都不做（胶囊上的点击本来没有语义）
+  if (decision !== 'done') return;
   if (!side) return;
   startTagRename(pill, side, catId, tagName);
 }
@@ -3722,7 +3731,7 @@ function resetTagPress() {
   if (tagPress.raf) cancelAnimationFrame(tagPress.raf);
   const el = tagPress.el;
   if (el) {
-    el.classList.remove('pressing', 'armed');
+    el.classList.remove('pressing');
     el.style.removeProperty('--tag-press');
     el.style.removeProperty('box-shadow');
   }

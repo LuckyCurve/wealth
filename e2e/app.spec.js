@@ -801,7 +801,7 @@ test.describe('弹窗与提示', () => {
 });
 
 test.describe('分类标签改名（迁移引用，不是清空）', () => {
-  test('长按标签改名：资产与读数卡的引用跟着迁移，不留下空 key', async ({ page }) => {
+  test('长按满时长即进编辑态（不必等松手）：资产与读数卡的引用跟着迁移，不留下空 key', async ({ page }) => {
     // 读数卡所选标签同按「分类 + 名字」引用，一并验证：曾用 pruneRunwayTags 清理，
     // 改名会把用户选好的标签静默取消掉
     const state = { ...sampleState(), runwayTags: [{ catId: 'cat-type', tag: '活期现金' }] };
@@ -812,18 +812,24 @@ test.describe('分类标签改名（迁移引用，不是清空）', () => {
     // 改名入口是**长按整枚胶囊**（卡片上的编辑图标已去掉）：先短按一次证明它不响应，
     // 再按满 TAG_PRESS_MS 进入编辑态——两条都测，否则「点一下就进编辑」也会绿。
     const pill = card.locator('.tag-pill', { hasText: '活期现金' });
+    const input = page.locator('#categories-list .tag-rename-input');
     const box = await pill.boundingBox();
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
     await page.mouse.down();
     await page.mouse.up();
-    await expect(page.locator('#categories-list .tag-rename-input')).toHaveCount(0);
+    await expect(input).toHaveCount(0);
 
+    // 用户实测：「得长按分类然后再松开才能编辑，我希望长按到时间就自动编辑」——
+    // 满时长那一瞬输入框就该出现，**手还按着**（与「进资产页」按满即弹同一处置）
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
     await page.mouse.down();
-    await expect(pill).toHaveClass(/armed/, { timeout: 3000 }); // 按满（进度线走完）
-    await page.mouse.up();
-    const input = page.locator('#categories-list .tag-rename-input');
+    await expect(input, '按满时长即进编辑态（不必等松手）').toBeVisible({ timeout: 3000 });
     await expect(input).toBeFocused();
+    // 抬手那一下不参与：输入框还在、焦点还在、整名仍选中（落在输入框上的点击会把
+    //「全选好、直接打」收成一根光标；落点若是被挤开的隔壁胶囊 ✕，那就是删数据）
+    await page.mouse.up();
+    await expect(input).toBeFocused();
+    expect(await input.evaluate((el) => [el.selectionStart, el.selectionEnd]), '整名保持选中').toEqual([0, 4]);
     await input.fill('现金类');
     await input.press('Enter');
 
