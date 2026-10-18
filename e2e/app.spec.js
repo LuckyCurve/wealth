@@ -1129,6 +1129,37 @@ test.describe('行级可点元素：指针与键盘两条路都要给', () => {
     expect(after).toContain('全部分类');
   });
 
+  test('导入控件：Tab 能到，且原生打开选择框（不是只有鼠标够得到的 label）', async ({ appPage: page }) => {
+    // 实测缺陷：原来的 <label for="import-file"> 的 tabIndex 是 -1（label 不是控件），
+    // 而它的 <input type="file"> 又是 display:none —— 两头都进不了 Tab 序，
+    // 键盘用户整块够不到「导入数据」（Shift+Tab 直接跳过它）。这里按真实按键验一遍。
+    await page.evaluate(() => showImportExport());
+    await expect(page.locator('#io-modal')).toBeVisible();
+
+    // 从导出按钮往后 Tab：主张焦点会落到 file input，且视觉焦点环画在看得见的 label 上
+    await page.locator('#io-modal .btn-gold').first().focus();
+    await page.keyboard.press('Tab');
+    const landed = await page.evaluate(() => {
+      const ae = document.activeElement;
+      const label = ae.closest ? ae.closest('.file-label') : null;
+      return {
+        id: ae.id,
+        tag: ae.tagName,
+        insideLabel: !!label,
+        outline: label ? getComputedStyle(label).outlineWidth : null,
+      };
+    });
+    expect(landed.id, 'Tab 应停在 file input 上（而不是跳过整个导入区）').toBe('import-file');
+    expect(landed.tag).toBe('INPUT');
+    expect(landed.insideLabel, 'label 必须包住 input，焦点环才画得到看得见的地方').toBe(true);
+    expect(landed.outline, ':focus-within 应给出可见焦点环').toBe('2px');
+
+    // 控件仍然看得见、点得到（不是被 sr-only 连视觉一起藏掉）
+    const box = await page.locator('#io-modal .file-label').boundingBox();
+    expect(box.width, '可见的导入按钮不能被藏起来').toBeGreaterThan(60);
+    expect(box.height).toBeGreaterThan(20);
+  });
+
   test('排序表头：Space 与 Enter 同义，aria-sort 随之更新', async ({ appPage: page }) => {
     await gotoAssets(page, 'assets');
     // 用「金额」表头的 role 定位，避免在属性选择器里再嵌一层引号

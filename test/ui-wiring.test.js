@@ -962,6 +962,30 @@ describe('UI 接线契约：行级可点元素必须键盘可达（可点即键�
       '不在此处另写一套 aria-sort 推导');
   });
 
+  test('导入「选择文件」必须键盘可达（label 不是控件，display:none 的 input 进不了 Tab 序）', () => {
+    // 实测：label[for=import-file] 的 tabIndex=-1（label 不是控件），而它的 <input type="file">
+    // 又是 display:none —— 两头都进不了 Tab 序，于是**键盘用户完全无法导入数据**
+    // （真实浏览器里 Shift+Tab 会直接跳过它）。这是「可点即键盘可达」的第 4 处同类缺陷，
+    // 且后果最重：整块功能不可达，而不是少一个快捷键。
+    //
+    // 做法：label **包住** file input。只有一个 Tab 停靠点（input），浏览器原生负责
+    // Enter/Space 打开选择框，不必自己写「转发 click」的脚本（少一段可写错的接线）。
+    assert.match(
+      html,
+      /<label class="btn-gold file-label">[\s\S]*?<input type="file" id="import-file"/,
+      'label 应包住 file input（而不是 label[for] + 位于别处的 input）');
+    assert.match(html, /id="import-file"[^>]*class="sr-only"/, 'file input 用 sr-only 隐藏而不是 display:none');
+    assert.doesNotMatch(
+      html,
+      /id="import-file"[^>]*style="display:none;"/,
+      'display:none 的元素无法聚焦，键盘用户会整块够不到它');
+    assert.match(html, /\n  \.sr-only \{/, 'sr-only 工具类（视觉隐藏但仍可聚焦）必须在自有 CSS 里定义一次');
+    assert.match(
+      html,
+      /\.file-label:focus-within \{[^}]*outline/,
+      '真正的焦点在里面的 input 上，焦点环必须画在看得见的 label 上（:focus-within）');
+  });
+
   test('清单行的 focus-visible 规则不得再是死代码（元素必须真的能聚焦）', () => {
     // 曾存在 .chart-legend-row:focus-visible 规则，但行 tabIndex=-1——
     // 样式写了却永远不可能命中，正是「以为做了键盘可达、其实没做」的化石。

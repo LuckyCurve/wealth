@@ -293,6 +293,16 @@ tailwind.config = {
      .amount-cell 已经在做 tabular 与 padding-left（铅笔批注的留白），这里只补对齐。 */
   .num { text-align: right; font-variant-numeric: tabular-nums; font-feature-settings: 'tnum' 1; }
   :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+  /* 视觉隐藏但仍留在 Tab 序 / 可被脚本点击。
+     为什么不能用 display:none：它会把元素从 Tab 序里摘掉——文件选择框正是这样
+     让键盘用户整块够不到「导入数据」的（label 不可聚焦 + input display:none = 无路可走）。 */
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+  }
+  /* 包住隐藏 input 的 label：焦点在里面的 input 上，环要画在能看见的 label 上。
+     用 :focus-within 而不是给 label 加 tabindex——那会多出一个空的 Tab 停靠点。 */
+  .file-label:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
   ::selection { background: rgba(180, 132, 26, 0.28); }
   button:focus-visible, .btn-gold:focus-visible, .btn-ghost:focus-visible, .btn-danger:focus-visible { outline-offset: 2px; }
   @media (prefers-reduced-motion: reduce) {
@@ -1751,8 +1761,15 @@ tailwind.config = {
       <hr>
       <div>
         <p class="t-body mb-3 muted">从 JSON 文件导入数据（将覆盖当前数据）</p>
-        <label for="import-file" class="btn-gold" style="display:inline-block; cursor:pointer;">选择文件</label>
-        <input type="file" id="import-file" accept=".json" onchange="importData(event)" style="display:none;">
+        <!-- 键盘可达的做法：让 label **包住** file input。
+             原先 label[for] 的 tabIndex 是 -1（label 不是控件），而 input 又是 display:none
+             ——两头都进不了 Tab 序，于是键盘用户整块够不到「导入数据」（实测 Shift+Tab 直接跳过）。
+             包住之后只有**一个** Tab 停靠点（input），浏览器原生负责 Enter/Space 打开选择框，
+             不必自己写转发 click 的脚本；焦点环走 :focus-within 画在 label 上。 -->
+        <label class="btn-gold file-label">
+          选择文件
+          <input type="file" id="import-file" class="sr-only" accept=".json" onchange="importData(event)">
+        </label>
         <span id="import-file-name" class="t-micro ml-3 muted"></span>
       </div>
     </div>

@@ -150,6 +150,7 @@ interface Expense {
 - **可点即键盘可达** — 行级「点这行会被带到别处」的元素（旭日图清单顶层行、快照行、消费趋势月份行）必须是 `role="button"` + `tabindex="0"`，共用 `.row-hit` 一个类（指针与焦点环同源）。**判据是「指针能到的路径，键盘也要能到」**；明细行的悬停高亮是「看着这里」而非导航，不占 Tab 序。
   - **化石证据**：旭日图清单早就写了 `.chart-legend-row:focus-visible` 规则，但行 `tabIndex=-1` 永远拿不到焦点——**样式在、路不在**。写了焦点样式不等于做了键盘可达。
   - **键位语义走 logic.js `activateKeyAction`**：`role="button"` 被期望同时响应 Enter 与 Space（WAI-ARIA 惯例）。只认 Enter 是半吊子实现，而 Space 恰是读屏器用户最惯用的激活键；Tab/Esc/方向键必须放行。排序表头的 `aria-sort` 同理走 `sortAriaSort`（只认四个合法字面量）。
+  - **原生表单控件别用 label[for] 当按钮**：`<label for=…>` 的 `tabIndex` 是 -1（label 不是控件），而被指向的 `<input type="file">` 又常被 `display:none` 藏掉——**两头都进不了 Tab 序，键盘用户整块够不到该功能**（实测 Shift+Tab 直接跳过「导入数据」）。正解是让 **label 包住 input**：只剩一个 Tab 停靠点（input），浏览器原生负责 Enter/Space 打开选择框（不必自己写转发 click 的脚本），焦点环用 `:focus-within` 画在看得见的 label 上。隐藏用 `.sr-only`（可聚焦）而非 `display:none`（从 Tab 序摘除）。
   - **内联事件属性是单测的盲区**：`onkeydown="..."` 是属性里的字符串，不在 `<script>` 里，「整段脚本能被 `new Function` 解析」那条契约罩不到它，文本断言也只看得到字面量。曾实测把 `if(cond){A;B;}` 写成 `if(cond)A;B;}`（少左花括号）→ 只有 A 受守卫，`B;}` 是语法错误，**浏览器只在事件触发那一刻编译它，表现为「按了毫无反应且不报错」**，447 个单测全绿而真浏览器里功能全废。故 `ui-wiring` 逐条把 on* 处理体真解析一遍（`${...}` 占位先换掉，只看结构）。
 - **键盘 Tab 不接管模式切换** — 已移除（Tab 恢复浏览器默认焦点顺序）；不要在顶端按钮或子 Tab 栏上重新挂 keydown。
 - **顶端模式按钮：消费在左、资产在右** — 默认模式落在第一项；资产侧带门槛（长按 + 确认），不占顺手位。次序同时决定 Tab 焦点次序，故由 `ui-wiring` 的契约测试固定（E2E 只断言「Tab 不改模式」，不写死谁先聚焦——否则一次换位会连带改测试）。
