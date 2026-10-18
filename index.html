@@ -1256,11 +1256,11 @@ tailwind.config = {
 <div id="tabs-assets" class="content-column" style="display:none;">
   <div class="tab-bar">
     <span class="tab-indicator" aria-hidden="true"></span>
-    <button class="tab-btn active" data-tab="assets" onclick="switchTab('assets')">资产管理</button>
-    <button class="tab-btn" data-tab="categories" onclick="switchTab('categories')">分类管理</button>
-    <button class="tab-btn" data-tab="chart" onclick="switchTab('chart')">资产分布</button>
-    <button class="tab-btn" data-tab="history" onclick="switchTab('history')">历史净值</button>
-    <button class="tab-btn" data-tab="income" onclick="switchTab('income')">收益测算</button>
+    <button class="tab-btn active" data-tab="assets" onclick="tabClick(this)">资产管理</button>
+    <button class="tab-btn" data-tab="categories" onclick="tabClick(this)">分类管理</button>
+    <button class="tab-btn" data-tab="chart" onclick="tabClick(this)">资产分布</button>
+    <button class="tab-btn" data-tab="history" onclick="tabClick(this)">历史净值</button>
+    <button class="tab-btn" data-tab="income" onclick="tabClick(this)">收益测算</button>
   </div>
 </div>
 
@@ -1268,10 +1268,10 @@ tailwind.config = {
 <div id="tabs-expenses" class="content-column">
   <div class="tab-bar">
     <span class="tab-indicator" aria-hidden="true"></span>
-    <button class="tab-btn active" data-tab="expenses" onclick="switchTab('expenses')">消费记录</button>
-    <button class="tab-btn" data-tab="expense-categories" onclick="switchTab('expense-categories')">分类管理</button>
-    <button class="tab-btn" data-tab="expense-chart" onclick="switchTab('expense-chart')">消费分布</button>
-    <button class="tab-btn" data-tab="expense-trend" onclick="switchTab('expense-trend')">消费趋势</button>
+    <button class="tab-btn active" data-tab="expenses" onclick="tabClick(this)">消费记录</button>
+    <button class="tab-btn" data-tab="expense-categories" onclick="tabClick(this)">分类管理</button>
+    <button class="tab-btn" data-tab="expense-chart" onclick="tabClick(this)">消费分布</button>
+    <button class="tab-btn" data-tab="expense-trend" onclick="tabClick(this)">消费趋势</button>
   </div>
 </div>
 
@@ -2200,6 +2200,9 @@ async function fetchRates() {
 
 // ========== TABS ==========
 function switchMode(mode) {
+  // 已经在这个模式里：再点一次是空点击。整块重绘 + 重播入场只是把同样的东西再画一遍，
+  // 而且内层 switchTab 会把子 Tab 拽回第一个（在「消费趋势」上看一眼再点「消费」会被弹回消费记录）。
+  if (mode === currentMode) return;
   // 方向感：模式按钮的次序即「翻页」方向（消费在左、资产在右），与子 Tab 共用同一份判定
   const prevBtn = document.querySelector('#mode-assets.active, #mode-expenses.active');
   const nextBtn = document.getElementById('mode-' + mode);
@@ -2265,6 +2268,15 @@ function enterTab(pane, shift) {
       pane.classList.add('enter');
     });
   });
+}
+
+// 点「当前已激活」的 Tab 是一次空点击：整块重绘 + 重播入场只是把同样的东西再画一遍
+// （用户实测：「已经在消费分布这个标签下，再次点击它应该不生效，现在还会重新刷新页面」）。
+// 判定就是按钮自己的 active 态——隐藏的 Tab 栏收不到点击，不必再问一遍模式。
+// 9 个按钮共用这一个入口：判定各写一份必然漂移。
+function tabClick(btn) {
+  if (btn.classList.contains('active')) return;
+  switchTab(btn.dataset.tab);
 }
 
 function switchTab(tab, shift) {

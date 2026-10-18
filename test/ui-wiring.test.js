@@ -2691,6 +2691,27 @@ describe('UI 接线契约：Tab/模式切换的过渡动画', () => {
   });
 });
 
+describe('UI 接线契约：点「当前这一页」时是空点击', () => {
+  // 用户实测：「已经在消费分布这个标签下，再次点击它应该不生效，现在还会重新刷新页面」。
+  // 空点击 = 不重绘、不重播入场。判定只能有一处：9 个 Tab 按钮各写一份必然漂移。
+  test('Tab 按钮一律走 tabClick 单一入口', () => {
+    const btns = [...html.matchAll(/<button class="tab-btn[^"]*"[^>]*onclick="([^"]+)"/g)].map((m) => m[1]);
+    assert.ok(btns.length >= 9, `两条 Tab 栏的按钮都要被抓到（现抓到 ${btns.length} 个）`);
+    assert.deepStrictEqual([...new Set(btns)], ['tabClick(this)'], 'Tab 按钮只能有这一个入口');
+    const src = stripComments(fnSource('tabClick'));
+    assert.match(src, /classList\.contains\('active'\)[\s\S]*?return/, '已激活 = 空点击（判定即按钮自己的 active 态）');
+    assert.match(src, /switchTab\(/, '未激活才真的切');
+  });
+
+  test('模式按钮同理：守卫必须早于重绘（迟一步整块已经重画过了）', () => {
+    const mode = stripComments(fnSource('switchMode'));
+    assert.match(mode, /if \(mode === currentMode\) return;/, '已经在这个模式里：直接返回');
+    assert.ok(
+      mode.indexOf('mode === currentMode') < mode.indexOf('currentMode = mode'),
+      '守卫要在写状态 / 切面板之前，否则等于没守');
+  });
+});
+
 describe('UI 接线契约：长按满时长自动弹窗', () => {
   test('满时长由 tick 直接弹窗（不再等松手）', () => {
     const src = stripComments(fnSource('tickModePress'));

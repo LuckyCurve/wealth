@@ -262,6 +262,50 @@ test.describe('模式与 Tab 导航', () => {
   });
 });
 
+test.describe('已经在某一页上时再点它：空点击', () => {
+  // 用户实测：「已经在消费分布这个标签下，再次点击它应该不生效，现在还会重新刷新页面」。
+  // 重绘 + 重播入场只是把同样的东西再画一遍，用户看到的是一次没有理由的闪动。
+  const paneX = (page, sel) =>
+    page.evaluate((s) => (document.querySelector(s).style.getPropertyValue('--pane-x') || '').trim(), sel);
+  const renders = (page, id) =>
+    page.evaluate((i) => window.__echartsCalls.setOption.filter((c) => c.id === i).length, id);
+
+  test('点当前已激活的 Tab：图不重画、入场方向不被改写', async ({ appPage: page }) => {
+    const tab = page.locator('#tabs-expenses .tab-btn[data-tab="expense-chart"]');
+    await tab.click();
+    await expect(page.locator('#expense-sunburst-chart')).toBeVisible();
+    await expect
+      .poll(() => renders(page, 'expense-sunburst-chart'), { message: '进入消费分布应完成一次图表渲染' })
+      .toBeGreaterThan(0);
+    const before = await renders(page, 'expense-sunburst-chart');
+    const x1 = await paneX(page, '#tab-expense-chart');
+
+    await tab.click(); // 再点一次「当前」这个 Tab
+
+    // 换到消费趋势并等它的渲染落地：这证明时间真的往前走过（异步渲染那一档已经烧完）。
+    // 若刚才那次点击排了定时器，它必然先于这一步执行——同延时的定时器先排先烧。
+    await page.locator('#tabs-expenses .tab-btn[data-tab="expense-trend"]').click();
+    await expect
+      .poll(() => renders(page, 'expense-trend-chart'), { message: '消费趋势应完成一次图表渲染' })
+      .toBeGreaterThan(0);
+
+    expect(await renders(page, 'expense-sunburst-chart'), '再点当前 Tab 不该重绘消费分布的图').toBe(before);
+    expect(await paneX(page, '#tab-expense-chart'), '再点当前 Tab 不该重写它的入场方向').toBe(x1);
+  });
+
+  test('点当前模式的按钮：子 Tab 不被拽回第一个（空点击）', async ({ appPage: page }) => {
+    await page.locator('#tabs-expenses .tab-btn[data-tab="expense-chart"]').click();
+    await expect(page.locator('#tab-expense-chart')).toBeVisible();
+    await expect.poll(() => paneX(page, '#tab-expense-chart')).toBe('1');
+
+    await page.locator('#mode-expenses').click(); // 已经在消费模式里，再点一次「消费」
+
+    await expect(page.locator('#tab-expense-chart'), '再点当前模式不该把子 Tab 拽回「消费记录」').toBeVisible();
+    await expect(page.locator('#tab-expenses')).toBeHidden();
+    expect(await paneX(page, '#tab-expense-chart'), '再点当前模式不该重播内层入场').toBe('1');
+  });
+});
+
 test.describe('资产增删改', () => {
   test('登记资产：填表 → 列表出现 → 落 localStorage', async ({ appPage: page }) => {
     await gotoAssetsTab(page);
@@ -1636,6 +1680,9 @@ test.describe('分布图的构成清单（与图同源）', () => {
       state.categories.push({ id: 'cat-empty', name: '空维度', builtin: false, tags: ['甲', '乙'] });
       saveState(); renderCategories();
     });
+    // 走真实路径回到「资产分布」：分类下拉由「进入该 Tab」这一档填（switchTab 里的
+    // fillCategorySelect），而点当前已激活的 Tab 现在是空点击、不再重绘（用户实测要求）。
+    await gotoAssets(page, 'assets');
     await gotoAssets(page, 'chart');
     await page.selectOption('#chart-category-select', 'cat-empty');
     await expect(page.locator('#chart-empty')).toBeVisible();
