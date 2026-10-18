@@ -312,6 +312,78 @@ test.describe('版式一致性', () => {
  * KNOWN_DIMMED 是「有意淡出」的白名单：未设利率的收益行、日期选择器里的非本月日期——
  * 它们是状态提示而非待读内容，与主题巡检的 KNOWN_HARDCODED 同性质，只减不增。
  */
+/*
+ * 表单字段的可访问名巡检。
+ * --------------------------------------------------------------------------
+ * 缺陷：全站 18 处 `<label class="field-label">资产名称</label>` 与它的
+ * `<input id="asset-name">` 只是**视觉相邻**——label 既没有 `for` 也不包裹 input，
+ * 程序上毫无关联。真实浏览器实测可访问名：
+ *
+ *     asset-name     => textbox "如：招商银行活期"   ← 念的是 **placeholder**！
+ *     asset-rate-min => spinbutton "最低"           ← 念的是 placeholder
+ *     asset-currency => combobox（**没有名字**）
+ *
+ * 即读屏器念出的是「如：招商银行活期，编辑框」而不是「资产名称，编辑框」——用户
+ * 听不到这个框是干什么的。且 placeholder 是**示例**（“如：…”），当作名字念更糟。
+ *
+ * 判据从页面自身求值（不写死字段清单）：凡可见的 input/select/textarea，
+ * 其可访问名不得为空，也不得恰好等于 placeholder（那就等于用示例当名字）。
+ */
+test.describe('可访问性：表单字段必须有真正的名字（不是 placeholder）', () => {
+  const opens = [
+    ['资产弹窗', (page) => page.evaluate(() => openAssetModal())],
+    ['分类弹窗', (page) => page.evaluate(() => openCategoryModal())],
+    ['消费弹窗', (page) => page.evaluate(() => openExpenseModal())],
+    ['消费分类弹窗', (page) => page.evaluate(() => openExpenseCategoryModal())],
+    ['读指标签弹窗', (page) => page.evaluate(() => openRunwayModal())],
+  ];
+
+  test('每个可见表单控件都有可访问名，且不得拿 placeholder 当名字', async ({ appPage: page }) => {
+    await gotoAssets(page, 'assets');
+    const bad = [];
+    for (const [label, open] of opens) {
+      await open(page);
+      await page.waitForTimeout(250);
+      const found = await page.evaluate(() => {
+        const out = [];
+        const visibles = [...document.querySelectorAll('.modal-overlay')]
+          .filter((m) => m.style.display !== 'none');
+        for (const modal of visibles) {
+          for (const el of modal.querySelectorAll('input, select, textarea')) {
+            if (el.type === 'hidden' || el.offsetParent === null) continue;
+            // 可访问名：关联 label / aria-label / aria-labelledby
+            let name = '';
+            if (el.getAttribute('aria-label')) name = el.getAttribute('aria-label');
+            else if (el.getAttribute('aria-labelledby')) {
+              const l = document.getElementById(el.getAttribute('aria-labelledby'));
+              name = l ? l.textContent.trim() : '';
+            } else if (el.labels && el.labels.length) {
+              name = [...el.labels].map((l) => l.textContent.trim()).join(' ').trim();
+            }
+            out.push({
+              id: el.id || el.name || el.tagName,
+              name,
+              ph: el.getAttribute('placeholder') || '',
+              // 关联 label 的**文本**：名字来自真 label 时，哪怕与 placeholder 同字也是正当的
+              // （runway-expectation 的 label 就叫「月消费 (CNY)」，placeholder 也是它）。
+              // 只有「名字不是从 label 来、而恰好等于 placeholder」才是「拿示例当名字」。
+              fromLabel: !!(el.labels && el.labels.length) || !!el.getAttribute('aria-labelledby'),
+            });
+          }
+        }
+        return out;
+      });
+      for (const f of found) {
+        if (!f.name) bad.push(`${label} · #${f.id}: 完全没有可访问名`);
+        else if (f.ph && f.name === f.ph && !f.fromLabel) bad.push(`${label} · #${f.id}: 名字就是 placeholder「${f.ph}」`);
+      }
+      await page.keyboard.press('Escape');
+      await page.waitForTimeout(150);
+    }
+    expect(bad, '字段的可访问名必须说明这个框是干什么的：\n' + bad.join('\n')).toEqual([]);
+  });
+});
+
 test.describe('可读性：文字对比度达 AA（亮/暗两套）', () => {
   const KNOWN_DIMMED = '.asset-row.is-unrated, .flatpickr-day.prevMonthDay, .flatpickr-day.nextMonthDay';
 

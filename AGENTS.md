@@ -139,6 +139,9 @@ interface Expense {
   - **开屏是非阻塞入场，不是 splash**：遮住首屏的数字等于扣分。两态 transition（`booting` → `ready`）而**不是** `@keyframes`——动画会在隐藏容器（另一个模式的 Tab 栏）里停在起始帧，那块东西就永远隐形；且 base 即最终态，脚本没跑也看得见，另有一道看门狗兜底。减动效要连 `delay` 一起归零，只关时长的话带 delay 的入场会停在「还没出来」。
   - **内容栏宽度/边距是单一来源**（`--content-max` / `--content-pad`）：页头与正文共用同一套左右轴，不得再各自挂 Tailwind 工具类——Tailwind 走 CDN，E2E 里是空壳。
   - **验证视觉改动的办法是量，不是看**：注释里写下的因果（“-1 会消失”“触屏 detail 不是 1”）都必须在真实浏览器里验一遍。本项目的 z-index 注释就曾与实际相反，至今仍可见的 `-1` 层被误当成不可见。
+- **表单字段必须有真正的名字** — `<label class="field-label">资产名称</label>` 与它的 `<input id="asset-name">` 只是**视觉相邻**（label 既无 `for` 也不包裹 input）时，程序上毫无关联：真实浏览器 AX 树里那 13 个字段的可访问名是 **placeholder**（`textbox "如：招商银行活期"`）或干脆为空，读屏器于是念「如：招商银行活期，编辑框」而不是「资产名称，编辑框」——用户听不到这个框是干什么的，而 placeholder 本身是**示例**（「如：…」），当名字念更糟。
+  - 正解是 `for`/`id` 关联（或让 label 包住控件）；**一个 label 管两个输入时（如利率区间），另一个必须自带 `aria-label`**。
+  - 判据由 `consistency.spec.js` 全站巡检（从页面自身求值，不写死字段清单）：凡可见表单控件，可访问名不得为空，也不得「非来自 label、却恰好等于 placeholder」。**名字来自真 label 时，与 placeholder 同字是正当的**（`runway-expectation` 的 label 就叫「月消费 (CNY)」）。
 - **资产表单验证** — 非 `currency` 分类的标签必选；`expectedRateMin ≤ expectedRateMax`（空值用另一值补齐）。
 - **货币符号** — `HKD $` / `USD $` 区分，CNY 用 `formatCNY()` 输出 `¥`。
 - **三态排序** — 资产/消费共用同一状态机（升序→降序→取消）；**仅消费列表**主键相同时按 `id` 次级排序，资产侧依赖稳定排序保持自然/拖拽顺序（有意为之，勿加 id 次级排序）。资产拖拽排序后清除 `sortBy` 恢复自然顺序。

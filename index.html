@@ -1674,16 +1674,16 @@ tailwind.config = {
       <input type="hidden" id="asset-edit-id">
       <div class="space-y-4">
         <div>
-          <label class="field-label">资产名称</label>
+          <label class="field-label" for="asset-name">资产名称</label>
           <input type="text" id="asset-name" required class="w-full" placeholder="如：招商银行活期">
         </div>
         <div class="grid grid-cols-2 gap-4">
           <div>
-            <label class="field-label">金额</label>
+            <label class="field-label" for="asset-amount">金额</label>
             <input type="text" id="asset-amount" required inputmode="decimal" class="w-full" placeholder="0.00" oninput="formatMoneyInput(this)" autocomplete="off">
           </div>
           <div>
-            <label class="field-label">货币</label>
+            <label class="field-label" for="asset-currency">货币</label>
             <select id="asset-currency" class="w-full">
               <option value="CNY">CNY ¥</option>
               <option value="HKD">HKD $</option>
@@ -1692,14 +1692,14 @@ tailwind.config = {
           </div>
         </div>
         <div>
-          <label class="field-label">预期年化收益率 (%)</label>
+          <label class="field-label" for="asset-rate-min">预期年化收益率 (%)</label>
           <div class="flex items-center gap-2">
             <!-- step="any"：step="0.1" 会让 0.25% 这类两位小数利率命中原生 stepMismatch，
                  浏览器静默拦截 submit —— 用户点保存毫无反应也没有任何提示（演示数据的
                  0.25%/0.35% 即会触发）。步长在这里没有语义，交给 saveAsset 校验。 -->
-            <input type="number" id="asset-rate-min" min="0" step="any" class="w-full" placeholder="最低" value="0">
+            <input type="number" id="asset-rate-min" min="0" step="any" class="w-full" placeholder="最低" value="0" aria-label="预期年化收益率下限 (%)">
             <span class="muted">—</span>
-            <input type="number" id="asset-rate-max" min="0" step="any" class="w-full" placeholder="最高" value="0">
+            <input type="number" id="asset-rate-max" min="0" step="any" class="w-full" placeholder="最高" value="0" aria-label="预期年化收益率上限 (%)">
           </div>
         </div>
         <div>
@@ -1732,11 +1732,11 @@ tailwind.config = {
       <input type="hidden" id="cat-edit-id">
       <div class="space-y-4">
         <div>
-          <label class="field-label">分类名称</label>
+          <label class="field-label" for="cat-name">分类名称</label>
           <input type="text" id="cat-name" required class="w-full" placeholder="如：资产类型">
         </div>
         <div>
-          <label class="field-label">标签（逗号分隔）</label>
+          <label class="field-label" for="cat-tags">标签（逗号分隔）</label>
           <input type="text" id="cat-tags" required class="w-full" placeholder="如：固定资产, 股票, 债券">
         </div>
       </div>
@@ -1799,15 +1799,15 @@ tailwind.config = {
       <input type="hidden" id="expense-edit-id">
       <div class="space-y-4">
         <div>
-          <label class="field-label">日期</label>
+          <label class="field-label" for="expense-date">日期</label>
           <input type="date" id="expense-date" required class="w-full">
         </div>
         <div>
-          <label class="field-label">金额 (CNY)</label>
+          <label class="field-label" for="expense-amount">金额 (CNY)</label>
           <input type="text" id="expense-amount" required inputmode="decimal" class="w-full" placeholder="0.00" oninput="formatMoneyInput(this)" autocomplete="off">
         </div>
         <div>
-          <label class="field-label">备注</label>
+          <label class="field-label" for="expense-note">备注</label>
           <input type="text" id="expense-note" class="w-full" placeholder="可选备注">
         </div>
         <div id="expense-tags-section" class="space-y-3"></div>
@@ -1828,11 +1828,11 @@ tailwind.config = {
       <input type="hidden" id="expense-cat-edit-id">
       <div class="space-y-4">
         <div>
-          <label class="field-label">分类名称</label>
+          <label class="field-label" for="expense-cat-name">分类名称</label>
           <input type="text" id="expense-cat-name" required class="w-full" placeholder="如：支付方式">
         </div>
         <div>
-          <label class="field-label">标签（逗号分隔）</label>
+          <label class="field-label" for="expense-cat-tags">标签（逗号分隔）</label>
           <input type="text" id="expense-cat-tags" required class="w-full" placeholder="如：微信, 支付宝, 现金">
         </div>
       </div>
