@@ -1046,7 +1046,9 @@ tailwind.config = {
   /* 图纸列按**内容**收缩（auto），不按 fr 分：aspect-ratio 1:1 + max-height 把 canvas 压成
      440px 见方后，fr 轨道仍按剩余空间分——多出来的 191px 全变成轨道内空隙，
      观感就是「图和右边的清单离得太远」（实测间隙 207px，其中 CSS gap 只占 16px）。 */
-  .chart-split { display: grid; grid-template-columns: auto minmax(0, max-content); gap: 16px; align-items: start; justify-content: start; }
+  /* 图纸 + 构成清单是**一整组**，在卡片里居中：卡面上方的合计本来就是居中的，
+     整组再靠左就会与它错开轴线，右侧空出一大片（用户实拍：留白 309px）。 */
+  .chart-split { display: grid; grid-template-columns: auto minmax(0, max-content); gap: 16px; align-items: start; justify-content: center; }
   /* 图纸高度**由列宽推出来**（宽高比 + 上限），不写死像素：圆是正圆、尺寸由 ECharts 按容器算，
      而容器的像素高度一旦写死就与「这张卡实际有多少内容」脱钩——先前的 520px 让分类很少时
      整卡被空白撑起（右侧清单只有一行 35px）。

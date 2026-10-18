@@ -204,6 +204,29 @@ test.describe('版式一致性', () => {
     expect(gapPx, `图纸右缘到清单左缘的实际间隙 ${gapPx}px 过大`).toBeLessThanOrEqual(72);
   });
 
+  test('图纸与构成清单这一组在卡片里居中（不许只在右边空出一大片）', async ({ appPage: page }) => {
+    // 用户实拍：左边一张 520 的图 + 一小列清单，整组靠左，右侧空出 ~300px；
+    // 而卡面上方的合计是居中的——两者轴线不重合，卡片看着像没排完。
+    await gotoAssets(page, 'chart');
+    await expect(page.locator('#chart-legend .chart-legend-row').first()).toBeVisible();
+    const gaps = await page.evaluate(() => {
+      const card = document.querySelector('#tab-chart .card');
+      const canvas = document.querySelector('#sunburst-chart');
+      const legend = document.getElementById('chart-legend');
+      const cs = getComputedStyle(card);
+      const c = card.getBoundingClientRect();
+      const cr = canvas.getBoundingClientRect();
+      const l = legend.getBoundingClientRect();
+      const innerLeft = c.left + parseFloat(cs.paddingLeft);
+      const innerRight = c.right - parseFloat(cs.paddingRight);
+      return { before: Math.round(cr.left - innerLeft), after: Math.round(innerRight - l.right) };
+    });
+    expect(
+      Math.abs(gaps.before - gaps.after),
+      `图纸前留白 ${gaps.before}px vs 清单后留白 ${gaps.after}px：整组没居中`
+    ).toBeLessThanOrEqual(24);
+  });
+
   test('构成清单的名称与金额必须贴近（名称格不得被 1fr 撑出大片空白）', async ({ appPage: page }) => {
     // 用户实测：清单列吃满剩余宽度，名称格被 1fr 撑到 454px 而文字只有 45px——
     // 「微信」与「¥42.00」之间隔着 400px 空白，没法一眼把标签名和占比对上。
