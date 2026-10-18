@@ -186,6 +186,24 @@ test.describe('版式一致性', () => {
     }
   });
 
+  test('分布图与构成清单的间距不得过大（图纸留白 + gap 都要算）', async ({ appPage: page }) => {
+    // 用户实测：左边的旭日图和右边的标签「离得也太远了」。
+    // 视觉间隙 = 图纸内的留白（ECharts 圆外）+ grid gap。前者由 aspect-ratio 与
+    // ECharts 的 radius 决定，这里量的是**真实像素**：清单左缘 − 圆的右缘。
+    await gotoAssets(page, 'chart');
+    await expect(page.locator('#chart-legend .chart-legend-row').first()).toBeVisible();
+    const gapPx = await page.evaluate(() => {
+      const canvas = document.querySelector('#sunburst-chart');
+      const legend = document.getElementById('chart-legend');
+      if (!canvas || !legend) return null;
+      const c = canvas.getBoundingClientRect();
+      const l = legend.getBoundingClientRect();
+      return Math.round(l.left - c.right);
+    });
+    expect(gapPx).not.toBeNull();
+    expect(gapPx, `图纸右缘到清单左缘的实际间隙 ${gapPx}px 过大`).toBeLessThanOrEqual(72);
+  });
+
   test('所有表格：数值列一律右对齐，表头同步（含弹窗里的表）', async ({ appPage: page }) => {
     // 用户实测两轮才说清：「消费记录」页的表格有的列左对齐、有的右对齐。
     // 上一版巡检只扫了主列表（#assets-list / #income-rows），**把所有弹窗里的表都漏了**

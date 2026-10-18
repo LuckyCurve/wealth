@@ -603,7 +603,7 @@ tailwind.config = {
      那时它已不是 .tip 的子孙，这条选择器自然失效。收起时 unplaceTipBubble 会摘掉 .placed
      并把它搬回原处，所以两条状态不会同时成立。 */
   .tip-bubble.placed { opacity: 0.96; visibility: visible; }
-  @media (prefers-reduced-motion: reduce) { .tip-mark, .tip-bubble { transition: none; } }
+  @media (prefers-reduced-motion: reduce) { .tip-mark, .tip-bubble { transition: none; } .tab-indicator { transition: none; } }
   .tag-pill {
     display: inline-flex; align-items: center; gap: 3px;
     padding: 3px 7px 3px 5px; border-radius: 4px; font-size: var(--fs-micro);
@@ -809,13 +809,22 @@ tailwind.config = {
   .dark .toast-info { background: #292214; color: var(--accent-ink); border-color: #453a20; }
   .tab-btn {
     padding: 10px 22px; font-size: var(--fs-body); border: none; background: transparent;
-    color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent;
-    font-family: var(--font-body); transition: all 0.2s;
+    color: var(--muted); cursor: pointer;
+    font-family: var(--font-body); transition: color 0.2s;
   }
   /* 两套模式的 Tab 栏同一种结构（原先每处拼 border-b + 内联 border-color） */
-  .tab-bar { display: flex; border-bottom: 1px solid var(--border); }
-  .tab-btn.active { color: var(--fg); border-bottom-color: var(--accent); }
+  .tab-bar { position: relative; display: flex; border-bottom: 1px solid var(--border); }
+  .tab-btn.active { color: var(--fg); }
   .tab-btn:hover { color: var(--fg); }
+  /* 当前 Tab 的黄条是**唯一的**一个元素（不再是每个按钮自己的 border-bottom）：
+     切换时 transform 从旧位置滑到新位置——按钮各自的 border 只能跳变，
+     用户要求的是「从左边顺滑移动到右边」。位置由 JS moveTabIndicator 写入变量；
+     过渡只挂 transform/left（减动效时归零，直接到位）。 */
+  .tab-indicator {
+    position: absolute; bottom: -1px; left: var(--tab-x, 0); width: var(--tab-w, 0);
+    height: 2px; background: var(--accent); z-index: 1;
+    transition: left 0.28s cubic-bezier(0.22, 0.61, 0.36, 1), width 0.28s cubic-bezier(0.22, 0.61, 0.36, 1);
+  }
   /* Segmented control（模式/视图切换器） */
   .seg-control { display: inline-flex; padding: 3px; border-radius: 8px; background: var(--bg-2); border: 1px solid var(--border); gap: 2px; }
   .seg-btn { border: none; background: transparent; color: var(--muted); font-size: var(--fs-micro); font-family: var(--font-body); padding: 5px 18px; border-radius: 6px; cursor: pointer; transition: background 0.15s, color 0.15s; }
@@ -994,13 +1003,21 @@ tailwind.config = {
      而卡片宽 1100+——实测 1054×520 的画布里左右各有 293px 纯白（占 56% 宽度）。
      那一片白正好放「谁占多少」：图给比例直觉，清单给确切金额与占比（不必悬停）。
      窄屏回落单栏：图形正圆优先，清单接在下面。 */
-  .chart-split { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: 28px; align-items: start; }
+  /* 图纸列按**内容**收缩（auto），不按 fr 分：aspect-ratio 1:1 + max-height 把 canvas 压成
+     440px 见方后，fr 轨道仍按剩余空间分——多出来的 191px 全变成轨道内空隙，
+     观感就是「图和右边的清单离得太远」（实测间隙 207px，其中 CSS gap 只占 16px）。 */
+  .chart-split { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 16px; align-items: start; justify-content: start; }
   /* 图纸高度**由列宽推出来**（宽高比 + 上限），不写死像素：圆是正圆、尺寸由 ECharts 按容器算，
      而容器的像素高度一旦写死就与「这张卡实际有多少内容」脱钩——先前的 520px 让分类很少时
      整卡被空白撑起（右侧清单只有一行 35px）。
      但**只给比例也不行**：单栏宽度下 1:1 会把圆放到 624px，卡片反而更高（实测 619→723）。
      故比例 + max-height 双管：宽的时候不超上限（圆不会失控），窄的时候按列宽自然收小。 */
-  .chart-split > .chart-canvas { min-width: 0; aspect-ratio: 1 / 1; max-height: 440px; }
+  .chart-split > .chart-canvas {
+    min-width: 0; aspect-ratio: 1 / 1;
+    /* 图纸定宽（=max-height 的值）：grid 轨道 auto 由此取宽。
+       不能靠 aspect-ratio 反推——auto 列与内容宽度互为因果，会循环压成 0。 */
+    width: 440px; max-width: 100%;
+  }
   .chart-split > .chart-canvas > div { width: 100%; height: 100%; }
   /* 收益分布是小图（同一张卡里还有收益摘要），比例压扁一点 */
   .chart-canvas.chart-canvas-compact { aspect-ratio: 16 / 9; max-height: 300px; }
@@ -1189,6 +1206,7 @@ tailwind.config = {
 <!-- Tabs: Assets -->
 <div id="tabs-assets" class="content-column" style="display:none;">
   <div class="tab-bar">
+    <span class="tab-indicator" aria-hidden="true"></span>
     <button class="tab-btn active" data-tab="assets" onclick="switchTab('assets')">资产管理</button>
     <button class="tab-btn" data-tab="categories" onclick="switchTab('categories')">分类管理</button>
     <button class="tab-btn" data-tab="chart" onclick="switchTab('chart')">资产分布</button>
@@ -1200,6 +1218,7 @@ tailwind.config = {
 <!-- Tabs: Expenses -->
 <div id="tabs-expenses" class="content-column">
   <div class="tab-bar">
+    <span class="tab-indicator" aria-hidden="true"></span>
     <button class="tab-btn active" data-tab="expenses" onclick="switchTab('expenses')">消费记录</button>
     <button class="tab-btn" data-tab="expense-categories" onclick="switchTab('expense-categories')">分类管理</button>
     <button class="tab-btn" data-tab="expense-chart" onclick="switchTab('expense-chart')">消费分布</button>
@@ -2023,6 +2042,8 @@ function observeChartSize(chart) {
     // 等汇率更新完毕后再导出，避免备份拿到过期汇率（见 maybeAutoBackup）
     const ratePromise = fetchRates();
     renderAll();
+    // 指示条初始对位（首屏 active tab）——不只靠 switchTab，直接刷新也会进这里
+    moveTabIndicator('#tabs-expenses', 'expenses');
     // 初始化 Flatpickr 日期选择器（消费表单）
     if (typeof flatpickr !== 'undefined') {
       flatpickr('#expense-date', {
@@ -2147,9 +2168,37 @@ function switchMode(mode) {
   }
 }
 
+// Tab 指示条的位置换算（单一来源）：按目标按钮的 offsetLeft/offsetWidth 实测写入 CSS 变量。
+// 不能按下标 × 固定宽度估算——按钮文字长短不一，换窗口后还会变。
+function moveTabIndicator(tabBarSel, tab) {
+  const bar = document.querySelector(tabBarSel);
+  if (!bar) return;
+  const btn = bar.querySelector('.tab-btn[data-tab="' + tab + '"]');
+  const ind = bar.querySelector('.tab-indicator');
+  if (!btn || !ind) return;
+  ind.style.setProperty('--tab-x', btn.offsetLeft + 'px');
+  ind.style.setProperty('--tab-w', btn.offsetWidth + 'px');
+}
+
+// 窗口尺寸变化后按钮位置会变，指示条要重新对位（rAF 合帧：一次 resize 只算一次）
+let _tabIndRaf = 0;
+window.addEventListener('resize', () => {
+  if (_tabIndRaf) cancelAnimationFrame(_tabIndRaf);
+  _tabIndRaf = requestAnimationFrame(() => {
+    _tabIndRaf = 0;
+    // 当前 tab 从各自的 active 按钮读（它是唯一真相，不必再养一个状态变量——
+    // 养两份必然漂移）。未激活的 Tab 栏整体 display:none，读不到 active 也无害。
+    ['#tabs-assets', '#tabs-expenses'].forEach(sel => {
+      const cur = document.querySelector(sel + ' .tab-btn.active');
+      if (cur) moveTabIndicator(sel, cur.dataset.tab);
+    });
+  });
+});
+
 function switchTab(tab) {
   const tabBar = currentMode === 'assets' ? '#tabs-assets' : '#tabs-expenses';
   document.querySelectorAll(tabBar + ' .tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+  moveTabIndicator(tabBar, tab);
   document.getElementById('tab-assets').style.display = tab === 'assets' ? '' : 'none';
   document.getElementById('tab-categories').style.display = tab === 'categories' ? '' : 'none';
   document.getElementById('tab-chart').style.display = tab === 'chart' ? '' : 'none';
@@ -3156,7 +3205,7 @@ function buildSunburstOption(data, tooltipFormatter) {
     series: [{
       type: 'sunburst',
       data: data,
-      radius: ['12%', '88%'],
+      radius: ['12%', '97%'],
       sort: null,
       // 关掉 ECharts 原生下钻（默认 'rootToNode'）：它会维护自己的 viewRoot，
       // 与清单的选中态构成两套视图状态——「‹ 全部分类」只清了清单、图仍停在下钻层

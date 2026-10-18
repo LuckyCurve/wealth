@@ -231,6 +231,53 @@ describe('UI 接线契约：便条的播报优先级', () => {
   });
 });
 
+describe('UI 接线契约：Tab 滑动指示条', () => {
+  // 用户要求：从「消费记录」切到「消费分布」时，小黄条应从左边**滑**过去，不是跳变。
+  // 实现：指示条不再是每个按钮自己的 border-bottom，而是 Tab 栏里**唯一的**一个元素，
+  // 切换时用 transform 移动到目标按钮下方（transform 有过渡 = 滑动）。
+  test('每条 Tab 栏里必须有且只有一个滑动指示条元素', () => {
+    assert.match(html, /class="tab-bar[^"]*"[^>]*>\s*<span class="tab-indicator"/, '指示条必须是 tab-bar 的第一个子元素（单一元素）');
+    // 按钮自己的 border-bottom 不再承担「指示当前」的职责
+    assert.doesNotMatch(html, /\.tab-btn\.active \{[^}]*border-bottom-color/, 'active 按钮不得再用 border-bottom 画黄条（那是跳变）');
+    assert.match(html, /\.tab-indicator \{/, '指示条要有自己的样式（位置由 JS 写变量，过渡在 CSS）');
+    assert.match(html, /transition:[^;]*transform/, '指示条必须有 transform 过渡（否则还是跳变）');
+  });
+
+  test('switchTab 必须移动指示条，且位置换算只有一处', () => {
+    const src = fnSource('switchTab');
+    assert.match(src, /moveTabIndicator\(/, 'switchTab 要调用 moveTabIndicator');
+    assert.match(html, /function moveTabIndicator\(/, '位置换算收在单一函数里');
+    // 换算必须用 offsetLeft（布局事实），不得用下标 × 固定宽度（窄屏/长标题会错位）
+    const src2 = fnSource('moveTabIndicator');
+    assert.match(src2, /offsetLeft/, '指示条位置必须按 offsetLeft 实测，不得按下标估算');
+    assert.match(src2, /offsetWidth/, '宽度也要实测（按钮文字长短不一）');
+  });
+
+  test('窗口尺寸变化时指示条要重新对位（否则换窗口后黄条指错 tab）', () => {
+    // resize 里必须重新对位：从 active 按钮读当前 tab（唯一真相），调 moveTabIndicator。
+    const resizeFn = (() => {
+      const clean = stripComments(html);
+      const key = "addEventListener('resize'";
+      // 取「监听体**内**（不是文件后续巧遇的字样）调 moveTabIndicator」的那个 resize 段：
+      // 每段是“resize( 后的全部余文”，会包含后面所有代码。指示条那个监听的特征：
+      // 段内**同时**含 moveTabIndicator 与 .tab-btn.active（从 active 按钮读当前 tab）。
+      const segs = clean.split(key).slice(1);
+      return segs.find((s) => s.slice(0, 600).includes('moveTabIndicator') && s.includes('.tab-btn.active')) || '';
+    })();
+    assert.ok(resizeFn, '要有 resize 监听');
+    assert.ok(resizeFn.includes('moveTabIndicator'), 'resize 要重新对位（否则换窗口后黄条指错 tab）');
+    assert.ok(resizeFn.includes('.tab-btn.active'), '当前 tab 从 active 按钮读（唯一真相，不另养状态变量）');
+    assert.ok(resizeFn.includes("querySelector(sel + ' .tab-btn.active')".replace(/\\s+/g, ' ')) || resizeFn.includes("sel + ' .tab-btn.active'"), 'active 按钮选择器允许由 sel 拼接');
+  });
+
+  test('prefers-reduced-motion 下指示条不得滑动（直接到位）', () => {
+    assert.match(
+      html,
+      /@media \(prefers-reduced-motion: reduce\) \{ \.tip-mark, \.tip-bubble \{ transition: none; \} \.tab-indicator \{ transition: none; \} \}/,
+      '减动效时指示条 transition 归零（直接到位，与 tip 同一块）');
+  });
+});
+
 describe('UI 接线契约：弹窗焦点管理（aria-modal 的兑现）', () => {
   const openSrc = fnSource('openModal');
   const closeSrc = fnSource('closeModal');
@@ -1317,8 +1364,8 @@ describe('UI 接线契约：所选标签的钱 ÷ 预期月消费（消费趋势
     assert.match(html, /\.tip-bubble\.placed \{[^}]*visibility: visible/, '定位后即展示');
     assert.match(html, /document\.addEventListener\('mouseover'/, '指针进入时定位');
     assert.match(html, /document\.addEventListener\('focusin'/, '键盘 focus 也能定位');
-    assert.match(html, /prefers-reduced-motion: reduce\) \{ \.tip-mark, \.tip-bubble \{ transition: none; \} \}/,
-      '减弱动效须盖住两个会过渡的元素（只写气泡会漏掉 ? 图标）');
+    assert.match(html, /prefers-reduced-motion: reduce\) \{ \.tip-mark, \.tip-bubble \{ transition: none; \}/,
+      '减弱动效须盖住会过渡的元素（只写气泡会漏掉 ? 图标）；.tab-indicator 也在同一块');
   });
 
   test('气泡不得被祖先的层叠上下文/裁剪困住（卡片有 backdrop-filter，会自成一层）', () => {

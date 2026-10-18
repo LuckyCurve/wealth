@@ -1434,6 +1434,53 @@ test.describe('资产排序的键盘通道', () => {
   });
 });
 
+test.describe('Tab 滑动指示条', () => {
+  // 用户要求：从「消费记录」切到「消费分布」时，小黄条从左边**滑**到右边，不是跳变。
+  // 实现：指示条是 Tab 栏里唯一的一个元素，位置由 moveTabIndicator 写 CSS 变量，
+  // transform/left 有过渡 → 滑动。判据：
+  //   ① 全站只有两个指示条（每条 Tab 栏一个），不是每个按钮自带 border
+  //   ② 切换后指示条几何位置 = 目标按钮的 offsetLeft/offsetWidth（滑到位）
+  //   ③ 过渡存在（computed transition-duration > 0，减动效 fixture 会把它归零——
+  //      故这条在 fixture 的 reducedMotion: 'reduce' 下断言 duration 为 0 即「尊重减动效」）
+  test('切换 Tab 后指示条滑到目标按钮下方（几何对位）', async ({ appPage: page }) => {
+    const geo = () => page.evaluate(() => {
+      const bar = document.querySelector('#tabs-expenses .tab-bar');
+      const ind = bar.querySelector('.tab-indicator');
+      const btn = bar.querySelector('.tab-btn.active');
+      const cs = getComputedStyle(ind);
+      return {
+        x: Math.round(parseFloat(cs.left)),
+        w: Math.round(parseFloat(cs.width)),
+        btnX: Math.round(btn.offsetLeft),
+        btnW: Math.round(btn.offsetWidth),
+        dur: cs.transitionDuration,
+      };
+    });
+
+    const g1 = await geo();
+    expect(g1.w, '初始指示条宽度应等于「消费记录」按钮宽').toBe(g1.btnW);
+
+    await page.locator('#tabs-expenses .tab-btn[data-tab="expense-chart"]').click();
+    await page.waitForTimeout(450); // 等 0.28s 过渡播完
+    const g2 = await geo();
+    expect(g2.x, '指示条应滑到「消费分布」按钮的 offsetLeft').toBe(g2.btnX);
+    expect(g2.w).toBe(g2.btnW);
+    // 确实移动了（不是没动）
+    expect(g2.x, '指示条必须真的移动了').not.toBe(g1.x);
+
+    // 减动效 fixture 下过渡时长应为 0（尊重 prefers-reduced-motion）。
+    // transitionDuration 可能是 "0.28s, 0.28s"（多个属性），每个值都要为 0。
+    const durs = g2.dur.split(',').map((x) => parseFloat(x));
+    // fixtures 把减动效实现为 0.001ms（1e-6s）而非严格 0 —— 判据「小于 1ms 即视为无过渡」
+    expect(durs.every((d) => d < 0.001), `减动效时过渡时长应归零（当前 ${g2.dur}）`).toBe(true);
+  });
+
+  test('全站指示条数量 = Tab 栏数（不是每个按钮一根）', async ({ appPage: page }) => {
+    const n = await page.evaluate(() => document.querySelectorAll('.tab-indicator').length);
+    expect(n, '两条 Tab 栏各一根，共 2').toBe(2);
+  });
+});
+
 test.describe('分布图的构成清单（与图同源）', () => {
   const legendRows = (page, listId) =>
     page.evaluate((id) =>
