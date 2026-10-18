@@ -75,6 +75,34 @@ test.describe('卡片材质：液态玻璃的可测特征', () => {
     expect(m.backdropFilter, '背光模糊是玻璃的核心').toMatch(/blur\(/);
   });
 
+  test('纸摊在桌上：卡片底色必须与紧邻的桌面分得开（两套主题）', async ({ page }) => {
+    // 用户反馈「质感进步空间还很大」。亮色实测：卡内 0.970 vs 紧邻桌面 0.954，只差 0.016——
+    // 桌光把桌面洗到接近卡面，卡片就退回「一块白板」，这是亮色整页「发淡」的根。
+    // 判据：同一高度上，卡内与桌外各取三个点的平均亮度差（亮色 ≥0.03 才分得开）。
+    // 取样点避让：桌外离缘 ≥6px（不进外阴影），卡内离缘 ≥8px（不进描边与两角柔光）。
+    await open(page);
+    const pts = await page.evaluate(() => {
+      const el = [...document.querySelectorAll('.card')].filter((c) => c.getBoundingClientRect().width > 900)[0];
+      const r = el.getBoundingClientRect();
+      const y = Math.round(r.y + r.height * 0.55);
+      return {
+        desk: [-6, -16, -26].map((d) => [Math.round(r.x + d), y]),
+        card: [8, 20, 40].map((d) => [Math.round(r.x + d), y]),
+      };
+    });
+    for (const theme of ['亮色', '暗色']) {
+      if (theme === '暗色') await setDark(page);
+      const px = await samplePixels(page, [...pts.desk, ...pts.card]);
+      const avg = (a) => a.reduce((s, p) => s + pixelLum(p), 0) / a.length;
+      const desk = avg(px.slice(0, 3));
+      const card = avg(px.slice(3));
+      expect(
+        card - desk,
+        `【${theme}】卡内 ${card.toFixed(4)} vs 紧邻桌面 ${desk.toFixed(4)}：桌面被洗到与卡面同色，纸没摊在桌上`
+      ).toBeGreaterThanOrEqual(0.03);
+    }
+  });
+
   test('渲染后确有受光方向：顶边比底边亮（两套主题都要）', async ({ page }) => {
     await open(page);
     // 改前实测：顶 0.976 / 底 0.972（差 0.004，即「一圈等亮」），两套主题都是这个数
@@ -116,27 +144,28 @@ test.describe('卡片材质：液态玻璃的可测特征', () => {
 
   test('blur 确实在「揉」背后的纹理：桌面的纹理起伏 > 卡内（折射的证据）', async ({ page }) => {
     // 玻璃的核心观感是它**改变**了背后的东西。桌光是大尺度渐变，blur 对它几乎无作用；
-    // blur 真正改变的是**纸纹**（60px 周期的高频纹理）：桌面上的纹理还在起伏，
-    // 卡内的同一纹理被 blur 揉平。可测特征：跨纸纹取样的亮度极差（max−min）
-    // 桌面 > 卡内（纸纹进了玻璃就被揉掉）。
+    // blur 真正改变的是**纸纹**（60px 周期的高频纹理）：桌面上的笔画是锐的，进了玻璃就被揉平。
+    // 判据是**同相位**的两条取样线（卡外那条整体左移一个纸纹周期 60px，笔画落点一一对应），
+    // 统计量取「相邻取样点的亮度差之和」：锐笔画各贡献一次下冲与一次回弹，而卡内那道
+    // 左缘受光柔光只是单调缓坡——采样点再多，它也只贡献自己那点总落差。
+    // 为什么不能再用 max−min（旧判据）：柔光的单调落差正好与纸纹起伏同量级，判据量的是运气
+    // ——二期把桌面压深后它立刻翻红，而玻璃一点没变。（暗色不进这条：暗色卡内的高频来自
+    // 玻璃自身的 sheen/rim 材质，那是想要的厚度感，不是纸纹，物理意义相反。）
     await open(page);
-    // 亮色：桌面纸纹（高频）应被卡内 blur 揉平——卡内同段的纹理起伏 < 桌面。
-    // 暗色不适用：暗色卡内的高频来自玻璃自身的 sheen/rim 材质（那是想要的厚度感，
-    // 不是纸纹），「卡内纹理更小」在暗色下物理意义相反，故暗色不进这条。
     const info = await cardEdges(page);
-    const { x, y, w, h } = info.rect;
+    const { x, y, h } = info.rect;
     const yMid = Math.round(y + h / 2);
-    // 同一行上取 4 点（覆盖 ≥1 个纸纹周期 60px）：卡内一段 + 桌面一段
-    const inside = [4, 20, 36, 52].map((dx) => [Math.round(x + dx), yMid]);
-    const outside = [30, 46, 62, 78].map((dx) => [Math.round(x - dx), yMid]);
-    const pin = await samplePixels(page, inside);
-    const pout = await samplePixels(page, outside);
-    const lum = (a) => a.map((p) => pixelLum(p));
-    const spread = (a) => Math.max(...a) - Math.min(...a);
-    const inSpread = spread(lum(pin));
-    const outSpread = spread(lum(pout));
-    expect(outSpread, `桌面纸纹的起伏（${outSpread.toFixed(4)}）应可测`).toBeGreaterThan(0.002);
-    expect(inSpread, `卡内纸纹起伏 ${inSpread.toFixed(4)} 应明显小于桌面 ${outSpread.toFixed(4)}（blur 揉平了它）`).toBeLessThan(outSpread);
+    const offs = [];
+    for (let d = 4; d <= 50; d += 2) offs.push(d); // 卡内左内边距带：避开正文与右下的背光带
+    const px = await samplePixels(page, [
+      ...offs.map((d) => [Math.round(x + d), yMid]),
+      ...offs.map((d) => [Math.round(x + d - 60), yMid]),
+    ]);
+    const tv = (a) => a.slice(1).reduce((s, v, i) => s + Math.abs(v - a[i]), 0);
+    const inTV = tv(px.slice(0, offs.length).map(pixelLum));
+    const outTV = tv(px.slice(offs.length).map(pixelLum));
+    expect(outTV, `桌面纸纹的锐度（相邻取样点差之和 ${outTV.toFixed(4)}）应可测`).toBeGreaterThan(0.05);
+    expect(inTV, `卡内起伏 ${inTV.toFixed(4)} 应远小于桌面 ${outTV.toFixed(4)}（blur 揉平了它）`).toBeLessThan(outTV / 3);
   });
 
   test('桌面上有一层静态光照（透光材质才有东西可透），且唯一「活」的光仍是台灯', async ({ page }) => {
