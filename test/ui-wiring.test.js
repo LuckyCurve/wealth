@@ -270,11 +270,11 @@ describe('UI 接线契约：Tab 滑动指示条', () => {
     assert.ok(resizeFn.includes("querySelector(sel + ' .tab-btn.active')".replace(/\\s+/g, ' ')) || resizeFn.includes("sel + ' .tab-btn.active'"), 'active 按钮选择器允许由 sel 拼接');
   });
 
-  test('prefers-reduced-motion 下指示条不得滑动（直接到位）', () => {
+  test('prefers-reduced-motion 下指示条/入场动画直接到位', () => {
     assert.match(
       html,
-      /@media \(prefers-reduced-motion: reduce\) \{ \.tip-mark, \.tip-bubble \{ transition: none; \} \.tab-indicator \{ transition: none; \} \}/,
-      '减动效时指示条 transition 归零（直接到位，与 tip 同一块）');
+      /\[id\^="tab-"\]\.enter \{ animation: none; \}/,
+      '减动效块要覆盖指示条与 Tab 入场动画（delay/时长一起归零）');
   });
 });
 
@@ -1212,15 +1212,19 @@ describe('UI 接线契约：资产页只能靠长按送达（提高日常查看�
   test('长按有可见进度反馈（填充完全由 CSS 画，JS 只同步一个变量）', () => {
     assert.match(html, /\n  \.mode-press::after \{[^}]*width: calc\(var\(--mode-press, 0\) \* 100%\)/, '墨线宽度换算在 CSS 一处，不逐帧写 style.width');
     assert.match(fnSource('tickModePress'), /style\.setProperty\('--mode-press'/, 'JS 只同步 CSS 变量，不逐帧改 class');
-    assert.match(html, /\n  \.mode-press\.armed \{/, '满时长有独立可见态（就绪）');
   });
 
-  test('按下不弹窗：满时长只亮就绪态，松手才确认（手指还按着时弹窗会被误触）', () => {
+  test('长按满时长自动弹窗（按满即弹，不必再松手）', () => {
+    // 旧决策「弹窗只能松手时出现」是为了躲「抬手指落到刚出现的遮罩上」；
+    // 现由 autoOpenGuard 守卫窗解决（弹出后一小段时间内的指针事件一律忽略），
+    // 行为改为按满即弹——更自然。
     const tick = fnSource('tickModePress');
-    assert.ok(!/showConfirm\(/.test(tick), '推进帧内不得弹确认框');
-    assert.ok(!/enterAssets\(/.test(tick), '推进帧内不得进门');
-    assert.match(tick, /classList\.add\('armed'\)/, '满时长只亮就绪态');
-    assert.match(fnSource('endModePress'), /enterAssets\(/, '松手时才走进门链路');
+    assert.match(tick, /enterAssets\(/, '满时长由推进帧直接弹窗（不必等松手）');
+    assert.match(tick, /__autoOpenedAt = performance\.now\(\)/, '弹出时刻要记下（守卫窗的起点）');
+    // 收尾函数只处理短按提示；守卫窗内紧跟的松手要被忽略
+    const end = fnSource('endModePress');
+    assert.match(end, /decision === 'hint'/, '短按仍要教一句');
+    assert.match(end, /autoOpenGuard\(/, 'pointerup 收尾必须查守卫（否则抬手即关）');
   });
 
   test('送达前有过一次确认：挡住「顺手点开看看」', () => {
@@ -2552,5 +2556,61 @@ describe('UI 接线契约：拖拽排序的键盘替代', () => {
     assert.match(fnSource('moveAsset'), /sortBy = ''/, '移动后清空排序状态（与拖拽 drop 同一套收尾）');
     const h = stripComments(fnSource('renderAssets'));
     assert.match(h, /moveAsset\(/, '把手 keydown 必须调 moveAsset');
+  });
+});
+
+describe('UI 接线契约：Tab/模式切换的过渡动画', () => {
+  // 用户要求页面切换有顺滑过渡（精致感）。约束：display 翻转没法过渡，
+  // 所以用「显示后下一帧加 .enter」两步走；减动效时 delay/时长一起归零
+  // （只关时长的话带 delay 的入场会停在「还没出来」——开屏那条的教训）。
+  test('switchTab 与 switchMode 切换后要给新内容一个入场过渡', () => {
+    assert.match(fnSource('switchTab'), /enterTab|\.enter/, 'switchTab 要触发入场过渡');
+    assert.match(fnSource('switchMode'), /enterTab|\.enter/, 'switchMode（模式切换）同样要有过渡');
+  });
+
+  test('入场过渡在 CSS 里统一定义（不逐处内联）', () => {
+    // pane 元素没有 tab-pane 类（section 只有 id），选择器用 [id^=tab-] 前缀
+    assert.match(html, /\n  \[id\^="tab-"\]\.enter \{/, '入场态样式集中在 [id^=tab-].enter 一处');
+    assert.match(html, /\[id\^="tab-"\]\.enter \{[^}]*animation/, '用 animation 表达入场（避免 JS 同步时序）');
+  });
+
+  test('减动效下入场动画直接归零（与开屏同一块 media）', () => {
+    assert.match(
+      html,
+      /\[id\^="tab-"\]\.enter \{ animation: none; \}/,
+      '入场动画要进 reduced-motion 块（delay 也归零）');
+  });
+
+  test('入场 class 必须是「下一帧加」（display 翻转后立即加会被一起渲染，等于没有过渡）', () => {
+    const src = stripComments(fnSource('enterTab'));
+    assert.match(src, /requestAnimationFrame/, '要用 rAF 隔一帧（否则初始态与终态同帧画出，动画不播）');
+  });
+});
+
+describe('UI 接线契约：长按满时长自动弹窗', () => {
+  test('满时长由 tick 直接弹窗（不再等松手）', () => {
+    const src = stripComments(fnSource('tickModePress'));
+    assert.match(src, /enterAssets\(\)/, 'tick 满时长要直接 enterAssets()');
+  });
+
+  test('自动弹出必须开守卫闸：紧跟的 pointerup/click 不得把弹窗点掉', () => {
+    const logic = fs.readFileSync(path.join(__dirname, '..', 'logic.js'), 'utf8');
+    assert.match(logic, /AUTO_OPEN_GUARD_MS/, '守卫窗常量定义在 logic.js');
+    assert.match(html, /autoOpenGuard\(/, '守卫判定走 logic.js 纯函数（不重写一份）');
+    // 收尾函数要查守卫
+    const end = stripComments(fnSource('endModePress'));
+    assert.match(end, /autoOpenGuard\(/, 'pointerup 收尾必须查守卫（否则抬手即关）');
+    // 遮罩关闭也要查守卫
+    const overlay = html.slice(html.indexOf('__modalMouseDownTarget = e.target'));
+    const overlayBlock = overlay.slice(0, overlay.indexOf('__modalMouseDownTarget = null'));
+    assert.match(overlayBlock, /autoOpenGuard\(/, '遮罩 click 关闭也必须查守卫');
+    // 确认按钮在守卫窗内的点击也要忽略（那是抬手余波，不是用户真点）
+    const okBtn = stripComments(html).slice(stripComments(html).indexOf("getElementById('confirm-ok-btn').addEventListener"));
+    assert.match(okBtn, /autoOpenGuard\(/, '确认按钮的 click 也必须查守卫');
+  });
+
+  test('弹窗必须真的从 tick 里弹出，而不是把确认框推后到松手', () => {
+    const tick = stripComments(fnSource('tickModePress'));
+    assert.doesNotMatch(tick, /classList\.add\('armed'\)/, 'armed 停帧态不再需要（满了就弹）');
   });
 });

@@ -1232,6 +1232,18 @@
     return next;
   }
 
+  // ========== 弹窗自动弹出后的指针守卫 ==========
+  // 长按满时长自动弹确认框时，抬起的手指会紧跟一次 pointerup 与 click：
+  // 遮罩的 click 会把确认框当场关掉（旧决策「弹窗只能松手时出现」就是为了躲这个，
+  // 代价是用户必须「按满—松手」两步，不自然）。改为自动弹出 + 短守卫窗：
+  // 弹出后一小段时间内的指针事件全部忽略，之后恢复。窗口必须是正的小量——
+  // 太长会把用户真点的「确认」按钮也吞掉。
+  const AUTO_OPEN_GUARD_MS = 400;
+  function autoOpenGuard(elapsedSinceOpen, guardMs) {
+    const g = guardMs === undefined ? AUTO_OPEN_GUARD_MS : guardMs;
+    return elapsedSinceOpen >= g;
+  }
+
   // ========== 弹窗焦点陷阱 ==========
   // 15 个弹窗都写了 role="dialog" aria-modal="true"——那是对读屏器的承诺：弹窗背后的
   // 内容不可达。但实测完全没接管焦点：打开后焦点还在触发按钮上、第一下 Tab 就走出弹窗、
@@ -1277,6 +1289,7 @@
     rateFallbackNotice,
     nextSortState, inlineEditKeyAction, expenseMonths,
     activateKeyAction, sortAriaSort, sortAriaLabel, trapFocus, toastLiveMode, moveAssetIndex,
+    AUTO_OPEN_GUARD_MS, autoOpenGuard,
     MODE_PRESS_MS, modePressProgress, modePressDecision, modePressHint,
     TAG_PRESS_MS, pressProgress, pressDecision,
     lampEnabled, lampPos, tipBubblePos, TIP_GAP, TIP_EDGE,

@@ -607,7 +607,7 @@ tailwind.config = {
      那时它已不是 .tip 的子孙，这条选择器自然失效。收起时 unplaceTipBubble 会摘掉 .placed
      并把它搬回原处，所以两条状态不会同时成立。 */
   .tip-bubble.placed { opacity: 0.96; visibility: visible; }
-  @media (prefers-reduced-motion: reduce) { .tip-mark, .tip-bubble { transition: none; } .tab-indicator { transition: none; } }
+  @media (prefers-reduced-motion: reduce) { .tip-mark, .tip-bubble { transition: none; } .tab-indicator { transition: none; } [id^="tab-"].enter { animation: none; } }
   .tag-pill {
     display: inline-flex; align-items: center; gap: 3px;
     padding: 3px 7px 3px 5px; border-radius: 4px; font-size: var(--fs-micro);
@@ -824,6 +824,12 @@ tailwind.config = {
      切换时 transform 从旧位置滑到新位置——按钮各自的 border 只能跳变，
      用户要求的是「从左边顺滑移动到右边」。位置由 JS moveTabIndicator 写入变量；
      过渡只挂 transform/left（减动效时归零，直接到位）。 */
+  /* Tab/模式切换的入场过渡：内容轻抬 + 淡入（0.22s，一次）。
+     display:none 翻转没法过渡——两步走：先显示，下一帧加 .enter 播动画。
+     距离刻意小（8px）：这是「翻到下一页」的呼吸感，不是「跳出来吓一跳」；
+     大距离的入场在频繁切 Tab 时会显得拖沓。 */
+  [id^="tab-"].enter { animation: paneEnter 0.22s cubic-bezier(0.22, 0.61, 0.36, 1); }
+  @keyframes paneEnter { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
   .tab-indicator {
     position: absolute; bottom: -1px; left: var(--tab-x, 0); width: var(--tab-w, 0);
     height: 2px; background: var(--accent); z-index: 1;
@@ -2167,6 +2173,7 @@ function switchMode(mode) {
   document.getElementById('tabs-expenses').style.display = mode === 'expenses' ? '' : 'none';
   document.getElementById('content-assets').style.display = mode === 'assets' ? '' : 'none';
   document.getElementById('content-expenses').style.display = mode === 'expenses' ? '' : 'none';
+  enterTab(document.getElementById('content-' + mode));
 
   if (mode === 'assets') {
     switchTab('assets');
@@ -2202,6 +2209,19 @@ window.addEventListener('resize', () => {
   });
 });
 
+// 入场过渡（单一来源）：先显示（display 已由调用方翻开），下一帧加 .enter 播动画。
+// 必须隔一帧：display 翻转与 .enter 同一帧画出的话，初始态根本不会被渲染，动画不播
+// （与开屏「booting→ready 两态」同一道理）。动画结束后摘掉 class，下次切换重新播。
+function enterTab(pane) {
+  if (!pane) return;
+  pane.classList.remove('enter');
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      pane.classList.add('enter');
+    });
+  });
+}
+
 function switchTab(tab) {
   const tabBar = currentMode === 'assets' ? '#tabs-assets' : '#tabs-expenses';
   document.querySelectorAll(tabBar + ' .tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
@@ -2227,6 +2247,7 @@ function switchTab(tab) {
   document.getElementById('tab-expense-categories').style.display = tab === 'expense-categories' ? '' : 'none';
   document.getElementById('tab-expense-chart').style.display = tab === 'expense-chart' ? '' : 'none';
   document.getElementById('tab-expense-trend').style.display = tab === 'expense-trend' ? '' : 'none';
+  enterTab(document.getElementById('tab-' + tab));
   if (tab === 'expense-categories') {
     renderExpenseCategories();
   }
@@ -2273,16 +2294,27 @@ function tickModePress() {
     modePressRaf = requestAnimationFrame(tickModePress);
     return;
   }
-  // 满时长：亮起就绪态并停帧（墨线已满），进门留给松手
+  // 满时长**直接弹窗**（不再等松手）：按满的那一瞬间确认框出现，跟手的 pointerup/click
+  // 由 autoOpenGuard 守卫窗忽略（旧实现让用户「按满—松手」两步，且松手前墨线停在满格
+  // 像卡住；旧决策躲的「手指落在遮罩上把弹窗点掉」由守卫窗解决，两全）。
   modePressRaf = 0;
-  btn.classList.add('armed');
+  modePressStart = null;
+  btn.classList.remove('pressing');
+  btn.style.removeProperty('--mode-press');
+  __autoOpenedAt = performance.now();
+  enterAssets();
 }
 
-// 松手收尾：按满则确认，短按只教一句。**弹窗只能在这里出现**——
-// 满时长就弹的话，跟着抬起的手指会落到刚出现的遮罩上，直接把确认框点掉
+// 自动弹出后一小段时间内的指针事件全部忽略（抬起的手指紧跟一次 pointerup/click，
+// 不忽略的话会把刚出现的确认框当场点掉）。窗口判据在 logic.js autoOpenGuard。
+let __autoOpenedAt = null;
+
+// 松手收尾：短按只教一句（按满的情形已在 tick 里弹掉，不会走到这里）。
 function endModePress(e) {
   if (modePressStart === null) return; // 没有进行中的按下（在页面别处松手），不响应
   if (e && e.button !== 0) return;     // 右键松开不该替左键的按住收尾
+  // 自动弹出后紧跟的松手：守卫窗内一律忽略（不是用户的「第二次操作」）
+  if (__autoOpenedAt !== null && !autoOpenGuard(performance.now() - __autoOpenedAt)) return;
   const decision = modePressDecision(performance.now() - modePressStart);
   resetModePress();
   if (decision === 'enter') enterAssets();
@@ -5000,6 +5032,8 @@ function confirmCancel() {
   _confirmCallback = null;
 }
 document.getElementById('confirm-ok-btn').addEventListener('click', () => {
+  // 守卫窗内落到确认按钮上的 click 是抬手余波（用户并没有真点它），忽略
+  if (__autoOpenedAt !== null && !autoOpenGuard(performance.now() - __autoOpenedAt)) return;
   closeModal('confirm-modal');
   if (_confirmCallback) { _confirmCallback(); _confirmCallback = null; }
 });
@@ -5008,6 +5042,8 @@ document.getElementById('confirm-ok-btn').addEventListener('click', () => {
 let __modalMouseDownTarget = null;
 document.addEventListener('mousedown', e => { __modalMouseDownTarget = e.target; });
 document.addEventListener('click', e => {
+  // 自动弹窗守卫窗内的遮罩 click 是抬手指的余波，不算「点了遮罩空白」
+  if (__autoOpenedAt !== null && !autoOpenGuard(performance.now() - __autoOpenedAt)) return;
   if (e.target.classList.contains('modal-overlay') && __modalMouseDownTarget && !__modalMouseDownTarget.closest('.modal-content')) {
     if (e.target.id === 'confirm-modal') {
       confirmCancel(); // 统一走 confirmCancel：隐藏 + 清空 _confirmCallback

@@ -2340,3 +2340,19 @@ describe('拖拽排序的键盘替代', () => {
     assert.deepStrictEqual(arr, ['a', 'b']);
   });
 });
+
+describe('弹窗弹出后的指针守卫（长按自动弹窗的安全闸）', () => {
+  // 长按满时长自动弹确认框时，抬起的手指/松开的指针会紧跟一次 pointerup 与 click。
+  // 遮罩 click 会关掉确认框、pointerup 会触发长按收尾——都必须在「刚弹出」的短窗内忽略。
+  // 判据（窗口多长、何时开闸）下沉 logic.js（可单测），DOM 侧只管查。
+  test('pointerup 落在窗口内 → 忽略；窗外 → 放行', () => {
+    assert.strictEqual(L.autoOpenGuard(100, 1000), false, '弹出后 100ms 内的松手要忽略');
+    assert.strictEqual(L.autoOpenGuard(900, 1000), false, '900ms 仍在守卫窗内');
+    assert.strictEqual(L.autoOpenGuard(1200, 1000), true, '弹出 1200ms 后放行');
+  });
+
+  test('窗口时长必须是正的小量（太长会把用户真点的确认也吞掉）', () => {
+    assert.ok(L.AUTO_OPEN_GUARD_MS > 0 && L.AUTO_OPEN_GUARD_MS < 1000,
+      '守卫窗 ' + L.AUTO_OPEN_GUARD_MS + 'ms 不合理：须在 (0, 1000) 内');
+  });
+});

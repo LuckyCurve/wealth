@@ -183,7 +183,7 @@ test.describe('模式与 Tab 导航', () => {
     await expect(page.locator('#content-assets')).toBeHidden();
     await expect(page.locator('#toast-area .toast', { hasText: '长按' })).toBeVisible();
 
-    // 长按：按住期间墨线浸满（--mode-press 由 rAF 推进），松手弹确认框
+    // 长按：按住期间墨线浸满（--mode-press 由 rAF 推进），**按满即弹**（不必等松手）
     const box = await assets.boundingBox();
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
     await page.mouse.down();
@@ -191,14 +191,20 @@ test.describe('模式与 Tab 导航', () => {
     await expect
       .poll(() => assets.evaluate((el) => parseFloat(el.style.getPropertyValue('--mode-press'))))
       .toBeGreaterThan(0.2);
-    await expect(assets).toHaveClass(/armed/, { timeout: 5000 });
-    await page.mouse.up();
 
-    // 满时长只弹确认框，还没进门；确认后才切换，且按钮回常态
-    await expect(page.locator('#confirm-modal')).toBeVisible();
+    // 按满的瞬间确认框自己出现（手指还按着）——这就是「自动弹窗」的观感
+    await expect(page.locator('#confirm-modal')).toBeVisible({ timeout: 5000 });
     await expect(page.locator('#confirm-title')).toHaveText('进入资产页');
     await expect(page.locator('#confirm-ok-btn')).toHaveText('查看资产');
     await expect(page.locator('#content-assets')).toBeHidden();
+
+    // 抬起的手指紧跟一次 mouse.up —— 守卫窗内不得把确认框点掉/取消
+    await page.mouse.up();
+    await expect(page.locator('#confirm-modal')).toBeVisible();
+    await expect(page.locator('#content-assets')).toBeHidden();
+
+    // 守卫窗后再点确认，正常进门
+    await page.waitForTimeout(500);
     await page.locator('#confirm-ok-btn').click();
     await expect(page.locator('#content-assets')).toBeVisible();
     await expect(page.locator('#mode-assets')).toHaveClass(/active/);
@@ -213,7 +219,7 @@ test.describe('模式与 Tab 导航', () => {
     await expect(assets).toHaveClass(/pressing/);
     await page.mouse.move(box.x + box.width / 2, box.y + 200); // 拖出按钮
     await page.mouse.up();
-    await expect(assets).not.toHaveClass(/pressing|armed/);
+    await expect(assets).not.toHaveClass(/pressing/);
     await expect(page.locator('#content-assets')).toBeHidden();
     await expect(page.locator('#confirm-modal')).toBeHidden();
   });
