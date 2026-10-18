@@ -1010,7 +1010,7 @@ tailwind.config = {
   /* 图纸列按**内容**收缩（auto），不按 fr 分：aspect-ratio 1:1 + max-height 把 canvas 压成
      440px 见方后，fr 轨道仍按剩余空间分——多出来的 191px 全变成轨道内空隙，
      观感就是「图和右边的清单离得太远」（实测间隙 207px，其中 CSS gap 只占 16px）。 */
-  .chart-split { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 16px; align-items: start; justify-content: start; }
+  .chart-split { display: grid; grid-template-columns: auto minmax(0, max-content); gap: 16px; align-items: start; justify-content: start; }
   /* 图纸高度**由列宽推出来**（宽高比 + 上限），不写死像素：圆是正圆、尺寸由 ECharts 按容器算，
      而容器的像素高度一旦写死就与「这张卡实际有多少内容」脱钩——先前的 520px 让分类很少时
      整卡被空白撑起（右侧清单只有一行 35px）。
@@ -1020,7 +1020,7 @@ tailwind.config = {
     min-width: 0; aspect-ratio: 1 / 1;
     /* 图纸定宽（=max-height 的值）：grid 轨道 auto 由此取宽。
        不能靠 aspect-ratio 反推——auto 列与内容宽度互为因果，会循环压成 0。 */
-    width: 440px; max-width: 100%;
+    width: 520px; max-width: 100%;
   }
   .chart-split > .chart-canvas > div { width: 100%; height: 100%; }
   /* 收益分布是小图（同一张卡里还有收益摘要），比例压扁一点 */
@@ -1031,7 +1031,10 @@ tailwind.config = {
   /* 构成清单：每行 = 色块 + 分类名 + 金额 + 占比（占比右侧对齐便于扫读） */
   .chart-legend { display: flex; flex-direction: column; gap: 2px; margin-top: 6px; }
   .chart-legend-row {
-    display: grid; grid-template-columns: 10px minmax(0, 1fr) auto auto;
+    /* 名称列 max-content（不是 1fr）：1fr 会把它撑到几百 px 宽，名称与金额之间
+       隔着大片空白（实测 400px），「标签名—占比」没法一眼对上；max-content 让
+       行随内容收拢，金额与占比紧跟名称。超长名称仍由 minmax(0,…)+ellipsis 裁切。 */
+    display: grid; grid-template-columns: 10px minmax(0, max-content) auto auto;
     align-items: center; gap: 10px; padding: 7px 8px; border-radius: 6px;
     cursor: default; transition: background 0.15s;
   }

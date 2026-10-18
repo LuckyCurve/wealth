@@ -204,6 +204,36 @@ test.describe('版式一致性', () => {
     expect(gapPx, `图纸右缘到清单左缘的实际间隙 ${gapPx}px 过大`).toBeLessThanOrEqual(72);
   });
 
+  test('构成清单的名称与金额必须贴近（名称格不得被 1fr 撑出大片空白）', async ({ appPage: page }) => {
+    // 用户实测：清单列吃满剩余宽度，名称格被 1fr 撑到 454px 而文字只有 45px——
+    // 「微信」与「¥42.00」之间隔着 400px 空白，没法一眼把标签名和占比对上。
+    // 判据：**名称格宽度不得越过其文字宽度的 2.5 倍**（ellipsis 仍要工作，
+    // 所以列不能是 max-content——但空白不得大到把两段信息拆散）。
+    // 图纸列同步加大（440 → 520），右列吃满的空间自然变小。
+    await gotoAssets(page, 'chart');
+    await expect(page.locator('#chart-legend .chart-legend-row').first()).toBeVisible();
+    const bad = await page.evaluate(() => {
+      const out = [];
+      for (const [chartId, legendId] of [['sunburst-chart', 'chart-legend'], ['expense-sunburst-chart', 'expense-chart-legend']]) {
+        const rows = document.querySelectorAll(`#${legendId} .chart-legend-row`);
+        if (!rows.length) continue;
+        for (const row of rows) {
+          const name = row.querySelector('.chart-legend-name');
+          if (!name) continue;
+          const range = document.createRange();
+          range.selectNodeContents(name);
+          const textW = range.getBoundingClientRect().width;
+          const cellW = name.getBoundingClientRect().width;
+          if (textW > 8 && cellW > textW * 2.5) {
+            out.push(`#${legendId}「${name.textContent.trim().slice(0, 8)}」格宽 ${Math.round(cellW)}px 文字 ${Math.round(textW)}px`);
+          }
+        }
+      }
+      return out;
+    });
+    expect(bad, '名称格与文字之间的大片空白会把「名称—金额—占比」拆散：\n' + bad.join('\n')).toEqual([]);
+  });
+
   test('所有表格：数值列一律右对齐，表头同步（含弹窗里的表）', async ({ appPage: page }) => {
     // 用户实测两轮才说清：「消费记录」页的表格有的列左对齐、有的右对齐。
     // 上一版巡检只扫了主列表（#assets-list / #income-rows），**把所有弹窗里的表都漏了**
