@@ -132,12 +132,18 @@ test.describe('模式与 Tab 导航', () => {
     await expect(page.locator('#confirm-ok-btn')).toHaveClass(/btn-danger/);
   });
 
-  test('触摸轻点不进门（手机上顺手一摸不该放行；detail 的取值靠真实触摸钉住）', async ({ appPage: page, browser }) => {
-    // 新建一个带触摸的上下文：appPage 是桌面设备，触摸路径得亲自跑一遍
+  test('触摸轻点不进门（手机上顺手一摸不该放行；detail 的取值靠真实触摸钉住）', async ({ browser }) => {
+    // 新建一个带触摸的上下文：默认 fixture 是桌面设备，触摸路径得亲自跑一遍。
+    // 新上下文里的 page 不经 fixture 的 stubCdn——stub 只挂在 fixture 自己那个 page 上，
+    // 必须自己补一份，否则这个用例会静默连真实外网（本机联网才绿，断网/弱网会卡在 CDN 请求上）。
     const ctx = await browser.newContext({ hasTouch: true, viewport: { width: 420, height: 800 }, isMobile: true });
     const touch = await ctx.newPage();
-    await touch.goto('index.html');
+    await stubCdn(touch);
+    await touch.goto(INDEX_URL);
     await waitReady(touch);
+    // 探针：__echartsCalls 只有 stubCdn 的占位脚本才会定义（真 CDN 不定义它）。
+    // 它存在 = 这个上下文确实走了替身路由——这就是「不再真连外网」的证据。
+    expect(await touch.evaluate(() => !!window.__echartsCalls), '触摸上下文也必须走 CDN 替身').toBe(true);
     await touch.locator('#mode-assets').tap();
     await expect(touch.locator('#content-assets')).toBeHidden();
     await expect(touch.locator('#confirm-modal')).toBeHidden();
