@@ -1015,9 +1015,14 @@ tailwind.config = {
   }
   .legend-back:hover { color: var(--accent-ink); border-color: var(--accent); }
   /* 清单行可点（选中分类 / 返回）：指针与键盘都要能看出来 */
-  .chart-legend-row[data-top] { cursor: pointer; }
   .chart-legend-row[data-top]:hover { background: var(--bg-2); }
-  .chart-legend-row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  /* 行级可点元素：「点这一行会被带到别处」。指针与键盘两条路一起给。
+     为什么收成一个类：原先 6 处各写一遍内联 cursor:pointer，键盘可达性于是也各漏一遍——
+     旭日图清单早就写好了 :focus-visible 规则，却因为行拿不到焦点而**永远无法命中**
+     （样式在、路不在，正是「以为做了键盘可达、其实没做」留下的化石）。
+     焦点环用负 offset：行是整幅宽，正的会顶出卡片边缘。 */
+  .row-hit { cursor: pointer; }
+  .row-hit:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
   .chart-legend-row[data-top] .chart-legend-name { font-weight: var(--fw-strong); }
   /* 分布图总数（资产/消费旭日图共用）：旭日图只给各部分占比，卡片上方补一个合计。
      与扇区同源、随右上角筛选联动；字号沿用主读数档，颜色走 fg（不抢报头的主角）。 */
@@ -1228,10 +1233,10 @@ tailwind.config = {
     <div id="assets-list" class="card">
       <div class="asset-row grid-wide list-head">
         <div></div>
-        <div onclick="toggleSort('name')" role="button" tabindex="0" onkeydown="if(event.key==='Enter')toggleSort('name')" style="cursor:pointer;">名称<span class="sort-indicator" id="sort-name"></span></div>
-        <div class="num" onclick="toggleSort('amount')" role="button" tabindex="0" onkeydown="if(event.key==='Enter')toggleSort('amount')" style="cursor:pointer;">金额<span class="sort-indicator" id="sort-amount"></span></div>
-        <div onclick="toggleSort('currency')" role="button" tabindex="0" onkeydown="if(event.key==='Enter')toggleSort('currency')" style="cursor:pointer;">货币<span class="sort-indicator" id="sort-currency"></span></div>
-        <div class="num" onclick="toggleSort('cny')" role="button" tabindex="0" onkeydown="if(event.key==='Enter')toggleSort('cny')" style="cursor:pointer;">金额 (CNY)<span class="sort-indicator" id="sort-cny"></span></div>
+        <div onclick="toggleSort('name')" role="button" tabindex="0" aria-sort="none" onkeydown="if(activateKeyAction(event.key)){event.preventDefault();toggleSort('name');}" class="row-hit">名称<span class="sort-indicator" id="sort-name"></span></div>
+        <div class="num" onclick="toggleSort('amount')" role="button" tabindex="0" aria-sort="none" onkeydown="if(activateKeyAction(event.key)){event.preventDefault();toggleSort('amount');}" class="row-hit">金额<span class="sort-indicator" id="sort-amount"></span></div>
+        <div onclick="toggleSort('currency')" role="button" tabindex="0" aria-sort="none" onkeydown="if(activateKeyAction(event.key)){event.preventDefault();toggleSort('currency');}" class="row-hit">货币<span class="sort-indicator" id="sort-currency"></span></div>
+        <div class="num" onclick="toggleSort('cny')" role="button" tabindex="0" aria-sort="none" onkeydown="if(activateKeyAction(event.key)){event.preventDefault();toggleSort('cny');}" class="row-hit">金额 (CNY)<span class="sort-indicator" id="sort-cny"></span></div>
         <div>预期年化</div><div>标签</div><div></div>
       </div>
       <div id="assets-rows" ondragover="onAssetDragOver(event)" ondrop="onAssetDrop(event)"></div>
@@ -1443,8 +1448,8 @@ tailwind.config = {
 
       <div id="expenses-list" class="card">
         <div class="asset-row list-head cols-expenses">
-          <div onclick="toggleExpenseSort('date')" role="button" tabindex="0" onkeydown="if(event.key==='Enter')toggleExpenseSort('date')" style="cursor:pointer;">日期<span class="sort-indicator" id="expense-sort-date"></span></div>
-          <div class="num" onclick="toggleExpenseSort('amount')" role="button" tabindex="0" onkeydown="if(event.key==='Enter')toggleExpenseSort('amount')" style="cursor:pointer;">金额<span class="sort-indicator" id="expense-sort-amount"></span></div>
+          <div onclick="toggleExpenseSort('date')" role="button" tabindex="0" aria-sort="none" onkeydown="if(activateKeyAction(event.key)){event.preventDefault();toggleExpenseSort('date');}" class="row-hit">日期<span class="sort-indicator" id="expense-sort-date"></span></div>
+          <div class="num" onclick="toggleExpenseSort('amount')" role="button" tabindex="0" aria-sort="none" onkeydown="if(activateKeyAction(event.key)){event.preventDefault();toggleExpenseSort('amount');}" class="row-hit">金额<span class="sort-indicator" id="expense-sort-amount"></span></div>
           <div>备注</div><div>标签</div><div></div>
         </div>
         <div id="expenses-rows"></div>
@@ -2868,7 +2873,14 @@ function renderSunburstLegend(elId, data, total, chartObj) {
   el.innerHTML = rows.map((r) => {
     // data-flat 是**扁平树下标**（供图上高亮定位），path 是 [分类名, 序] 或 null（与图上同序）
     const flat = sunburstNodePath(data, atTop ? r.idx : data.findIndex(n => n && n.name === r.path[0]), atTop ? null : r.idx);
-    return `<div class="chart-legend-row" data-idx="${r.idx}" data-flat="${flat === null ? '' : flat}" data-top="${atTop ? '1' : ''}"` +
+    // 只有顶层行会带你去别处（下钻），故只有它给可点语义。
+    // 明细行随鼠标高亮扇区是「看着这里」而不是导航，不必占 Tab 序——
+    // 可点就要键盘可达，不可点就不该抢焦点。
+    const hit = atTop
+      ? ` class="chart-legend-row row-hit" tabindex="0" role="button"` +
+        ` onkeydown="if(activateKeyAction(event.key)){event.preventDefault();drillSunburst('${elId}','${jsAttr(r.name)}');}"`
+      : ' class="chart-legend-row"';
+    return `<div${hit} data-idx="${r.idx}" data-flat="${flat === null ? '' : flat}" data-top="${atTop ? '1' : ''}"` +
       ` data-name="${esc(r.name)}" title="${esc(r.name)}">` +
       `<span class="chart-legend-swatch" style="background:${swatchOf(r)}"></span>` +
       `<span class="chart-legend-name">${esc(r.name)}</span>` +
@@ -3551,6 +3563,13 @@ function updateSortIndicators(prefix, fields, sortBy, sortDir) {
     if (!el) return;
     el.textContent = sortBy === f ? (sortDir === 'asc' ? ' ▲' : ' ▼') : '';
     el.className = 'sort-indicator' + (sortBy === f ? ' active' : '');
+    // aria-sort 挂在指示器的父节点（也就是那枚 role=button 的表头本身）。
+    // ▲/▼ 只说给看得见的人，读屏器要的是「按哪一列排、朝哪个方向」这句显式的话；
+    // 取值走 logic.js sortAriaSort——aria-sort 只认四个字面量，推导只允许有一处。
+    const head = el.parentElement;
+    if (head && head.getAttribute('role') === 'button') {
+      head.setAttribute('aria-sort', sortAriaSort(sortBy, sortDir, f));
+    }
   });
 }
 
@@ -4069,7 +4088,8 @@ function renderHistoryTab() {
     const prev = getPrevSnapshot(s.month);
     const { badge, diffLine } = momCompareHtml(s.totalCNY, prev ? prev.totalCNY : null, true);
     return `<div class="card card-interactive flex items-center justify-between">
-      <div class="flex-1" onclick="viewSnapshot('${jsAttr(s.month)}')">
+      <div class="flex-1 row-hit" role="button" tabindex="0" onclick="viewSnapshot('${jsAttr(s.month)}')"
+        onkeydown="if(activateKeyAction(event.key)){event.preventDefault();viewSnapshot('${jsAttr(s.month)}');}">
         <div class="flex items-center gap-2">
           <span class="t-medium t-body">${monthLabel(s.month)}</span>
           ${badge}
@@ -5678,7 +5698,8 @@ function renderExpenseTrendList() {
     const prevTotal = prevMonth ? months.find(x => x.month === prevMonth).total : null;
     const { badge, diffLine } = momCompareHtml(total, prevTotal, false);
     return `<div class="card card-interactive flex items-center justify-between">
-      <div class="flex-1" onclick="viewExpenseMonth('${jsAttr(month)}')">
+      <div class="flex-1 row-hit" role="button" tabindex="0" onclick="viewExpenseMonth('${jsAttr(month)}')"
+        onkeydown="if(activateKeyAction(event.key)){event.preventDefault();viewExpenseMonth('${jsAttr(month)}');}">
         <div class="flex items-center gap-2">
           <span class="t-medium t-body">${monthLabel(month)}</span>
           ${badge}

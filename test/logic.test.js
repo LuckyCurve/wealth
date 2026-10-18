@@ -2182,3 +2182,34 @@ describe('sumAmountCNY（金额合计：分布图总数与报头净资产共用�
     assert.strictEqual(L.sumAmountCNY(subset, RATES), 500);
   });
 });
+
+describe('行级激活键位 activateKeyAction（可点即键盘可达，单一来源）', () => {
+  test('Enter 与 Space 都算激活（role=button 的两种预期键位）', () => {
+    assert.strictEqual(L.activateKeyAction('Enter'), true);
+    assert.strictEqual(L.activateKeyAction(' '), true);
+  });
+
+  test('其余键不激活：Tab 留给焦点移动、Esc 留给关闭、方向键留给滚动', () => {
+    for (const k of ['Tab', 'Escape', 'ArrowDown', 'a', '', null, undefined]) {
+      assert.strictEqual(L.activateKeyAction(k), false, `${JSON.stringify(k)} 不应激活`);
+    }
+  });
+});
+
+describe('排序表头 aria-sort 口径 sortAriaSort（单一来源）', () => {
+  test('当前列按方向给 ascending / descending，其余列 none', () => {
+    assert.strictEqual(L.sortAriaSort('amount', 'asc', 'amount'), 'ascending');
+    assert.strictEqual(L.sortAriaSort('amount', 'desc', 'amount'), 'descending');
+    assert.strictEqual(L.sortAriaSort('amount', 'asc', 'name'), 'none');
+    assert.strictEqual(L.sortAriaSort('', 'asc', 'name'), 'none');
+  });
+
+  test('脏输入不产出非法值（aria-sort 只认四个字面量）', () => {
+    const allowed = ['ascending', 'descending', 'none', 'other'];
+    const cases = [[null, null, null], [undefined, 'x', 'a'], ['a', 'sideways', 'a'], ['a', 'asc', null]];
+    for (const [by, dir, f] of cases) {
+      const got = L.sortAriaSort(by, dir, f);
+      assert.ok(allowed.includes(got), `sortAriaSort($by},${dir},${f}) 产出非法值 ${got}`);
+    }
+  });
+});

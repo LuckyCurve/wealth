@@ -886,6 +886,132 @@ describe('UI 接线契约：行内金额编辑键位（小键盘 Enter 同 Tab�
   });
 });
 
+describe('UI 接线契约：行级可点元素必须键盘可达（可点即键盘可达）', () => {
+  test('行级激活键位走 logic.js activateKeyAction，不在内联里各自判键名', () => {
+    // 只认 Enter 是常见的半吊子实现：Space 是屏幕阅读器用户最惯用的激活键。
+    assert.strictEqual(
+      (html.match(/function activateKeyAction/g) || []).length,
+      0,
+      'index.html 不应重复定义键位判定（单一来源在 logic.js）');
+    assert.match(
+      html,
+      /onkeydown="if\(activateKeyAction\(event\.key\)\)/,
+      '行级激活应走单一口径 activateKeyAction');
+  });
+
+  test('三处「点行进入」的元素都带 role=button + tabindex=0 + 键盘通道', () => {
+    // 旭日图清单顶层行（下钻）、快照行、消费趋势月份行。
+    // 判据是「不能只靠指针」：cursor:pointer 而 tabIndex=-1，键盘用户就永远到不了。
+    for (const [name, handler] of [
+      ['旭日图清单行', 'drillSunburst'],
+      ['快照行', 'viewSnapshot'],
+      ['消费趋势月份行', 'viewExpenseMonth'],
+    ]) {
+      assert.ok(
+        html.includes(handler),
+        `${name} 的入口 ${handler} 应仍在（本契约随后检查它的可达性）`);
+    }
+    // 三个渲染点的行元素都必须是可聚焦的 role=button
+    for (const fn of ['renderSunburstLegend', 'renderHistoryTab', 'renderExpenseTrendList']) {
+      const src = fnSource(fn);
+      assert.match(
+        src,
+        /tabindex="0"/,
+        `${fn} 生成的行必须可聚焦（否则键盘用户到不了）`);
+      assert.match(
+        src,
+        /role="button"/,
+        `${fn} 生成的行必须声明 role=button（读屏器才知道它能按）`);
+      assert.match(
+        src,
+        /activateKeyAction/,
+        `${fn} 生成的行必须有键盘通道，且与其余两处同一判据`);
+    }
+  });
+
+  test('行级可点元素的指针样式收回 CSS，页面不再内联 cursor:pointer', () => {
+    // 同类结构出现 ≥2 次就下沉单一实现（本项目「版式单一来源」约定）。
+    assert.strictEqual(
+      (html.match(/style="cursor:pointer;"/g) || []).length,
+      0,
+      'cursor:pointer 应收回 CSS 类（原先 6 处内联各写一遍）');
+    assert.match(
+      html,
+      /\n  \.row-hit \{[^}]*cursor: pointer;/,
+      '行级可点元素共用 .row-hit 一个类');
+  });
+
+  test('排序表头：Space 与 Enter 同义、aria-sort 走 logic.js 单一口径', () => {
+    // 表头是 role=button，只认 Enter 会让 Space 落空；aria-sort 让读屏器知道当前排序列。
+    const sortHeads = html.match(/<div[^>]*onclick="toggle(Sort|ExpenseSort)[^>]*>/g) || [];
+    assert.strictEqual(sortHeads.length, 6, '资产 4 列 + 消费 2 列排序表头');
+    for (const head of sortHeads) {
+      assert.match(
+        head,
+        /activateKeyAction\(event\.key\)/,
+        '排序表头的键位应走单一口径（Enter 与 Space 同义）');
+      assert.match(head, /aria-sort="none"/, '初始 aria-sort 应为 none');
+    }
+    assert.match(
+      fnSource('updateSortIndicators'),
+      /sortAriaSort\(/,
+      'aria-sort 的取值口径应走 logic.js sortAriaSort');
+    assert.strictEqual(
+      (html.match(/getAttribute\('aria-sort'\)/g) || []).length,
+      0,
+      '不在此处另写一套 aria-sort 推导');
+  });
+
+  test('清单行的 focus-visible 规则不得再是死代码（元素必须真的能聚焦）', () => {
+    // 曾存在 .chart-legend-row:focus-visible 规则，但行 tabIndex=-1——
+    // 样式写了却永远不可能命中，正是「以为做了键盘可达、其实没做」的化石。
+    assert.match(
+      html,
+      /\n  \.row-hit:focus-visible \{[^}]*outline/,
+      '行级可点元素必须有可见焦点环（quality floor：可见键盘焦点）');
+  });
+});
+
+describe('UI 接线契约：内联事件属性必须是合法 JS（单测看不见的那一层）', () => {
+  test('所有 on* 属性的处理体都能被真解析（防止 if 少写花括号这类静默失效）', () => {
+    // 为什么需要这条：onkeydown="..." 是**属性里的字符串**，不在 <script> 里，
+    // 所以「整段内联脚本能被 new Function 解析」那条契约罩不到它；
+    // node --test 的文本断言也只看得到字面量。曾实测写坏一次：
+    //   if(cond)event.preventDefault();doThing();}
+    // 少一个左花括号 → 只有 preventDefault 受守卫，doThing();} 是语法错误。
+    // 浏览器里这条属性只在事件触发时才编译 → **按了 Enter 毫无反应、且不报错**，
+    // 445 个单测全绿、真浏览器里功能全废。故这里把每个属性处理体逐条真解析。
+    const attrs = [...html.matchAll(/\son[a-z]+="([^"]*)"/g)].map((m) => m[1]);
+    assert.ok(attrs.length > 10, `应扫到一批内联事件属性（实得 ${attrs.length}）`);
+    const bad = [];
+    for (const raw of attrs) {
+      // 属性写在模板字符串里时含 ${...} 占位（那部分是给 JS 引擎在**生成时**求值的，
+      // 不是处理体的一部分）。把它们换成无害标识符，才能只看**结构**是否合法——
+      // 而那正是我们要守的东西（少花括号这类错误与占位符内容无关）。
+      const body = raw.replace(/\$\{[^}]*\}/g, '0');
+      try {
+        // 处理体在浏览器里就是这样被包成函数体的；能构造即语法正确
+        // eslint-disable-next-line no-new-func
+        new Function('event', body);
+      } catch (e) {
+        bad.push(`${e.message} :: ${raw}`);
+      }
+    }
+    assert.deepStrictEqual(bad, [], '内联事件属性存在语法错误（浏览器里表现为「按了没反应」）');
+  });
+
+  test('行级激活的守卫必须包住整段动作，而不是只包住 preventDefault', () => {
+    // if(cond)A;B 只守卫 A——这是上面那条语法错误的成因，单独立一条说得更清楚。
+    const hits = [...html.matchAll(/onkeydown="if\(activateKeyAction\(event\.key\)\)([^"]*)"/g)];
+    assert.strictEqual(hits.length, 9, `行级激活共 9 处（资产 4 列排序 + 消费 2 列排序 + 清单行 + 快照行 + 趋势月份行）`);
+    for (const [, body] of hits) {
+      assert.match(body, /^\{/, '守卫后应紧跟左花括号，把整段动作一起包住');
+      assert.match(body, /\}$/, '动作段应以右花括号收尾');
+      assert.ok(!/^event\.preventDefault\(\);\w/.test(body), '不得只包住 preventDefault');
+    }
+  });
+});
+
 describe('UI 接线契约：键盘 Tab 不再切换资产/消费', () => {
   test('旧键盘接管整块移除，不回潮', () => {
     assert.strictEqual(count(/handleTabKeyNav/g), 0, '键盘 Tab 接管处理器应保持移除');

@@ -1061,6 +1061,89 @@ test.describe('台灯掠光（纸面光跟随指针）', () => {
  * 要钉住的坑：内环分类节点本身**不带 value**（ECharts 是按 children 求和定扇区大小），
  * 清单若直接读 n.value 就会满屏 ¥0.00 —— 而图是正常的，只看图发现不了。
  */
+test.describe('行级可点元素：指针与键盘两条路都要给', () => {
+  // 用户实测：这些行用鼠标点得动，键盘却到不了（cursor:pointer + tabIndex=-1）。
+  // 更早还留下过一块化石：旭日图清单写了 :focus-visible 规则，但行拿不到焦点，
+  // 那条规则永远无法命中——样式在、路不在。
+  //
+  // 判据必须是**真实按键**：属性写对了但处理体语法坏掉（if 少一个花括号）时，
+  // 浏览器只在事件触发那一刻才编译它，表现为「按了毫无反应且不报错」。
+  // 单测看不见这一层，只有真按下去才知道。
+  const keyBoth = async (page, locator) => {
+    await locator.focus();
+    const focused = await locator.evaluate((el) => el === document.activeElement);
+    expect(focused, '行必须先真的能拿到焦点').toBe(true);
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(250);
+    const byEnter = await page.locator('#snapshot-modal').isVisible();
+    if (byEnter) {
+      await page.keyboard.press('Escape');
+      await page.waitForTimeout(200);
+    }
+    await locator.focus();
+    await page.keyboard.press(' ');
+    await page.waitForTimeout(250);
+    const bySpace = await page.locator('#snapshot-modal').isVisible();
+    if (bySpace) {
+      await page.keyboard.press('Escape');
+      await page.waitForTimeout(200);
+    }
+    return { byEnter, bySpace };
+  };
+
+  test('快照行：Enter 与 Space 都能打开详情', async ({ appPage: page }) => {
+    await gotoAssets(page, 'history');
+    await page.evaluate(() => takeSnapshot());
+    await page.locator('#snapshot-note-modal').waitFor({ state: 'visible' });
+    await page.locator('#snapshot-note-modal .btn-gold').first().click();
+    await expect(page.locator('#snapshots-list .row-hit')).toHaveCount(1);
+    const r = await keyBoth(page, page.locator('#snapshots-list .row-hit').first());
+    expect(r.byEnter, '快照行 Enter 应打开详情').toBe(true);
+    expect(r.bySpace, 'Space 是读屏器用户最惯用的激活键，不能只做 Enter').toBe(true);
+  });
+
+  test('消费趋势月份行：Enter 能打开当月明细', async ({ appPage: page }) => {
+    await page.locator('#tabs-expenses .tab-btn[data-tab="expense-trend"]').click();
+    await expect(page.locator('#expense-trend-list .row-hit').first()).toBeVisible();
+    const r = await keyBoth(page, page.locator('#expense-trend-list .row-hit').first());
+    expect(r.byEnter, '趋势月份行 Enter 应打开明细').toBe(true);
+    expect(r.bySpace).toBe(true);
+  });
+
+  test('旭日图清单：只有会下钻的顶层行可聚焦，Enter 真能下钻', async ({ appPage: page }) => {
+    await gotoAssets(page, 'chart');
+    await expect(page.locator('#chart-legend .row-hit').first()).toBeVisible();
+    // 明细行的悬停高亮是「看着这里」而非导航，不该占 Tab 序
+    const onlyTops = await page.locator('#chart-legend .chart-legend-row').evaluateAll((els) =>
+      els.every((e) => (e.dataset.top === '1' ? e.classList.contains('row-hit') : !e.classList.contains('row-hit')))
+    );
+    expect(onlyTops, '只有顶层行走 row-hit（可点即键盘可达，不可点就不该抢焦点）').toBe(true);
+    const row = page.locator('#chart-legend .row-hit').first();
+    const before = (await page.locator('#chart-legend-head').textContent()).trim();
+    await row.focus();
+    expect(await row.evaluate((el) => el === document.activeElement)).toBe(true);
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(500);
+    const after = (await page.locator('#chart-legend-head').textContent()).trim();
+    expect(after, 'Enter 应真的下钻（标题换成返回条 + 分类名）').not.toBe(before);
+    expect(after).toContain('全部分类');
+  });
+
+  test('排序表头：Space 与 Enter 同义，aria-sort 随之更新', async ({ appPage: page }) => {
+    await gotoAssets(page, 'assets');
+    // 用「金额」表头的 role 定位，避免在属性选择器里再嵌一层引号
+    const head = page.getByRole('button', { name: /^金额/ }).first();
+    await expect(head).toHaveAttribute('aria-sort', 'none');
+    await head.focus();
+    await page.keyboard.press(' ');
+    await expect(head, 'Space 应能排序（role=button 的两种预期键位）').toHaveAttribute('aria-sort', 'ascending');
+    await page.keyboard.press('Enter');
+    await expect(head).toHaveAttribute('aria-sort', 'descending');
+    await page.keyboard.press('Enter');
+    await expect(head, '第三次回到未排序').toHaveAttribute('aria-sort', 'none');
+  });
+});
+
 test.describe('分布图的构成清单（与图同源）', () => {
   const legendRows = (page, listId) =>
     page.evaluate((id) =>

@@ -97,6 +97,23 @@
     return null;
   }
 
+  // 行级激活的键位语义（单一来源）：role="button" 的元素被期望同时响应 Enter 与 Space
+  // （WAI-ARIA 惯例，缺一不可）。只认 Enter 是常见的半吊子实现——用键盘的人按 Space
+  // 毫无反应，而 Space 恰恰是屏幕阅读器用户最惯用的激活键。
+  // Tab/Esc/方向键必须放行：Tab 是焦点移动、Esc 是关弹窗、方向键是滚动，
+  // 吃掉它们比「少支持一个键」更糟——那是把键盘用户困在原地。
+  function activateKeyAction(key) {
+    return key === 'Enter' || key === ' ';
+  }
+
+  // 排序表头的 aria-sort 口径：只有当前排序列才带方向，其余一律 'none'。
+  // 可视的 ▲/▼ 只在排序生效时出现，读屏器却需要一个显式答案：
+  // 「现在按哪一列排、朝哪个方向」。aria-sort 只认这四个字面量，故此处收敛为唯一出口。
+  function sortAriaSort(by, dir, field) {
+    if (!by || by !== field) return 'none';
+    return dir === 'desc' ? 'descending' : 'ascending';
+  }
+
   // ===== 进入资产页的长按门槛 =====
   // 按住「资产」需满 MODE_PRESS_MS 才算出货（提高从消费页进入资产页的成本：
   // 资产价格短期波动天然大，日常高频查看只会放大情绪噪音）。
@@ -1197,6 +1214,7 @@
     BACKUP_STALE_DAYS, normalizeBackupFreq, backupNoteText, hasAnyBackupWorthyData, shouldAutoBackup, backupStaleDays,
     rateFallbackNotice,
     nextSortState, inlineEditKeyAction, expenseMonths,
+    activateKeyAction, sortAriaSort,
     MODE_PRESS_MS, modePressProgress, modePressDecision, modePressHint,
     TAG_PRESS_MS, pressProgress, pressDecision,
     lampEnabled, lampPos, tipBubblePos, TIP_GAP, TIP_EDGE,
