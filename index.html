@@ -2190,7 +2190,8 @@ function switchMode(mode) {
   document.getElementById('tabs-expenses').style.display = mode === 'expenses' ? '' : 'none';
   document.getElementById('content-assets').style.display = mode === 'assets' ? '' : 'none';
   document.getElementById('content-expenses').style.display = mode === 'expenses' ? '' : 'none';
-  enterTab(document.getElementById('content-' + mode), shift);
+  // 注意：入场动画只挂在会动画的内层面板上（CSS 选择器 [id^="tab-"]）；content-* 只是外壳，
+  // 对它调 enterTab 是一条没人消费的死接线（契约与 E2E 都断言了真实路径，别再加回来）。
 
   // 内层子 Tab 透传同一方向：一次「翻页」只有一个方向
   if (mode === 'assets') {

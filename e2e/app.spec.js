@@ -1529,13 +1529,20 @@ test.describe('Tab/模式切换：入场方向感（内容从行的哪一端滑�
     await expect.poll(() => paneX(page, '#tab-expenses')).toBe('-1');
   });
 
-  test('模式切换同样带方向（消费在左、资产在右），内层子 Tab 与外壳同向', async ({ appPage: page }) => {
+  test('模式切换同样带方向（消费在左、资产在右）；入场只挂内层面板，外壳不挂', async ({ appPage: page }) => {
     await gotoAssets(page);
     // 内层子 Tab 的方向由 switchMode 透传给 switchTab —— 一次「翻页」只有一个方向
     await expect.poll(() => paneX(page, '#tab-assets')).toBe('1');
+    // 内层确实播了入场（.enter 挂在 [id^="tab-"] 面板上）
+    await expect(page.locator('#tab-assets')).toHaveClass(/enter/);
     // 切回消费 = 反向
     await page.locator('#mode-expenses').click();
     await expect.poll(() => paneX(page, '#tab-expenses')).toBe('-1');
+    // 外壳 content-* 不参与入场：动画选择器只认 [id^="tab-"]，对壳调 enterTab 是无人消费的死接线
+    expect(
+      await page.evaluate(() => document.querySelectorAll('#content-assets.enter, #content-expenses.enter').length),
+      '外壳 content-* 不得挂 .enter（死接线已删，不得回潮）'
+    ).toBe(0);
   });
 });
 

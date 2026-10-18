@@ -2651,9 +2651,12 @@ describe('UI 接线契约：Tab/模式切换的过渡动画', () => {
   // 用户要求页面切换有顺滑过渡（精致感）。约束：display 翻转没法过渡，
   // 所以用「显示后下一帧加 .enter」两步走；减动效时 delay/时长一起归零
   // （只关时长的话带 delay 的入场会停在「还没出来」——开屏那条的教训）。
-  test('switchTab 与 switchMode 切换后要给新内容一个入场过渡', () => {
-    assert.match(fnSource('switchTab'), /enterTab|\.enter/, 'switchTab 要触发入场过渡');
-    assert.match(fnSource('switchMode'), /enterTab|\.enter/, 'switchMode（模式切换）同样要有过渡');
+  test('入场过渡挂在会动画的内层面板上：switchTab 触发，switchMode 只透传方向', () => {
+    assert.match(fnSource('switchTab'), /enterTab\([\s\S]*?shift\)/, 'switchTab 要触发内层面板的入场过渡');
+    const mode = stripComments(fnSource('switchMode'));
+    assert.doesNotMatch(mode, /enterTab\(/,
+      'switchMode 不得对 content-* 调 enterTab：动画选择器只认 [id^="tab-"] 内层面板，那是无人消费的死接线');
+    assert.match(mode, /switchTab\([^)]*shift\)/, '方向经 switchTab 透传给真正入场的面板（一次翻页一个方向）');
   });
 
   test('入场过渡在 CSS 里统一定义（不逐处内联）', () => {
@@ -2677,11 +2680,12 @@ describe('UI 接线契约：Tab/模式切换的过渡动画', () => {
   test('入场方向由 logic.js paneEnterShift 单一判定，经 --pane-x 交给 keyframes', () => {
     const logic = fs.readFileSync(path.join(__dirname, '..', 'logic.js'), 'utf8');
     assert.match(logic, /function paneEnterShift\(/, '方向判定必须在 logic.js（可单测）');
-    for (const fn of ['switchTab', 'switchMode']) {
-      const src = stripComments(fnSource(fn));
-      assert.match(src, /paneEnterShift\(/, `${fn} 的方向要喂给同一份判定（不得各写一份）`);
-      assert.match(src, /enterTab\([\s\S]*?shift\)/, `${fn} 要把方向一并传给 enterTab`);
-    }
+    const tab = stripComments(fnSource('switchTab'));
+    assert.match(tab, /paneEnterShift\(/, 'switchTab 的方向要喂给同一份判定（不得各写一份）');
+    assert.match(tab, /enterTab\([\s\S]*?shift\)/, 'switchTab 要把方向一并传给 enterTab');
+    const mode = stripComments(fnSource('switchMode'));
+    assert.match(mode, /paneEnterShift\(/, 'switchMode 的方向同样走这份判定');
+    assert.match(mode, /switchTab\([^)]*shift\)/, '并透传给内层 switchTab：一次「翻页」只有一个方向');
     assert.match(stripComments(fnSource('enterTab')), /--pane-x/, 'enterTab 把方向写进 --pane-x（CSS 唯一消费点）');
     assert.match(html, /@keyframes paneEnter \{[^}]*var\(--pane-x/, 'keyframes 消费 --pane-x');
   });
