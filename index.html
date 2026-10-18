@@ -3078,8 +3078,38 @@ function cmpBar(d, maxAbs, colorFn) {
 }
 
 // 弹窗打开统一入口（与 closeModal 成对）：此前十餘处各自 style.display=''，现单一来源
+// ========== 弹窗焦点管理 ==========
+// 15 个弹窗都写了 role="dialog" aria-modal="true"——那是对读屏器的承诺：弹窗背后的内容
+// 不可达。实测却完全没有接管焦点：打开后焦点仍留在**背后的触发按钮**上（读屏器会继续读出
+// 弹窗外的内容），第一下 Tab 就走出弹窗，关闭后焦点掉到 body（下次 Tab 从页头重来）。
+// 写对了 ARIA 不等于做了行为——这里把行为补上。
+//
+// 判据（谁绕回谁、下标怎么算）在 logic.js trapFocus（可单测），这里只做 DOM 副作用。
+
+// 弹窗内可聚焦元素：打开时取第一个、Tab 陷阱取全集，两处共用一份（不许各写一遍选择器）。
+// 为什么过滤 offsetParent：被 CSS 隐藏/折叠的控件仍在 DOM 里，focus() 上去等于把焦点丢出弹窗。
+function modalFocusables(modal) {
+  if (!modal) return [];
+  const sel = 'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+  return [...modal.querySelectorAll(sel)].filter(el => el.offsetParent !== null || el === document.activeElement);
+}
+
+// 记住「谁打开的弹窗」，关闭时把焦点还回去。用栈而非单值：确认框会叠在别的弹窗之上
+// （如删除资产 → 确认框），单值会被后者覆盖，关掉确认框后焦点就回不到原处了。
+let __modalReturnFocus = [];
+
 function openModal(id) {
-  document.getElementById(id).style.display = '';
+  const modal = document.getElementById(id);
+  // 打开前先记下当前焦点（就是那个触发按钮），关闭时还回去
+  __modalReturnFocus.push(document.activeElement);
+  modal.style.display = '';
+  // 焦点必须搬进弹窗：留在背后的话读屏器还在读背景内容，aria-modal 就是句空话。
+  // 优先落在第一个表单控件上——弹窗多半是「填个表」（焦点直接放到可输入处最省一步）；
+  // 没有表单控件时退到第一个可聚焦元素（如设置弹窗的分段按钮）。
+  const list = modalFocusables(modal);
+  const firstField = list.find(el => el.matches('input, select, textarea'));
+  const target = firstField || list[0];
+  if (target) target.focus();
 }
 
 // 旭日图标签截断：长名称以省略号收尾，完整内容 hover 时由 tooltip 展示
@@ -4843,7 +4873,13 @@ function catColor(catId, tagName) {
   return catColorImpl(state.categories, catId, tagName);
 }
 function closeModal(id) {
-  document.getElementById(id).style.display = 'none';
+  const modal = document.getElementById(id);
+  const wasOpen = modal.style.display !== 'none';
+  modal.style.display = 'none';
+  // 把焦点还给打开它的那个元素。不回还的话焦点掉到 body，用户下一次 Tab 从页头重新开始——
+  // 「改完一条记录继续改下一条」这种连续操作会变得极难。
+  const back = __modalReturnFocus.pop();
+  if (wasOpen && back && document.contains(back) && back.focus) back.focus();
 }
 
 // custom confirm dialog
@@ -4878,10 +4914,27 @@ document.addEventListener('click', e => {
     if (e.target.id === 'confirm-modal') {
       confirmCancel(); // 统一走 confirmCancel：隐藏 + 清空 _confirmCallback
     } else {
-      e.target.style.display = 'none';
+      closeModal(e.target.id); // 必须走 closeModal：直接改 display 会把焦点管理整个绕过
     }
   }
   __modalMouseDownTarget = null;
+});
+
+// Tab 焦点陷阱：Tab 只能在上层弹窗内循环。
+// 为什么必须做：弹窗背后是**还活着的**页面（本项目不用 <dialog> 的 inert），
+// 不拦的话 Tab 会一路走进背后的表格与按钮——读屏器用户会以为弹窗已经关了。
+// 判据（绕回谁、下标怎么算）在 logic.js trapFocus（可单测），这里只负责把焦点移过去。
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Tab') return;
+  const open = [...document.querySelectorAll('.modal-overlay')].filter(m => m.style.display !== 'none');
+  const top = open[open.length - 1];
+  if (!top) return;
+  const list = modalFocusables(top);
+  const cur = list.indexOf(document.activeElement);
+  const r = trapFocus(cur, list.length, e.shiftKey);
+  if (!r.wrap || !list[r.index]) return; // 中间位置交还浏览器默认行为
+  e.preventDefault();
+  list[r.index].focus();
 });
 
 // ESC 关闭当前最上层弹窗（确认框走 confirmCancel 以清空回调）
@@ -4891,7 +4944,7 @@ document.addEventListener('keydown', e => {
   const top = open[open.length - 1];
   if (!top) return;
   if (top.id === 'confirm-modal') confirmCancel();
-  else top.style.display = 'none';
+  else closeModal(top.id); // 同上：ESC 也要还焦点，不能只改 display
 });
 
 function genId() {

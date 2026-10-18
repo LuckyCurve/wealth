@@ -1175,6 +1175,104 @@ test.describe('行级可点元素：指针与键盘两条路都要给', () => {
   });
 });
 
+test.describe('弹窗焦点管理（aria-modal 的兑现）', () => {
+  // 15 个弹窗都写了 role="dialog" aria-modal="true"——那是对读屏器的承诺：弹窗背后的
+  // 内容不可达。实测却完全没接管焦点：打开后焦点还在背后的触发按钮上、第一下 Tab 就走出
+  // 弹窗、关闭后掉到 body。写对了 ARIA 不等于做了行为，这里按真实按键验一遍。
+  test('打开后焦点搬进弹窗，Tab 被困在里面，关闭后还回触发按钮', async ({ appPage: page }) => {
+    const opener = page.locator('#tab-expenses button:has-text("记录消费")').first();
+    await opener.focus();
+    await opener.click();
+    await expect(page.locator('#expense-modal')).toBeVisible();
+
+    // 1) 焦点必须已经进弹窗（不是留在背后的触发按钮上）
+    const onOpen = await page.evaluate(() => {
+      const ae = document.activeElement;
+      return { inside: document.getElementById('expense-modal').contains(ae), id: ae.id, tag: ae.tagName };
+    });
+    expect(onOpen.inside, '打开后焦点必须在弹窗内（留在背后 = aria-modal 是空话）').toBe(true);
+    expect(onOpen.tag, '焦点应落在第一个表单控件上（弹窗多半是「填个表」）').toBe('INPUT');
+
+    // 2) Tab 若干次不得跑出弹窗
+    for (let i = 0; i < 14; i++) {
+      await page.keyboard.press('Tab');
+      const inside = await page.evaluate(() =>
+        document.getElementById('expense-modal').contains(document.activeElement));
+      expect(inside, `第 ${i + 1} 次 Tab 之后焦点逃出了弹窗`).toBe(true);
+    }
+    // 3) Shift+Tab 往回也不能逃
+    for (let i = 0; i < 6; i++) {
+      await page.keyboard.press('Shift+Tab');
+      const inside = await page.evaluate(() =>
+        document.getElementById('expense-modal').contains(document.activeElement));
+      expect(inside, `第 ${i + 1} 次 Shift+Tab 之后焦点逃出了弹窗`).toBe(true);
+    }
+
+    // 4) 关闭后焦点回到打开它的按钮，而不是掉到 body 让用户从页头重新 Tab
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#expense-modal')).toBeHidden();
+    const afterClose = await page.evaluate(() => ({
+      isBody: document.activeElement === document.body,
+      text: (document.activeElement.textContent || '').trim(),
+    }));
+    expect(afterClose.isBody, '关闭后焦点不得掉到 body').toBe(false);
+    expect(afterClose.text, '焦点应回到打开弹窗的那个按钮').toContain('记录消费');
+  });
+
+  test('叠层弹窗：确认框叠在分类弹窗之上，关掉后焦点回到被叠住的那层（栈式回还）', async ({ appPage: page }) => {
+    // 真实路径：分类弹窗里改标签 → 删掉一个仍被引用的标签 → saveCategoryGeneric 弹确认框。
+    // 此时**分类弹窗还开着**，确认框叠在它上面——这才是「弹窗叠弹窗」。
+    await gotoAssets(page, 'categories');
+    // 编辑「资产类型」（标签：活期现金 / 权益基金，两者都被资产引用）
+    await page.locator('#categories-list .card', { hasText: '资产类型' }).getByRole('button', { name: '编辑' }).click();
+    await expect(page.locator('#category-modal')).toBeVisible();
+    // 只留「活期现金」→ 「权益基金」成为被移除且有引用的标签 → 弹确认框
+    await page.fill('#cat-tags', '活期现金');
+    await page.locator('#category-modal button[type="submit"]').click();
+    await expect(page.locator('#confirm-modal')).toBeVisible();
+    await expect(page.locator('#category-modal'), '分类弹窗必须仍开着（确认框叠在它上面）').toBeVisible();
+
+    // 叠层最上层是确认框：焦点必须被拉到确认框里
+    const inConfirm = await page.evaluate(() =>
+      document.getElementById('confirm-modal').contains(document.activeElement));
+    expect(inConfirm, '确认框打开时焦点应进确认框（而不是留在下层弹窗）').toBe(true);
+
+    // Tab 只能在**最上层**循环：不得穿透到下面那层
+    await page.keyboard.press('Tab');
+    await page.keyboard.press('Tab');
+    const stillInConfirm = await page.evaluate(() =>
+      document.getElementById('confirm-modal').contains(document.activeElement));
+    expect(stillInConfirm, 'Tab 必须困在最上层（确认框），不能穿透到被叠住的弹窗').toBe(true);
+
+    // ESC 取消：确认框关掉，焦点应回到**下层那个弹窗内**（被叠住的那层），而不是掉到 body
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#confirm-modal')).toBeHidden();
+    await expect(page.locator('#category-modal')).toBeVisible();
+    const backInside = await page.evaluate(() => {
+      const ae = document.activeElement;
+      return {
+        isBody: ae === document.body,
+        tag: ae.tagName,
+        inCategoryModal: document.getElementById('category-modal').contains(ae),
+      };
+    });
+    expect(backInside.isBody, '关掉上层后焦点不得掉到 body').toBe(false);
+    expect(backInside.inCategoryModal, '焦点应回到被叠住的那层弹窗内（栈式回还）').toBe(true);
+  });
+
+  test('遮罩点击关弹窗也要还焦点（不能只改 display，绕过焦点管理）', async ({ appPage: page }) => {
+    const opener = page.locator('#tab-expenses button:has-text("记录消费")').first();
+    await opener.focus();
+    await opener.click();
+    await expect(page.locator('#expense-modal')).toBeVisible();
+    // 点遮罩空白处关闭
+    await page.locator('#expense-modal').click({ position: { x: 5, y: 5 } });
+    await expect(page.locator('#expense-modal')).toBeHidden();
+    const isBody = await page.evaluate(() => document.activeElement === document.body);
+    expect(isBody, '遮罩点击关弹窗同样要把焦点还回去').toBe(false);
+  });
+});
+
 test.describe('分布图的构成清单（与图同源）', () => {
   const legendRows = (page, listId) =>
     page.evaluate((id) =>

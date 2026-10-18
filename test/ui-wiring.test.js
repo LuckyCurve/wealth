@@ -189,10 +189,49 @@ describe('UI 接线契约：共享层单一来源（防重复实现各自漂移�
   test('弹窗打开统一 openModal 与 closeModal 成对，散落的 display 赋值不回潮', () => {
     assert.match(html, /function openModal\(id\)/);
     assert.match(html, /function closeModal\(id\)/);
-    assert.strictEqual(count(/modal\.style\.display = ''/g), 0, '变量形式的弹窗打开应改走 openModal');
+    // 计数前先刨掉 openModal/closeModal 自身的函数体：那里**必须**改 display（它就是实现），
+    // 要抓的是「别处又冒出散落的赋值」——把实现本身也算违规会让这条契约自相矛盾。
+    // 两个函数在文件里并不相邻，必须**各自**剥掉；拼在一起 split 会什么都删不掉（静默失效）。
+    const outside = [fnSource('openModal'), fnSource('closeModal')].reduce((acc, src) => acc.split(src).join(''), html);
     assert.strictEqual(
-      count(/document\.getElementById\('[a-z-]+-modal'\)\.style\.display = ''/g), 0,
+      (outside.match(/modal\.style\.display = ''/g) || []).length, 0,
+      '变量形式的弹窗打开应改走 openModal');
+    assert.strictEqual(
+      (outside.match(/document\.getElementById\('[a-z-]+-modal'\)\.style\.display = ''/g) || []).length, 0,
       '直接 getElementById 的弹窗打开应改走 openModal');
+  });
+});
+
+describe('UI 接线契约：弹窗焦点管理（aria-modal 的兑现）', () => {
+  const openSrc = fnSource('openModal');
+  const closeSrc = fnSource('closeModal');
+
+  test('打开弹窗必须把焦点搬进去（否则焦点还在背后的触发按钮上，首下 Tab 就走出弹窗）', () => {
+    assert.match(openSrc, /\.focus\(\)/, 'openModal 必须真的 focus 第一个可聚焦元素');
+    assert.match(html, /function modalFocusables\(/, '「弹窗内可聚焦元素」须有单一实现（打开与陷阱共用一份）');
+  });
+
+  test('关闭弹窗要把焦点还回打开它的元素（不是掉到 body 从头 Tab）', () => {
+    assert.match(closeSrc, /__modalReturnFocus/, 'closeModal 必须消费记住的返回焦点');
+    assert.match(openSrc, /__modalReturnFocus\.push\(document\.activeElement\)/, '打开时要先记住当前焦点（入栈，确认框会叠在别的弹窗上）');
+  });
+
+  test('Tab 陷阱接线存在，且判据走 logic.js trapFocus（不在页面里重写一份）', () => {
+    assert.match(html, /trapFocus\(/, 'Tab 陷阱必须复用 logic.js 的纯函数');
+    assert.match(html, /e\.key !== 'Tab'/, '必须拦截 Tab 键');
+    assert.match(stripComments(html), /e\.shiftKey/, 'Shift+Tab 反方向要一并接管（只做正向 = 往回一按就逃出去）');
+  });
+
+  test('所有隐藏弹窗的路径都走 closeModal：否则焦点管理被绕过（只改 display 而不还焦点）', () => {
+    // ESC 与遮罩点击原先各自写 `style.display = 'none'`，绕过了 closeModal。
+    const esc = html.slice(html.indexOf("if (e.key !== 'Escape') return;"));
+    const escBlock = esc.slice(0, esc.indexOf('});'));
+    assert.doesNotMatch(escBlock, /top\.style\.display = 'none'/, 'ESC 关弹窗必须走 closeModal（否则焦点不还）');
+    assert.match(escBlock, /closeModal\(top\.id\)|confirmCancel\(\)/, 'ESC 应统一走 closeModal / confirmCancel');
+
+    const overlay = html.slice(html.indexOf('__modalMouseDownTarget = e.target'));
+    const overlayBlock = overlay.slice(0, overlay.indexOf('__modalMouseDownTarget = null'));
+    assert.doesNotMatch(overlayBlock, /e\.target\.style\.display = 'none'/, '遮罩点击关弹窗必须走 closeModal');
   });
 });
 

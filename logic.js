@@ -1195,6 +1195,31 @@
       : { msg: '汇率获取失败', type: 'error' };
   }
 
+  // ========== 弹窗焦点陷阱 ==========
+  // 15 个弹窗都写了 role="dialog" aria-modal="true"——那是对读屏器的承诺：弹窗背后的
+  // 内容不可达。但实测完全没接管焦点：打开后焦点还在触发按钮上、第一下 Tab 就走出弹窗、
+  // 关闭后掉到 body。承诺是空的（写对了 ARIA 不等于做了行为）。
+  //
+  // 这里只做「判据」这一半（可单测），DOM 侧由 index.html 执行 focus()。
+  // 返回 { wrap, index }：
+  //   wrap=false → 交还浏览器默认行为（中间位置不必插手，插手反而会打断 IME/选区）；
+  //   wrap=true  → 调用方把焦点移到 idx 出的那个元素上（绕回另一端）。
+  // 为什么 index=-1（焦点不在弹窗内）要一律拉回来：刚打开时焦点还在触发按钮上，
+  // 以及用户点了弹窗外/脚本聚焦到别处之后，都需要一把拉回弹窗内，否则
+  // aria-modal 的承诺立刻是假的。
+  function trapFocus(currentIdx, count, shift) {
+    if (!(count > 0)) return { wrap: false, index: -1 }; // 没有可聚焦元素：连「关闭」都按不到，别接管
+    if (currentIdx < 0 || currentIdx >= count) {
+      // 不在弹窗内：向前拉回第一个，向后拉回最后一个
+      return { wrap: true, index: shift ? count - 1 : 0 };
+    }
+    const next = shift ? currentIdx - 1 : currentIdx + 1;
+    if (next < 0 || next >= count) {
+      return { wrap: true, index: shift ? count - 1 : 0 };
+    }
+    return { wrap: false, index: next };
+  }
+
   // ========== 金额合计（按显式汇率表折算为 CNY）==========
   // 分布图卡片上方的总数用它：旭日图只给各部分占比，用户看不到「当前筛选下到底多少」。
   // 为什么要显式传汇率表：消费侧金额恒为 CNY（无 currency 字段 → 按 1 充底），资产侧要按
@@ -1214,7 +1239,7 @@
     BACKUP_STALE_DAYS, normalizeBackupFreq, backupNoteText, hasAnyBackupWorthyData, shouldAutoBackup, backupStaleDays,
     rateFallbackNotice,
     nextSortState, inlineEditKeyAction, expenseMonths,
-    activateKeyAction, sortAriaSort,
+    activateKeyAction, sortAriaSort, trapFocus,
     MODE_PRESS_MS, modePressProgress, modePressDecision, modePressHint,
     TAG_PRESS_MS, pressProgress, pressDecision,
     lampEnabled, lampPos, tipBubblePos, TIP_GAP, TIP_EDGE,

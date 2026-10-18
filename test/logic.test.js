@@ -2213,3 +2213,46 @@ describe('排序表头 aria-sort 口径 sortAriaSort（单一来源）', () => {
     }
   });
 });
+
+describe('弹窗焦点陷阱（aria-modal 的兑现）', () => {
+  // 15 个弹窗都写了 role="dialog" aria-modal="true"——那是对读屏器的承诺：
+  // 弹窗背后的内容不可达。实测却完全没有接管焦点：打开后焦点还在触发按钮上、
+  // 第一下 Tab 就走出弹窗、关闭后掉到 body。承诺是空的。
+  test('中间的一律交还浏览器：不接管、下标 +1 / -1', () => {
+    assert.deepStrictEqual(L.trapFocus(0, 5, false), { wrap: false, index: 1 });
+    assert.deepStrictEqual(L.trapFocus(2, 5, false), { wrap: false, index: 3 });
+    assert.deepStrictEqual(L.trapFocus(3, 5, true), { wrap: false, index: 2 });
+  });
+
+  test('走到两端才接管并绕圈（否则第一下 Tab 就出了弹窗）', () => {
+    assert.deepStrictEqual(L.trapFocus(4, 5, false), { wrap: true, index: 0 });
+    assert.deepStrictEqual(L.trapFocus(0, 5, true), { wrap: true, index: 4 });
+  });
+
+  test('只有一个控件时两个方向都要接管（否则一按 Tab 就掉出去）', () => {
+    assert.deepStrictEqual(L.trapFocus(0, 1, false), { wrap: true, index: 0 });
+    assert.deepStrictEqual(L.trapFocus(0, 1, true), { wrap: true, index: 0 });
+  });
+
+  test('焦点不在弹窗内（-1）时一律拉回来：刚打开，或已经逃逸', () => {
+    assert.deepStrictEqual(L.trapFocus(-1, 5, false), { wrap: true, index: 0 });
+    assert.deepStrictEqual(L.trapFocus(-1, 5, true), { wrap: true, index: 4 });
+  });
+
+  test('没有可聚焦元素时不接管（否则连「关闭」都按不到），且不下标越界', () => {
+    assert.deepStrictEqual(L.trapFocus(0, 0, false), { wrap: false, index: -1 });
+  });
+
+  test('任何输入下 wrap=true 的 index 必须落在 [0,count) 内', () => {
+    for (let count = 0; count <= 6; count++) {
+      for (let i = -1; i <= count; i++) {
+        for (const shift of [false, true]) {
+          const r = L.trapFocus(i, count, shift);
+          if (r.wrap) {
+            assert.ok(r.index >= 0 && r.index < count, `trapFocus($i},${count},${shift}) 产出越界下标 ${r.index}`);
+          }
+        }
+      }
+    }
+  });
+});
