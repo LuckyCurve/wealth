@@ -1508,6 +1508,43 @@ test.describe('Tab 滑动指示条', () => {
   });
 });
 
+test.describe('窄屏 Tab 栏：标签不许折行（横滚代替换行）', () => {
+  // 用户实测（420px）：四个 Tab 各自折成两行（「消费记 录」「分类管 理」）——中文在词中折断，
+  // 黄条也对不上任何一行。Tab 标签是最短的定长词汇，折行只会让它更难读；放不下就该横滚。
+  const wrappedTabs = (page) =>
+    page.evaluate(() => {
+      const out = [];
+      for (const bar of document.querySelectorAll('.tab-bar')) {
+        for (const btn of bar.querySelectorAll('.tab-btn')) {
+          if (!btn.getBoundingClientRect().width) continue; // 隐藏容器的 Tab 栏（display:none）
+          const range = document.createRange();
+          range.selectNodeContents(btn);
+          if (range.getClientRects().length > 1) out.push(btn.textContent.trim());
+        }
+      }
+      return out;
+    });
+
+  test('420px：消费侧四个 Tab 都只占一行，放不下时 Tab 栏横向滚动', async ({ appPage: page }) => {
+    await page.setViewportSize({ width: 420, height: 900 });
+    const wrapped = await wrappedTabs(page);
+    expect(wrapped, `这些 Tab 标签折成了两行：${wrapped.join('、')}`).toEqual([]);
+    const bar = await page.evaluate(() => {
+      const b = document.querySelector('#tabs-expenses .tab-bar');
+      return { overflowX: getComputedStyle(b).overflowX, sw: b.scrollWidth, cw: b.clientWidth };
+    });
+    expect(bar.overflowX, '放不下时该横滚（不该换成两行）').toBe('auto');
+    expect(bar.sw, '内容宽度不应小于容器').toBeGreaterThanOrEqual(bar.cw);
+  });
+
+  test('420px：资产侧五个 Tab 也不折行（多一个 Tab 更容易被挤成两行）', async ({ appPage: page }) => {
+    await page.setViewportSize({ width: 420, height: 900 });
+    await gotoAssets(page);
+    const wrapped = await wrappedTabs(page);
+    expect(wrapped, `资产侧这些 Tab 标签折成了两行：${wrapped.join('、')}`).toEqual([]);
+  });
+});
+
 test.describe('Tab/模式切换：入场方向感（内容从行的哪一端滑入）', () => {
   // 「顺滑过渡」升级为有方向的翻页：往右切内容自右滑入、往回切自左滑入。
   // 方向由 logic.js paneEnterShift 按实测 offsetLeft 判定，经 --pane-x 交给 keyframes；

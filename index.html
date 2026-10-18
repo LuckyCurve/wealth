@@ -831,9 +831,18 @@ tailwind.config = {
     padding: 10px 22px; font-size: var(--fs-body); border: none; background: transparent;
     color: var(--muted); cursor: pointer;
     font-family: var(--font-body); transition: color 0.2s;
+    /* 标签是最短的定长词汇，折行只会让它更难读（420px 下曾折成「消费记 录」）；
+       放不下就由 Tab 栏横滚，按钮本身既不换行也不被压扁 */
+    white-space: nowrap; flex: 0 0 auto;
   }
-  /* 两套模式的 Tab 栏同一种结构（原先每处拼 border-b + 内联 border-color） */
-  .tab-bar { position: relative; display: flex; border-bottom: 1px solid var(--border); }
+  /* 两套模式的 Tab 栏同一种结构（原先每处拼 border-b + 内联 border-color）。
+     overflow-x 让窄屏能横滚；滚动条藏起来（触屏是滑动、指针可拖）。
+     为什么指示条改成 bottom:0（原 -1px 压在 border 上）：滚动容器会把溢出的一像素
+     算成可滚动区，可能冒出一道竖向滚动条——宁可让黄条贴在边线之上。 */
+  .tab-bar { position: relative; display: flex; border-bottom: 1px solid var(--border); overflow-x: auto; scrollbar-width: none; }
+  .tab-bar::-webkit-scrollbar { display: none; }
+  /* 滚动容器会裁掉向外的焦点环（Tab 键走查时会看不到自己在哪）：环改画在按钮内侧 */
+  .tab-btn:focus-visible { outline-offset: -3px; }
   .tab-btn.active { color: var(--fg); }
   .tab-btn:hover { color: var(--fg); }
   /* 当前 Tab 的黄条是**唯一的**一个元素（不再是每个按钮自己的 border-bottom）：
@@ -852,7 +861,7 @@ tailwind.config = {
     to { opacity: 1; transform: translate(0, 0); }
   }
   .tab-indicator {
-    position: absolute; bottom: -1px; left: var(--tab-x, 0); width: var(--tab-w, 0);
+    position: absolute; bottom: 0; left: var(--tab-x, 0); width: var(--tab-w, 0);
     height: 2px; background: var(--accent); z-index: 1;
     transition: left 0.28s cubic-bezier(0.22, 0.61, 0.36, 1), width 0.28s cubic-bezier(0.22, 0.61, 0.36, 1);
   }
@@ -1170,6 +1179,8 @@ tailwind.config = {
   @media (max-width: 640px) {
     .masthead { padding: 24px 20px 22px; }
     .masthead-amount { font-size: clamp(34px, 12vw, 48px); }
+    /* 窄屏收紧 Tab 内边距：四个（资产侧五个）标签通常就装得下，不必动用横滚 */
+    .tab-btn { padding: 10px 13px; }
   }
 
   /* 卡片内标题层级: 卡片主标题 / 弹窗内分组标题各一档（原为逐处内联 17px/15px） */
