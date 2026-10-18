@@ -1487,6 +1487,37 @@ test.describe('Tab 滑动指示条', () => {
   });
 });
 
+test.describe('Tab/模式切换：入场方向感（内容从行的哪一端滑入）', () => {
+  // 「顺滑过渡」升级为有方向的翻页：往右切内容自右滑入、往回切自左滑入。
+  // 方向由 logic.js paneEnterShift 按实测 offsetLeft 判定，经 --pane-x 交给 keyframes；
+  // 这里断言变量真的按方向写到了要入场的那块 pane 上（fixture 关了动效，变量与动效无关）。
+  const paneX = (page, sel) =>
+    page.evaluate(
+      (s) => (getComputedStyle(document.querySelector(s)).getPropertyValue('--pane-x') || '').trim(),
+      sel
+    );
+
+  test('切到右侧的 Tab：--pane-x=1；往回切：-1', async ({ appPage: page }) => {
+    // 消费 Tab 次序（左→右）：消费记录 · 分类管理 · 消费分布 · 消费趋势
+    await page.locator('#tabs-expenses .tab-btn[data-tab="expense-chart"]').click();
+    await expect.poll(() => paneX(page, '#tab-expense-chart')).toBe('1');
+    await page.locator('#tabs-expenses .tab-btn[data-tab="expense-trend"]').click();
+    await expect.poll(() => paneX(page, '#tab-expense-trend')).toBe('1');
+    // 从最右切回最左 = 往回翻页
+    await page.locator('#tabs-expenses .tab-btn[data-tab="expenses"]').click();
+    await expect.poll(() => paneX(page, '#tab-expenses')).toBe('-1');
+  });
+
+  test('模式切换同样带方向（消费在左、资产在右），内层子 Tab 与外壳同向', async ({ appPage: page }) => {
+    await gotoAssets(page);
+    // 内层子 Tab 的方向由 switchMode 透传给 switchTab —— 一次「翻页」只有一个方向
+    await expect.poll(() => paneX(page, '#tab-assets')).toBe('1');
+    // 切回消费 = 反向
+    await page.locator('#mode-expenses').click();
+    await expect.poll(() => paneX(page, '#tab-expenses')).toBe('-1');
+  });
+});
+
 test.describe('分布图的构成清单（与图同源）', () => {
   const legendRows = (page, listId) =>
     page.evaluate((id) =>

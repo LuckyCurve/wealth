@@ -2356,3 +2356,23 @@ describe('弹窗弹出后的指针守卫（长按自动弹窗的安全闸）', (
       '守卫窗 ' + L.AUTO_OPEN_GUARD_MS + 'ms 不合理：须在 (0, 1000) 内');
   });
 });
+
+describe('Tab/模式切换入场的方向判定（翻页的方向感）', () => {
+  // 目标按钮在当前按钮右侧 → 内容自右滑入（1），左侧 → 自左滑入（-1）。
+  // 判定下沉 logic.js：页面只把实测的 offsetLeft 喂进来，两处调用点（switchTab/switchMode）
+  // 不得各写一份算式——那样窗口换宽后两处的手感会各自漂移。
+  test('右侧 → 1，左侧 → -1，同一位置或取不到位置 → 0', () => {
+    assert.strictEqual(L.paneEnterShift(0, 120), 1);
+    assert.strictEqual(L.paneEnterShift(120, 0), -1);
+    assert.strictEqual(L.paneEnterShift(80, 80), 0);
+    assert.strictEqual(L.paneEnterShift(null, 80), 0);
+    assert.strictEqual(L.paneEnterShift(80, null), 0);
+    assert.strictEqual(L.paneEnterShift(undefined, undefined), 0);
+    assert.strictEqual(L.paneEnterShift(Number.NaN, 80), 0);
+  });
+
+  test('看方向不看距离（窗口变宽后 offsetLeft 全变，方向不变）', () => {
+    assert.strictEqual(L.paneEnterShift(5, 999), 1);
+    assert.strictEqual(L.paneEnterShift(999, 5), -1);
+  });
+});

@@ -28,7 +28,7 @@ const KNOWN_HARDCODED = new Set([
   'rgb(143, 103, 19)',      // #8f6713  .btn-gold 描边（gold-600，未提成变量）
   'rgb(220, 182, 180)',     // #dcb6b4  .btn-danger 描边（亮色）
   'rgb(90, 58, 57)',        // #5a3a39  .btn-danger 描边（暗色）
-  'rgba(13, 11, 8, 0.5)',   // .modal-overlay 遮罩
+  // .modal-overlay 遮罩已改走 --scrim 变量，不再挂清单（灯下一张遮罩只有一处颜色来源）
   // .mo-badge.up / .toast-success（亮/暗同值）——底色/字色与 sage green pill 基色
   // （CATEGORY_COLORS[1]）同值，已归入 pill 调色板的允许集，故不再被巡检判为越界；
   // 描边仍是清单项。注意这是个巧合耦合：pill 基色一改，这两项会重新被点亮。

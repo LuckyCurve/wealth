@@ -2336,6 +2336,29 @@ describe('UI 接线契约：卡片的液态玻璃材质', () => {
   });
 });
 
+describe('UI 接线契约：弹窗遮罩（磨砂与颜色变量）', () => {
+  const overlayRule = () => (html.match(/\n  \.modal-overlay \{[\s\S]*?\n  \}/) || [''])[0];
+
+  test('遮罩色走 --scrim（亮/暗各一次），磨砂带 Safari 前缀', () => {
+    const rule = overlayRule();
+    assert.match(rule, /background: var\(--scrim\)/, '写死色值会在主题巡检的清理清单里长挂一行');
+    assert.match(rule, /backdrop-filter: blur\(/, '磨砂是「背后账页退开」的质感来源');
+    assert.match(rule, /-webkit-backdrop-filter: blur\(/, 'Safari 前缀');
+    assert.strictEqual((html.match(/--scrim:/g) || []).length, 2, '--scrim 亮/暗各定义一次（漏一个会在另一套主题下回落）');
+  });
+
+  test('遮罩与便条的入场动画尊重减动效（与指示条/入场同一块 media）', () => {
+    assert.match(
+      html,
+      /prefers-reduced-motion[^\n]*\.modal-overlay, \.modal-content \{ animation: none; \}/,
+      '弹窗两层的入场动画要进 reduced-motion 块');
+    assert.match(
+      html,
+      /prefers-reduced-motion[^\n]*\.toast \{ animation: none; transition: none; \}/,
+      '便条的入场/退场同样归零');
+  });
+});
+
 /*
  * 开屏（落纸）与动效约定
  * --------------------------------------------------------------------------
@@ -2584,6 +2607,18 @@ describe('UI 接线契约：Tab/模式切换的过渡动画', () => {
   test('入场 class 必须是「下一帧加」（display 翻转后立即加会被一起渲染，等于没有过渡）', () => {
     const src = stripComments(fnSource('enterTab'));
     assert.match(src, /requestAnimationFrame/, '要用 rAF 隔一帧（否则初始态与终态同帧画出，动画不播）');
+  });
+
+  test('入场方向由 logic.js paneEnterShift 单一判定，经 --pane-x 交给 keyframes', () => {
+    const logic = fs.readFileSync(path.join(__dirname, '..', 'logic.js'), 'utf8');
+    assert.match(logic, /function paneEnterShift\(/, '方向判定必须在 logic.js（可单测）');
+    for (const fn of ['switchTab', 'switchMode']) {
+      const src = stripComments(fnSource(fn));
+      assert.match(src, /paneEnterShift\(/, `${fn} 的方向要喂给同一份判定（不得各写一份）`);
+      assert.match(src, /enterTab\([\s\S]*?shift\)/, `${fn} 要把方向一并传给 enterTab`);
+    }
+    assert.match(stripComments(fnSource('enterTab')), /--pane-x/, 'enterTab 把方向写进 --pane-x（CSS 唯一消费点）');
+    assert.match(html, /@keyframes paneEnter \{[^}]*var\(--pane-x/, 'keyframes 消费 --pane-x');
   });
 });
 

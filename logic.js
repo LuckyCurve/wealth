@@ -172,6 +172,17 @@
     return '长按 ' + (Number.isInteger(sec) ? sec : sec.toFixed(1)) + ' 秒进入资产页';
   }
 
+  // ===== 翻页的方向（Tab / 模式切换的入场方向）=====
+  // 目标按钮在旧按钮右侧 → 1（内容自右滑入），左侧 → -1；相同或位置取不到 → 0（只淡入）。
+  // 为什么用实测位置而不是维护一张「Tab 次序表」：次序表是第二份真相——加一个 Tab 忘改它
+  // 就静默漂移；offsetLeft 由浏览器给出，换窗口宽度后方向自动仍正确。
+  function paneEnterShift(fromX, toX) {
+    if (!Number.isFinite(fromX) || !Number.isFinite(toX)) return 0;
+    if (toX > fromX) return 1;
+    if (toX < fromX) return -1;
+    return 0;
+  }
+
   // ===== 台灯掠光（跟随指针的纸面光，全站唯一的常驻动效）=====
   // 物理隐喻：账本摊在桌上，台灯在纸上游走——换一个指针位置就等于换一个光源位置。
   // 位置换算与「是否该亮」的判定收在这里：CSS 只认两个百分比变量，
@@ -1293,6 +1304,7 @@
     MODE_PRESS_MS, modePressProgress, modePressDecision, modePressHint,
     TAG_PRESS_MS, pressProgress, pressDecision,
     lampEnabled, lampPos, tipBubblePos, TIP_GAP, TIP_EDGE,
+    paneEnterShift,
     tagFilterValue, parseTagFilter, expenseTagFilterGroups, hasTagFilterOption,
     isUntaggedItem, missingTagGroups, setTag, backfillTag,
     migrateTagRefs, migrateRunwayTagRefs, countTagRefs,

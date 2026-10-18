@@ -71,6 +71,9 @@ tailwind.config = {
     --shadow: rgba(33, 27, 16, 0.07);
     --card-edge: rgba(255, 255, 255, 0.55);
     --tick: rgba(33, 27, 16, 0.22);
+    /* 弹窗遮罩（压暗 + 磨砂）：原先写死 rgba(13,11,8,0.5)，亮暗同步全靠手动。
+       走变量后两套主题各自成句，也离开主题巡检的「写死色值」清理清单。 */
+    --scrim: rgba(13, 11, 8, 0.5);
     /* 台灯（纸面掠光）: 一盏斜射的灯——两条平行光带随指针位置横扫纸面，
        正落在指针处的一小枚圆芯是灯的中心。不用大圆霍：半径一大就变成「一圈发光背景」，
        那是模板式光晕；斜光带有方向，才像一束真打在纸上的光。 */
@@ -130,6 +133,8 @@ tailwind.config = {
     --shadow: rgba(0, 0, 0, 0.4);
     --card-edge: rgba(255, 255, 255, 0.04);
     --tick: rgba(236, 228, 208, 0.22);
+    /* 暗色纸面本来就暗，遮罩要压得更实一点；再罩一层浅墨等于没压 */
+    --scrim: rgba(6, 5, 3, 0.6);
     /* 暗色纸是深棕，光要更弱、更黄：否则在漆黑夜纸上是一片刺眼的白斑 */
     --lamp-tint: rgba(255, 240, 200, 0.08);
     --lamp-glow: rgba(217, 178, 94, 0.08);
@@ -531,9 +536,12 @@ tailwind.config = {
   .search-clear:hover { color: var(--accent-ink); background: var(--card-2); }
   /* 搜索命中: 金笔划线, 如账本上以金笔勾过的字样, 不覆盖字形 */
   mark.search-hit { background: linear-gradient(transparent 58%, var(--accent-soft) 58%); color: inherit; padding: 0; }
+  /* 弹窗遮罩 = 压暗 + 磨砂：背后的账页退到「隔着磨砂玻璃」的深处，弹窗才浮得起来。
+     颜色走 --scrim（原先写死：主题巡检的清理清单里长期挂着一行，亮暗同步全靠手动）。
+     磨砂半径从 4px 提到 8px——4px 时背后的标题与数字仍隐约可辨，会抢弹窗正文的注意力。 */
   .modal-overlay {
-    position: fixed; inset: 0; background: rgba(13, 11, 8, 0.5);
-    backdrop-filter: blur(4px); z-index: 100; display: flex;
+    position: fixed; inset: 0; background: var(--scrim);
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); z-index: 100; display: flex;
     align-items: center; justify-content: center;
     animation: fadeIn 0.2s ease;
   }
@@ -607,7 +615,7 @@ tailwind.config = {
      那时它已不是 .tip 的子孙，这条选择器自然失效。收起时 unplaceTipBubble 会摘掉 .placed
      并把它搬回原处，所以两条状态不会同时成立。 */
   .tip-bubble.placed { opacity: 0.96; visibility: visible; }
-  @media (prefers-reduced-motion: reduce) { .tip-mark, .tip-bubble { transition: none; } .tab-indicator { transition: none; } [id^="tab-"].enter { animation: none; } }
+  @media (prefers-reduced-motion: reduce) { .tip-mark, .tip-bubble { transition: none; } .tab-indicator { transition: none; } [id^="tab-"].enter { animation: none; } .modal-overlay, .modal-content { animation: none; } .toast { animation: none; transition: none; } }
   .tag-pill {
     display: inline-flex; align-items: center; gap: 3px;
     padding: 3px 7px 3px 5px; border-radius: 4px; font-size: var(--fs-micro);
@@ -827,9 +835,14 @@ tailwind.config = {
   /* Tab/模式切换的入场过渡：内容轻抬 + 淡入（0.22s，一次）。
      display:none 翻转没法过渡——两步走：先显示，下一帧加 .enter 播动画。
      距离刻意小（8px）：这是「翻到下一页」的呼吸感，不是「跳出来吓一跳」；
-     大距离的入场在频繁切 Tab 时会显得拖沓。 */
+     大距离的入场在频繁切 Tab 时会显得拖沓。
+     方向感：往右翻页内容自右滑入、往回翻自左滑入——方向由 enterTab 写进 --pane-x，
+     判定在 logic.js paneEnterShift（按目标按钮的实测位置），横向距离同样刻意小（10px）。 */
   [id^="tab-"].enter { animation: paneEnter 0.22s cubic-bezier(0.22, 0.61, 0.36, 1); }
-  @keyframes paneEnter { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes paneEnter {
+    from { opacity: 0; transform: translate(calc(var(--pane-x, 0) * 10px), 8px); }
+    to { opacity: 1; transform: translate(0, 0); }
+  }
   .tab-indicator {
     position: absolute; bottom: -1px; left: var(--tab-x, 0); width: var(--tab-w, 0);
     height: 2px; background: var(--accent); z-index: 1;
@@ -2164,6 +2177,10 @@ async function fetchRates() {
 
 // ========== TABS ==========
 function switchMode(mode) {
+  // 方向感：模式按钮的次序即「翻页」方向（消费在左、资产在右），与子 Tab 共用同一份判定
+  const prevBtn = document.querySelector('#mode-assets.active, #mode-expenses.active');
+  const nextBtn = document.getElementById('mode-' + mode);
+  const shift = paneEnterShift(prevBtn ? prevBtn.offsetLeft : null, nextBtn ? nextBtn.offsetLeft : null);
   currentMode = mode;
   // 只切 'active'，不用 className 整体赋值：模式按钮上还挂着长按专用的 .mode-press
   document.getElementById('mode-assets').classList.toggle('active', mode === 'assets');
@@ -2173,12 +2190,13 @@ function switchMode(mode) {
   document.getElementById('tabs-expenses').style.display = mode === 'expenses' ? '' : 'none';
   document.getElementById('content-assets').style.display = mode === 'assets' ? '' : 'none';
   document.getElementById('content-expenses').style.display = mode === 'expenses' ? '' : 'none';
-  enterTab(document.getElementById('content-' + mode));
+  enterTab(document.getElementById('content-' + mode), shift);
 
+  // 内层子 Tab 透传同一方向：一次「翻页」只有一个方向
   if (mode === 'assets') {
-    switchTab('assets');
+    switchTab('assets', shift);
   } else {
-    switchTab('expenses');
+    switchTab('expenses', shift);
   }
 }
 
@@ -2212,8 +2230,11 @@ window.addEventListener('resize', () => {
 // 入场过渡（单一来源）：先显示（display 已由调用方翻开），下一帧加 .enter 播动画。
 // 必须隔一帧：display 翻转与 .enter 同一帧画出的话，初始态根本不会被渲染，动画不播
 // （与开屏「booting→ready 两态」同一道理）。动画结束后摘掉 class，下次切换重新播。
-function enterTab(pane) {
+// 方向感写进 --pane-x（keyframes 的唯一消费点）：往右翻页内容自右滑入、往回翻自左滑入；
+// 判定在 logic.js paneEnterShift，调用方只把实测位置喂进去，不各写一份算式。
+function enterTab(pane, shift) {
   if (!pane) return;
+  pane.style.setProperty('--pane-x', String(shift || 0));
   pane.classList.remove('enter');
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
@@ -2222,8 +2243,17 @@ function enterTab(pane) {
   });
 }
 
-function switchTab(tab) {
+function switchTab(tab, shift) {
   const tabBar = currentMode === 'assets' ? '#tabs-assets' : '#tabs-expenses';
+  // 方向感（与模式切换共用同一份判定）：目标按钮在旧按钮右侧 = 内容自右滑入。
+  // 必须在切换 active 之前读旧按钮——之后 .active 已经搬家；模式切换会透传 shift 进来
+  // （一次「翻页」只有一个方向，内层不再自算一份）。
+  if (shift === undefined) {
+    const bar = document.querySelector(tabBar);
+    const prevBtn = bar && bar.querySelector('.tab-btn.active');
+    const nextBtn = bar && bar.querySelector('.tab-btn[data-tab="' + tab + '"]');
+    shift = paneEnterShift(prevBtn ? prevBtn.offsetLeft : null, nextBtn ? nextBtn.offsetLeft : null);
+  }
   document.querySelectorAll(tabBar + ' .tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
   moveTabIndicator(tabBar, tab);
   document.getElementById('tab-assets').style.display = tab === 'assets' ? '' : 'none';
@@ -2247,7 +2277,7 @@ function switchTab(tab) {
   document.getElementById('tab-expense-categories').style.display = tab === 'expense-categories' ? '' : 'none';
   document.getElementById('tab-expense-chart').style.display = tab === 'expense-chart' ? '' : 'none';
   document.getElementById('tab-expense-trend').style.display = tab === 'expense-trend' ? '' : 'none';
-  enterTab(document.getElementById('tab-' + tab));
+  enterTab(document.getElementById('tab-' + tab), shift);
   if (tab === 'expense-categories') {
     renderExpenseCategories();
   }

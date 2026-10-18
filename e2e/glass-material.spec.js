@@ -169,4 +169,28 @@ test.describe('卡片材质：液态玻璃的可测特征', () => {
       expect(Math.abs(below.r - above.r), `页头下沿 x=${x} 处有 ${below.r - above.r}/255 的台阶`).toBeLessThanOrEqual(2);
     });
   });
+
+  test('弹窗遮罩：磨砂够深、色走 --scrim，正文保持不透明底（表单可读性）', async ({ page }) => {
+    // 遮罩是弹窗与整个账本材质语言的衔接处：原先写死 rgba(13,11,8,0.5)
+    //（主题巡检清理清单里长期挂着一行），现走变量、亮暗各自成套；
+    // 磨砂半径 4px 时背后标题与数字仍隐约可辨，会抢弹窗正文的注意力。
+    // 正文底必须不透明：半透明会把表单文字压在糊开的深色上，可读性先垮。
+    await open(page);
+    const m = await page.evaluate(() => {
+      const cs = getComputedStyle(document.querySelector('.modal-overlay'));
+      const content = getComputedStyle(document.querySelector('.modal-content'));
+      const blur = ((cs.backdropFilter || cs.webkitBackdropFilter || '').match(/blur\(([\d.]+)px\)/) || [])[1];
+      const probe = document.createElement('span');
+      document.body.appendChild(probe);
+      probe.style.color = getComputedStyle(document.documentElement).getPropertyValue('--scrim').trim();
+      const scrimVar = getComputedStyle(probe).color;
+      probe.remove();
+      const parts = (content.backgroundColor.match(/[\d.]+/g) || []).map(Number);
+      return { blur: blur ? parseFloat(blur) : 0, scrim: cs.backgroundColor, scrimVar, contentAlpha: parts[3] ?? 1 };
+    });
+    expect(m.blur, `遮罩磨砂只有 ${m.blur}px：背后的纸面会直接透出来`).toBeGreaterThanOrEqual(8);
+    expect(m.scrimVar, '--scrim 必须在 :root 定义（遮罩颜色单一来源）').toBeTruthy();
+    expect(m.scrim, '遮罩色必须从 --scrim 来（不再写死）').toBe(m.scrimVar);
+    expect(m.contentAlpha, '弹窗正文底必须不透明（半透明会压掉表单文字的可读性）').toBe(1);
+  });
 });
