@@ -503,6 +503,24 @@ describe('UI 接线契约：自动备份等待汇率拉取完成再导出', () =
   });
 });
 
+describe('UI 接线契约：导入/导出（纯原始格式 + 迁移兜底共用一套）', () => {
+  test('导出剥离快照的加工字段 totalCNY（可由 assets × currencyRates 重算，不落盘）', () => {
+    // 先剥注释：把实现整行注释掉后残留的文本不得继续当「实现存在」的证据
+    const src = stripComments(fnSource('downloadBackupJSON'));
+    assert.match(src, /delete s\.totalCNY/,
+      '导出前必须逐条剥离 totalCNY：它的唯一真相是 assets × currencyRates，写进文件后一旦导入端不重算就会留下与资产脱节的旧值');
+  });
+
+  test('导入合并后必须走 migrateState()（与 loadState 共用同一套迁移/兜底）', () => {
+    const src = stripComments(fnSource('importData'));
+    const mergeIdx = src.indexOf('state = { ...state, ...data }');
+    const migrateIdx = src.indexOf('migrateState()');
+    assert.ok(mergeIdx >= 0, '导入应先合并顶层字段');
+    assert.ok(migrateIdx > mergeIdx,
+      '合并后必须调用 migrateState（旧 expectedRate、旧快照格式、缺字段、孤儿标签的兜底唯一入口）');
+  });
+});
+
 describe('UI 接线契约：Flatpickr 日期选择器', () => {
   test('Flatpickr CDN 三件套引入（CSS + JS + 中文 locale）', () => {
     assert.match(html, /flatpickr\/dist\/flatpickr\.min\.css/, 'Flatpickr CSS 存在');
