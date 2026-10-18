@@ -1133,8 +1133,10 @@ tailwind.config = {
   .dark .mo-badge.up { background: #1c2a20; color: #7ba995; border-color: #2d4435; }
   .dark .mo-badge.down { background: #2a1c1a; color: #d98a86; border-color: #4a2c2a; }
   .dark .mo-badge.first { background: var(--card-2); color: var(--muted); border-color: var(--border); }
-  /* 目标净资产面板（独立浅色底容器, 与货币构成条区分） */
+  /* 目标净资产面板（独立浅色底容器, 与货币构成条区分）。
+     空态与满态同为「一行」：左写这行是什么、右放动作——只塞一枚按钮的大框会被读成输入框。 */
   .target-panel { background: var(--card-2); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; }
+  .target-panel-empty { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
   .target-progress { height: 10px; border-radius: 4px; background: repeating-linear-gradient(90deg, var(--border) 0 1px, transparent 1px 25%), var(--bg-2); border: 1px solid var(--border); overflow: hidden; }
   .target-progress-fill { height: 100%; border-radius: 3px; transition: width 0.4s ease; }
   /* ===== 覆盖标尺: 收益对预期月消费的覆盖测量 =====
@@ -2638,7 +2640,10 @@ function renderMasthead(total) {
     targetEl.style.display = 'none';
   } else {
     targetEl.style.display = '';
-    targetEl.innerHTML = `<div class="target-panel"><button onclick="openTargetModal()" class="btn-ghost btn-xs">设定目标</button></div>`;
+    targetEl.innerHTML = `<div class="target-panel target-panel-empty">
+      <span class="t-micro muted">目标净资产</span>
+      <button onclick="openTargetModal()" class="btn-ghost btn-xs">设定目标</button>
+    </div>`;
   }
 
   // sub line: 资产数 + 月收益/现金 双口径平齐展示（任一资产设置利率后出现）

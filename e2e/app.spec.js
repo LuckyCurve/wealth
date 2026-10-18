@@ -387,6 +387,20 @@ test.describe('资产增删改', () => {
   });
 });
 
+test.describe('净资产目标', () => {
+  test('未设目标：报头里是一行「名称 + 动作」的设置行，不是一个不知道填什么的空框', async ({ appPage: page }) => {
+    // 用户视角：空态原是一个整行的大框里塞一枚小按钮——看着像输入框，框里没有名字。
+    // 正解：左侧写明这行是什么（目标净资产），右侧是动作，一行装得下。
+    await gotoAssets(page);
+    const panel = page.locator('#net-worth-target .target-panel');
+    await expect(panel).toBeVisible();
+    await expect(panel).toContainText('目标净资产');
+    await expect(panel.getByRole('button', { name: '设定目标' })).toBeVisible();
+    const box = await panel.boundingBox();
+    expect(box.height, '空态应当是一行（不是被撑起来的空框）').toBeLessThan(64);
+  });
+});
+
 test.describe('消费记录', () => {
   test('列表默认日期降序（最新在前），合计跟随全量', async ({ appPage: page }) => {
     const rows = page.locator('#expenses-rows .asset-row');
