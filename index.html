@@ -94,18 +94,22 @@ tailwind.config = {
        透光率有意过半（fill 的 alpha ≤ 0.5）：不过半时纸色与桌光都透不上来。
        左上/右下的柔光只允许落在**内边距带**里（reach = 偏移 + 模糊 - 扩展，小于卡片内边距）——
        它们会把局部底色提亮，而 AA 巡检按 fill 这个平底色算，故不能让柔光爬到正文底下。 */
-    --glass-fill: rgba(255, 253, 246, 0.48);
-    --glass-edge: rgba(206, 192, 158, 0.42);
-    --glass-rim: rgba(255, 255, 255, 0.95);
-    --glass-sheen: rgba(255, 255, 255, 0.34);
-    --glass-shade: rgba(74, 58, 26, 0.10);
-    --glass-inner: rgba(255, 255, 255, 0.22);
+    /* 「太浅淡」的增强（实测旧值：卡内两角坡度仅 0.011、卡边与桌面差 0.047）：
+       fill 的 alpha 再降（透出更多纸色与桌光，blur 才有原料可揉）；
+       sheen/shade 两角柔光的半径与量级都加大（厚度感的主要来源）；
+       rim 受光边更亮、shade 背光边更深（受光方向的对比被拉大）。 */
+    --glass-fill: rgba(255, 253, 246, 0.40);
+    --glass-edge: rgba(196, 180, 142, 0.52);
+    --glass-rim: rgba(255, 255, 255, 1);
+    --glass-sheen: rgba(255, 255, 255, 0.52);
+    --glass-shade: rgba(74, 58, 26, 0.16);
+    --glass-inner: rgba(255, 255, 255, 0.30);
     /* 桌面光照（静止的一层）：灯在头顶偏左，纸面向右下退光。
        为什么必须存在：卡片是半透明玻璃，**透光材质得背后有东西可透**——原先背后只有
        一层 3.5% 的纸纹，blur 揉过去等于空转，卡片就退化成一块白板。
        为什么它是静的：跟指针走的光只允许出在 .lamp-layer 一处（见「只允许一盏灯」）。 */
-    --desk-lit: rgba(255, 252, 240, 0.42);
-    --desk-fall: rgba(72, 56, 24, 0.12);
+    --desk-lit: rgba(255, 252, 240, 0.55);
+    --desk-fall: rgba(72, 56, 24, 0.16);
   }
   :root.dark {
     color-scheme: dark;
@@ -134,15 +138,15 @@ tailwind.config = {
     --engrave-w: 1px;
     /* 暗色玻璃：深棕半透明（不是黑——黑玻璃会把暖色纸面压死）；受光与背光的量级都压得很低，
        否则在暗背景上会是一圈刺眼的白描边。透光率同样过半，桌光才透得上来。 */
-    --glass-fill: rgba(58, 47, 30, 0.46);
-    --glass-edge: rgba(126, 108, 74, 0.40);
-    --glass-rim: rgba(255, 246, 214, 0.14);
-    --glass-sheen: rgba(255, 246, 214, 0.06);
-    --glass-shade: rgba(0, 0, 0, 0.24);
-    --glass-inner: rgba(255, 240, 200, 0.05);
+    --glass-fill: rgba(58, 47, 30, 0.40);
+    --glass-edge: rgba(150, 128, 86, 0.5);
+    --glass-rim: rgba(255, 246, 214, 0.22);
+    --glass-sheen: rgba(255, 246, 214, 0.12);
+    --glass-shade: rgba(0, 0, 0, 0.34);
+    --glass-inner: rgba(255, 240, 200, 0.09);
     /* 暗色桌面：纸已经很暗，桌光只能是一点点暖调（压太狠会让四角发黑发脏） */
-    --desk-lit: rgba(255, 240, 200, 0.04);
-    --desk-fall: rgba(0, 0, 0, 0.30);
+    --desk-lit: rgba(255, 240, 200, 0.07);
+    --desk-fall: rgba(0, 0, 0, 0.38);
   }
   .dark .asset-row { border-bottom-color: var(--rule); }
   /* 卡片的边缘色不再另设一套（原先 .dark .card 改回 --border，等于材质的边缘有两处定义） */
@@ -351,8 +355,8 @@ tailwind.config = {
     --glass-shadow:
       inset 0 1px 0 var(--glass-rim),
       inset 0 -1px 0 var(--glass-shade),
-      inset 8px 8px 13px -12px var(--glass-sheen),
-      inset -8px -8px 13px -12px var(--glass-shade),
+      inset 14px 14px 22px -14px var(--glass-sheen),
+      inset -14px -14px 22px -14px var(--glass-shade),
       inset 0 0 0 1px var(--glass-inner);
     /* 外阴影（深度）与材质分开打包：材质只有 --glass-shadow 一处定义，:hover 只换深度。
        三层影各有职责：接触影（贴地的一线）+ 近影 + 远影（环境遮蔽）——只有一层时卡片像贴纸。 */
@@ -361,12 +365,12 @@ tailwind.config = {
     background: var(--glass-fill);
     border: 1px solid var(--glass-edge);
     border-radius: 10px;
-    /* 背光模糊 + 轻微提饱和：玻璃会把背后的颜色揉开并让它更「润」。
-       半径有意从 18px 收到 10px：纸纹的周期是 60px、十字笔画只 2px 宽，模糊半径超过
-       纸纹周期的一半就等于把背后的纸面整个揉平，那样 blur 只是一笔没有观感的开销
-       （glass-material.spec.js 拿纸纹周期当参照量这一条）。 */
-    backdrop-filter: blur(10px) saturate(1.6);
-    -webkit-backdrop-filter: blur(10px) saturate(1.6);
+    /* 背光模糊 + 提饱和：玻璃会把背后的颜色揉开并让它更「润」。
+       半径从 10px 提到 14px（用户反馈玻璃太浅淡）：桌光的明暗层次被揉得更开，
+       折射感才出得来。上限仍受纸纹周期约束——纸纹周期 60px、十字笔画 2px 宽，
+       模糊半径不超过周期的一半（30px）就不会把纸纹整个揉平。 */
+    backdrop-filter: blur(14px) saturate(1.8);
+    -webkit-backdrop-filter: blur(14px) saturate(1.8);
     /* 外阴影分三层：接触影（贴地的一线）+ 近影 + 远影（环境遮蔽）。
        只有一层时卡片像贴纸，三层才有「压在某物上」的深度。 */
     box-shadow: var(--glass-shadow), var(--glass-depth);
