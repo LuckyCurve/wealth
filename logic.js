@@ -1217,6 +1217,21 @@
     return type === 'error' ? 'assertive' : 'polite';
   }
 
+  // ========== 拖拽排序的键盘替代 ==========
+  // 拖拽把手原先只有 draggable——指针专属手势，键盘用户完全无法调整资产顺序。
+  // 这里只做「数组里怎么挪」这一半（可单测）；键位判定与 DOM 副作用在 index.html。
+  // 必须返回新数组而不改原数组：调用方拿返回值赋回 state，原地改动配合渲染函数
+  // 的重绘时序容易静默不刷新。
+  function moveAssetIndex(arr, from, to) {
+    if (!Array.isArray(arr) || arr.length < 2) return arr;
+    if (!Number.isInteger(from) || !Number.isInteger(to)) return arr;
+    if (from < 0 || from >= arr.length || to < 0 || to >= arr.length || from === to) return arr;
+    const next = arr.slice();
+    const [moved] = next.splice(from, 1);
+    next.splice(to, 0, moved);
+    return next;
+  }
+
   // ========== 弹窗焦点陷阱 ==========
   // 15 个弹窗都写了 role="dialog" aria-modal="true"——那是对读屏器的承诺：弹窗背后的
   // 内容不可达。但实测完全没接管焦点：打开后焦点还在触发按钮上、第一下 Tab 就走出弹窗、
@@ -1261,7 +1276,7 @@
     BACKUP_STALE_DAYS, normalizeBackupFreq, backupNoteText, hasAnyBackupWorthyData, shouldAutoBackup, backupStaleDays,
     rateFallbackNotice,
     nextSortState, inlineEditKeyAction, expenseMonths,
-    activateKeyAction, sortAriaSort, sortAriaLabel, trapFocus, toastLiveMode,
+    activateKeyAction, sortAriaSort, sortAriaLabel, trapFocus, toastLiveMode, moveAssetIndex,
     MODE_PRESS_MS, modePressProgress, modePressDecision, modePressHint,
     TAG_PRESS_MS, pressProgress, pressDecision,
     lampEnabled, lampPos, tipBubblePos, TIP_GAP, TIP_EDGE,

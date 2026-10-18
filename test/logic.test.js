@@ -2310,3 +2310,33 @@ describe('排序列头对读屏器的表述', () => {
     assert.strictEqual(L.sortAriaLabel('金额', 'amount', undefined, 'amount'), '');
   });
 });
+
+describe('拖拽排序的键盘替代', () => {
+  // 拖拽把手只有 draggable，键盘用户完全无法调整资产顺序。
+  // 纯函数只管「数组里怎么挪」；键位判定（哪些键触发）与 DOM 副作用在 index.html。
+  test('上移 / 下移：把 srcIdx 的元素挪到目标位置', () => {
+    const arr = ['a', 'b', 'c', 'd'];
+    assert.deepStrictEqual(L.moveAssetIndex(arr, 0, 2), ['b', 'c', 'a', 'd']);
+    assert.deepStrictEqual(L.moveAssetIndex(arr, 3, 0), ['d', 'a', 'b', 'c']);
+    assert.deepStrictEqual(L.moveAssetIndex(['a', 'b'], 0, 1), ['b', 'a']);
+  });
+
+  test('相邻移动（↑/↓ 一次一格）', () => {
+    assert.deepStrictEqual(L.moveAssetIndex(['a', 'b', 'c'], 1, 0), ['b', 'a', 'c']);
+    assert.deepStrictEqual(L.moveAssetIndex(['a', 'b', 'c'], 1, 2), ['a', 'c', 'b']);
+  });
+
+  test('越界 / 非法输入：原样返回，不产生任何变化', () => {
+    assert.deepStrictEqual(L.moveAssetIndex(['a', 'b'], -1, 1), ['a', 'b']);
+    assert.deepStrictEqual(L.moveAssetIndex(['a', 'b'], 0, 5), ['a', 'b']);
+    assert.deepStrictEqual(L.moveAssetIndex(['a', 'b'], 5, 0), ['a', 'b']);
+    assert.deepStrictEqual(L.moveAssetIndex([], 0, 1), []);
+    assert.deepStrictEqual(L.moveAssetIndex(['a'], 0, 0), ['a']);
+  });
+
+  test('不修改原数组（调用方拿返回值赋回 state，误用原地版本会静默不渲染）', () => {
+    const arr = ['a', 'b'];
+    L.moveAssetIndex(arr, 0, 1);
+    assert.deepStrictEqual(arr, ['a', 'b']);
+  });
+});

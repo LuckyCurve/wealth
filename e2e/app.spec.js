@@ -1395,6 +1395,45 @@ test.describe('日期选择器与复制', () => {
   });
 });
 
+test.describe('资产排序的键盘通道', () => {
+  // 拖拽把手原先只有 draggable——指针专属手势，键盘用户完全无法调整资产顺序。
+  // 「可点即键盘可达」的判据：指针能到的路径，键盘也要能到。
+  test('聚焦把手后 ↑/↓ 能移动资产顺序，焦点跟着走', async ({ appPage: page }) => {
+    await gotoAssets(page, 'assets');
+    const order = () => page.evaluate(() =>
+      [...document.querySelectorAll('#assets-rows .asset-row')].map(r => r.dataset.id).join(','));
+    const before = await order();
+    expect(before).toBe('a-cash,a-fund,a-hk');
+
+    // 聚焦第一行的把手，按 ↓：招商银行活期 应与 沪深300指数 交换
+    const handle = page.locator('#assets-rows .asset-row[data-id="a-cash"] .drag-handle');
+    await handle.focus();
+    await page.keyboard.press('ArrowDown');
+    await expect(page.locator('#assets-rows .asset-row[data-id="a-cash"] .drag-handle'))
+      .toBeFocused(); // 焦点跟着被移动的行走（连续按才可用）
+    expect(await order(), '↓ 应把该资产下移一格').toBe('a-fund,a-cash,a-hk');
+
+    // 再按 ↓ 到底
+    await page.keyboard.press('ArrowDown');
+    expect(await order()).toBe('a-fund,a-hk,a-cash');
+    // 到底后再按不越界
+    await page.keyboard.press('ArrowDown');
+    expect(await order(), '已在最后一行，再按 ↓ 不得越界').toBe('a-fund,a-hk,a-cash');
+
+    // ↑ 两次回到顶部；到顶后再按不越界
+    await page.keyboard.press('ArrowUp');
+    await page.keyboard.press('ArrowUp');
+    await page.keyboard.press('ArrowUp');
+    expect(await order(), '↑ 三次后应回到原序（第三次已到顶，不越界）').toBe('a-cash,a-fund,a-hk');
+
+    // 资产侧排序状态被清空（表头不再显示 ▲/▼ 激活态）。
+    // 只数资产表头——消费侧日期列有默认排序，全站数会把不相干的 active 数进来。
+    const active = await page.evaluate(() =>
+      document.querySelectorAll('#assets-list .sort-indicator.active').length);
+    expect(active, '移动顺序后应清除列排序状态').toBe(0);
+  });
+});
+
 test.describe('分布图的构成清单（与图同源）', () => {
   const legendRows = (page, listId) =>
     page.evaluate((id) =>

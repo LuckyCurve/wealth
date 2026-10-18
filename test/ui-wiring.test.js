@@ -2491,3 +2491,19 @@ describe('UI 接线契约：旭日图选中分类后清单联动', () => {
     }
   });
 });
+
+describe('UI 接线契约：拖拽排序的键盘替代', () => {
+  test('拖拽把手必须可聚焦（否则纯键盘用户无法调整资产顺序）', () => {
+    const h = stripComments(fnSource('renderAssets'));
+    assert.match(h, /class="drag-handle"[^>]*tabindex="0"/, '把手要有 tabindex=0');
+    assert.match(h, /drag-handle"[^>]*role="button"/, '把手要有 role=button');
+    assert.match(h, /drag-handle"[^>]*aria-label="[^"]*上移[^"]*"/, '把手的可访问名要说明「上移」');
+  });
+
+  test('键盘移动走 moveAsset 单一入口（不在 keydown 里重写排序逻辑）', () => {
+    assert.match(fnSource('moveAsset'), /moveAssetIndex\(/, '数组操作复用 logic.js 纯函数');
+    assert.match(fnSource('moveAsset'), /sortBy = ''/, '移动后清空排序状态（与拖拽 drop 同一套收尾）');
+    const h = stripComments(fnSource('renderAssets'));
+    assert.match(h, /moveAsset\(/, '把手 keydown 必须调 moveAsset');
+  });
+});

@@ -2382,7 +2382,11 @@ function renderAssets() {
         : '';
       const cnyVal = toCNY(a.amount, a.currency);
       return `<div class="asset-row grid-wide" data-id="${esc(a.id)}">
-        <div class="drag-handle" title="拖动排序" draggable="true" ondragstart="onAssetDragStart(event)" ondragend="onAssetDragEnd(event)">⠿</div>
+        <!-- 把手可聚焦：拖拽是指针手势，键盘用户靠 ↑/↓ 完成同一件事（moveAsset 与 drop 走同一套收尾）。 -->
+        <div class="drag-handle" role="button" tabindex="0" aria-label="调整排序，按上移或下移"
+          title="拖动排序（键盘：聚焦后按 ↑/↓）" draggable="true"
+          ondragstart="onAssetDragStart(event)" ondragend="onAssetDragEnd(event)"
+          onkeydown="if(event.key==='ArrowUp'){event.preventDefault();moveAsset('${jsAttr(a.id)}',-1);}else if(event.key==='ArrowDown'){event.preventDefault();moveAsset('${jsAttr(a.id)}',1);}">⠿</div>
         <div class="t-medium t-body">${esc(a.name)}</div>
         <div class="t-body tabular num amount-cell" data-id="${esc(a.id)}" role="button" tabindex="0" title="点击快速更新金额" onclick="startInlineEdit('${jsAttr(a.id)}')" onkeydown="if(event.key==='Enter')startInlineEdit('${jsAttr(a.id)}')">
           <svg class="edit-pencil" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 3l1 1-9 9-2.5.5.5-2.5L13 3z"/><path d="M10.7 5.3l1 1"/></svg>
@@ -4642,6 +4646,24 @@ function onAssetDrop(e) {
   sortDir = 'asc';
   saveState();
   renderAssets();
+}
+
+// 键盘移动资产顺序：拖拽 drop 的键盘等价物。数组操作走 logic.js moveAssetIndex（可单测），
+// 收尾（清排序状态 → 落盘 → 重绘）与 onAssetDrop 完全同一套——两处各写一份必然漂移。
+function moveAsset(id, dir) {
+  const idx = state.assets.findIndex(a => a.id === id);
+  if (idx === -1) return;
+  const to = idx + dir;
+  const next = moveAssetIndex(state.assets, idx, to);
+  if (next === state.assets) return; // 越界（已到顶/底）：不动
+  state.assets = next;
+  sortBy = '';
+  sortDir = 'asc';
+  saveState();
+  renderAssets();
+  // 焦点跟着被移动的行走（重绘后 DOM 是新的，按 data-id 找回同一枚把手）
+  const fresh = document.querySelector('#assets-rows .asset-row[data-id="' + CSS.escape(id) + '"] .drag-handle');
+  if (fresh) fresh.focus();
 }
 
 // ========== SORT ==========
