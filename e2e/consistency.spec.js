@@ -644,10 +644,23 @@ test.describe('可读性：平铺 chip 未选中态跨分类一致', () => {
  * 计算样式与 z-index 都看不出层叠上下文的边界。
  */
 test.describe('可读性：悬停气泡必须完整可见', () => {
+  /**
+   * 悬停 ? 图标。为什么要整段重试：switchTab 会给收益 Tab 排一个 100ms 的延迟重绘
+   * （见 index.html switchTab），它把整块 innerHTML 换掉——悬停正好落在这个窗口里
+   * 就「元素已脱离 DOM」（重复跑实测 12 次挂 4 次，CI 上必挂）。
+   * 用 toPass 重试而不是 sleep 猜时机：睡短了仍会撞上，睡长了全套变慢
+   * （E2E 禁止 waitForTimeout 的理由同此）。
+   */
+  const hoverMark = async (page, sel) => {
+    await expect(async () => {
+      await page.locator(sel).first().scrollIntoViewIfNeeded();
+      await page.locator(sel).first().hover();
+    }).toPass({ timeout: 10000 });
+  };
+
   /** 悬停某个 tip，返回气泡矩形 + 其上是否被别的元素盖住 */
   const hoverTip = async (page, sel) => {
-    await page.locator(sel).first().scrollIntoViewIfNeeded();
-    await page.locator(sel).first().hover();
+    await hoverMark(page, sel);
     // 气泡展示时会被搬到 body 下（绕开祖先的层叠上下文/裁剪），故按 id 找：
     // `aria-describedby` 指向的就是它，这也正是读屏器认的那条关联。
     await expect
@@ -711,7 +724,8 @@ test.describe('可读性：悬停气泡必须完整可见', () => {
     await gotoAssets(page, 'income');
     await page.evaluate(() => renderIncomeTab());
     const tip = page.locator('#income-summary .tip-mark');
-    await tip.hover();
+    // 同上：这次 hover 也要熬过 switchTab 那次延迟重绘
+    await expect(async () => { await tip.hover(); }).toPass({ timeout: 10000 });
     await expect.poll(async () => page.locator('#cov-shortfall-tip').count()).toBe(1);
     // 触发重绘（改安全边际 = 重算读数 = 重建那段 HTML）
     await page.evaluate(() => { state.incomeSafetyFactor = 80; renderIncomeTab(); });
