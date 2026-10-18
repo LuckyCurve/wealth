@@ -15,10 +15,13 @@ const path = require('path');
 
 const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 const count = (re) => (html.match(re) || []).length;
-// 取某顶层函数的完整源码段（函数体不含顶格的 "}"，故非贪婪匹配到行首 "}" 即函数结尾）
+// 取某顶层函数的完整源码段（函数体不含顶格的 "}"，故非贪婪匹配到行首 "}" 即函数结尾）。
+// 找不到必须报错：返回空串会让该函数的所有「不得出现 X」负向断言永久假绿——测试看着在、
+// 实际什么都没验（改个函数名就静默失效）。
 const fnSource = (fn) => {
   const m = html.match(new RegExp(`function ${fn}\\([\\s\\S]*?\\n\\}`));
-  return m ? m[0] : '';
+  assert.ok(m, `fnSource 未匹配到函数 ${fn}（改名/改形会让提取为空、断言静默失效，此处必须报错）`);
+  return m[0];
 };
 // 剥掉注释后的源码：断言「不得出现某文案」时，解释该约定的注释本身不算违规
 const stripComments = (src) =>
@@ -312,13 +315,11 @@ describe('UI 接线契约：弹窗焦点管理（aria-modal 的兑现）', () =>
 
   test('所有隐藏弹窗的路径都走 closeModal：否则焦点管理被绕过（只改 display 而不还焦点）', () => {
     // ESC 与遮罩点击原先各自写 `style.display = 'none'`，绕过了 closeModal。
-    const esc = html.slice(html.indexOf("if (e.key !== 'Escape') return;"));
-    const escBlock = esc.slice(0, esc.indexOf('});'));
+    const escBlock = blockFrom(html, "if (e.key !== 'Escape') return;", '});');
     assert.doesNotMatch(escBlock, /top\.style\.display = 'none'/, 'ESC 关弹窗必须走 closeModal（否则焦点不还）');
     assert.match(escBlock, /closeModal\(top\.id\)|confirmCancel\(\)/, 'ESC 应统一走 closeModal / confirmCancel');
 
-    const overlay = html.slice(html.indexOf('__modalMouseDownTarget = e.target'));
-    const overlayBlock = overlay.slice(0, overlay.indexOf('__modalMouseDownTarget = null'));
+    const overlayBlock = blockFrom(html, '__modalMouseDownTarget = e.target', '__modalMouseDownTarget = null');
     assert.doesNotMatch(overlayBlock, /e\.target\.style\.display = 'none'/, '遮罩点击关弹窗必须走 closeModal');
   });
 });
@@ -417,6 +418,8 @@ describe('UI 接线契约：收益覆盖标尺（分子口径可切换的预期�
     assert.match(fnSource('renderCoverageMeter'), /incomeGap\(/, '覆盖标尺应使用 incomeGap 取盈余/缺口口径');
     assert.doesNotMatch(fnSource('renderCoverageMeter'), /cashMonthly\s*-\s*expectation/, '覆盖标尺不再内联差额计算');
     // 报头副行只保留收入金额与预期锚点, 盈余/缺口差额已收归覆盖标尺（不调用 incomeGap、不内联差额取整）
+    // 双负向断言前先给一条正向锚点：否则提取到别的/空的块时，两条「不再…」都会假绿
+    assert.match(fnSource('renderMasthead'), /masthead-sub/, '报头副行由 renderMasthead 渲染（证明拿到的是真实现）');
     assert.doesNotMatch(fnSource('renderMasthead'), /incomeGap\(/, '报头不再调用 incomeGap 渲染差额');
     assert.doesNotMatch(fnSource('renderMasthead'), /Math\.round\(Math\.abs\(gap\)\)/, '报头不再内联差额取整');
   });
@@ -2117,7 +2120,6 @@ describe('UI 接线契约：台灯掠光（跟随指针的纸面光）', () => {
   });
 
   test('减动效 / 粗指针 / 页面不可见三种情况都不跟（判定单一来源）', () => {
-    const src = fnSource('lampEnabled_');
     assert.strictEqual(count(/lampEnabled\(/g), 1, '页面只调用、不重写判定');
     assert.match(html, /prefers-reduced-motion/, '减动效有出口');
     assert.match(html, /pointer: coarse/, '触屏不跟（无悬停可言）');
@@ -2699,11 +2701,10 @@ describe('UI 接线契约：长按满时长自动弹窗', () => {
     const end = stripComments(fnSource('endModePress'));
     assert.match(end, /autoOpenGuard\(/, 'pointerup 收尾必须查守卫（否则抬手即关）');
     // 遮罩关闭也要查守卫
-    const overlay = html.slice(html.indexOf('__modalMouseDownTarget = e.target'));
-    const overlayBlock = overlay.slice(0, overlay.indexOf('__modalMouseDownTarget = null'));
+    const overlayBlock = blockFrom(html, '__modalMouseDownTarget = e.target', '__modalMouseDownTarget = null');
     assert.match(overlayBlock, /autoOpenGuard\(/, '遮罩 click 关闭也必须查守卫');
     // 确认按钮在守卫窗内的点击也要忽略（那是抬手余波，不是用户真点）
-    const okBtn = stripComments(html).slice(stripComments(html).indexOf("getElementById('confirm-ok-btn').addEventListener"));
+    const okBtn = blockFrom(stripComments(html), "getElementById('confirm-ok-btn').addEventListener");
     assert.match(okBtn, /autoOpenGuard\(/, '确认按钮的 click 也必须查守卫');
   });
 
