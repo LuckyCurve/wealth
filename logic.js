@@ -1195,6 +1195,16 @@
       : { msg: '汇率获取失败', type: 'error' };
   }
 
+  // ========== 便条的播报优先级 ==========
+  // 便条容器原先写死 aria-live="polite"：所有知会（含 22 处 error）都排队等读屏器空闲才念。
+  // 但 error 的语义就是「出错了、等你处理」——排队到用户下一次操作之后才念，
+  // 等于把「现在就得知道」降级成「顺口提一句」。故按类型分档：
+  //   error → assertive（打断当前朗读，立刻播报）；其余 → polite（不打断，择机播报）。
+  // 判据下沉到这里（可单测），DOM 侧只负责把值写到容器属性上。
+  function toastLiveMode(type) {
+    return type === 'error' ? 'assertive' : 'polite';
+  }
+
   // ========== 弹窗焦点陷阱 ==========
   // 15 个弹窗都写了 role="dialog" aria-modal="true"——那是对读屏器的承诺：弹窗背后的
   // 内容不可达。但实测完全没接管焦点：打开后焦点还在触发按钮上、第一下 Tab 就走出弹窗、
@@ -1239,7 +1249,7 @@
     BACKUP_STALE_DAYS, normalizeBackupFreq, backupNoteText, hasAnyBackupWorthyData, shouldAutoBackup, backupStaleDays,
     rateFallbackNotice,
     nextSortState, inlineEditKeyAction, expenseMonths,
-    activateKeyAction, sortAriaSort, trapFocus,
+    activateKeyAction, sortAriaSort, trapFocus, toastLiveMode,
     MODE_PRESS_MS, modePressProgress, modePressDecision, modePressHint,
     TAG_PRESS_MS, pressProgress, pressDecision,
     lampEnabled, lampPos, tipBubblePos, TIP_GAP, TIP_EDGE,

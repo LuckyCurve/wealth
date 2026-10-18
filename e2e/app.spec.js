@@ -680,6 +680,27 @@ test.describe('弹窗与提示', () => {
     await expect(page.locator('#toast-area .toast', { hasText: '金额必须大于 0' })).toBeHidden({ timeout: 10000 });
   });
 
+  test('错误的播报档位是 assertive，成功/知会是 polite（读屏器只认 live region 的档位）', async ({ appPage: page }) => {
+    // 便条容器原先写死 aria-live="polite"：22 处 error 全都被排队到用户下次操作之后才念，
+    // 而 error 的语义是「出错了、等你处理」——降级成「顺口提一句」。
+    // 判据（toastLiveMode）在 logic.js 单测里钉住，这里验的是**它真的写到了 DOM 上**。
+    await expect(page.locator('#toast-area')).toHaveAttribute('aria-live', 'polite');
+
+    // error 便条：档位必须切到 assertive
+    await page.locator('#tab-expenses button:has-text("记录消费")').click();
+    await page.fill('#expense-amount', '0');
+    await page.locator('#expense-form button:has-text("保存")').click();
+    await expect(page.locator('#toast-area .toast', { hasText: '金额必须大于 0' })).toBeVisible();
+    await expect(page.locator('#toast-area'), '出错的便条必须走 assertive').toHaveAttribute('aria-live', 'assertive');
+
+    // success 便条：档位要切回 polite（否则下一次知会也会打断朗读）
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#expense-modal')).toBeHidden();
+    await page.evaluate(() => setBackupFreq('daily'));
+    await expect(page.locator('#toast-area .toast').first()).toBeVisible();
+    await expect(page.locator('#toast-area'), '成功便条应回落 polite').toHaveAttribute('aria-live', 'polite');
+  });
+
   test('设置弹窗是主题切换的唯一入口', async ({ appPage: page }) => {
     await openSettings(page);
     await page.locator('#theme-seg-dark').click();

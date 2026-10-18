@@ -2256,3 +2256,29 @@ describe('弹窗焦点陷阱（aria-modal 的兑现）', () => {
     }
   });
 });
+
+describe('便条的播报优先级', () => {
+  // 便条容器原先写死 aria-live="polite"：所有知会（含 22 处 error）都排队等读屏器空闲才念。
+  // 但 error 的语义是「出错了、等你处理」——排队到用户下一次操作之后才念，
+  // 等于把「现在就得知道」降级成「顺口提一句」。判据下沉到 logic.js（可单测）。
+  test('error 用 assertive：出错了要立刻打断朗读，不能排队', () => {
+    assert.strictEqual(L.toastLiveMode('error'), 'assertive');
+  });
+
+  test('success / info 用 polite：知会性反馈不该打断用户正在听的内容', () => {
+    assert.strictEqual(L.toastLiveMode('success'), 'polite');
+    assert.strictEqual(L.toastLiveMode('info'), 'polite');
+  });
+
+  test('未知 / 缺失类型一律保守取 polite（绝不误用 assertive 去打断）', () => {
+    for (const t of [undefined, null, '', 'warn', 'ERROR', 0]) {
+      assert.strictEqual(L.toastLiveMode(t), 'polite', `类型 ${String(t)} 应回落 polite`);
+    }
+  });
+
+  test('只可能产出两个合法值（写进 DOM 属性，写错了浏览器不报错、只是静默失效）', () => {
+    const seen = new Set();
+    for (const t of ['error', 'success', 'info', 'x', undefined]) seen.add(L.toastLiveMode(t));
+    for (const v of seen) assert.ok(['assertive', 'polite'].includes(v), `产出非法值 ${v}`);
+  });
+});

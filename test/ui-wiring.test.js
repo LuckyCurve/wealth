@@ -202,6 +202,22 @@ describe('UI 接线契约：共享层单一来源（防重复实现各自漂移�
   });
 });
 
+describe('UI 接线契约：便条的播报优先级', () => {
+  test('播报档位必须在 toast() 里按类型动态写入（写死在容器上 = error 永远被排队）', () => {
+    // 容器上留一个 polite 初值是对的（live region 得在加载时就存在，读屏器才会注册它），
+    // 要守的是「每次便条都按类型改写档位」——否则 22 处 error 全都被排到用户下次操作之后。
+    const src = fnSource('toast');
+    assert.match(src, /setAttribute\('aria-live'/, 'toast() 必须把档位写到容器上（读屏器只认 live region 的档位，逐条设无效）');
+    assert.match(src, /toastLiveMode\(type\)/, '档位取值必须来自 logic.js 的单一判据');
+  });
+
+  test('播报档位走 logic.js toastLiveMode（不在页面里重写一份判据）', () => {
+    const src = fnSource('toast');
+    assert.match(src, /toastLiveMode\(/, 'toast() 必须复用 logic.js 的单一判据');
+    assert.match(src, /aria-live/, '必须把档位真的写到 DOM 属性上');
+  });
+});
+
 describe('UI 接线契约：弹窗焦点管理（aria-modal 的兑现）', () => {
   const openSrc = fnSource('openModal');
   const closeSrc = fnSource('closeModal');

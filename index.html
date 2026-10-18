@@ -1944,7 +1944,9 @@ tailwind.config = {
 </div>
 
 <!-- 统一提示便条容器: 右下角堆叠（aria-live 让读屏器也能听到系统知会） -->
-<div id="toast-area" aria-live="polite"></div>
+<!-- 统一提示便条容器：播报档位由 toast() 按类型动态写入 aria-live
+     （error 必须 assertive：出错了要立刻打断朗读；写死 polite 会把它排到用户下次操作之后）。 -->
+<div id="toast-area" aria-live="polite" aria-atomic="false"></div>
 
 <script src="logic.js"></script>
 <script>
@@ -4986,6 +4988,10 @@ function toast(msg, type) {
     armToastHide(prev);
     return;
   }
+  // 播报档位按类型定：error 走 assertive（立刻打断朗读），其余 polite（择机播报）。
+  // 写死在容器上就是「所有错误都排队」；档位写到容器而非每条便条上——
+  // 读屏器只认 live region 的档位，逐条设 aria-live 无效。
+  area.setAttribute('aria-live', toastLiveMode(type));
   const t = document.createElement('div');
   t.className = `toast toast-${type}`;
   t.textContent = msg;
