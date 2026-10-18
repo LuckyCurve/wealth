@@ -186,44 +186,79 @@ test.describe('版式一致性', () => {
     }
   });
 
-  test('资产表：数值列（含「预期年化」）一律右对齐，表头同步', async ({ appPage: page }) => {
-    // 用户实测：「有的表格列左对齐，有的右对齐」。
-    // 「预期年化」那格的内容是 `0-0% · 现金 100%`——纯数字/百分比，却按 start 排；
-    // 同一行的金额、CNY 金额都右对齐，于是这一列的右边缘参差不齐、与上下两列的
-    // 数字轴对不上。判据不写死列清单：**内容像数值的列**才要求右对齐（备注、名称、
-    // 标签这些文字列照旧左对齐——右对齐的中文很难读）。
-    await gotoAssets(page, 'assets');
-    const cols = await page.evaluate(() => {
-      const head = document.querySelector('#assets-list .list-head');
-      const row = document.querySelector('#assets-rows .asset-row');
+  test('所有表格：数值列一律右对齐，表头同步（含弹窗里的表）', async ({ appPage: page }) => {
+    // 用户实测两轮才说清：「消费记录」页的表格有的列左对齐、有的右对齐。
+    // 上一版巡检只扫了主列表（#assets-list / #income-rows），**把所有弹窗里的表都漏了**
+    // ——「月度消费明细」「快照详情」「构成明细」这些表的金额格根本没挂 num，
+    // 左边缘对齐、右边缘参差。故判据改为**遍历页面上所有 .asset-row 表**（含弹窗），
+    // 不写死选择器清单——以后新增的表自动被覆盖。
+    const scan = () => page.evaluate(() => {
       const out = [];
-      for (let i = 0; i < row.children.length; i++) {
-        const cell = row.children[i];
-        const text = (cell.textContent || '').trim();
-        if (!text) continue;
-        // 「像数值」判据：**以数字（或货币符号+数字）开头**，且数字占绝对主体。
-        // 不能写成「整格不含中文」——「预期年化」那格是 `0-0% · 现金 100%`（带「现金」二字），
-        // 那样判就会漏掉它，而它恰恰是要修的那一列。
-        // 也不能只看「含数字」——备注里的「买 2 件」会被误判成数值列。
-        const stripped = text.replace(/[\s,]/g, '');
-        const digits = (stripped.match(/\d/g) || []).length;
-        const numeric = /^[¥$]?\s*-?\d/.test(text) && digits / Math.max(stripped.length, 1) >= 0.25;
-        out.push({
-          head: (head.children[i] ? head.children[i].textContent : '').replace(/[▲▼]/g, '').trim().slice(0, 8),
-          text: text.slice(0, 22),
-          numeric,
-          align: getComputedStyle(cell).textAlign,
-          headAlign: head.children[i] ? getComputedStyle(head.children[i]).textAlign : null,
-        });
+      const tables = new Set();
+      for (const row of document.querySelectorAll('.asset-row')) {
+        const t = row.parentElement;
+        if (t) tables.add(t);
+      }
+      for (const table of tables) {
+        const head = table.querySelector('.list-head');
+        const rows = [...table.querySelectorAll('.asset-row')].filter((r) => !r.classList.contains('list-head'));
+        if (!head || !rows.length) continue;
+        for (let i = 0; i < rows[0].children.length; i++) {
+          const cell = rows[0].children[i];
+          const text = (cell.textContent || '').trim();
+          if (!text) continue;
+          // 「像数值」：以数字（或货币符号+数字）开头，且数字占绝对主体。
+          // 不能写成「整格不含中文」——`0-0% · 现金 100%` 含「现金」二字会被漏掉；
+          // 也不能只看「含数字」——备注里的「买 2 件」会被误判成数值列。
+          // 日期不是「数值」：`2026-02-03` 以数字开头、数字占比也高，但它是最长且定长的
+          // 标识文本，左对齐才对（右对齐的日期列看起来像被推出去）。故先排除日期形状。
+          if (/^\d{4}-\d{2}-\d{2}$/.test(text)) continue;
+          const stripped = text.replace(/[\s,]/g, '');
+          const digits = (stripped.match(/\d/g) || []).length;
+          const numeric = /^[¥$]?\s*-?\d/.test(text) && digits / Math.max(stripped.length, 1) >= 0.25;
+          if (!numeric) continue;
+          const hc = head.children[i];
+          out.push({
+            table: (table.id || table.className).slice(0, 24),
+            col: i,
+            head: hc ? hc.textContent.replace(/[▲▼]/g, '').trim().slice(0, 8) : '',
+            text: text.slice(0, 22),
+            align: getComputedStyle(cell).textAlign,
+            headAlign: hc ? getComputedStyle(hc).textAlign : null,
+          });
+        }
       }
       return out;
     });
-    const numericCols = cols.filter((c) => c.numeric);
-    expect(numericCols.length, '至少应识别出金额与 CNY 金额两列').toBeGreaterThanOrEqual(2);
-    for (const c of numericCols) {
-      expect(c.align, `数值列「${c.head}」（内容「${c.text}」）必须右对齐`).toBe('right');
-      expect(c.headAlign, `数值列表头「${c.head}」也要右对齐（否则表头与数字轴错开）`).toBe('right');
-    }
+
+    const problems = [];
+    const collect = async (rows) => {
+      for (const c of rows) {
+        if (c.align !== 'right') problems.push(`${c.table} 第${c.col}列「${c.head}」数据「${c.text}」是 ${c.align}`);
+        if (c.headAlign !== 'right') problems.push(`${c.table} 第${c.col}列「${c.head}」表头是 ${c.headAlign}`);
+      }
+    };
+
+    // 1) 主列表：资产 / 收益 / 消费
+    await gotoAssets(page, 'assets');
+    await collect(await scan());
+    await gotoAssets(page, 'income');
+    await page.evaluate(() => renderIncomeTab());
+    await collect(await scan());
+    await page.locator('#mode-expenses').click();
+    await page.waitForTimeout(300);
+    await collect(await scan());
+
+    // 2) 弹窗里的表：月度消费明细 / 快照详情 / 快照对比
+    await page.locator('#tabs-expenses .tab-btn[data-tab="expense-trend"]').click();
+    await page.waitForTimeout(500);
+    await page.locator('#expense-trend-list .row-hit').first().click();
+    await expect(page.locator('#snapshot-modal')).toBeVisible();
+    await collect(await scan());
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(200);
+
+    expect(problems, '表格里的数字必须右对齐（眼睛顺着右边缘扫，左对齐的柱子会打断这条线）：\n' + problems.join('\n')).toEqual([]);
   });
 
   test('列表行：标签列不得折行（折行会让整行高度跳变、左右两侧错开半行）', async ({ appPage: page }) => {

@@ -1311,6 +1311,90 @@ test.describe('弹窗焦点管理（aria-modal 的兑现）', () => {
   });
 });
 
+test.describe('日期选择器与复制', () => {
+  // 用户实测两处：
+  //  ① 点「复制」时日期选择器自己弹出来（想要的只是「默认今天」）
+  //  ② 日历里 18 号明明是周日，却被排在「周五」下面
+  //
+  // ②的根因是 CSS：`.flatpickr-day { max-width: 36px }`，而日历容器 308px、星期表头
+  // 7 等分各 43.97px —— 36×8=288 < 308，于是**一行塞进 8 天**，表头却只有 7 个，
+  // 整月错位。判据用「每行天数必须等于星期表头个数」，不写死 7（将来若改成 6 天制，
+  // 这条仍然成立），也不依赖具体日期。
+  //
+  // ①的根因是「openModal 聚焦第一个表单控件」与 flatpickr「聚焦即展开」撞车。
+  //
+  // 这两条都必须在**真实 flatpickr** 下验证：E2E 的 stubCdn 把它换成了空壳。
+  // 故本组用例自己注入一个最小 flatpickr 替身——它复刻真实库的两个关键行为
+  // （聚焦即展开、setDate 不触发交互副作用），但不依赖外网。
+  const FAKE = `
+    window.flatpickr = function(sel, opts) {
+      const el = document.querySelector(sel);
+      const cal = document.createElement('div');
+      cal.className = 'flatpickr-calendar';
+      document.body.appendChild(cal);
+      const open = () => { cal.classList.add('open'); };
+      const close = () => { cal.classList.remove('open'); };
+      const inst = {
+        setDate(d, trigger) { el.value = d; if (trigger && opts.onChange) opts.onChange([d], d); },
+        open, close,
+        config: opts,
+      };
+      el._flatpickr = inst;
+      el.addEventListener('focus', () => { if (opts.openOnFocus !== false) open(); });
+      el.addEventListener('click', open);
+      return inst;
+    };
+    window.flatpickr.l10ns = { zh: {} };
+  `;
+
+  test('点「复制」不得自动弹出日期选择器（只要默认今天）', async ({ page }) => {
+    await stubCdn(page);
+    await seed(page, sampleState());
+    await page.addInitScript(FAKE);
+    await page.goto('index.html');
+    await waitReady(page);
+    await page.locator('#expenses-rows .row-btn.copy').first().click();
+    await expect(page.locator('#expense-modal')).toBeVisible();
+    // 标题是「复制消费」，日期是今天
+    await expect(page.locator('#expense-modal-title')).toHaveText('复制消费');
+    // 关键断言：日历不得处于展开态
+    const open = await page.evaluate(() => !!document.querySelector('.flatpickr-calendar.open'));
+    expect(open, '点「复制」时日期选择器不该自己弹出来').toBe(false);
+  });
+
+  test('日历网格：每天宽度不得写死像素（写死会让一行塞进 8 天、整月错位）', async ({ page }) => {
+    // 根因是 CSS 而非 JS：`.flatpickr-day { max-width: 36px }`，而日历容器 308px、
+    // 星期表头 7 等分各 43.97px —— 36×8=288 < 308，于是每行塞进 **8 天**，
+    // 表头却只有 7 个，整月错位：2026-10-18（周日）被排到「周五」下面。
+    //
+    // 判据直接读**样式表里的规则文本**（不依赖 flatpickr 是否加载，也不靠探针布局——
+    // 探针里 `calc(100%/7)` 的百分比基准与真实日历不同，量出来是假的）。
+    // 要求：宽度必须是相对容器的方式（百分比 / calc），不得出现固定像素 max-width。
+    await stubCdn(page);
+    await seed(page, sampleState());
+    await page.goto('index.html');
+    await waitReady(page);
+
+    const decl = await page.evaluate(() => {
+      for (const sheet of document.styleSheets) {
+        let rules;
+        try { rules = sheet.cssRules; } catch (e) { continue; }
+        for (const r of rules) {
+          if (r.selectorText && /\.flatpickr-day\b/.test(r.selectorText) && r.style && r.style.maxWidth) {
+            return r.style.maxWidth;
+          }
+        }
+      }
+      return null;
+    });
+
+    expect(decl, '必须找到 .flatpickr-day 的 max-width 声明').toBeTruthy();
+    // 固定像素值 = 那个 bug（36px）；相对值才跟着容器走
+    expect(/^\d+(\.\d+)?px$/.test(decl.trim()), `max-width 不能是固定像素（当前 ${decl}）：容器一宽就会一行塞进 8 天`).toBe(false);
+    expect(decl, 'max-width 应相对容器（百分比或 calc）').toMatch(/calc\(|%/);
+  });
+});
+
 test.describe('分布图的构成清单（与图同源）', () => {
   const legendRows = (page, listId) =>
     page.evaluate((id) =>

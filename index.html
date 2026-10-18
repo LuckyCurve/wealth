@@ -432,6 +432,12 @@ tailwind.config = {
     background: transparent !important;
     padding: 8px 0 4px !important;
   }
+  /* 每天宽度必须与星期表头**同源**，不能写死像素。
+     原先是 max-width: 36px：日历容器 308px、表头 7 等分各 43.97px（合计 307.8px 正好铺满），
+     而 36×8 = 288 < 308 —— 于是**一行塞进 8 天**，表头却是 7 个。
+     实测每行天数 = [8,8,8,8,8,2]，整月错位：2026-10-18（周日）被排到「周五」那一列下面，
+     用户看到的就是「18 号明明是周日」。改法：宽度取表头的 1/7，两侧不留 margin
+     （margin 会与百分比宽度相加，同样能把 8 个塞进一行）。 */
   .flatpickr-day {
     font-family: var(--font-body) !important;
     font-size: var(--fs-body) !important;
@@ -439,10 +445,10 @@ tailwind.config = {
     color: var(--fg) !important;
     border-radius: 6px !important;
     border: none !important;
-    max-width: 36px !important;
+    max-width: calc(100% / 7) !important;
     height: 34px !important;
     line-height: 34px !important;
-    margin: 1px !important;
+    margin: 1px 0 !important;
     transition: background 0.12s, color 0.12s, box-shadow 0.12s;
   }
   .flatpickr-day:hover {
@@ -3109,8 +3115,12 @@ function openModal(id) {
   // 优先落在第一个表单控件上——弹窗多半是「填个表」（焦点直接放到可输入处最省一步）；
   // 没有表单控件时退到第一个可聚焦元素（如设置弹窗的分段按钮）。
   const list = modalFocusables(modal);
-  const firstField = list.find(el => el.matches('input, select, textarea'));
-  const target = firstField || list[0];
+  // 跳过被日期选择器接管的输入框（`_flatpickr` 是它挂上去的实例）：flatpickr 默认
+  // **聚焦即展开**，把焦点放到日期框上会让日历自己弹出来。用户点「复制」时想要的是
+  // 「表单打开、日期默认今天」，不是「先弹一个日历给我」。日期框仍然可点、可键盘进入。
+  const isPickerHost = (el) => !!el._flatpickr;
+  const firstField = list.find(el => el.matches('input, select, textarea') && !isPickerHost(el));
+  const target = firstField || list.find(el => !isPickerHost(el)) || list[0];
   if (target) target.focus();
 }
 
@@ -3823,9 +3833,9 @@ function viewSnapshot(month) {
       const snapRateLabel = rateLabelText(a) || '<span class="muted hint-xs">未设置</span>';
       return `<div class="asset-row">
         <div class="t-medium t-body">${esc(a.name)}</div>
-        <div class="t-body">${money2(a.amount)}</div>
+        <div class="t-body num">${money2(a.amount)}</div>
         <div class="t-body muted">${a.currency}</div>
-        <div class="t-body">${snapRateLabel}</div>
+        <div class="t-body num">${snapRateLabel}</div>
         <div class="flex flex-wrap gap-1">${tagHtml}</div>
       </div>`;
     }).join('')}
@@ -3858,10 +3868,10 @@ function viewHistorySegment(month, catId, tag) {
     ${items.map(a => `
       <div class="asset-row ${cols}">
         <div class="t-medium t-body">${esc(a.name)}</div>
-        <div class="t-body">${money2(a.amount)}</div>
+        <div class="t-body num">${money2(a.amount)}</div>
         <div class="t-body muted">${a.currency}</div>
-        <div class="t-body">${formatCNY(a.cny)}</div>
-        <div class="t-body muted">${pctStr(a.cny, segTotal)}%</div>
+        <div class="t-body num">${formatCNY(a.cny)}</div>
+        <div class="t-body num muted">${pctStr(a.cny, segTotal)}%</div>
       </div>`).join('')}
   `;
   openModal('snapshot-modal');
@@ -5021,7 +5031,11 @@ function armToastHide(t) {
 function setExpenseDate(dateStr) {
   const el = document.getElementById('expense-date');
   const fp = el._flatpickr;
-  if (fp) { fp.setDate(dateStr, true); } else { el.value = dateStr; }
+  // 第二个参数 triggerChange 必须为 false：为 true 时 flatpickr 会把它当成「用户选了这一天」
+  // 触发 onChange —— 而本项目在 onChange 里做了「选完即收起」，但同时 open() 会被拉起来，
+  // 表现为**点「复制」弹窗一打开日历就自己展开**（用户要的是「默认今天，别弹」）。
+  // 这里只是**写入初值**，不是用户交互，不该产生任何交互副作用。
+  if (fp) { fp.setDate(dateStr, false); } else { el.value = dateStr; }
 }
 // ====== EXPENSE MONTH FILTER ======
 let expenseMonthFilter = '';
@@ -5876,7 +5890,7 @@ function viewExpenseMonth(month) {
   document.getElementById('snapshot-detail-content').innerHTML = `
     <p class="t-body mb-4 muted">${monthLabel(month)} | 总消费: <strong>${formatCNY(total)}</strong> · ${expenses.length} 笔记录</p>
     <div class="asset-row list-head cols-expense-month">
-      <div>日期</div><div>金额</div><div>备注</div><div>标签</div>
+      <div>日期</div><div class="num">金额</div><div>备注</div><div>标签</div>
     </div>
     ${expenses.map(e => {
       const tagHtml = state.expenseCategories.map(cat => {
@@ -5885,7 +5899,7 @@ function viewExpenseMonth(month) {
       }).join(' ');
       return `<div class="asset-row cols-expense-month">
         <div class="t-body">${e.date}</div>
-        <div class="t-body">${money2(e.amount)}</div>
+        <div class="t-body num">${money2(e.amount)}</div>
         <div class="t-body muted">${e.note ? esc(e.note) : '—'}</div>
         <div class="flex flex-wrap gap-1">${tagHtml}</div>
       </div>`;
@@ -5912,8 +5926,8 @@ function viewExpenseSegment(month, catId, tag) {
     ${items.map(e => `
       <div class="asset-row ${cols}">
         <div class="t-body">${e.date}</div>
-        <div class="t-body">${money2(e.amount)}</div>
-        <div class="t-body muted">${pctStr(e.amount, segTotal)}%</div>
+        <div class="t-body num">${money2(e.amount)}</div>
+        <div class="t-body num muted">${pctStr(e.amount, segTotal)}%</div>
         <div class="t-body muted">${e.note ? esc(e.note) : '—'}</div>
       </div>`).join('')}
   `;
