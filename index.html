@@ -3468,7 +3468,14 @@ function renderCategoryCards(side) {
   const gaps = cfg.tagCheck ? missingTagGroups(cfg.items(), cfg.cats()) : [];
   const gapOf = id => gaps.find(g => g.catId === id);
   container.innerHTML = cfg.cats().map(cat => {
-    const tagPills = cat.tags.map(t => tagPillHtml(cat, t, cfg.colorFn, { showKey: false, removeFn: cfg.removeTag, renameFn: cfg.renameTag, renameSide: side })).join(' ');
+    // 内置分类（货币类型）是写死的逻辑：标签就是币种代码，改名与删除在守卫里都只回一句
+    // 「内置分类不可修改」。故整张卡片**只读**——不接改名与删除入口，否则长按弹出输入框、
+    // 提交又被守卫拒绝（拒绝路径只是 return，没人收走那个输入框），用户实测的
+    //「长按内置的货币类型，然后点其他地方不能取消编辑」就是这么来的。
+    const tagOpts = cat.builtin
+      ? { showKey: false }
+      : { showKey: false, removeFn: cfg.removeTag, renameFn: cfg.renameTag, renameSide: side };
+    const tagPills = cat.tags.map(t => tagPillHtml(cat, t, cfg.colorFn, tagOpts)).join(' ');
     // 「添加」按钮与回车共用同一调用表达式, 防两处接线各自漂移
     const addTagCall = `${cfg.addTag}('${jsAttr(cat.id)}')`;
     const gap = gapOf(cat.id);
@@ -3763,6 +3770,10 @@ function startTagRename(pill, side, catId, oldName) {
     done = true;
     if (submit) renameTagGeneric(side, catId, oldName, input.value.trim());
     else renderCategoryCards(side);
+    // 编辑框必须有归宿：renameTagGeneric 的每条拒绝路径（分类已删 / 内置 / 重名 / 旧名过期）
+    // 都只是 return，谁也没把胶囊放回去——输入框就孤零零留在卡片上，用户点别处也收不掉它。
+    // 收尾放在 finish 里而不是各条守卫里：一处兜住，日后再加一条早退也不会重新漏。
+    if (input.isConnected) renderCategoryCards(side);
   };
   input.addEventListener('keydown', e => {
     if (e.key === 'Escape') { e.preventDefault(); finish(false); }

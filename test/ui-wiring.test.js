@@ -843,6 +843,26 @@ describe('UI 接线契约：标签改名（迁移引用，不是清空）', () =
     assert.match(fnSource('endTagPress'), /startTagRename\(/, '手势够长不该因为少一帧而作废');
   });
 
+  test('内置分类整张卡片只读：不接改名与删除入口（写死的逻辑不摆可点的样子）', () => {
+    // 币种代码是写死的逻辑：改名/删除在守卫里都会被拒绝，但拒绝路径只是 return，没人收走
+    // 那个输入框——用户实测「长按内置的货币类型，然后点其他地方不能取消编辑」。
+    const src = fnSource('renderCategoryCards');
+    assert.match(src, /const tagOpts = cat\.builtin/, '只读由 builtin 单一判定');
+    assert.match(src, /cat\.builtin[\s\S]{0,60}?\? \{ showKey: false \}/, '内置分类只给纯展示选项');
+    assert.strictEqual(count(/removeFn: cfg\.removeTag/g), 1, '入口只在这一处按 builtin 收口');
+    assert.match(src, /tagPillHtml\(cat, t, cfg\.colorFn, tagOpts\)/, '两侧共用同一份 opts（不各写一遍）');
+    // 守卫照旧：只读是「不给入口」，不是把守卫当挡箭牌
+    assert.strictEqual(count(/toast\('内置分类不可修改'/g), 3, '改名/删除/保存分类三处守卫不漏');
+  });
+
+  test('编辑框必须有归宿：拒绝路径只 return，收尾由 finish 兜住', () => {
+    const src = fnSource('startTagRename');
+    assert.match(src, /if \(input\.isConnected\) renderCategoryCards\(side\)/,
+      'renameTagGeneric 的每条早退（分类已删/内置/重名/旧名过期）都不重绘，输入框必须有人放回去');
+    assert.ok(src.indexOf('renameTagGeneric(') < src.indexOf('input\.isConnected'),
+      '先提交再兜底：提交成功那条自己重绘，兜底就成空操作（不会重绘两遍）');
+  });
+
   test('移除标签前先告知将清空的引用数：确认框与直接保存共用同一段 apply', () => {
     const src = fnSource('saveCategoryGeneric');
     assert.match(src, /countTagRefs\(cfg\.items\(\), editId, removed\)/, '引用数走 logic.js 口径');

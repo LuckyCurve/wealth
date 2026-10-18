@@ -12,7 +12,15 @@ const {
   stubCdn, seed, waitReady, disableMotion, readAppState, sampleState, gotoAssets,
 } = require('./fixtures');
 // 长按守卫窗阈值：E2E 等它过期时轮询真实常量，不复制一个数字（复制必然漂移）
-const { AUTO_OPEN_GUARD_MS } = require('../logic.js');
+const { AUTO_OPEN_GUARD_MS, TAG_PRESS_MS } = require('../logic.js');
+
+/** 按住不放：用页面自己的时钟等到「真的按满 TAG_PRESS_MS」，不猜一个睡眠时长 */
+const holdPastTagPress = async (page) => {
+  await page.evaluate(() => { window.__holdStart = performance.now(); });
+  return expect
+    .poll(() => page.evaluate(() => performance.now() - window.__holdStart), { message: `应已按住 ${TAG_PRESS_MS}ms` })
+    .toBeGreaterThan(TAG_PRESS_MS);
+};
 
 /** 读 localStorage 原文：验证「已落盘」（增删改后应用都会 saveState） */
 const readStored = (page) => page.evaluate((key) => JSON.parse(localStorage.getItem(key) || '{}'), LS_KEY);
@@ -846,6 +854,53 @@ test.describe('分类标签改名（迁移引用，不是清空）', () => {
     // 列表上的 pill 同步（cfg.renderItems 接线）
     await gotoAssetsTab(page);
     await expect(page.locator('#assets-rows .tag-pill', { hasText: '现金类' })).toHaveCount(2);
+  });
+
+  test('内置分类的胶囊只读：没有改名/删除入口，按满也不出编辑框', async ({ appPage: page }) => {
+    // 币种代码是写死的逻辑：改名与删除在守卫里都只回一句「内置分类不可修改」。
+    // 原先胶囊照挂长按改名入口 → 输入框弹出、提交被守卫拒绝（守卫只是 return，没人收走它）
+    // → 用户实测「长按内置的货币类型，然后点其他地方不能取消编辑」。
+    await gotoAssetsTab(page, 'categories');
+    const card = page.locator('#categories-list .card', { hasText: '货币类型' });
+    const pill = card.locator('.tag-pill', { hasText: 'CNY' });
+    await expect(pill).toHaveCount(1);
+    await expect(pill.locator('.pill-del'), '内置分类的标签删不掉，就不该有 ✕').toHaveCount(0);
+    expect(await pill.getAttribute('data-rename'), '不给改名入口（没有 data-rename，长按也不会开始计时）').toBeNull();
+    expect(await pill.getAttribute('tabindex'), '也不进 Tab 序：键盘不该够到一个不可能成立的动作').toBeNull();
+    expect(await pill.getAttribute('role')).toBeNull();
+
+    // 真按住满时长：仍然什么都不发生（负向断言只能真等——手势本身就是时间）
+    const box = await pill.boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await holdPastTagPress(page);
+    await page.mouse.up();
+    await expect(page.locator('#categories-list .tag-rename-input')).toHaveCount(0);
+    expect(await pill.evaluate((el) => el.className), '连按住的反馈都不该有').toBe('tag-pill');
+  });
+
+  test('编辑期间分类在别处被删掉：点其他地方不得留下一个没人收的输入框', async ({ appPage: page }) => {
+    // 用户实测的另一半：「点其他地方不能取消编辑」。renameTagGeneric 的每条拒绝路径
+    //（分类不存在 / 内置 / 重名 / 旧名过期）都只是 return，收尾必须由 finish 兜住。
+    const errors = [];
+    page.on('pageerror', (e) => errors.push(String(e)));
+    await gotoAssetsTab(page, 'categories');
+    const card = page.locator('#categories-list .card', { hasText: '资产类型' });
+    const pill = card.locator('.tag-pill', { hasText: '活期现金' });
+    const box = await pill.boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    const input = page.locator('#categories-list .tag-rename-input');
+    await expect(input).toBeVisible({ timeout: 3000 });
+    await page.mouse.up();
+
+    // 分类在编辑期间消失（只改内存态，不重绘——重绘会把输入框一起收走，那就验不到收尾了）
+    await page.evaluate(() => {
+      state.categories = state.categories.filter((c) => c.id !== 'cat-type');
+    });
+    await page.mouse.click(400, 90); // 点别处：blur → 提交 → 分类已不在 → 必须把胶囊放回去
+    await expect(input, '编辑框必须有归宿').toHaveCount(0);
+    expect(errors).toEqual([]);
   });
 
   test('编辑框里删掉有引用的标签：先弹确认；取消则数据不变，确认后才清空', async ({ appPage: page }) => {
