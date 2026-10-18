@@ -1181,18 +1181,35 @@ test.describe('行级可点元素：指针与键盘两条路都要给', () => {
     expect(box.height).toBeGreaterThan(20);
   });
 
-  test('排序表头：Space 与 Enter 同义，aria-sort 随之更新', async ({ appPage: page }) => {
+  test('排序表头：Space 与 Enter 同义，且方向真的到达读屏器（可访问名）', async ({ appPage: page }) => {
     await gotoAssets(page, 'assets');
     // 用「金额」表头的 role 定位，避免在属性选择器里再嵌一层引号
     const head = page.getByRole('button', { name: /^金额/ }).first();
     await expect(head).toHaveAttribute('aria-sort', 'none');
     await head.focus();
+
+    // **可访问名**才是真正到达读屏器的通道：aria-sort 按 WAI-ARIA 规范未定义在
+    // role=button 上（那位子是 columnheader/rowheader），实测 Chrome 的 AX 树里
+    // 那枚属性不产生任何 sort 信息。原先这条用例只断言属性在变——属性变了、
+    // 读屏器却收不到，正是「写对了 ARIA 但没生效」那一类。故改成断言 AX 快照。
     await page.keyboard.press(' ');
     await expect(head, 'Space 应能排序（role=button 的两种预期键位）').toHaveAttribute('aria-sort', 'ascending');
+    await expect(head).toHaveAttribute('aria-label', '金额，已按升序排列');
+    expect(await head.ariaSnapshot(), '升序必须能在 AX 树里读出来').toContain('已按升序排列');
+
     await page.keyboard.press('Enter');
     await expect(head).toHaveAttribute('aria-sort', 'descending');
+    expect(await head.ariaSnapshot(), '降序必须能在 AX 树里读出来').toContain('已按降序排列');
+
+    // 第三次回到未排序：可访问名要收回方向，否则方向粘在上一列上
     await page.keyboard.press('Enter');
     await expect(head, '第三次回到未排序').toHaveAttribute('aria-sort', 'none');
+    await expect(head, '回到未排序时方向必须从可访问名里撤掉').toHaveAttribute('aria-label', '');
+    expect(await head.ariaSnapshot()).not.toContain('排列');
+
+    // 可见列名必须留在可访问名里（WCAG 2.5.3「名称包含可见文字」，否则语音控制喊不出这一列）
+    await page.keyboard.press(' ');
+    expect(await head.ariaSnapshot(), '可访问名必须含可见列名「金额」').toContain('金额');
   });
 });
 

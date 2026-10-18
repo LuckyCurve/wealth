@@ -2282,3 +2282,31 @@ describe('便条的播报优先级', () => {
     for (const v of seen) assert.ok(['assertive', 'polite'].includes(v), `产出非法值 ${v}`);
   });
 });
+
+describe('排序列头对读屏器的表述', () => {
+  // 背景：表头是 role="button"（不是 columnheader），而 aria-sort **按规范未定义在 button 上**
+  // ——实测 Chrome 的 AX 树里那枚属性不产生任何 sort 信息。真正能被念出来的是**可访问名**，
+  // 而当时可访问名里的状态只是一个 ▲/▼ 字形（读屏器念作「上三角」之类），等于没说方向。
+  // 故把方向写进可访问名（可测：AX 快照里直接看得到），aria-sort 保留但不再当唯一依赖。
+  test('未排序列不带状态后缀（不要给每一列都加噪声）', () => {
+    assert.strictEqual(L.sortAriaLabel('金额', '', 'asc', 'amount'), '');
+    assert.strictEqual(L.sortAriaLabel('金额', 'name', 'asc', 'amount'), '');
+  });
+
+  test('升序 / 降序要念得出来（这是唯一真正到达读屏器的通道）', () => {
+    assert.strictEqual(L.sortAriaLabel('金额', 'amount', 'asc', 'amount'), '金额，已按升序排列');
+    assert.strictEqual(L.sortAriaLabel('金额', 'amount', 'desc', 'amount'), '金额，已按降序排列');
+  });
+
+  test('必须保留可见列名（WCAG「名称包含可见文字」，否则语音控制喊不出这一列）', () => {
+    for (const [by, dir] of [['amount', 'asc'], ['amount', 'desc']]) {
+      const out = L.sortAriaLabel('金额', by, dir, 'amount');
+      assert.ok(out.startsWith('金额'), `可访问名必须以可见列名开头，实际 ${out}`);
+    }
+  });
+
+  test('方向取值只认 asc/desc，脏值一律当未排序（不误报方向）', () => {
+    assert.strictEqual(L.sortAriaLabel('金额', 'amount', 'sideways', 'amount'), '');
+    assert.strictEqual(L.sortAriaLabel('金额', 'amount', undefined, 'amount'), '');
+  });
+});

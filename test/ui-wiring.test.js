@@ -202,6 +202,19 @@ describe('UI 接线契约：共享层单一来源（防重复实现各自漂移�
   });
 });
 
+describe('UI 接线契约：排序列头的可访问名', () => {
+  test('方向必须写进 aria-label（aria-sort 在 role=button 上按规范未定义，读屏器收不到）', () => {
+    const src = fnSource('updateSortIndicators');
+    assert.match(src, /aria-label/, '必须把方向写进可访问名——那是真正到达读屏器的通道');
+    assert.match(src, /sortAriaLabel\(/, '取值必须走 logic.js 单一判据');
+  });
+
+  test('每次更新都要覆盖 aria-label（未排序时置空），否则方向会粘在上一次那列上', () => {
+    const src = fnSource('updateSortIndicators');
+    assert.match(src, /setAttribute\('aria-label'/, '必须每次 setAttribute，而不是只在选中时设');
+  });
+});
+
 describe('UI 接线契约：便条的播报优先级', () => {
   test('播报档位必须在 toast() 里按类型动态写入（写死在容器上 = error 永远被排队）', () => {
     // 容器上留一个 polite 初值是对的（live region 得在加载时就存在，读屏器才会注册它），

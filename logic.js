@@ -114,6 +114,18 @@
     return dir === 'desc' ? 'descending' : 'ascending';
   }
 
+  // 排序列头对读屏器的表述（可访问名）。
+  // 为什么不能只靠 aria-sort：表头是 role="button"（不是 columnheader），而 aria-sort
+  // **按 WAI-ARIA 规范未定义在 button 上**——实测 Chrome 的 AX 树里那枚属性不产生任何 sort 信息
+  // （原生 <th aria-sort> 也一样测不出），即「属性写上了、读屏器收不到」。
+  // 真正到达读屏器的是**可访问名**，故把方向写进去；同时保留可见列名在前
+  // （WCAG 2.5.3「名称包含可见文字」：否则语音控制用户喊不出这一列）。
+  function sortAriaLabel(label, by, dir, field) {
+    if (!by || by !== field) return '';
+    if (dir !== 'asc' && dir !== 'desc') return ''; // 脏值不误报方向
+    return label + '，已按' + (dir === 'desc' ? '降序' : '升序') + '排列';
+  }
+
   // ===== 进入资产页的长按门槛 =====
   // 按住「资产」需满 MODE_PRESS_MS 才算出货（提高从消费页进入资产页的成本：
   // 资产价格短期波动天然大，日常高频查看只会放大情绪噪音）。
@@ -1249,7 +1261,7 @@
     BACKUP_STALE_DAYS, normalizeBackupFreq, backupNoteText, hasAnyBackupWorthyData, shouldAutoBackup, backupStaleDays,
     rateFallbackNotice,
     nextSortState, inlineEditKeyAction, expenseMonths,
-    activateKeyAction, sortAriaSort, trapFocus, toastLiveMode,
+    activateKeyAction, sortAriaSort, sortAriaLabel, trapFocus, toastLiveMode,
     MODE_PRESS_MS, modePressProgress, modePressDecision, modePressHint,
     TAG_PRESS_MS, pressProgress, pressDecision,
     lampEnabled, lampPos, tipBubblePos, TIP_GAP, TIP_EDGE,

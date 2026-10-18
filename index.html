@@ -3612,12 +3612,20 @@ function updateSortIndicators(prefix, fields, sortBy, sortDir) {
     if (!el) return;
     el.textContent = sortBy === f ? (sortDir === 'asc' ? ' ▲' : ' ▼') : '';
     el.className = 'sort-indicator' + (sortBy === f ? ' active' : '');
-    // aria-sort 挂在指示器的父节点（也就是那枚 role=button 的表头本身）。
-    // ▲/▼ 只说给看得见的人，读屏器要的是「按哪一列排、朝哪个方向」这句显式的话；
-    // 取值走 logic.js sortAriaSort——aria-sort 只认四个字面量，推导只允许有一处。
+    // ▲/▼ 只说给看得见的人；读屏器要的是「按哪一列排、朝哪个方向」这句显式的话。
+    // 两条通道都写，但只有一条真的到达读屏器：
+    //   aria-sort  ——按 WAI-ARIA 规范**未定义在 role=button 上**（那位子是 columnheader/
+    //                rowheader），实测 Chrome 的 AX 树里它不产生任何 sort 信息；
+    //                留着是为了「将来表头改成真正的 columnheader 就自动接上」。
+    //   aria-label ——真正到达读屏器的是**可访问名**。取值走 logic.js sortAriaLabel
+    //                （可见列名在前，满足 WCAG「名称包含可见文字」）。
+    // 必须**每次**都 setAttribute：只在选中时设的话，换一列排序后旧方向会粘在上一列上。
     const head = el.parentElement;
     if (head && head.getAttribute('role') === 'button') {
       head.setAttribute('aria-sort', sortAriaSort(sortBy, sortDir, f));
+      const label = (head.dataset.colLabel || head.textContent.replace(/[▲▼]/g, '').trim());
+      head.dataset.colLabel = label; // 缓存可见列名：textContent 会被 ▲/▼ 污染，先剥一次再记住
+      head.setAttribute('aria-label', sortAriaLabel(label, sortBy, sortDir, f));
     }
   });
 }
