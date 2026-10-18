@@ -27,6 +27,18 @@ const stripComments = (src) =>
     .replace(/\/\*[\s\S]*?\*\//g, '')
     .replace(/^\s*\/\/.*$/gm, '');
 
+// 按起止锚点截取源码块。锚点找不到必须报错：
+// indexOf 返回 -1 时 slice 会静默截出空串（或末一个字符），负向断言于是永久假绿。
+const blockFrom = (src, startAnchor, endAnchor) => {
+  const start = src.indexOf(startAnchor);
+  assert.ok(start >= 0, `源码锚点不存在: ${JSON.stringify(startAnchor)}（提取失败必须报错，不得静默返回空块）`);
+  const rest = src.slice(start);
+  if (endAnchor === undefined) return rest;
+  const end = rest.indexOf(endAnchor);
+  assert.ok(end >= 0, `结束锚点不存在: ${JSON.stringify(endAnchor)}`);
+  return rest.slice(0, end);
+};
+
 describe('UI 接线契约：设置是唯一入口', () => {
   test('页头只有「设置」按钮，无导入/导出与明暗快捷开关', () => {
     assert.strictEqual(count(/onclick="showSettings\(\)"/g), 1, 'showSettings 只应接在页头一处');
@@ -518,6 +530,39 @@ describe('UI 接线契约：导入/导出（纯原始格式 + 迁移兜底共用
     assert.ok(mergeIdx >= 0, '导入应先合并顶层字段');
     assert.ok(migrateIdx > mergeIdx,
       '合并后必须调用 migrateState（旧 expectedRate、旧快照格式、缺字段、孤儿标签的兜底唯一入口）');
+  });
+});
+
+describe('UI 接线契约：汇率刷新链路（绕过 CDN 缓存 / 恢复可见重拉 / 图表跟随重绘）', () => {
+  test('汇率请求强制 cache: no-store（CDN 对 @latest 带 7 天 max-age，默认复用拿不到新值）', () => {
+    const src = stripComments(fnSource('fetchRates'));
+    assert.match(src, /fetch\('https:\/\/[^']*cny\.json',\s*\{\s*cache:\s*'no-store'\s*\}\)/,
+      '汇率 fetch 必须显式 no-store：否则普通刷新复用缓存，只有强刷才更新');
+  });
+
+  test('bfcache 恢复（pageshow 且 persisted）要重拉汇率并重渲染', () => {
+    const block = blockFrom(html, "addEventListener('pageshow'", '});');
+    assert.match(block, /event\.persisted/, '只在 bfcache 恢复时触发（普通首载由 DOMContentLoaded 覆盖）');
+    assert.match(block, /fetchRates\(\)/, '重拉汇率——DOMContentLoaded 不会再触发，否则一直停在冻结时的旧值');
+    assert.match(block, /renderAll\(\)/, '总资产/报头随新汇率重渲染');
+  });
+
+  test('切回本页：仅汇率过期（超 1 小时）才重拉，避免频繁切标签重复请求', () => {
+    const block = blockFrom(html, "addEventListener('visibilitychange'", '});');
+    assert.match(block, /visibilityState === 'visible'/, '只在切回可见时判定');
+    assert.match(block, /fetchedAt/, '按上次拉取时间判过期');
+    assert.match(block, /fetchRates\(\)/, '过期才重拉（与 pageshow 同一出口）');
+    assert.match(block, /renderAll\(\)/);
+  });
+
+  test('refreshVisibleCharts：五个 Tab 都带可见性守卫，且是汇率/主题的共用重绘入口', () => {
+    const src = stripComments(fnSource('refreshVisibleCharts'));
+    for (const tab of ['tab-chart', 'tab-history', 'tab-income', 'tab-expense-chart', 'tab-expense-trend']) {
+      assert.match(src, new RegExp(`getElementById\\('${tab}'\\)\\.style\\.display !== 'none'\\) render`),
+        `${tab} 的重绘分支必须带可见性守卫（隐藏容器 echarts 0 尺寸初始化，进去就是空白）`);
+    }
+    assert.match(stripComments(fnSource('fetchRates')), /refreshVisibleCharts\(\)/, '汇率刷新后图表跟随重绘');
+    assert.match(stripComments(fnSource('setTheme')), /refreshVisibleCharts\(\)/, '主题切换与汇率刷新共用同一入口');
   });
 });
 
