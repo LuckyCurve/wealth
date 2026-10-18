@@ -11,6 +11,8 @@ const {
   test, expect, LS_KEY, INDEX_URL,
   stubCdn, seed, waitReady, disableMotion, readAppState, sampleState, gotoAssets,
 } = require('./fixtures');
+// 长按守卫窗阈值：E2E 等它过期时轮询真实常量，不复制一个数字（复制必然漂移）
+const { AUTO_OPEN_GUARD_MS } = require('../logic.js');
 
 /** 读 localStorage 原文：验证「已落盘」（增删改后应用都会 saveState） */
 const readStored = (page) => page.evaluate((key) => JSON.parse(localStorage.getItem(key) || '{}'), LS_KEY);
@@ -209,8 +211,11 @@ test.describe('模式与 Tab 导航', () => {
     await expect(page.locator('#confirm-modal')).toBeVisible();
     await expect(page.locator('#content-assets')).toBeHidden();
 
-    // 守卫窗后再点确认，正常进门
-    await page.waitForTimeout(500);
+    // 守卫窗后再点确认，正常进门：轮询到守卫过期（阈值取 logic.js 常量——固定 sleep 要么白等要么不够）
+    await expect
+      .poll(() => page.evaluate(() => (__autoOpenedAt === null ? -1 : performance.now() - __autoOpenedAt)),
+        { message: '等长按守卫窗过期' })
+      .toBeGreaterThan(AUTO_OPEN_GUARD_MS);
     await page.locator('#confirm-ok-btn').click();
     await expect(page.locator('#content-assets')).toBeVisible();
     await expect(page.locator('#mode-assets')).toHaveClass(/active/);
@@ -1106,21 +1111,25 @@ test.describe('行级可点元素：指针与键盘两条路都要给', () => {
     await locator.focus();
     const focused = await locator.evaluate((el) => el === document.activeElement);
     expect(focused, '行必须先真的能拿到焦点').toBe(true);
-    await page.keyboard.press('Enter');
-    await page.waitForTimeout(250);
-    const byEnter = await page.locator('#snapshot-modal').isVisible();
-    if (byEnter) {
-      await page.keyboard.press('Escape');
-      await page.waitForTimeout(200);
-    }
-    await locator.focus();
-    await page.keyboard.press(' ');
-    await page.waitForTimeout(250);
-    const bySpace = await page.locator('#snapshot-modal').isVisible();
-    if (bySpace) {
-      await page.keyboard.press('Escape');
-      await page.waitForTimeout(200);
-    }
+    // 按键 → 弹窗开/合都是同步接线：用可见性自动等到位（原先 sleep 250/200 是盲等，
+    // 慢机器上会飘、快机器上白等）
+    const pressOpens = async (key) => {
+      await locator.focus();
+      await page.keyboard.press(key);
+      let opened = true;
+      try {
+        await page.locator('#snapshot-modal').waitFor({ state: 'visible', timeout: 1500 });
+      } catch (e) {
+        opened = false; // 没打开就是没打开，交给调用方断言
+      }
+      if (opened) {
+        await page.keyboard.press('Escape');
+        await expect(page.locator('#snapshot-modal')).toBeHidden();
+      }
+      return opened;
+    };
+    const byEnter = await pressOpens('Enter');
+    const bySpace = await pressOpens(' ');
     return { byEnter, bySpace };
   };
 
@@ -1156,10 +1165,10 @@ test.describe('行级可点元素：指针与键盘两条路都要给', () => {
     await row.focus();
     expect(await row.evaluate((el) => el === document.activeElement)).toBe(true);
     await page.keyboard.press('Enter');
-    await page.waitForTimeout(500);
+    // 下钻渲染是同步的：等「返回条真的出现」再取文本（比盲等 500ms 快，且不会在慢机器上假绿）
+    await expect(page.locator('#chart-legend-head')).toContainText('全部分类');
     const after = (await page.locator('#chart-legend-head').textContent()).trim();
     expect(after, 'Enter 应真的下钻（标题换成返回条 + 分类名）').not.toBe(before);
-    expect(after).toContain('全部分类');
   });
 
   test('导入控件：Tab 能到，且原生打开选择框（不是只有鼠标够得到的 label）', async ({ appPage: page }) => {
@@ -1473,7 +1482,13 @@ test.describe('Tab 滑动指示条', () => {
     expect(g1.w, '初始指示条宽度应等于「消费记录」按钮宽').toBe(g1.btnW);
 
     await page.locator('#tabs-expenses .tab-btn[data-tab="expense-chart"]').click();
-    await page.waitForTimeout(450); // 等 0.28s 过渡播完
+    // 等指示条滑到位：轮询「位置与宽度都等于目标按钮」（正常 0.28s 过渡，减动效下瞬间到位）
+    await expect
+      .poll(async () => {
+        const g = await geo();
+        return g.x === g.btnX && g.w === g.btnW;
+      }, { message: '指示条应滑到「消费分布」按钮的位置与宽度' })
+      .toBe(true);
     const g2 = await geo();
     expect(g2.x, '指示条应滑到「消费分布」按钮的 offsetLeft').toBe(g2.btnX);
     expect(g2.w).toBe(g2.btnW);

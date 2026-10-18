@@ -294,17 +294,19 @@ test.describe('版式一致性', () => {
     await page.evaluate(() => renderIncomeTab());
     await collect(await scan());
     await page.locator('#mode-expenses').click();
-    await page.waitForTimeout(300);
+    // 模式切换是同步的：用可见性断言到位（原先 sleep 300ms 是盲等）
+    await expect(page.locator('#tab-expenses')).toBeVisible();
     await collect(await scan());
 
     // 2) 弹窗里的表：月度消费明细 / 快照详情 / 快照对比
     await page.locator('#tabs-expenses .tab-btn[data-tab="expense-trend"]').click();
-    await page.waitForTimeout(500);
+    // 趋势清单由 switchTab 的延时重绘填充：等首行出现再点（click 自带自动等待，这里把意图写明）
+    await expect(page.locator('#expense-trend-list .row-hit').first()).toBeVisible();
     await page.locator('#expense-trend-list .row-hit').first().click();
     await expect(page.locator('#snapshot-modal')).toBeVisible();
     await collect(await scan());
     await page.keyboard.press('Escape');
-    await page.waitForTimeout(200);
+    await expect(page.locator('#snapshot-modal')).toBeHidden();
 
     expect(problems, '表格里的数字必须右对齐（眼睛顺着右边缘扫，左对齐的柱子会打断这条线）：\n' + problems.join('\n')).toEqual([]);
   });
@@ -454,19 +456,19 @@ test.describe('版式一致性', () => {
  */
 test.describe('可访问性：表单字段必须有真正的名字（不是 placeholder）', () => {
   const opens = [
-    ['资产弹窗', (page) => page.evaluate(() => openAssetModal())],
-    ['分类弹窗', (page) => page.evaluate(() => openCategoryModal())],
-    ['消费弹窗', (page) => page.evaluate(() => openExpenseModal())],
-    ['消费分类弹窗', (page) => page.evaluate(() => openExpenseCategoryModal())],
-    ['读指标签弹窗', (page) => page.evaluate(() => openRunwayModal())],
+    ['资产弹窗', (page) => page.evaluate(() => openAssetModal()), '#asset-modal'],
+    ['分类弹窗', (page) => page.evaluate(() => openCategoryModal()), '#category-modal'],
+    ['消费弹窗', (page) => page.evaluate(() => openExpenseModal()), '#expense-modal'],
+    ['消费分类弹窗', (page) => page.evaluate(() => openExpenseCategoryModal()), '#expense-category-modal'],
+    ['读指标签弹窗', (page) => page.evaluate(() => openRunwayModal()), '#runway-modal'],
   ];
 
   test('每个可见表单控件都有可访问名，且不得拿 placeholder 当名字', async ({ appPage: page }) => {
     await gotoAssets(page, 'assets');
     const bad = [];
-    for (const [label, open] of opens) {
+    for (const [label, open, modalSel] of opens) {
       await open(page);
-      await page.waitForTimeout(250);
+      await expect(page.locator(modalSel)).toBeVisible(); // 开弹窗是同步的：可见性断言到位（不 sleep）
       const found = await page.evaluate(() => {
         const out = [];
         const visibles = [...document.querySelectorAll('.modal-overlay')]
@@ -501,7 +503,7 @@ test.describe('可访问性：表单字段必须有真正的名字（不是 plac
         else if (f.ph && f.name === f.ph && !f.fromLabel) bad.push(`${label} · #${f.id}: 名字就是 placeholder「${f.ph}」`);
       }
       await page.keyboard.press('Escape');
-      await page.waitForTimeout(150);
+      await expect(page.locator(modalSel)).toBeHidden();
     }
     expect(bad, '字段的可访问名必须说明这个框是干什么的：\n' + bad.join('\n')).toEqual([]);
   });
