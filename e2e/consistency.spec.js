@@ -186,6 +186,46 @@ test.describe('版式一致性', () => {
     }
   });
 
+  test('资产表：数值列（含「预期年化」）一律右对齐，表头同步', async ({ appPage: page }) => {
+    // 用户实测：「有的表格列左对齐，有的右对齐」。
+    // 「预期年化」那格的内容是 `0-0% · 现金 100%`——纯数字/百分比，却按 start 排；
+    // 同一行的金额、CNY 金额都右对齐，于是这一列的右边缘参差不齐、与上下两列的
+    // 数字轴对不上。判据不写死列清单：**内容像数值的列**才要求右对齐（备注、名称、
+    // 标签这些文字列照旧左对齐——右对齐的中文很难读）。
+    await gotoAssets(page, 'assets');
+    const cols = await page.evaluate(() => {
+      const head = document.querySelector('#assets-list .list-head');
+      const row = document.querySelector('#assets-rows .asset-row');
+      const out = [];
+      for (let i = 0; i < row.children.length; i++) {
+        const cell = row.children[i];
+        const text = (cell.textContent || '').trim();
+        if (!text) continue;
+        // 「像数值」判据：**以数字（或货币符号+数字）开头**，且数字占绝对主体。
+        // 不能写成「整格不含中文」——「预期年化」那格是 `0-0% · 现金 100%`（带「现金」二字），
+        // 那样判就会漏掉它，而它恰恰是要修的那一列。
+        // 也不能只看「含数字」——备注里的「买 2 件」会被误判成数值列。
+        const stripped = text.replace(/[\s,]/g, '');
+        const digits = (stripped.match(/\d/g) || []).length;
+        const numeric = /^[¥$]?\s*-?\d/.test(text) && digits / Math.max(stripped.length, 1) >= 0.25;
+        out.push({
+          head: (head.children[i] ? head.children[i].textContent : '').replace(/[▲▼]/g, '').trim().slice(0, 8),
+          text: text.slice(0, 22),
+          numeric,
+          align: getComputedStyle(cell).textAlign,
+          headAlign: head.children[i] ? getComputedStyle(head.children[i]).textAlign : null,
+        });
+      }
+      return out;
+    });
+    const numericCols = cols.filter((c) => c.numeric);
+    expect(numericCols.length, '至少应识别出金额与 CNY 金额两列').toBeGreaterThanOrEqual(2);
+    for (const c of numericCols) {
+      expect(c.align, `数值列「${c.head}」（内容「${c.text}」）必须右对齐`).toBe('right');
+      expect(c.headAlign, `数值列表头「${c.head}」也要右对齐（否则表头与数字轴错开）`).toBe('right');
+    }
+  });
+
   test('列表行：标签列不得折行（折行会让整行高度跳变、左右两侧错开半行）', async ({ appPage: page }) => {
     // 回归：给宽表加列间距后，标签列被挤窄、两枚 pill 换行，整行高度从 19px 跳到 52px；
     // 紧跟着的下一行只有 19px，「编辑/删除」与「名称」就错开了半行。
