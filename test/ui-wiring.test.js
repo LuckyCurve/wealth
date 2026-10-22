@@ -1024,6 +1024,14 @@ describe('UI 接线契约：图表 tooltip 转义用户输入（防存储型 XSS
     assert.strictEqual(count(/p\.treePathInfo\[1\]\.name \+ ' › '/g), 0, '路径拼接只允许在 helper 一处');
   });
 
+  test('用户字段插值一律经 esc：日期不是「安全形状」，它同样来自导入的 JSON', () => {
+    // 备注/标签名都转了，日期却是裸插值——而 migrateState 对 date 只补空值、不校验形状。
+    // 精确到「插值里出现的裸用户字段」，不搞全站一刀切（`${formatCNY(x)}` 这类无需转义）。
+    assert.strictEqual(count(/\$\{e\.date\}/g), 0, '日期插值必须走 esc（月度明细/分类构成两处曾裸插）');
+    assert.strictEqual(count(/\$\{(?:e|exp|it|a|asset|s)\.(?:date|note|name)\}/g), 0,
+      '用户输入字段不得裸插值进 innerHTML');
+  });
+
   test('堆叠柱 tooltip 的系列名经 esc 转义', () => {
     for (const fn of ['renderHistoryChart', 'renderExpenseTrendChart']) {
       assert.match(fnSource(fn), /esc\(p\.seriesName\)/, `${fn} tooltip 系列名应 esc 转义`);

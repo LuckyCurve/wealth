@@ -6113,7 +6113,7 @@ function viewExpenseMonth(month) {
         return tagVal ? tagPillHtml(cat, tagVal, expenseCatColor) : '';
       }).join(' ');
       return `<div class="asset-row cols-expense-month">
-        <div class="t-body">${e.date}</div>
+        <div class="t-body">${esc(e.date)}</div>
         <div class="t-body num">${money2(e.amount)}</div>
         <div class="t-body muted">${e.note ? esc(e.note) : '—'}</div>
         <div class="flex flex-wrap gap-1">${tagHtml}</div>
@@ -6140,7 +6140,7 @@ function viewExpenseSegment(month, catId, tag) {
     </div>
     ${items.map(e => `
       <div class="asset-row ${cols}">
-        <div class="t-body">${e.date}</div>
+        <div class="t-body">${esc(e.date)}</div>
         <div class="t-body num">${money2(e.amount)}</div>
         <div class="t-body num muted">${pctStr(e.amount, segTotal)}%</div>
         <div class="t-body muted">${e.note ? esc(e.note) : '—'}</div>

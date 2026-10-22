@@ -1298,6 +1298,30 @@ test.describe('行级可点元素：指针与键盘两条路都要给', () => {
     expect(r.bySpace, 'Space 是读屏器用户最惯用的激活键，不能只做 Enter').toBe(true);
   });
 
+  test('月度明细/分类构成：日期按文本渲染（导入的脏 date 不得成为 HTML）', async ({ page }) => {
+    // 备注、标签名都走了 esc，日期却是裸插值——而 date 来自导入的 JSON（migrateState 只补空值、
+    // 不校验形状）。一行 `2026-01<img src=x onerror=...>` 就能在明细弹窗里执行脚本。
+    const evilDate = '2026-01<img src=x onerror="window.__xss=1">';
+    await openWith(page, {
+      ...sampleState(),
+      expenses: [
+        { id: 'e-x', date: evilDate, amount: 10, note: '脏数据', tags: { 'ec-pay': '微信' } },
+      ],
+    });
+    await page.evaluate(() => viewExpenseMonth('2026-01'));
+    await expect(page.locator('#snapshot-modal')).toBeVisible();
+    expect(await page.evaluate(() => window.__xss)).toBeUndefined();
+    await expect(page.locator('#snapshot-detail-content .asset-row').nth(1))
+      .toContainText('<img src=x onerror="window.__xss=1">');
+
+    await page.keyboard.press('Escape');
+    await page.evaluate(() => viewExpenseSegment('2026-01', 'ec-pay', '微信'));
+    await expect(page.locator('#snapshot-modal')).toBeVisible();
+    expect(await page.evaluate(() => window.__xss)).toBeUndefined();
+    await expect(page.locator('#snapshot-detail-content .asset-row').nth(1))
+      .toContainText('<img src=x onerror="window.__xss=1">');
+  });
+
   test('消费趋势月份行：Enter 能打开当月明细', async ({ appPage: page }) => {
     await page.locator('#tabs-expenses .tab-btn[data-tab="expense-trend"]').click();
     await expect(page.locator('#expense-trend-list .row-hit').first()).toBeVisible();
