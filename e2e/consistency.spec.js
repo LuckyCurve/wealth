@@ -321,7 +321,9 @@ test.describe('版式一致性', () => {
     await expect(page.locator('#tab-expenses')).toBeVisible();
     await collect(await scan());
 
-    // 2) 弹窗里的表：月度消费明细 / 快照详情 / 快照对比
+    // 2) 弹窗里的表：月度消费明细 / 消费构成 / 快照详情 / 快照对比 / 消费两月对比。
+    //    上一版只点了「月度消费明细」这一张，另外四张（金额列全没挂 num）从未被扫到——
+    //    「遍历所有 .asset-row 表」的判据是对的，但没人把它们打开，绿灯是空的。
     await page.locator('#tabs-expenses .tab-btn[data-tab="expense-trend"]').click();
     // 趋势清单由 switchTab 的延时重绘填充：等首行出现再点（click 自带自动等待，这里把意图写明）
     await expect(page.locator('#expense-trend-list .row-hit').first()).toBeVisible();
@@ -330,6 +332,36 @@ test.describe('版式一致性', () => {
     await collect(await scan());
     await page.keyboard.press('Escape');
     await expect(page.locator('#snapshot-modal')).toBeHidden();
+
+    await page.evaluate(() => viewExpenseSegment('2026-02', 'ec-type', '餐饮'));
+    await expect(page.locator('#snapshot-modal')).toBeVisible();
+    await collect(await scan());
+    await page.keyboard.press('Escape');
+
+    await page.evaluate(() => openExpenseCompareModal());
+    await expect(page.locator('#expense-compare-modal')).toBeVisible();
+    await collect(await scan());
+    await page.keyboard.press('Escape');
+
+    // 快照详情与快照对比需要两个月的快照（对比按钮在只有一个月时只弹便条）
+    await gotoAssets(page, 'history');
+    await page.evaluate(() => {
+      state.snapshots = ['2026-01', '2026-02'].map((month, i) => ({
+        month, note: '', totalCNY: 0, currencyRates: { ...state.rates },
+        assets: state.assets.map((a) => ({ ...a, amount: a.amount * (i + 1) })),
+        updatedAt: '2026-02-01T00:00:00.000Z',
+      }));
+      renderHistoryTab();
+    });
+    await page.evaluate(() => viewSnapshot('2026-02'));
+    await expect(page.locator('#snapshot-modal')).toBeVisible();
+    await collect(await scan());
+    await page.keyboard.press('Escape');
+
+    await page.evaluate(() => openCompareModal());
+    await expect(page.locator('#compare-modal')).toBeVisible();
+    await collect(await scan());
+    await page.keyboard.press('Escape');
 
     expect(problems, '表格里的数字必须右对齐（眼睛顺着右边缘扫，左对齐的柱子会打断这条线）：\n' + problems.join('\n')).toEqual([]);
   });
@@ -388,8 +420,12 @@ test.describe('版式一致性', () => {
     await gotoAssets(page);
     await page.evaluate(() => viewHistorySegment('2026-01', 'cat-type', '活期现金'));
     const history = await textGaps();
+    await page.keyboard.press('Escape');
+    // 快照详情曾是唯一没挂列宽模板的弹窗表：每列按内容自适应，金额与货币码贴在一起
+    await page.evaluate(() => viewSnapshot('2026-01'));
+    const snapshot = await textGaps();
 
-    for (const [name, rows] of [['消费构成明细', segment], ['月度消费明细', month], ['资产构成明细', history]]) {
+    for (const [name, rows] of [['消费构成明细', segment], ['月度消费明细', month], ['资产构成明细', history], ['快照详情', snapshot]]) {
       expect(rows.length, `${name}：没有数据行，用例并未覆盖到`).toBeGreaterThan(0);
       for (const row of rows) {
         for (const gap of row) {

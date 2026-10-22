@@ -1966,6 +1966,7 @@ describe('UI 接线契约：版式一致性（同类结构同一套 class）', (
       ['cols-segment', '2fr 1fr 0.7fr 1.3fr 0.7fr'],
       ['cols-compare', '2fr 1.2fr 1.2fr 1.5fr 1fr'],
       ['cols-expense-segment', '96px 1fr 0.8fr 2.6fr'],
+      ['cols-snapshot', '1.6fr 104px 52px 104px 2fr'],
     ]) {
       assert.match(html, new RegExp(`\\.${cls} \\{[^}]*grid-template-columns: ${tpl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')};`),
         `${cls} 模板在 CSS 里定义`);
@@ -2010,7 +2011,7 @@ describe('UI 接线契约：版式一致性（同类结构同一套 class）', (
     const gap = Number(rules[0].match(/column-gap: (\d+)px/)[1]);
     assert.ok(gap >= 12, '列间距要够看（≥12px）');
     // 该规则必须覆盖全部六套模板 + 资产宽表
-    for (const cls of ['cols-expenses', 'cols-expense-month', 'cols-income', 'cols-segment', 'cols-compare', 'cols-expense-segment']) {
+    for (const cls of ['cols-expenses', 'cols-expense-month', 'cols-income', 'cols-segment', 'cols-compare', 'cols-expense-segment', 'cols-snapshot']) {
       assert.ok(rules[0].includes('.' + cls), `${cls} 也要吃到列间距`);
     }
     assert.ok(rules[0].includes('.asset-row.grid-wide'), '资产宽表也要吃到列间距');

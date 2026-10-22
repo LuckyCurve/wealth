@@ -745,6 +745,8 @@ tailwind.config = {
   .cols-income { grid-template-columns: 1.8fr 1fr 0.8fr 0.8fr 1fr 1fr 1fr; }
   .cols-segment { grid-template-columns: 2fr 1fr 0.7fr 1.3fr 0.7fr; }
   .cols-compare { grid-template-columns: 2fr 1.2fr 1.2fr 1.5fr 1fr; }
+  /* 快照详情（弹窗里）：名称会换行的只有它，金额/预期年化定宽不缩，标签列要装两枚 pill */
+  .cols-snapshot { grid-template-columns: 1.6fr 104px 52px 104px 2fr; }
   .cols-expense-segment { grid-template-columns: 96px 1fr 0.8fr 2.6fr; }
   /* 构成明细表（三张表都只在 560px 的弹窗里出现）：列宽按 fr 分配时单元格之间**没有留白**，
      全靠内容本身短才显得有空隙 —— 内容一长就贴在一起。实测：日期栏 90px vs 日期文本 77.8px，
@@ -756,7 +758,7 @@ tailwind.config = {
      表头也连成「金额货币」「金额 (CNY)预期年化」。间距只在这一处定义，
      consistency.spec.js 量「相邻单元格的文本间隙」把守。 */
   .cols-expenses, .cols-expense-month, .cols-income, .cols-segment, .cols-compare, .cols-expense-segment,
-  .asset-row.grid-wide { column-gap: 16px; }
+  .cols-snapshot, .asset-row.grid-wide { column-gap: 16px; }
   /* 资产宽表：列数最多（8 列），列间距吃掉 7×16=112px —— 定宽列（拖拽把手 28 / 操作 92）
      与列间距都先让出来，剩下的才按 fr 分。fr 是在**扣掉 gap 之后**的余量里按比例分，
      故模板不必为 gap 补偿；需要补偿的是「标签列要装下两枚 pill」（实测合计 232px，
@@ -4017,8 +4019,8 @@ function viewSnapshot(month) {
   document.getElementById('snapshot-modal-title').textContent = '快照详情';
   document.getElementById('snapshot-detail-content').innerHTML = `
     <p class="t-body mb-4 muted">${monthLabel(snap.month)}${snap.note ? ' — ' + esc(snap.note) : ''} | 总净值: <strong>${formatCNY(snap.totalCNY)}</strong></p>
-    <div class="asset-row list-head">
-      <div>名称</div><div>金额</div><div>货币</div><div>预期年化</div><div>标签</div>
+    <div class="asset-row list-head cols-snapshot">
+      <div>名称</div><div class="num">金额</div><div>货币</div><div class="num">预期年化</div><div>标签</div>
     </div>
     ${(snap.assets || []).map(a => {
       const tagHtml = Object.entries(a.tags || {}).map(([catId, val]) => {
@@ -4026,7 +4028,7 @@ function viewSnapshot(month) {
         return cat ? tagPillHtml(cat, val, catColor) : '';
       }).join(' ');
       const snapRateLabel = rateLabelText(a) || '<span class="muted hint-xs">未设置</span>';
-      return `<div class="asset-row">
+      return `<div class="asset-row cols-snapshot">
         <div class="t-medium t-body">${esc(a.name)}</div>
         <div class="t-body num">${money2(a.amount)}</div>
         <div class="t-body muted">${a.currency}</div>
@@ -4058,7 +4060,7 @@ function viewHistorySegment(month, catId, tag) {
   document.getElementById('snapshot-detail-content').innerHTML = `
     <p class="t-body mb-4 muted">${esc(cat.name)} › ${esc(tag)} | ${items.length} 项资产 | 合计 <strong>${formatCNY(segTotal)}</strong></p>
     <div class="asset-row list-head ${cols}">
-      <div>名称</div><div>金额</div><div>货币</div><div>折算 CNY</div><div>占比</div>
+      <div>名称</div><div class="num">金额</div><div>货币</div><div class="num">折算 CNY</div><div class="num">占比</div>
     </div>
     ${items.map(a => `
       <div class="asset-row ${cols}">
@@ -4131,7 +4133,7 @@ function renderCompareTable() {
   const maxAbs = Math.max(...rows.map(r => Math.abs(r.d)), 1);
   container.innerHTML = `
     <div class="asset-row list-head ${cols}">
-      <div>资产</div><div>期初</div><div>期末</div><div>变动</div><div>变动 %</div>
+      <div>资产</div><div class="num">期初</div><div class="num">期末</div><div class="num">变动</div><div class="num">变动 %</div>
     </div>
     ${rows.map(r => {
       const badge = r.status === 'new' ? '<span class="mo-badge up">新增</span>'
@@ -4141,13 +4143,13 @@ function renderCompareTable() {
       const bar = cmpBar(r.d, maxAbs, color);
       return `<div class="asset-row ${cols}">
         <div class="t-medium t-body flex items-center gap-2">${esc(r.name)}<span class="t-micro muted">${r.cur}</span>${badge}</div>
-        <div class="t-body tabular${r.status === 'new' ? ' muted' : ''}">${r.av > 0 ? fmt(r.av) : '—'}</div>
-        <div class="t-body tabular${r.status === 'gone' ? ' muted' : ''}">${r.bv > 0 ? fmt(r.bv) : '—'}</div>
-        <div class="t-body" style="color:${color(r.d)};">
+        <div class="t-body num${r.status === 'new' ? ' muted' : ''}">${r.av > 0 ? fmt(r.av) : '—'}</div>
+        <div class="t-body num${r.status === 'gone' ? ' muted' : ''}">${r.bv > 0 ? fmt(r.bv) : '—'}</div>
+        <div class="t-body num" style="color:${color(r.d)};">
           <div class="tabular">${r.d === 0 ? '±0' : `${s}${fmt(r.d)}`}</div>
           ${bar}
         </div>
-        ${pctCell}
+        <div class="t-body num">${pctCell}</div>
       </div>`;
     }).join('')}`;
 }
@@ -6078,7 +6080,7 @@ function renderExpenseCompareTable() {
   const maxAbs = Math.max(...rows.map(r => Math.abs(r.d)), 1);
   container.innerHTML = `
     <div class="asset-row list-head ${cols}">
-      <div>分类标签</div><div>期初月</div><div>期末月</div><div>变动</div><div>变动 %</div>
+      <div>分类标签</div><div class="num">期初月</div><div class="num">期末月</div><div class="num">变动</div><div class="num">变动 %</div>
     </div>
     ${rows.map(r => {
       const s = r.d >= 0 ? '+' : '';
@@ -6086,13 +6088,13 @@ function renderExpenseCompareTable() {
       const bar = cmpBar(r.d, maxAbs, color);
       return `<div class="asset-row ${cols}">
         <div class="t-medium t-body flex items-center gap-2">${tagPillHtml(cat, r.tag, expenseCatColor, { showKey: false })}</div>
-        <div class="t-body tabular">${fmt(r.av)}</div>
-        <div class="t-body tabular">${fmt(r.bv)}</div>
-        <div class="t-body" style="color:${color(r.d)};">
+        <div class="t-body num">${fmt(r.av)}</div>
+        <div class="t-body num">${fmt(r.bv)}</div>
+        <div class="t-body num" style="color:${color(r.d)};">
           <div class="tabular">${r.d === 0 ? '±0' : `${s}${fmt(r.d)}`}</div>
           ${bar}
         </div>
-        ${pctCell}
+        <div class="t-body num">${pctCell}</div>
       </div>`;
     }).join('')}`;
 }
@@ -6136,7 +6138,7 @@ function viewExpenseSegment(month, catId, tag) {
   document.getElementById('snapshot-detail-content').innerHTML = `
     <p class="t-body mb-4 muted">${esc(cat.name)} › ${esc(tag)} | ${items.length} 笔记录 | 合计 <strong>${formatCNY(segTotal)}</strong></p>
     <div class="asset-row list-head ${cols}">
-      <div>日期</div><div>金额</div><div>占比</div><div>备注</div>
+      <div>日期</div><div class="num">金额</div><div class="num">占比</div><div>备注</div>
     </div>
     ${items.map(e => `
       <div class="asset-row ${cols}">
