@@ -568,6 +568,42 @@ test.describe('可访问性：表单字段必须有真正的名字（不是 plac
   });
 });
 
+test.describe('可访问性：每个弹窗都要有名字（role=dialog 的另一半承诺）', () => {
+  test('全站 dialog 的可访问名来自可见标题（aria-labelledby → 真标题元素）', async ({ appPage: page }) => {
+    // role="dialog" + aria-modal 只说了「这是一层模态」，没说「这是哪一层」。
+    // 15 个弹窗原先一个 aria-labelledby 都没有：读屏器打开后只念「对话框」，
+    // 用户无从知道自己在「设置」还是「删除确认」。判据从页面自身求值，不写死弹窗清单。
+    await gotoAssets(page, 'assets');
+    const dialogs = await page.evaluate(() =>
+      [...document.querySelectorAll('.modal-overlay[role="dialog"]')].map((d) => ({
+        id: d.id,
+        labelledby: d.getAttribute('aria-labelledby') || '',
+        label: d.getAttribute('aria-label') || '',
+      })));
+    expect(dialogs.length).toBeGreaterThan(10);
+    const bad = [];
+    for (const d of dialogs) {
+      if (d.labelledby) {
+        const ok = await page.evaluate((id) => {
+          const dlg = document.getElementById(id);
+          const t = document.getElementById(dlg.getAttribute('aria-labelledby'));
+          return !!t && t.closest('.modal-overlay') === dlg && (t.textContent || '').trim().length > 0;
+        }, d.id);
+        if (!ok) bad.push(`#${d.id}: aria-labelledby 指向的元素不存在、不在本弹窗内或没有文字`);
+      } else if (!d.label) {
+        bad.push(`#${d.id}: 既无 aria-labelledby 也无 aria-label`);
+      }
+    }
+    expect(bad, '弹窗必须有可访问名（否则读屏器只说「对话框」）：' + bad.join(' / ')).toEqual([]);
+
+    // 真的到达读屏器：打开设置弹窗，AX 树里的名字要是「设置」
+    await page.getByRole('button', { name: '设置' }).click();
+    await expect(page.locator('#settings-modal')).toBeVisible();
+    expect(await page.locator('#settings-modal').ariaSnapshot()).toContain('dialog "设置"');
+    await page.keyboard.press('Escape');
+  });
+});
+
 test.describe('可读性：文字对比度达 AA（亮/暗两套）', () => {
   const KNOWN_DIMMED = '.asset-row.is-unrated, .flatpickr-day.prevMonthDay, .flatpickr-day.nextMonthDay';
 

@@ -1465,6 +1465,21 @@ describe('UI 接线契约：资产页只能靠长按送达（提高日常查看�
 });
 
 describe('UI 接线契约：弹窗可访问性', () => {
+  test('每个 modal-overlay 都要有名字（aria-labelledby 指向本弹窗内的可见标题）', () => {
+    // role="dialog" + aria-modal 只说明「这是一层模态」，没说明「这是哪一层」。
+    // 原先 15 个弹窗一个名字都没有，读屏器打开后只念「对话框」。
+    const overlays = html.match(/<div id="[^"]+" class="modal-overlay"[^>]*>/g) || [];
+    assert.ok(overlays.length >= 10, '弹窗数量应被扫到');
+    for (const tag of overlays) {
+      const id = (tag.match(/<div id="([^"]+)"/) || [])[1];
+      const ref = (tag.match(/aria-labelledby="([^"]+)"/) || [])[1];
+      assert.ok(ref || /aria-label="/.test(tag), `#${id} 没有可访问名（aria-labelledby / aria-label）`);
+      if (ref) {
+        assert.match(html, new RegExp(`<h3[^>]*id="${ref}"`), `#${id} 的 aria-labelledby 应指向一个真标题元素`);
+      }
+    }
+  });
+
   test('每个 modal-overlay 都声明 role="dialog" 与 aria-modal', () => {
     const overlays = count(/class="modal-overlay"/g);
     assert.ok(overlays > 0, '存在弹窗容器');
@@ -1680,7 +1695,7 @@ describe('UI 接线契约：读数卡的自定月消费（只对本卡生效）'
     assert.match(modal(), /<label[^>]*for="runway-expectation"/, '标签关联输入框（点标签可聚焦）');
     assert.match(modal(), /onkeydown="if\(event\.key==='Enter' && !event\.isComposing\)saveRunwayTags\(\)"/,
       '回车即保存（与预期消费/目标净资产弹窗同惯例），带 IME 守卫防组字中误提交');
-    assert.match(html, /<h3 class="font-display modal-title">标签与月消费/, '标题已改名');
+    assert.match(html, /<h3 class="font-display modal-title" id="runway-modal-title">标签与月消费/, '标题已改名');
     assert.doesNotMatch(html, />选择标签</, '标题/按钮不得仍叫「选择标签」（现在也编辑月消费）');
   });
 
