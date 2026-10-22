@@ -3498,7 +3498,7 @@ function renderCategoryCards(side) {
       </div>`}
       ${gap ? `<div class="tagcheck-strip">
         <span class="t-micro"><b class="ink-accent">${gap.items.length}</b> 条记录未归到本分类</span>
-        <button type="button" class="row-btn edit" onclick="openTagCheck(side, '${jsAttr(cat.id)}')">去校验</button>
+        <button type="button" class="row-btn edit" onclick="openTagCheck('${jsAttr(side)}', '${jsAttr(cat.id)}')">去校验</button>
       </div>` : ''}
     </div>`;
   }).join('');

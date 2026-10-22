@@ -941,7 +941,9 @@ describe('UI 接线契约：数据校验（缺标签一键/逐条补齐，资产
     assert.strictEqual(count(/missingTagGroups\(/g), 4, '校验条 + 面板打开 + 分类卡片 + 新建后检测');
     const card = fnSource('renderCategoryCards');
     assert.match(card, /cfg\.tagCheck \? missingTagGroups/, '卡片提示条必须带 cfg.tagCheck 闸门');
-    assert.match(card, /openTagCheck\(side, '\$\{jsAttr\(cat\.id\)\}'\)/, '卡片入口聚焦该分类，并带侧别');
+    // 侧别必须在**生成时**插值成字面量：onclick 是别名里的字符串，内联处理器在全局作用域求值，
+    // 写成 `openTagCheck(side, …)` 会在点击时抛 ReferenceError（弹窗根本不开，且不报错到界面上）
+    assert.match(card, /openTagCheck\('\$\{jsAttr\(side\)\}', '\$\{jsAttr\(cat\.id\)\}'\)/, '卡片入口聚焦该分类，侧别按生成时插值（不得把模板参数写进 onclick）');
     // 两侧各声明一次：资产与消费都接线（按侧块取，避免只靠同行注释辨认是哪一侧）
     assert.strictEqual(count(/tagCheck: (true|false)/g), 2);
     const assetCfg = html.match(/\n  asset: \{[\s\S]*?\n  \},/)[0];
@@ -1249,6 +1251,49 @@ describe('UI 接线契约：内联事件属性必须是合法 JS（单测看不�
       assert.ok(!/^event\.preventDefault\(\);\w/.test(body), '不得只包住 preventDefault');
     }
   });
+
+  test('内联处理体里引用的名字必须真的存在（模板变量 `side` 曾漏进 onclick）', () => {
+    // 语法合法 ≠ 能跑：`onclick="openTagCheck(side, '...')"` 里的 `side` 是**模板函数**
+    // 的参数，而内联处理器在全局作用域求值 —— 点了只报 ReferenceError，弹窗不出现。
+    // 上一版契约只把处理体交给 new Function 解析（只看结构），罩不到这类「名字不存在」。
+    // 判据：处理体里出现的每个裸标识符，必须能在页面自己的**顶层**声明里找到
+    // （内联 <script> 顶格声明，或 logic.js 工厂内两格缩进的声明），或是浏览器内建名。
+    // 只认顶层：函数内的局部变量（如 renderCategoryCards(side) 的形参）**不在**全局作用域里，
+    // 恰恰是这类名字漏进内联处理器才会 ReferenceError。
+    const logic = fs.readFileSync(path.join(__dirname, '..', 'logic.js'), 'utf8');
+    const declared = new Set();
+    const collect = (src, indent) => {
+      const re = new RegExp(`^${indent}(?:function|let|const|var)\\s+([A-Za-z_$][\\w$]*)`, 'gm');
+      for (const m of src.matchAll(re)) declared.add(m[1]);
+      // `let a = 1, b = 2;` 这类同行多声明（同样只认顶层）
+      const re2 = new RegExp(`^${indent}(?:let|const|var)\\s+[^;=]+=[^;]*;`, 'gm');
+      for (const m of src.matchAll(re2)) {
+        for (const n of m[0].matchAll(/(?:^|[,\s])([A-Za-z_$][\w$]*)\s*=/g)) declared.add(n[1]);
+      }
+    };
+    collect(html, '');      // 内联脚本：顶格声明
+    collect(logic, '  ');   // logic.js：UMD 工厂内两格缩进
+
+    // 浏览器内建（window 上的构造器/全局函数）与事件处理器自带的 event/this
+    const builtins = new Set([
+      'event', 'this', 'document', 'window', 'console', 'Math', 'Date', 'JSON', 'Number', 'String',
+      'Array', 'Object', 'Set', 'Map', 'Boolean', 'isNaN', 'isFinite', 'parseInt', 'parseFloat',
+      'Infinity', 'NaN', 'undefined', 'if', 'else', 'return', 'true', 'false', 'null',
+    ]);
+    const bad = [];
+    for (const [, attr, raw] of html.matchAll(/\son([a-z]+)="([^"]*)"/g)) {
+      // ${...} 占位由生成时求值，换成 '0'；字符串字面量先剥干净，免把参数名当标识符。
+      const body = raw.replace(/\$\{[^}]*\}/g, '0').replace(/'[^']*'/g, "''").replace(/"[^"]*"/g, '""');
+      // 只取「前面不是 . 或标识符字符」的裸标识符（属性访问/字符串里的不查）
+      for (const m of body.matchAll(/(^|[^\w$.'"])([A-Za-z_$][\w$]*)/g)) {
+        const name = m[2];
+        if (builtins.has(name) || declared.has(name)) continue;
+        bad.push(`on${attr} 引用了不存在的名字「${name}」:: ${raw}`);
+      }
+    }
+    assert.deepStrictEqual(bad, [], '内联处理体引用了生成时的局部变量（浏览器里表现为「点了毫无反应且不报错」）');
+  });
+
 });
 
 describe('UI 接线契约：键盘 Tab 不再切换资产/消费', () => {
