@@ -2266,6 +2266,21 @@ function enterTab(pane, shift) {
   });
 }
 
+// 「等新面板布局好再渲染」的唯一入口（五个图表 Tab 共用）。
+// 原先各写一份 setTimeout(100)：固定睡眠既没有理由（display 翻转是同步的），又会在
+// 「切过去又立刻切走」时把图画进**已经隐藏**的容器——真实浏览器实测 echarts.init 出 0×0 实例
+// （这正是 AGENTS 里「隐藏容器不得 init」那条；之后靠 ResizeObserver 才恢复）。
+// rAF 让出一帧给浏览器完成布局；执行时再确认这个 Tab 仍可见，不可见就不画
+// （下次进入时 switchTab 会重新排一次）。不在此处补渲染后台 Tab：那要按当前主题画，
+// 与「隐藏 Tab 下次进入时按新主题渲染」的既有约定冲突。
+function afterTabPaint(tab, render) {
+  requestAnimationFrame(() => {
+    const pane = document.getElementById('tab-' + tab);
+    if (pane && pane.style.display === 'none') return;
+    render();
+  });
+}
+
 // 点「当前已激活」的 Tab 是一次空点击：整块重绘 + 重播入场只是把同样的东西再画一遍
 // （用户实测：「已经在消费分布这个标签下，再次点击它应该不生效，现在还会重新刷新页面」）。
 // 判定就是按钮自己的 active 态——隐藏的 Tab 栏收不到点击，不必再问一遍模式。
@@ -2295,14 +2310,14 @@ function switchTab(tab, shift) {
   document.getElementById('tab-income').style.display = tab === 'income' ? '' : 'none';
   if (tab === 'chart') {
     fillCategorySelect('chart-category-select', state.categories);
-    setTimeout(() => renderChart(), 100);
+    afterTabPaint(tab, renderChart);
   }
   if (tab === 'history') {
     fillCategorySelect('history-category-select', state.categories);
-    setTimeout(() => renderHistoryChart(), 100);
+    afterTabPaint(tab, renderHistoryChart);
   }
   if (tab === 'income') {
-    setTimeout(() => renderIncomeTab(), 100);
+    afterTabPaint(tab, renderIncomeTab);
   }
   // expense tabs
   document.getElementById('tab-expenses').style.display = tab === 'expenses' ? '' : 'none';
@@ -2315,11 +2330,11 @@ function switchTab(tab, shift) {
   }
   if (tab === 'expense-chart') {
     populateExpenseChartSelects();
-    setTimeout(() => renderExpenseChart(), 100);
+    afterTabPaint(tab, renderExpenseChart);
   }
   if (tab === 'expense-trend') {
     fillCategorySelect('expense-trend-category-select', state.expenseCategories);
-    setTimeout(() => renderExpenseTrendChart(), 100);
+    afterTabPaint(tab, renderExpenseTrendChart);
   }
 }
 
@@ -3966,8 +3981,10 @@ function confirmSnapshot(overwrite) {
 
   saveState();
   renderAll();
-  // 快照数据变化后立即重绘历史净值柱状图，无需重新进入 Tab 或刷新页面
-  setTimeout(() => renderHistoryChart(), 100);
+  // 快照数据变化后立即重绘历史净值柱状图，无需重新进入 Tab 或刷新页面。
+  // 用 afterTabPaint 而不是 setTimeout：不在「历史净值」这个 Tab 上时应当**完全不画**
+  // （固定睡眠到点照画，等于在 display:none 的容器上 echarts.init 出 0×0 实例）
+  afterTabPaint('history', renderHistoryChart);
 }
 
 function renderHistoryHeader() {
@@ -4004,7 +4021,7 @@ function deleteSnapshot(month) {
     state.snapshots = state.snapshots.filter(s => s.month !== month);
     saveState();
     renderHistoryTab();
-    setTimeout(() => renderHistoryChart(), 100);
+    afterTabPaint('history', renderHistoryChart);
     toast('快照已删除', 'success');
   });
 }

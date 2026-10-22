@@ -562,13 +562,32 @@ test.describe('图表初始化与空态', () => {
     await gotoAssetsTab(page, 'chart');
     await expect(page.locator('#sunburst-chart')).toBeVisible();
     await expect(page.locator('#chart-empty')).toBeHidden();
-    // switchTab 里是 setTimeout(100) 后才 renderChart，init 晚于容器可见
+    // 图表渲染排在新面板布局好之后（afterTabPaint），init 晚于容器可见
     await expect
       .poll(() => page.evaluate(() => window.__echartsCalls.init))
       .toContain('sunburst-chart');
     await expect
       .poll(() => page.evaluate(() => window.__echartsCalls.setOption.length))
       .toBeGreaterThan(0);
+  });
+
+  test('切过去又立刻切走：不得把图画进已隐藏的容器（0×0 init）', async ({ appPage: page }) => {
+    // 原先 switchTab 用 setTimeout(100) 排渲染：切到「资产分布」后 100ms 内切回去，
+    // 时间一到仍会在**已经 display:none 的容器**上 echarts.init。真实浏览器实测实例尺寸 0×0
+    // ——正是 AGENTS 里「隐藏容器不得 init」那条：拿 0 去 init，之后 setOption 也修不回来。
+    await gotoAssets(page);
+    await page.evaluate(() => { switchTab('chart'); switchTab('assets'); });
+    await expect(page.locator('#tab-chart')).toBeHidden();
+    // 等的不是固定时长，而是「若真有那次延迟渲染，它已经跑过了」
+    await expect.poll(() => page.evaluate(() => window.__echartsCalls.init.length)).toBe(0);
+    const sizes = await page.evaluate(() =>
+      Object.fromEntries(Object.entries(window.__echartsCalls.instances).map(([k, v]) => [k, [v.getWidth(), v.getHeight()]])));
+    for (const [id, [w, h]] of Object.entries(sizes)) {
+      expect(w > 0 && h > 0, `${id} 被 init 成了 ${w}×${h}（隐藏容器）`).toBe(true);
+    }
+    // 真正进入时仍要照常渲染（守卫不能把它一起挡掉）
+    await page.locator('#tabs-assets .tab-btn[data-tab="chart"]').click();
+    await expect.poll(() => page.evaluate(() => window.__echartsCalls.init)).toContain('sunburst-chart');
   });
 
   test('旭日图空态：所选维度无数据时不留空白画布', async ({ page }) => {

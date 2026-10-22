@@ -589,6 +589,22 @@ describe('UI 接线契约：汇率刷新链路（绕过 CDN 缓存 / 恢复可�
         `${tab} 的重绘分支必须带可见性守卫（隐藏容器 echarts 0 尺寸初始化，进去就是空白）`);
     }
     assert.match(stripComments(fnSource('fetchRates')), /refreshVisibleCharts\(\)/, '汇率刷新后图表跟随重绘');
+  });
+
+  test('图表懒渲染排下一帧并验可见性（固定 setTimeout 会把图画进已隐藏的容器）', () => {
+    // 实测：切到「资产分布」后 100ms 内切回去，setTimeout 到点仍在 display:none 的容器上
+    // echarts.init，实例尺寸 0×0。五个图表 Tab 与快照保存/删除共用同一个入口。
+    const src = fnSource('switchTab');
+    assert.doesNotMatch(src, /setTimeout\(/, 'switchTab 不得再用固定睡眠排渲染');
+    for (const fn of ['renderChart', 'renderHistoryChart', 'renderIncomeTab', 'renderExpenseChart', 'renderExpenseTrendChart']) {
+      assert.match(src, new RegExp(`afterTabPaint\([^)]*${fn}\)`), `${fn} 应走 afterTabPaint`);
+    }
+    const helper = fnSource('afterTabPaint');
+    assert.match(helper, /requestAnimationFrame\(/, '排下一帧（让浏览器先完成布局）');
+    assert.match(helper, /style\.display === 'none'\) return/, '跑之前必须再确认该 Tab 仍可见');
+    for (const fn of ['confirmSnapshot', 'deleteSnapshot']) {
+      assert.match(fnSource(fn), /afterTabPaint\('history'/, `${fn} 重绘历史净值也要走同一入口`);
+    }
     assert.match(stripComments(fnSource('setTheme')), /refreshVisibleCharts\(\)/, '主题切换与汇率刷新共用同一入口');
   });
 });
