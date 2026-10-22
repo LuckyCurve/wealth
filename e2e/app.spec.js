@@ -1544,6 +1544,27 @@ test.describe('弹窗焦点管理（aria-modal 的兑现）', () => {
     const isBody = await page.evaluate(() => document.activeElement === document.body);
     expect(isBody, '遮罩点击关弹窗同样要把焦点还回去').toBe(false);
   });
+
+  test('关掉一层再关上层：栈不被多弹一次（无脑 pop 会吃掉别人的返回焦点）', async ({ appPage: page }) => {
+    // 焦点栈与「开着的弹窗」一一对应。closeModal 原先无论弹窗是否开着都 pop 一层：
+    // 先关掉下面那层、再关上层时，上层那一步弹出的就是**空**（真正属于上层的那格已被前一步吃掉），
+    // 焦点于是掉到 body——实测回退版本 document.activeElement === body，修好后回到「设置」按钮。
+    await page.getByRole('button', { name: '设置' }).focus();
+    await page.getByRole('button', { name: '设置' }).click();
+    await page.locator('#settings-modal button:has-text("备份与导入")').click();
+    await expect(page.locator('#io-modal')).toBeVisible();
+
+    await page.evaluate(() => closeModal('settings-modal')); // 先关被叠住的那层
+    await page.locator('#io-modal button:has-text("关闭")').click();
+    await expect(page.locator('#io-modal')).toBeHidden();
+
+    const after = await page.evaluate(() => ({
+      isBody: document.activeElement === document.body,
+      text: (document.activeElement.textContent || '').trim(),
+    }));
+    expect(after.isBody, '关掉最上层后焦点不得掉到 body').toBe(false);
+    expect(after.text).toContain('设置');
+  });
 });
 
 test.describe('日期选择器与复制', () => {

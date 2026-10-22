@@ -308,6 +308,10 @@ describe('UI 接线契约：弹窗焦点管理（aria-modal 的兑现）', () =>
   test('关闭弹窗要把焦点还回打开它的元素（不是掉到 body 从头 Tab）', () => {
     assert.match(closeSrc, /__modalReturnFocus/, 'closeModal 必须消费记住的返回焦点');
     assert.match(openSrc, /__modalReturnFocus\.push\(document\.activeElement\)/, '打开时要先记住当前焦点（入栈，确认框会叠在别的弹窗上）');
+    // 栈与「开着的弹窗」一一对应：对已开着的弹窗再 openModal 会多入一层、对已关着的
+    // closeModal 会多弹一层，两者都会让返回焦点错位（实测：先关下层再关上层，焦点掉到 body）。
+    assert.match(openSrc, /display === 'none'\) __modalReturnFocus\.push/, '重复打开不得重复入栈');
+    assert.match(closeSrc, /if \(!wasOpen\) return;/, '关一个本来就关着的弹窗不得出栈');
   });
 
   test('「最上层弹窗」只有一个判据：打开时挪到 body 末尾，ESC / Tab 陷阱 / 命中都读它', () => {

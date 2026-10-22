@@ -3277,8 +3277,10 @@ function topModal() {
 
 function openModal(id) {
   const modal = document.getElementById(id);
-  // 打开前先记下当前焦点（就是那个触发按钮），关闭时还回去
-  __modalReturnFocus.push(document.activeElement);
+  // 打开前先记下当前焦点（就是那个触发按钮），关闭时还回去。
+  // 已经开着就别再入栈：入了就成了「两层」，而关的时候只出一次——栈越积越深，
+  // 之后关别的弹窗弹出的都成了过期的那一格，返回焦点整个错位。
+  if (modal.style.display === 'none') __modalReturnFocus.push(document.activeElement);
   // 挪到 body 末尾 = 叠在最上层（见 openModalStack 的注释）
   document.body.appendChild(modal);
   modal.style.display = '';
@@ -5108,8 +5110,12 @@ function closeModal(id) {
   modal.style.display = 'none';
   // 把焦点还给打开它的那个元素。不回还的话焦点掉到 body，用户下一次 Tab 从页头重新开始——
   // 「改完一条记录继续改下一条」这种连续操作会变得极难。
+  // **只有真的关掉了一层才出栈**：栈与「开着的弹窗」是一一对应的，对一个本来就关着的弹窗
+  // 调一次 closeModal 却照样弹一层，等于把**别的**弹窗的返回焦点吃掉——那层之后再关，
+  // 焦点就掉到 body 了（设置 → 备份与导入 → 先关设置 再关导入，返回焦点就没了）。
+  if (!wasOpen) return;
   const back = __modalReturnFocus.pop();
-  if (wasOpen && back && document.contains(back) && back.focus) back.focus();
+  if (back && document.contains(back) && back.focus) back.focus();
 }
 
 // custom confirm dialog
