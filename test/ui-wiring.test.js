@@ -117,6 +117,9 @@ describe('UI 接线契约：统一提示便条（右下角单一出口）', () =
     assert.match(src, /rateFallbackNotice\(!!state\.rates\.fetchedAt\)/);
     assert.doesNotMatch(src, /使用缓存汇率|汇率获取失败/, '失败文案不应在内联脚本里硬编码重复');
     assert.match(logic, /function rateFallbackNotice\(/, '决策纯函数应在 logic.js');
+    // 响应形状校验与取倒数同源：直接在页面里 1/cny.hkd，脏响应会把 NaN/Infinity 写进存档
+    assert.match(src, /ratesFromApi\(/, '汇率响应须经 logic.js ratesFromApi 校验后写入');
+    assert.doesNotMatch(stripComments(src), /1 \/ cny\./, '不得在页面里直接取倒数（缺字段即 NaN）');
   });
 
   test('toast 堆叠与去重：写入 #toast-area、末尾同文案重置计时而非堆叠', () => {

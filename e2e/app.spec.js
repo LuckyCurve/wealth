@@ -1167,6 +1167,28 @@ test.describe('汇率', () => {
     await expect(page.locator('#masthead-whole')).toHaveText('184,347');
   });
 
+  test('响应缺字段（脏数据）：不得把 NaN 写进存档，按「拉取失败」回退', async ({ page }) => {
+    // 原先直接 1 / cny.hkd：字段缺失得 NaN、给 0 得 Infinity，照样写进 state.rates 并落盘。
+    // 之后每张表、每个合计都是 NaN，而便条还说「汇率已更新」——错误在别处才显形。
+    const s = sampleState();
+    s.rates = { CNY: 1, HKD: 1 / 0.92, USD: 1 / 7.24, fetchedAt: '2026-01-01T00:00:00.000Z' };
+    await disableMotion(page);
+    await stubCdn(page);
+    await page.route('**/currency-api@latest/**', (route) =>
+      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ date: '2026-01-01', cny: { hkd: 0.92 } }) }));
+    await seed(page, s);
+    await page.goto(INDEX_URL);
+    await waitReady(page);
+
+    await expectToast(page, '使用缓存汇率'); // 走回退分支，而不是「汇率已更新」
+    const rates = await page.evaluate(() => state.rates);
+    expect(rates.HKD, '缓存汇率必须原样保留').toBeCloseTo(1 / 0.92, 6);
+    expect(Number.isFinite(rates.USD)).toBe(true);
+    await expect(page.locator('#masthead-whole')).toHaveText('184,347');
+    const stored = await readStored(page);
+    expect(Number.isFinite(stored.rates.USD), '落盘的汇率不得是 NaN/Infinity').toBe(true);
+  });
+
   test('首次启动且拉不到汇率：报「汇率获取失败」但仍可用（按 1:1 兜底）', async ({ page }) => {
     const s = sampleState();
     s.rates = { CNY: 1, HKD: 1, USD: 1, fetchedAt: null }; // 从未成功拉过

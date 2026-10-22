@@ -1218,6 +1218,22 @@
       : { msg: '汇率获取失败', type: 'error' };
   }
 
+  // 汇率响应的**形状校验**：API 给的是「1 CNY = X 外币」，页面要取倒数写成「1 外币 = X CNY」。
+  // 原先直接 1 / cny.hkd：字段缺失得 NaN、给 0 得 Infinity，两者都会写进 state.rates 并落盘——
+  // 此后每张表、每个合计都是 NaN / Infinity，而便条还说「汇率已更新」。故这里先验，
+  // 任一币种不是有限正数就整体拒绝（返回 null，调用方走既有的 catch 回退分支）。
+  // 不逐个「能用的用、不能用的留旧值」：一次响应里只有一半可信时，混着用的口径比全旧更难解释。
+  function ratesFromApi(cny) {
+    const ok = (v) => typeof v === 'number' && Number.isFinite(v) && v > 0;
+    if (!cny || typeof cny !== 'object' || !ok(cny.hkd) || !ok(cny.usd)) return null;
+    return {
+      CNY: 1,
+      HKD: 1 / cny.hkd,
+      USD: 1 / cny.usd,
+      fetchedAt: new Date().toISOString()
+    };
+  }
+
   // ========== 便条的播报优先级 ==========
   // 便条容器原先写死 aria-live="polite"：所有知会（含 22 处 error）都排队等读屏器空闲才念。
   // 但 error 的语义就是「出错了、等你处理」——排队到用户下一次操作之后才念，
@@ -1298,6 +1314,7 @@
     daysBetweenStr,
     BACKUP_STALE_DAYS, normalizeBackupFreq, backupNoteText, hasAnyBackupWorthyData, shouldAutoBackup, backupStaleDays,
     rateFallbackNotice,
+    ratesFromApi,
     nextSortState, inlineEditKeyAction, expenseMonths,
     activateKeyAction, sortAriaSort, sortAriaLabel, trapFocus, toastLiveMode, moveAssetIndex,
     AUTO_OPEN_GUARD_MS, autoOpenGuard,

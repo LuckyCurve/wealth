@@ -2176,16 +2176,11 @@ async function fetchRates() {
     // 这里强制不缓存，由外层 1 小时节流（visibilitychange/pageshow）控制请求频率。
     const resp = await fetch('https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/cny.json', { cache: 'no-store' });
     const data = await resp.json();
-    const cny = data.cny;
-    // API gives: 1 CNY = X foreign currency
-    // We want: 1 foreign = X CNY
-    // So CNY to CNY = 1, HKD to CNY = 1/cny.hkd, USD to CNY = 1/cny.usd
-    state.rates = {
-      CNY: 1,
-      HKD: 1 / cny.hkd,
-      USD: 1 / cny.usd,
-      fetchedAt: new Date().toISOString()
-    };
+    // 形状校验与「取倒数」口径在 logic.js ratesFromApi（可单测）：脏响应返回 null，
+    // 走下面的 catch 回退，不得把 NaN / Infinity 写进 state 并落盘。
+    const next = ratesFromApi(data && data.cny);
+    if (!next) throw new Error('汇率响应缺少有效币种');
+    state.rates = next;
     saveState();
     renderAssets();
     // 资产分布/收益测算等使用当前汇率换算的图表需要同步重绘（历史净值用快照时点汇率不受影响, 消费均为 CNY）

@@ -1024,6 +1024,39 @@ describe('汇率刷新提示决策 rateFallbackNotice（统一提示便条）', 
   });
 });
 
+describe('汇率响应校验 ratesFromApi（脏响应不得污染 state.rates）', () => {
+  test('正常响应：按「1 外币 = X CNY」取倒数，CNY 恒为 1', () => {
+    const r = L.ratesFromApi({ hkd: 0.92, usd: 7.24 });
+    assert.strictEqual(r.CNY, 1);
+    assert.ok(Math.abs(r.HKD - 1 / 0.92) < 1e-12);
+    assert.ok(Math.abs(r.USD - 1 / 7.24) < 1e-12);
+    assert.strictEqual(typeof r.fetchedAt, 'string');
+  });
+
+  test('字段缺失 / 非数字 / 0 / 负数 / 非有限值一律拒绝（返回 null，调用方走既有回退）', () => {
+    // 原先直接 1 / cny.hkd：字段缺失得 NaN、0 得 Infinity——两者都会写进 state.rates 并落盘，
+    // 此后每张表、每个合计都是 NaN，而「汇率已更新」的便条还说成功。
+    for (const bad of [
+      undefined, null, {},
+      { hkd: 0.92 }, { usd: 7.24 },
+      { hkd: '0.92', usd: 7.24 },
+      { hkd: 0, usd: 7.24 },
+      { hkd: -1, usd: 7.24 },
+      { hkd: NaN, usd: 7.24 },
+      { hkd: Infinity, usd: 7.24 },
+      { hkd: null, usd: 7.24 },
+      { hkd: {}, usd: 7.24 },
+    ]) {
+      assert.strictEqual(L.ratesFromApi(bad), null, `应拒绝：${JSON.stringify(bad)}`);
+    }
+  });
+
+  test('返回对象的键固定为三币种 + fetchedAt（不把 API 的其它字段带进来）', () => {
+    const r = L.ratesFromApi({ hkd: 0.92, usd: 7.24, eur: 0.85 });
+    assert.deepStrictEqual(Object.keys(r).sort(), ['CNY', 'HKD', 'USD', 'fetchedAt']);
+  });
+});
+
 describe('金额格式化 money2（从 index.html 下沉，表格/对比/tooltip 展示态共用）', () => {
   test('千分位 + 恒两位小数，与 formatCNY 差异仅在无 ¥ 符号', () => {
     assert.strictEqual(L.money2(1234.5), '1,234.50');
