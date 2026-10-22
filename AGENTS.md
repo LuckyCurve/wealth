@@ -191,6 +191,7 @@ interface Expense {
 - **设置弹窗** — 导入/导出、外观、自动备份的唯一入口。
 - **统一提示便条** — 全站唯一的瞬时反馈出口（`toast` / `#toast-area`），**禁止第二套通道**；三种语义色（success/error/info）；同文案同类型且未退场时只重置计时不堆叠。
 - **图表空态与转义** — 所选维度无数据时显示空态而非空白画布；旭日图标签只显示名称，数值/占比在 tooltip；**tooltip 中插值的用户输入（资产名/标签等）必须转义，防存储型 XSS**。
+  - **拼进 `id` / `data-*` 的元素 id 同样要转义**：记录 id 不经用户手、来自导入的 JSON，一个双引号就能截断属性并插进新标签——实测校验面板真执行了脚本。`id` 与 `data-target` 必须走**同一个**转义后的串（否则 `getElementById` 对不上）；`data-*` 用 `esc` 而非 `jsAttr`（后者会把反斜杠翻倍，`dataset` 读回与 state 的 id 失配）。
   - **「看起来有形状」的字段不等于安全**：日期曾被当成无需转义的值裸插进两处明细弹窗，而它来自导入的 JSON——`migrateState` 对 `date` 只补空值、不校验形状，一行 `2026-01<img src=x onerror=…>` 就能在弹窗里执行脚本。凡来自存档/导入的字符串一律 `esc`，判据由 `ui-wiring` 扫「裸插值的用户字段」把守。
   - **旭日图的数值口径是「按 children 求和」**：`buildSunburstData` 只给叶子写 `value`，分类节点本身没有 `value`（ECharts 就是这么算扇区大小的）。任何要读分类数值的地方都走 logic.js `nodeValue()`——直接读 `n.value` 会得到 0（清单曾因此满屏 `¥0.00`，而图完全正常）。
   - **图表字色写在数据节点上**（`buildSunburstData` 里的 `label.color`），不靠 `levels[].label.color` 的回调：实测 ECharts 5 对 sunburst 层级 label 的函数型 color 不保证逐节点求值，内环会静默退回默认黑字（深绿底上实测 2.15:1）。色与字同表（`CATEGORY_PALETTE.label` / `CHART_INK`）且由单测逐条断言 ≥4.5:1。

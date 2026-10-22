@@ -781,7 +781,8 @@ describe('UI 接线契约：消费标签筛选（单下拉分组，类别作不�
 
 describe('UI 接线契约：分类管理回车添加标签', () => {
   test('新增标签输入框回车即添加，且 IME 组字中回车不误提交', () => {
-    const input = html.match(/<input type="text" id="\$\{cfg\.newTagPrefix\}\$\{cat\.id\}"[^>]*>/);
+    // id 由「前缀 + 分类 id」拼成，两者都可能来自导入的 JSON：属性里必须转义
+    const input = html.match(/<input type="text" id="\$\{esc\(cfg\.newTagPrefix \+ cat\.id\)\}"[^>]*>/);
     assert.ok(input, '分类卡片的「新增标签」输入框模板存在');
     // 中文输入法确认候选字用的也是回车：无 isComposing 守卫会提前提交并销毁组字中的输入框
     assert.match(
@@ -1056,6 +1057,17 @@ describe('UI 接线契约：图表 tooltip 转义用户输入（防存储型 XSS
     }
     assert.strictEqual(count(/\$\{arrow\}\$\{p\.name\}/g), 0, '不得再内联未转义的 ${arrow}${p.name}');
     assert.strictEqual(count(/p\.treePathInfo\[1\]\.name \+ ' › '/g), 0, '路径拼接只允许在 helper 一处');
+  });
+
+  test('拼进 id / data-* 的元素 id 也要转义（属性截断 = 注入）', () => {
+    // id 来自导入的 JSON，不经用户手：一个双引号就能截断属性并插进新标签。
+    // 实测 id = `a"><img src=x onerror="window.__xss=1">` 时，校验面板真的执行了脚本。
+    const picker = fnSource('tagPickerHtml');
+    assert.match(picker, /const hidId = esc\(/, 'hidden input 的 id 与 data-target 须走同一个转义后的串');
+    assert.doesNotMatch(picker, /id="\$\{idPrefix\}/, '不得把未转义的前缀直接插进 id');
+    for (const fn of ['startInlineEdit', 'commitInlineEdit']) {
+      assert.match(fnSource(fn), /CSS\.escape\(id\)/, `${fn} 的属性选择器要转义 id`);
+    }
   });
 
   test('用户字段插值一律经 esc：日期不是「安全形状」，它同样来自导入的 JSON', () => {

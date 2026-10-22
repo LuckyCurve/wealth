@@ -1047,6 +1047,28 @@ test.describe('资产侧数据校验（快照按当时数据保留，不随补�
     expect(st.assets.map((a) => a.tags['cat-new'])).toEqual(['股票型', '股票型', '股票型']);
     expect(st.snapshots[0].assets.every((a) => a.tags['cat-new'] === undefined)).toBe(true);
   });
+
+  test('记录 id 含引号/尖括号时，逐条点选仍能落值（id 进属性必须转义）', async ({ page }) => {
+    // 校验面板把 id 拼成 `tagcheck-r-${e.id}-` 写进 hidden input 的 id 与 data-target，
+    // 却没过 jsAttr/esc：id 里一个双引号就把属性截断并插进新标签——实测
+    // id = `a"><img src=x onerror="window.__xss=1">` 时脚本真的执行了（window.__xss === 1）。
+    const base = sampleState();
+    await openWith(page, {
+      ...base,
+      categories: [...base.categories, { id: 'cat-new', name: '资产大类', builtin: false, tags: ['股票型', '债券型'] }],
+      assets: base.assets.map((a, i) => (i === 0 ? { ...a, id: 'a"><img src=x onerror="window.__xss=1">' } : a)),
+    });
+    await gotoAssetsTab(page);
+    await page.locator('#tagcheck-bar-assets button:has-text("去校验")').click();
+    await expect(page.locator('#tagcheck-modal')).toBeVisible();
+    const row = page.locator('#tagcheck-groups .tagcheck-row').first();
+    await expect(row).toHaveCount(1);
+    await row.locator('.tag-choice', { hasText: '股票型' }).click();
+    await expectToast(page, '已归入「股票型」');
+    const st = await readStored(page);
+    expect(st.assets[0].tags['cat-new']).toBe('股票型');
+    expect(await page.evaluate(() => window.__xss), 'id 不得能逃出属性').toBeUndefined();
+  });
 });
 
 test.describe('持久化与迁移', () => {

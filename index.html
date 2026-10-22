@@ -2736,10 +2736,15 @@ function tagPickerHtml(cats, selectedFor, idPrefix, colorFn, opts) {
     const chips = cat.tags.map(t => tagChipHtml(
       cat.id, t, t === selected,
       `data-val="${esc(t)}" onclick="selectTagChoice(this)"`, colorFn)).join('');
+    // id 与 data-target 由**调用方拼好的前缀 + cat.id** 组成，两者都可能来自存档（导入的 JSON）：
+    // 不转义时 id 里一个双引号就截断属性并插进新标签（实测 data-eid 那条路径能执行脚本），
+    // 而「前缀里的记录 id」正是最脏的那一段（记录 id 不经用户手，出问题时也最难查）。
+    // 写入与查找两端都走同一个转义后的串，getElementById 才对得上。
+    const hidId = esc(idPrefix + cat.id);
     return `<div>
       ${withLabel ? `<label class="field-label">${esc(cat.name)}</label>` : ''}
-      <input type="hidden" id="${idPrefix}${cat.id}" value="${esc(selected)}">
-      <div class="tag-picker" data-target="${idPrefix}${cat.id}">${chips}</div>
+      <input type="hidden" id="${hidId}" value="${esc(selected)}">
+      <div class="tag-picker" data-target="${hidId}">${chips}</div>
     </div>`;
   }).join('');
 }
@@ -2774,7 +2779,9 @@ function startInlineEdit(id) {
   if (_inlineEditId === id) return; // 已在编辑该行: 点击 input 移动光标时忽略冒泡, 不触发提交
   commitInlineEdit(true); // 先收尾上一个编辑行
   const a = state.assets.find(x => x.id === id);
-  const cell = document.querySelector(`#assets-rows .asset-row[data-id="${id}"] .amount-cell`);
+  // 选择器里的 id 也要转义：存档里的 id 可能带引号/尖括号（导入的 JSON），
+  // 直接插进属性选择器会抛 SyntaxError 或匹配错行
+  const cell = document.querySelector(`#assets-rows .asset-row[data-id="${CSS.escape(id)}"] .amount-cell`);
   if (!a || !cell) return;
   _inlineEditId = id;
   const row = cell.closest('.asset-row');
@@ -2795,7 +2802,7 @@ function commitInlineEdit(doRender) {
   const id = _inlineEditId;
   _inlineEditId = null; // 先清标记: Esc 取消或 input 被销毁时, 后续 onblur 不再生效
   const a = state.assets.find(x => x.id === id);
-  const cell = document.querySelector(`#assets-rows .asset-row[data-id="${id}"] .amount-cell`);
+  const cell = document.querySelector(`#assets-rows .asset-row[data-id="${CSS.escape(id)}"] .amount-cell`);
   if (!a || !cell) return true;
   const row = cell.closest('.asset-row');
   if (row) row.classList.remove('editing');
@@ -3521,7 +3528,7 @@ function renderCategoryCards(side) {
       <div class="flex flex-wrap gap-2 mb-3">${tagPills}</div>
       ${cat.builtin ? '' : `
       <div class="new-tag-row">
-        <input type="text" id="${cfg.newTagPrefix}${cat.id}" placeholder="新增标签（回车添加）" class="t-body" autocomplete="off" onkeydown="if(event.key==='Enter'&&!event.isComposing){event.preventDefault();${addTagCall};}">
+        <input type="text" id="${esc(cfg.newTagPrefix + cat.id)}" placeholder="新增标签（回车添加）" class="t-body" autocomplete="off" onkeydown="if(event.key==='Enter'&&!event.isComposing){event.preventDefault();${addTagCall};}">
         <button onclick="${addTagCall}" class="btn-ghost btn-sm">添加</button>
       </div>`}
       ${gap ? `<div class="tagcheck-strip">
