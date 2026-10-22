@@ -646,14 +646,14 @@ tailwind.config = {
      用 box-shadow 而非伪元素：胶囊自身有 border-radius 与背景，伪元素还要再对付 overflow。 */
   .tag-pill:hover { filter: brightness(0.94); }
   .tag-pill[data-rename] { cursor: pointer; }
-  /* 长按进度：底边一道金墨，随按住时长从 0 长到满宽。
+  /* 长按进度：底边一道金墨 + 一层从左向右涨满的浅金。
      **不能用 background-***：胶囊的底色来自内联 style（分类色 tint），内联优先级更高，
      任何 background-image/size 都会被它盖掉（实测 backgroundImage: none）。
-     故进度走 box-shadow 的 inset（JS 写 --tag-press，这里只换算成像素宽度）——
-     box-shadow 没有被内联样式占用，且天然贴边、不吃布局空间。 */
+     故进度走 box-shadow 的 inset——天然贴边、不吃布局空间。
+     宽度必须由 JS 按胶囊实宽算（box-shadow 的 inset 宽度无法用百分比表达），
+     这里的类只负责按下态的提亮（内联 box-shadow 会盖住本规则里的阴影，故不写）。 */
   .tag-pill.pressing {
     filter: brightness(0.94);
-    box-shadow: inset 0 -2px 0 0 var(--accent), 0 0 0 calc(1px + 0px * var(--tag-press, 0)) rgba(180, 132, 26, 0);
     transition: filter 0.15s;
   }
   /* pill 内的行内控件（✕ 删除）：只给 color 的话 background/border 会走浏览器 UA
@@ -891,7 +891,6 @@ tailwind.config = {
     width: calc(var(--mode-press, 0) * 100%); background: var(--accent-ink);
   }
   .mode-press.pressing { color: var(--fg); background: var(--card-2); }
-  .mode-press.armed { color: var(--accent-ink); }
   /* ===== 设置弹窗: 账本「凡例」页 —— 每条设置如一条目录, 标签居左、控件居右、发丝线分章 ===== */
   .setting-row { display: flex; align-items: center; justify-content: space-between; gap: 14px 24px; flex-wrap: wrap; }
   .setting-info { flex: 1 1 260px; min-width: 200px; }
@@ -4357,13 +4356,13 @@ function renderHistoryChart() {
 function momCompareHtml(curr, prev, goodWhenUp) {
   if (prev == null) return { badge: '<span class="mo-badge first">首月</span>', diffLine: '' };
   if (prev === 0) return { badge: '<span class="mo-badge up">新增</span>', diffLine: '' };
-  var m = expenseMoM(curr, prev);
-  var sign = m.up ? '+' : '';
-  var good = goodWhenUp ? m.up : !m.up;
-  var badgeClass = good ? 'up' : 'down';
-  var color = good ? 'var(--verdigris)' : 'var(--down)';
-  var badge = '<span class="mo-badge ' + badgeClass + '" title="较上月 ' + sign + formatCNY(m.diff) + '（' + sign + m.pct.toFixed(1) + '%）">' + (m.up ? '▲' : '▼') + ' ' + sign + m.pct.toFixed(1) + '%</span>';
-  var diffLine = '<span style="color:' + color + ';">较上月 ' + sign + formatCNY(m.diff) + '</span>';
+  const m = expenseMoM(curr, prev);
+  const sign = m.up ? '+' : '';
+  const good = goodWhenUp ? m.up : !m.up;
+  const badgeClass = good ? 'up' : 'down';
+  const color = good ? 'var(--verdigris)' : 'var(--down)';
+  const badge = '<span class="mo-badge ' + badgeClass + '" title="较上月 ' + sign + formatCNY(m.diff) + '（' + sign + m.pct.toFixed(1) + '%）">' + (m.up ? '▲' : '▼') + ' ' + sign + m.pct.toFixed(1) + '%</span>';
+  const diffLine = '<span style="color:' + color + ';">较上月 ' + sign + formatCNY(m.diff) + '</span>';
   return { badge: badge, diffLine: diffLine };
 }
 
@@ -4669,7 +4668,7 @@ function renderIncomeTab() {
   empty.style.display = 'none';
   summary.style.display = '';
   table.style.display = '';
-  chartContainer.style.display = assets.length > 0 ? '' : 'none';
+  chartContainer.style.display = ''; // 走到这里 assets 必非空（空集已在上面 return）
 
   // --- Summary ---
   // 两口径合计单一来源（logic.js sumAssetIncomes, 与报头副行/覆盖标尺共用）

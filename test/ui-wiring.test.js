@@ -891,6 +891,11 @@ describe('UI 接线契约：标签改名（迁移引用，不是清空）', () =
       '先收尾再开输入框：不先收尾的话，紧跟的松手会让 endTagPress 再开一次（同一次长按两个入口）');
     assert.doesNotMatch(src, /add\('armed'\)/, '不再有「按满但还没进去」的中继态');
     assert.strictEqual(count(/\.tag-pill\.armed/g), 0, '中继态的样式随行为一起删（死样式不留）');
+    // 样式表里也不得留「只减不加」的死规则：.mode-press.armed 从未被 add 过（只有 remove），
+    // 留着会让下一个人以为按住时真有这一态
+    assert.strictEqual(count(/\.mode-press\.armed/g), 0, '.mode-press.armed 是死规则（无任何代码 add）');
+    // 长按胶囊的进度靠 JS 按实宽写 box-shadow；CSS 里的 --tag-press 伪进度宽度恒为 0，且会被内联覆盖
+    assert.strictEqual(count(/var\(--tag-press/g), 0, '--tag-press 没有任何视觉出口，不得留在样式中');
     // 松手早于下一帧那一线：判定同源，够长就仍然进编辑态
     assert.match(fnSource('endTagPress'), /startTagRename\(/, '手势够长不该因为少一帧而作废');
   });
