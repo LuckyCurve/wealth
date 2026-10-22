@@ -1193,6 +1193,13 @@ describe('UI 接线契约：行级可点元素必须键盘可达（可点即键�
         /activateKeyAction\(event\.key\)/,
         '排序表头的键位应走单一口径（Enter 与 Space 同义）');
       assert.match(head, /aria-sort="none"/, '初始 aria-sort 应为 none');
+      // 一个标签里写两遍 class：浏览器只认第一个，第二个（这里是 .row-hit）被静默丢弃——
+      // 金额表头于是少了 cursor:pointer 与焦点环，而文本断言（只查 class 出现过）照样绿。
+      assert.strictEqual((head.match(/\bclass="/g) || []).length, 1,
+        `排序表头只能有一个 class 属性（重复的那个会被丢弃，导致 .row-hit 静默失效）：${head}`);
+      assert.match(head, /\bclass="[^"]*\brow-hit\b/, '排序表头必须带上 .row-hit（指针样式与焦点环的来源）');
+      // 数值列（金额族）另要 .num；名字/货币/日期是左对齐的标识文本，不在此列
+      if (/金额/.test(head)) assert.match(head, /\bclass="[^"]*\bnum\b/, '数值列表头还要带 .num（右对齐与等宽数字）');
     }
     assert.match(
       fnSource('updateSortIndicators'),

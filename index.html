@@ -1317,9 +1317,9 @@ tailwind.config = {
       <div class="asset-row grid-wide list-head">
         <div></div>
         <div onclick="toggleSort('name')" role="button" tabindex="0" aria-sort="none" onkeydown="if(activateKeyAction(event.key)){event.preventDefault();toggleSort('name');}" class="row-hit">名称<span class="sort-indicator" id="sort-name"></span></div>
-        <div class="num" onclick="toggleSort('amount')" role="button" tabindex="0" aria-sort="none" onkeydown="if(activateKeyAction(event.key)){event.preventDefault();toggleSort('amount');}" class="row-hit">金额<span class="sort-indicator" id="sort-amount"></span></div>
+        <div class="num row-hit" onclick="toggleSort('amount')" role="button" tabindex="0" aria-sort="none" onkeydown="if(activateKeyAction(event.key)){event.preventDefault();toggleSort('amount');}">金额<span class="sort-indicator" id="sort-amount"></span></div>
         <div onclick="toggleSort('currency')" role="button" tabindex="0" aria-sort="none" onkeydown="if(activateKeyAction(event.key)){event.preventDefault();toggleSort('currency');}" class="row-hit">货币<span class="sort-indicator" id="sort-currency"></span></div>
-        <div class="num" onclick="toggleSort('cny')" role="button" tabindex="0" aria-sort="none" onkeydown="if(activateKeyAction(event.key)){event.preventDefault();toggleSort('cny');}" class="row-hit">金额 (CNY)<span class="sort-indicator" id="sort-cny"></span></div>
+        <div class="num row-hit" onclick="toggleSort('cny')" role="button" tabindex="0" aria-sort="none" onkeydown="if(activateKeyAction(event.key)){event.preventDefault();toggleSort('cny');}">金额 (CNY)<span class="sort-indicator" id="sort-cny"></span></div>
         <div class="num">预期年化</div><div>标签</div><div></div>
       </div>
       <div id="assets-rows" ondragover="onAssetDragOver(event)" ondrop="onAssetDrop(event)"></div>
@@ -1532,7 +1532,7 @@ tailwind.config = {
       <div id="expenses-list" class="card">
         <div class="asset-row list-head cols-expenses">
           <div onclick="toggleExpenseSort('date')" role="button" tabindex="0" aria-sort="none" onkeydown="if(activateKeyAction(event.key)){event.preventDefault();toggleExpenseSort('date');}" class="row-hit">日期<span class="sort-indicator" id="expense-sort-date"></span></div>
-          <div class="num" onclick="toggleExpenseSort('amount')" role="button" tabindex="0" aria-sort="none" onkeydown="if(activateKeyAction(event.key)){event.preventDefault();toggleExpenseSort('amount');}" class="row-hit">金额<span class="sort-indicator" id="expense-sort-amount"></span></div>
+          <div class="num row-hit" onclick="toggleExpenseSort('amount')" role="button" tabindex="0" aria-sort="none" onkeydown="if(activateKeyAction(event.key)){event.preventDefault();toggleExpenseSort('amount');}">金额<span class="sort-indicator" id="expense-sort-amount"></span></div>
           <div>备注</div><div>标签</div><div></div>
         </div>
         <div id="expenses-rows"></div>

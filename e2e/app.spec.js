@@ -1410,6 +1410,20 @@ test.describe('行级可点元素：指针与键盘两条路都要给', () => {
     await page.keyboard.press(' ');
     expect(await head.ariaSnapshot(), '可访问名必须含可见列名「金额」').toContain('金额');
   });
+
+  test('排序表头真的吃到 .row-hit（重复 class 属性会让它被静默丢弃）', async ({ appPage: page }) => {
+    // 金额表头曾写成 class="num" … class="row-hit"：浏览器只认第一个，.row-hit 整个消失，
+    // 指针手势的表头和别的可点行长得不一样（没有 pointer、悬停不变、焦点环也没有），
+    // 而「class 出现过」的文本断言照样绿。故这里量计算样式。
+    await gotoAssets(page, 'assets');
+    const head = page.locator('#assets-list .list-head > div').filter({ hasText: '金额' }).first();
+    const cs = await head.evaluate((el) => ({
+      cursor: getComputedStyle(el).cursor,
+      textAlign: getComputedStyle(el).textAlign,
+    }));
+    expect(cs.cursor, '可点表头必须是 pointer（与其余可点行同一来源 .row-hit）').toBe('pointer');
+    expect(cs.textAlign, '.num 不能被 .row-hit 挤掉：金额列表头仍要右对齐').toBe('right');
+  });
 });
 
 test.describe('弹窗焦点管理（aria-modal 的兑现）', () => {

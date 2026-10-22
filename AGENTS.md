@@ -164,6 +164,7 @@ interface Expense {
   - 全站共用确认框（`showConfirm`）的按钮文案与色调**每次调用都要重置**，否则金调的「查看资产」会粘到下一个删除确认上——那是把警告色换成安慰色的真危险。
 - **可点即键盘可达** — 行级「点这行会被带到别处」的元素（旭日图清单顶层行、快照行、消费趋势月份行）必须是 `role="button"` + `tabindex="0"`，共用 `.row-hit` 一个类（指针与焦点环同源）。**判据是「指针能到的路径，键盘也要能到」**；明细行的悬停高亮是「看着这里」而非导航，不占 Tab 序。
   - **化石证据**：旭日图清单早就写了 `.chart-legend-row:focus-visible` 规则，但行 `tabIndex=-1` 永远拿不到焦点——**样式在、路不在**。写了焦点样式不等于做了键盘可达。
+  - **同一个标签写两遍 `class` 等于只写了第一个**：金额排序表头曾写成 `class="num" … class="row-hit"`，浏览器静默丢弃后者，于是它没有指针手势、也没有焦点环——而「class 出现过」的文本断言照样绿。判据只能量计算样式（`cursor`），或直接数 `class=` 出现次数。
   - **键位语义走 logic.js `activateKeyAction`**：`role="button"` 被期望同时响应 Enter 与 Space（WAI-ARIA 惯例）。只认 Enter 是半吊子实现，而 Space 恰是读屏器用户最惯用的激活键；Tab/Esc/方向键必须放行。排序表头的 `aria-sort` 同理走 `sortAriaSort`（只认四个合法字面量）。
   - **原生表单控件别用 label[for] 当按钮**：`<label for=…>` 的 `tabIndex` 是 -1（label 不是控件），而被指向的 `<input type="file">` 又常被 `display:none` 藏掉——**两头都进不了 Tab 序，键盘用户整块够不到该功能**（实测 Shift+Tab 直接跳过「导入数据」）。正解是让 **label 包住 input**：只剩一个 Tab 停靠点（input），浏览器原生负责 Enter/Space 打开选择框（不必自己写转发 click 的脚本），焦点环用 `:focus-within` 画在看得见的 label 上。隐藏用 `.sr-only`（可聚焦）而非 `display:none`（从 Tab 序摘除）。
   - **属性写对了不等于读屏器收得到**：排序表头是 `role="button"`，而 `aria-sort` **按 WAI-ARIA 规范只定义在 `columnheader`/`rowheader` 上**——挂在 button 上不产生任何语义。真实浏览器 AX 探针实测：那枚属性在 Chrome 的 AX 树里读不出东西（连原生 `<th aria-sort>` 在本机也测不出，故**不能靠 AX 树来判定这条**，只能按规范判）。凡「读屏器要念出来的话」一律写进**可访问名**（`aria-label`），属性只当辅助。**且可访问名必须含可见列名**（WCAG 2.5.3，否则语音控制用户喊不出这一列）。反过来，E2E 里只断言 `aria-sort` 属性在变，就是「验证了一个没人接收的信号」——要断言 `ariaSnapshot()` 读得到。取值走 logic.js `sortAriaLabel`。
