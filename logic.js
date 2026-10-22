@@ -427,8 +427,13 @@
   }
 
   // 现金比例: 0~100 (%)，预期收益中来自股息/利息/租金等现金流的比例；缺失视为 100（全额现金，旧版行为）
+  // 「没设」有四种写法：缺失 / null / '' / 其它非法值——四者同义（→100%）。
+  // 注意不能直接 Number()：Number(null) 与 Number('') 都是 0，会把「没设」算成「0% 现金」（纯权益），
+  // 与缺失默认 100% 正好相反。0 本身是合法值，必须保住。
   function getCashRatio(a) {
-    const r = Number(a.cashRatio);
+    const raw = a && a.cashRatio;
+    if (raw == null || raw === '') return 1;
+    const r = Number(raw);
     return isFinite(r) ? Math.min(100, Math.max(0, r)) / 100 : 1;
   }
 

@@ -185,6 +185,17 @@ describe('收益测算', () => {
     assert.strictEqual(L.getCashRatio({ cashRatio: 150 }), 1);
     assert.strictEqual(L.getCashRatio({ cashRatio: -5 }), 0);
     assert.strictEqual(L.getCashRatio({}), 1); // 缺失默认 100%
+    // 「没设」有四种写法，行为必须一致：null / '' 与缺失同义（Number(null) 与 Number('') 都是 0，
+    // 原先它们被当成「0% 现金」——与缺失默认 100% 正好相反，一个没设过的值反被算成纯权益）
+    for (const v of [null, undefined, '']) {
+      assert.strictEqual(L.getCashRatio({ cashRatio: v }), 1, `cashRatio=${JSON.stringify(v)} 应按缺失处理`);
+      assert.strictEqual(L.getCashRatio({ cashRatio: v }), L.getCashRatio({}), '与缺失同义');
+    }
+    // 但 0 是合法值（纯权益，没有现金流），不得被当成缺失
+    assert.strictEqual(L.getCashRatio({ cashRatio: 0 }), 0);
+    assert.strictEqual(L.getCashRatio({ cashRatio: '0' }), 0);
+    // 非数字串仍按缺失（布尔等其它类型的强制转换维持原行为，不在本次范围内改）
+    assert.strictEqual(L.getCashRatio({ cashRatio: 'abc' }), 1);
   });
   test('getSafetyFactor 百分比折算与钳制', () => {
     globalThis.state = freshState({ incomeSafetyFactor: 100 });
