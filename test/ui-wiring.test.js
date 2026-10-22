@@ -360,6 +360,17 @@ describe('UI 接线契约：logic.js 导出清单与筛选同步时序', () => {
       '导出标识符应唯一，重复行如 findMonthSnapshot, getPrevSnapshot, 连写两次属编辑残留');
   });
 
+  test('下拉选项内容没变就不碰 DOM（搜索每按一键不该换掉无关控件）', () => {
+    // 消费记录搜索框的 oninput 直接调 renderExpenses，而它开头会重建月份/标签下拉：
+    // 每个字符都替换一遍 option 元素，展开中的下拉会被打断（实测按键后 option 全部换新）。
+    assert.match(html, /function setSelectOptions\(/, '「内容变了才写」须有单一实现');
+    for (const fn of ['fillMonthSelect', 'fillCategorySelect', 'populateExpenseTagFilter']) {
+      assert.match(fnSource(fn), /setSelectOptions\(/, `${fn} 必须走同一个写入口`);
+    }
+    assert.doesNotMatch(stripComments(fnSource('fillMonthSelect')), /sel\.innerHTML =/, '不得绕过守卫直接写 innerHTML');
+    assert.doesNotMatch(stripComments(fnSource('fillCategorySelect')), /sel\.innerHTML =/, '不得绕过守卫直接写 innerHTML');
+  });
+
   test('renderExpenses 先重建月份下拉再读筛选值（防「下拉=全部时间 / 空态=旧月份」脱节）', () => {
     const src = fnSource('renderExpenses');
     const build = src.indexOf('populateExpenseMonthFilter()');

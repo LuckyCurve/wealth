@@ -492,6 +492,37 @@ test.describe('消费记录', () => {
     await expect(page.locator('#expense-month-filter')).toHaveValue('');
   });
 
+  test('搜索每按一个键不重建月份/标签下拉（无关控件被换掉会打断展开中的选择）', async ({ appPage: page }) => {
+    await page.selectOption('#expense-month-filter', '2026-01');
+    const optsBefore = await page.evaluate(() => {
+      const s = document.getElementById('expense-month-filter');
+      window.__optBefore = [...s.children];
+      window.__tagOptBefore = [...document.getElementById('expense-tag-filter').children];
+      return s.value;
+    });
+    expect(optsBefore).toBe('2026-01');
+
+    await page.fill('#expense-search', '房'); // 一次按键触发一次 renderExpenses
+    const same = await page.evaluate(() => {
+      const s = document.getElementById('expense-month-filter');
+      const t = document.getElementById('expense-tag-filter');
+      return {
+        month: [...s.children].every((c, i) => c === window.__optBefore[i]) && s.children.length === window.__optBefore.length,
+        tag: [...t.children].every((c, i) => c === window.__tagOptBefore[i]) && t.children.length === window.__tagOptBefore.length,
+        monthValue: s.value,
+        focus: document.activeElement.id,
+      };
+    });
+    expect(same.month, '搜索不该把月份下拉的 option 元素全部换新').toBe(true);
+    expect(same.tag, '搜索不该把标签下拉的 option 元素全部换新').toBe(true);
+    expect(same.monthValue, '筛选状态要保留').toBe('2026-01');
+    expect(same.focus, '焦点应仍在搜索框').toBe('expense-search');
+
+    // 内容真变了仍要重建（守卫不能把刷新一起挡掉）
+    await page.evaluate(() => { state.expenseCategories.push({ id: 'ec-new', name: '新分类', builtin: false, tags: ['新标签'] }); renderExpenses(); });
+    await expect(page.locator('#expense-tag-filter optgroup[label="新分类"]')).toHaveCount(1);
+  });
+
   test('新增 → 编辑 → 删除完整链路', async ({ appPage: page }) => {
     await page.locator('#tab-expenses button:has-text("记录消费")').click();
     await expect(page.locator('#expense-modal')).toBeVisible();

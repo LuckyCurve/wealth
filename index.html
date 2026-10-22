@@ -3850,12 +3850,22 @@ function updateSortIndicators(prefix, fields, sortBy, sortDir) {
 }
 
 // 月份下拉选项: 生成「全部时间」+ 倒序月份, 保留当前选中值; 返回 select 元素
+// 下拉选项统一写入：**内容没变就不碰 DOM**。
+// 为什么要这道闸：消费记录页的搜索框每次按键都会重跑整条筛选链，而筛选链开头的
+// 「重建月份/标签下拉」若每次都替换 option 元素，等于每个字符都重建一次无关控件——
+// 下拉处于展开态时用户的选择会被打断（实测每次按键 option 元素全部换新）。
+// 判据是「新旧选项串是否相同」（可单测），相同就只补一次选中值。
+function setSelectOptions(sel, html) {
+  if (sel.dataset.optionsHtml === html) return;
+  sel.innerHTML = html;
+  sel.dataset.optionsHtml = html;
+}
 function fillMonthSelect(selId, months) {
   const sel = document.getElementById(selId);
   if (!sel) return sel;
   const current = sel.value;
-  sel.innerHTML = '<option value="">全部时间</option>' +
-    months.map(m => `<option value="${m}">${monthLabel(m)}</option>`).join('');
+  setSelectOptions(sel, '<option value="">全部时间</option>' +
+    months.map(m => `<option value="${m}">${monthLabel(m)}</option>`).join(''));
   if (current && sel.querySelector(`option[value="${current}"]`)) sel.value = current;
   return sel;
 }
@@ -3873,9 +3883,9 @@ function fillCategorySelect(selId, cats) {
   const sel = document.getElementById(selId);
   if (!sel) return sel;
   const current = sel.value;
-  sel.innerHTML = cats.map(c =>
+  setSelectOptions(sel, cats.map(c =>
     `<option value="${c.id}">${esc(c.name)}</option>`
-  ).join('');
+  ).join(''));
   if (current && sel.querySelector(`option[value="${current}"]`)) sel.value = current;
 }
 
@@ -5305,7 +5315,7 @@ function populateExpenseTagFilter() {
       : '<option value="" disabled>（暂无标签）</option>';
     opts += `<optgroup label="${esc(g.name)}">${tagOpts}</optgroup>`;
   }
-  sel.innerHTML = opts;
+  setSelectOptions(sel, opts);
   if (current === '' || hasTagFilterOption(groups, current)) sel.value = current;
   else sel.value = ''; // 无效选中回落（随后 syncExpenseTagFilter 按 DOM 重新同步状态）
 }
