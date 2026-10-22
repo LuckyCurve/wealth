@@ -205,6 +205,7 @@ interface Expense {
     - **返回焦点用栈不用单值**：确认框会叠在别的弹窗之上，单值会被后者覆盖，关掉确认框后焦点就回不到原处了。
     - **判据（绕回哪一端、下标怎么算）在 logic.js `trapFocus`**，页面只管 `focus()`；中间位置一律交还浏览器默认行为（插手反而打断 IME/选区），只在两端接管；没有可聚焦元素时不接管（否则连「关闭」都按不到）。
     - **关弹窗只有 `closeModal` 一条路**：ESC 与遮罩点击曾各自写 `style.display = 'none'`，**绕过**了焦点管理。凡「隐藏弹窗」都必须走 `closeModal`。
+    - **叠放次序 = 打开次序**：15 个遮罩的 `z-index` 相同，谁在上层只由 DOM 次序决定，而确认框在 DOM 里排在好几个弹窗之前——它叠上去时会被整个盖住（真实浏览器里 Playwright 的点击被下层 `<form>` 拦截），ESC 也会关错层。故 `openModal` 把弹窗挪到 `body` 末尾，「最上层」统一由 `topModal()` 判定（ESC / Tab 陷阱共用），不要在别处重算。
     - 可聚焦元素用 `offsetParent === null` 过滤：CSS 藏起来的控件还在 DOM 里，`focus()` 上去等于把焦点丢出弹窗。
 - **便条播报档位** — 容器上留 `aria-live="polite"` 初值是对的（live region 要在加载时就存在，读屏器才会注册），但**每条便条都要按类型改写档位**：`error` → `assertive`（出错了要立刻打断朗读），其余 → `polite`。写死 `polite` 会把 22 处 error 全排到用户下次操作之后才念，等于把「现在就得知道」降级成「顺口提一句」。判据在 logic.js `toastLiveMode`。档位必须写在**容器**上——读屏器只认 live region 的档位，逐条设 `aria-live` 无效。
 - **数据导入/导出** — 导出剥离快照加工字段 `totalCNY`；导入校验必要字段后走 `migrateState()`。

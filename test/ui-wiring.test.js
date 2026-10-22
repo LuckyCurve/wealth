@@ -307,6 +307,23 @@ describe('UI 接线契约：弹窗焦点管理（aria-modal 的兑现）', () =>
     assert.match(openSrc, /__modalReturnFocus\.push\(document\.activeElement\)/, '打开时要先记住当前焦点（入栈，确认框会叠在别的弹窗上）');
   });
 
+  test('「最上层弹窗」只有一个判据：打开时挪到 body 末尾，ESC / Tab 陷阱 / 命中都读它', () => {
+    // 遮罩的 z-index 完全相同，谁在上面只由 DOM 次序决定。确认框在 DOM 里排在好几个弹窗之前，
+    // 叠上去时会被整个盖住（点击穿透、ESC 关错层）。故打开时挪到末尾，且「最上层」不各算一遍。
+    assert.match(openSrc, /document\.body\.appendChild\(modal\)/, 'openModal 必须把弹窗挪到 body 末尾（DOM 次序 = 叠放次序）');
+    assert.match(html, /function topModal\(/, '「最上层弹窗」须有单一实现');
+    assert.match(html, /function openModalStack\(/, '「哪些弹窗开着」须与 topModal 同源');
+    const escBlock = blockFrom(html, "if (e.key !== 'Escape') return;", '});');
+    const tabBlock = blockFrom(html, "if (e.key !== 'Tab') return;", '});');
+    assert.match(escBlock, /topModal\(\)/, 'ESC 必须按 topModal 判定（不能自己再数一遍 DOM 次序）');
+    assert.match(tabBlock, /topModal\(\)/, 'Tab 陷阱必须按 topModal 判定');
+    const withoutTopHelpers = html
+      .replace(/function openModalStack[\s\S]*?\n}/, '')
+      .replace(/function topModal[\s\S]*?\n}/, '');
+    assert.doesNotMatch(withoutTopHelpers, /open\[open\.length - 1\]/,
+      '「最后一个开着的弹窗」不得在别处重算（各写一份必然漂移）');
+  });
+
   test('Tab 陷阱接线存在，且判据走 logic.js trapFocus（不在页面里重写一份）', () => {
     assert.match(html, /trapFocus\(/, 'Tab 陷阱必须复用 logic.js 的纯函数');
     assert.match(html, /e\.key !== 'Tab'/, '必须拦截 Tab 键');

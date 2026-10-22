@@ -3266,10 +3266,24 @@ function modalFocusables(modal) {
 // （如删除资产 → 确认框），单值会被后者覆盖，关掉确认框后焦点就回不到原处了。
 let __modalReturnFocus = [];
 
+// 「最上层弹窗」的唯一判据。15 个遮罩的 z-index 全一样，谁在上面本来只由 DOM 次序决定——
+// 而确认框在 DOM 里排在好几个弹窗**之前**，于是它叠到它们上面时会被整个盖住（点击穿透到下层、
+// ESC 关掉的是下层）。故打开时把该弹窗挪到 body 末尾，DOM 次序与打开次序一致；
+// ESC / Tab 陷阱 / 命中测试都读这一处，不再各自 sort。
+function openModalStack() {
+  return [...document.querySelectorAll('.modal-overlay')].filter(m => m.style.display !== 'none');
+}
+function topModal() {
+  const open = openModalStack();
+  return open[open.length - 1] || null;
+}
+
 function openModal(id) {
   const modal = document.getElementById(id);
   // 打开前先记下当前焦点（就是那个触发按钮），关闭时还回去
   __modalReturnFocus.push(document.activeElement);
+  // 挪到 body 末尾 = 叠在最上层（见 openModalStack 的注释）
+  document.body.appendChild(modal);
   modal.style.display = '';
   // 焦点必须搬进弹窗：留在背后的话读屏器还在读背景内容，aria-modal 就是句空话。
   // 优先落在第一个表单控件上——弹窗多半是「填个表」（焦点直接放到可输入处最省一步）；
@@ -5149,8 +5163,7 @@ document.addEventListener('click', e => {
 // 判据（绕回谁、下标怎么算）在 logic.js trapFocus（可单测），这里只负责把焦点移过去。
 document.addEventListener('keydown', e => {
   if (e.key !== 'Tab') return;
-  const open = [...document.querySelectorAll('.modal-overlay')].filter(m => m.style.display !== 'none');
-  const top = open[open.length - 1];
+  const top = topModal();
   if (!top) return;
   const list = modalFocusables(top);
   const cur = list.indexOf(document.activeElement);
@@ -5163,8 +5176,7 @@ document.addEventListener('keydown', e => {
 // ESC 关闭当前最上层弹窗（确认框走 confirmCancel 以清空回调）
 document.addEventListener('keydown', e => {
   if (e.key !== 'Escape') return;
-  const open = [...document.querySelectorAll('.modal-overlay')].filter(m => m.style.display !== 'none');
-  const top = open[open.length - 1];
+  const top = topModal();
   if (!top) return;
   if (top.id === 'confirm-modal') confirmCancel();
   else closeModal(top.id); // 同上：ESC 也要还焦点，不能只改 display

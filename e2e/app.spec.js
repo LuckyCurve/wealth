@@ -746,6 +746,41 @@ test.describe('弹窗与提示', () => {
     await expect(page.locator('#expense-modal')).toBeHidden();
   });
 
+  test('确认框叠在别的弹窗上时，指针与 ESC 都落到确认框（不是那层被盖住的）', async ({ appPage: page }) => {
+    // 15 个遮罩的 z-index 都是同一个值，谁在上面只由 DOM 次序决定。确认框在 DOM 里排在
+    // 消费分类弹窗**之前**，于是「编辑分类 → 删掉有引用的标签 → 弹确认」时确认框整个被盖住：
+    // Playwright 实测 clicks 被 <form id="expense-category-form"> 拦截，真实用户看到的则是
+    // 「点确认没反应、点取消也没反应」，而 ESC 会把**下层**弹窗关掉。
+    await page.locator('#tabs-expenses .tab-btn[data-tab="expense-categories"]').click();
+    await page.locator('#expense-categories-list .card', { hasText: '消费类型' }).getByRole('button', { name: '编辑' }).click();
+    await expect(page.locator('#expense-category-modal')).toBeVisible();
+    await page.fill('#expense-cat-tags', '住房'); // 移除仍被引用的「餐饮」→ 确认框
+    await page.locator('#expense-category-form button[type="submit"]').click();
+    await expect(page.locator('#confirm-modal')).toBeVisible();
+    await expect(page.locator('#expense-category-modal'), '分类弹窗仍开着（确认框是叠在它上面）').toBeVisible();
+
+    // 命中测试：确认按钮中心点上，最上层的元素必须属于确认框
+    const hit = await page.evaluate(() => {
+      const r = document.getElementById('confirm-ok-btn').getBoundingClientRect();
+      const el = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+      return { covered: !!el && !el.closest('#confirm-modal') };
+    });
+    expect(hit.covered, '确认按钮必须真的在最上层（同 z-index 时 DOM 次序说了算）').toBe(false);
+
+    // ESC 也必须落在最上层：关掉确认框、下层弹窗留着
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#confirm-modal')).toBeHidden();
+    await expect(page.locator('#expense-category-modal'), 'ESC 不能关掉被叠住的那层').toBeVisible();
+
+    // 再弹一次，用真实指针点「取消」：数据不变
+    await page.locator('#expense-category-form button[type="submit"]').click();
+    await expect(page.locator('#confirm-modal')).toBeVisible();
+    await page.locator('#confirm-modal button:has-text("取消")').click();
+    await expect(page.locator('#confirm-modal')).toBeHidden();
+    const st = await readStored(page);
+    expect(st.expenseCategories.find((c) => c.id === 'ec-type').tags).toEqual(['餐饮', '住房']);
+  });
+
   test('确认框走 ESC：取消而非执行回调', async ({ appPage: page }) => {
     await gotoAssetsTab(page);
     await page.locator('#assets-rows .asset-row', { hasText: '汇丰香港储蓄' }).getByRole('button', { name: '删除' }).click();
