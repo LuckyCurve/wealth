@@ -276,8 +276,11 @@ test.describe('已经在某一页上时再点它：空点击', () => {
   // 重绘 + 重播入场只是把同样的东西再画一遍，用户看到的是一次没有理由的闪动。
   const paneX = (page, sel) =>
     page.evaluate((s) => (document.querySelector(s).style.getPropertyValue('--pane-x') || '').trim(), sel);
+  // 图表库按需加载：点 Tab 后脚本仍在注入途中时 `__echartsCalls` 还不存在。
+  // 直接读会让 poll 抛 TypeError 立即判负（不是等超时），CI 上偶发。按「还没渲染」返回 0，
+  // 让 poll 继续等——与 fixtures 的 chartSize 同一处理。
   const renders = (page, id) =>
-    page.evaluate((i) => window.__echartsCalls.setOption.filter((c) => c.id === i).length, id);
+    page.evaluate((i) => (window.__echartsCalls ? window.__echartsCalls.setOption.filter((c) => c.id === i).length : 0), id);
 
   test('点当前已激活的 Tab：图不重画、入场方向不被改写', async ({ appPage: page }) => {
     const tab = page.locator('#tabs-expenses .tab-btn[data-tab="expense-chart"]');
