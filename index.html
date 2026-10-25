@@ -161,7 +161,6 @@ tailwind.config = {
     --desk-lit: rgba(255, 240, 200, 0.09);
     --desk-fall: rgba(0, 0, 0, 0.44);
   }
-  .dark .asset-row { border-bottom-color: var(--rule); }
   /* 卡片的边缘色不再另设一套（原先 .dark .card 改回 --border，等于材质的边缘有两处定义） */
   /* ===== 排版 token（字号 / 字重 / 字体族）=====
      放在 :root, :root.dark 合并选择器上：它们与明暗无关，写进两套主题块就等于同一个值
@@ -501,6 +500,7 @@ tailwind.config = {
   .flatpickr-months .flatpickr-next-month {
     fill: var(--muted) !important;
     transition: fill 0.15s;
+    padding: 8px !important;
   }
   .flatpickr-months .flatpickr-prev-month:hover,
   .flatpickr-months .flatpickr-next-month:hover {
@@ -510,10 +510,6 @@ tailwind.config = {
   .flatpickr-months .flatpickr-next-month svg {
     width: 14px !important;
     height: 14px !important;
-  }
-  .flatpickr-months .flatpickr-prev-month,
-  .flatpickr-months .flatpickr-next-month {
-    padding: 8px !important;
   }
   /* 暗色模式微调 */
   .dark .flatpickr-calendar {
@@ -640,7 +636,7 @@ tailwind.config = {
   }
   .tag-pill .tag-val { font-weight: var(--fw-strong); }
   .tag-pill.active { border-color: var(--accent); border-left-color: var(--accent); }
-  /* 长按改名：按住期间给一条金墨进度线（--tag-press 0→1，换算在 logic.js pressProgress）。
+  /* 长按改名：按住期间给一条金墨进度线（进度比例来自 logic.js pressProgress，宽度由 JS 写内联 box-shadow）。
      为什么必须有：长按是**无声的**手势——不给进度，用户按到一半就放手，永远学不会这个入口。
      与「进资产页」的长按门槛同一套视觉语言（底边墨线浸满），按住时整枚胶囊微微抬起。
      用 box-shadow 而非伪元素：胶囊自身有 border-radius 与背景，伪元素还要再对付 overflow。 */
@@ -772,15 +768,14 @@ tailwind.config = {
   }
   /* 未设利率的收益行淡出：原为逐行内联 opacity, 归到类 */
   .asset-row.is-unrated { opacity: 0.4; }
-  .drag-handle { user-select: none; -webkit-user-select: none; }
+  .drag-handle { user-select: none; -webkit-user-select: none; cursor: grab; display: inline-flex; align-items: center; justify-content: center; color: var(--muted); font-size: var(--fs-body); }
   .asset-row.dragging { opacity: 0.35; background: var(--border); border-radius: 6px; }
   .asset-row.drag-over { border-top: 2px solid var(--accent); }
-  .drag-handle { cursor: grab; display: inline-flex; align-items: center; justify-content: center; color: var(--muted); font-size: var(--fs-body); }
   .drag-handle:active { cursor: grabbing; }
   /* 小号按钮两档（工具条次级 / 行内微操作）: 同一规格只此一处，页面不再逐处内联 padding 与字号
      （原来同规格按钮有 6px 14px / 6px 10px / 6px 12px / 4px 12px / 2px 8px / 2px 10px 六种写法） */
   .btn-sm, .btn-xs { padding: 6px 14px; font-size: var(--fs-micro); white-space: nowrap; }
-  .btn-xs { padding: 4px 10px; font-size: var(--fs-micro); }
+  .btn-xs { padding: 4px 10px; }
   /* 「新增标签」行：输入框的宽度**按标签体量**给（一个标签只有 2–4 个字），
      不靠 flex-1 撑满整行——那样它会把「添加」按钮推到整页右端，一件控件被拉成两半。
      宽度上限写在自有 CSS 里（Tailwind 空壳下 flex-1 既不生效也不可测）。
@@ -886,8 +881,7 @@ tailwind.config = {
   .mode-press::after {
     content: ''; position: absolute; left: 0; bottom: 0; height: 2px; border-radius: 0 2px 2px 0;
     /* 墨线用 --accent-ink 而非 --accent：按住时按钮底是 card-2，--accent 在亮色下只有 3.0:1
-       （卡在非图形元素 3:1 的下限上，动一点色板就掉出去），accent-ink 有 5.5:1；
-       且它与 .armed 的字色同源 —— 墨线涨满、整枚按钮转成同一道墨色 */
+       （卡在非图形元素 3:1 的下限上，动一点色板就掉出去），accent-ink 有 5.5:1 */
     width: calc(var(--mode-press, 0) * 100%); background: var(--accent-ink);
   }
   .mode-press.pressing { color: var(--fg); background: var(--card-2); }
@@ -1015,6 +1009,8 @@ tailwind.config = {
     font-family: var(--font-numeric); font-weight: var(--fw-medium);
     font-size: clamp(38px, 7vw, 64px); line-height: 1; letter-spacing: -0.01em;
     color: var(--fg); font-variant-numeric: tabular-nums; display: flex; align-items: baseline; gap: 6px;
+    /* 大数字压印感: 纸面受光凸起的错觉（暗色模式反转为下压阴影） */
+    text-shadow: 0 1px 0 rgba(255, 255, 255, 0.45);
   }
   .masthead-amount .currency-mark { font-size: 0.42em; color: var(--accent-ink); font-weight: var(--fw-strong); transform: translateY(-0.55em); }
   .masthead-amount .cents { font-size: 0.4em; color: var(--muted); font-weight: var(--fw-medium); }
@@ -1031,10 +1027,6 @@ tailwind.config = {
       linear-gradient(90deg, var(--rule), var(--rule)) 12px calc(100% - 27px) / 1px 16px no-repeat,
       linear-gradient(var(--rule), var(--rule)) calc(100% - 28px) calc(100% - 11px) / 16px 1px no-repeat,
       linear-gradient(90deg, var(--rule), var(--rule)) calc(100% - 28px) calc(100% - 27px) / 1px 16px no-repeat;
-  }
-  /* 大数字压印感: 纸面受光凸起的错觉（暗色模式反转为下压阴影） */
-  .masthead-amount {
-    text-shadow: 0 1px 0 rgba(255, 255, 255, 0.45);
   }
   .dark .masthead-amount { text-shadow: 0 1px 0 rgba(0, 0, 0, 0.6); }
   .masthead-sub { margin-top: 14px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; font-size: var(--fs-body); color: var(--muted); }
@@ -1076,12 +1068,11 @@ tailwind.config = {
     align-items: center; gap: 10px; padding: 7px 8px; border-radius: 6px;
     cursor: default; transition: background 0.15s;
   }
-  .chart-legend-row:hover, .chart-legend-row.on { background: var(--bg-2); }
+  .chart-legend-row:hover { background: var(--bg-2); }
   .chart-legend-swatch { width: 10px; height: 10px; border-radius: 2px; }
   .chart-legend-name { font-size: var(--fs-body); color: var(--fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .chart-legend-amt { font-size: var(--fs-body); color: var(--fg); font-variant-numeric: tabular-nums; }
   .chart-legend-pct { font-size: var(--fs-micro); color: var(--muted); font-variant-numeric: tabular-nums; min-width: 3.6em; text-align: right; }
-  .chart-legend-empty { font-size: var(--fs-body); color: var(--muted); padding: 7px 8px; }
   /* 清单标题槽：未选中时就是「构成」二字，选中某分类后换成「‹ 全部分类 + 当前分类名」。
      返回入口必须显式给（否则用户钻进去之后不知道自己在哪一层、也回不去） */
   .chart-legend-head { display: flex; align-items: center; gap: 8px; margin: 0; min-height: 1.6em; }
@@ -1093,7 +1084,6 @@ tailwind.config = {
   }
   .legend-back:hover { color: var(--accent-ink); border-color: var(--accent); }
   /* 清单行可点（选中分类 / 返回）：指针与键盘都要能看出来 */
-  .chart-legend-row[data-top]:hover { background: var(--bg-2); }
   /* 行级可点元素：「点这一行会被带到别处」。指针与键盘两条路一起给。
      为什么收成一个类：原先 6 处各写一遍内联 cursor:pointer，键盘可达性于是也各漏一遍——
      旭日图清单早就写好了 :focus-visible 规则，却因为行拿不到焦点而**永远无法命中**
@@ -1121,10 +1111,10 @@ tailwind.config = {
       linear-gradient(90deg, var(--tick) 0 100%, transparent 0) 75% 0 / 1px 100% no-repeat;
   }
   .composition-rule > span { display: block; transition: flex-grow 0.4s ease; }
-  .composition-rule .seg-cny { background: var(--accent); }
-  .composition-rule .seg-hkd { background: var(--verdigris); }
-  .composition-rule .seg-usd { background: var(--usd); }
-  .composition-rule .seg-other { background: var(--rule); }
+  .seg-cny { background: var(--accent); }
+  .seg-hkd { background: var(--verdigris); }
+  .seg-usd { background: var(--usd); }
+  .seg-other { background: var(--rule); }
   .composition-legend { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: var(--fs-micro); color: var(--muted); font-variant-numeric: tabular-nums; }
   .composition-legend .dot { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 5px; transform: translateY(0px); }
   /* 涨跌徽章（历史净值环比 / 目标达成） */
@@ -2302,11 +2292,10 @@ function switchTab(tab, shift) {
   }
   document.querySelectorAll(tabBar + ' .tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
   moveTabIndicator(tabBar, tab);
-  document.getElementById('tab-assets').style.display = tab === 'assets' ? '' : 'none';
-  document.getElementById('tab-categories').style.display = tab === 'categories' ? '' : 'none';
-  document.getElementById('tab-chart').style.display = tab === 'chart' ? '' : 'none';
-  document.getElementById('tab-history').style.display = tab === 'history' ? '' : 'none';
-  document.getElementById('tab-income').style.display = tab === 'income' ? '' : 'none';
+  // 显示目标面板、隐藏其余（资产/消费两套子 Tab 共用同一份清单）
+  ['assets', 'categories', 'chart', 'history', 'income',
+    'expenses', 'expense-categories', 'expense-chart', 'expense-trend']
+    .forEach(id => { document.getElementById('tab-' + id).style.display = tab === id ? '' : 'none'; });
   if (tab === 'chart') {
     fillCategorySelect('chart-category-select', state.categories);
     afterTabPaint(tab, renderChart);
@@ -2319,10 +2308,6 @@ function switchTab(tab, shift) {
     afterTabPaint(tab, renderIncomeTab);
   }
   // expense tabs
-  document.getElementById('tab-expenses').style.display = tab === 'expenses' ? '' : 'none';
-  document.getElementById('tab-expense-categories').style.display = tab === 'expense-categories' ? '' : 'none';
-  document.getElementById('tab-expense-chart').style.display = tab === 'expense-chart' ? '' : 'none';
-  document.getElementById('tab-expense-trend').style.display = tab === 'expense-trend' ? '' : 'none';
   enterTab(document.getElementById('tab-' + tab), shift);
   if (tab === 'expense-categories') {
     renderExpenseCategories();
@@ -2418,7 +2403,7 @@ function resetModePress() {
   modePressRaf = 0;
   modePressStart = null;
   const btn = document.getElementById('mode-assets');
-  btn.classList.remove('pressing', 'armed');
+  btn.classList.remove('pressing');
   // 移除而不是置 0：置 0 会在元素上永远留一条内联样式（CSS 默认值本来就是 0）
   btn.style.removeProperty('--mode-press');
 }
@@ -2554,7 +2539,7 @@ function renderAssets() {
         <div class="t-medium t-body">${esc(a.name)}</div>
         <div class="t-body tabular num amount-cell" data-id="${esc(a.id)}" role="button" tabindex="0" title="点击快速更新金额" onclick="startInlineEdit('${jsAttr(a.id)}')" onkeydown="if(event.key==='Enter')startInlineEdit('${jsAttr(a.id)}')">
           <svg class="edit-pencil" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 3l1 1-9 9-2.5.5.5-2.5L13 3z"/><path d="M10.7 5.3l1 1"/></svg>
-          <span>${amountHtml(a)}</span>
+          <span>${money2(a.amount)}</span>
         </div>
         <div class="t-body muted">${a.currency}</div>
         <div class="t-micro tabular num muted">${formatCNY(cnyVal)}</div>
@@ -2589,43 +2574,40 @@ function renderMasthead(total) {
   const legendEl = document.getElementById('composition-legend');
   const subEl = document.getElementById('masthead-sub');
 
-  const fixed = total.toFixed(2);
-  const [whole, cents] = fixed.split('.');
-  const wholeFmt = (parseInt(whole, 10) || 0).toLocaleString('zh-CN');
+  // 整/小数分开渲染（报头的大数字与美分两档字号）：两处调用共用这一处换算
+  const paintAmount = (v) => {
+    const [whole, cents] = v.toFixed(2).split('.');
+    wholeEl.textContent = (parseInt(whole, 10) || 0).toLocaleString('zh-CN');
+    centsEl.textContent = '.' + cents;
+  };
 
   if (_reduceMotion) {
-    wholeEl.textContent = wholeFmt;
-    centsEl.textContent = '.' + cents;
+    paintAmount(total);
   } else {
     cancelAnimationFrame(_mastheadRaf);
     const from = _mastheadPrev;
-    const to = total;
     const dur = 650;
     const t0 = performance.now();
     const step = (now) => {
       const p = Math.min(1, (now - t0) / dur);
       const eased = 1 - Math.pow(1 - p, 3);
-      const v = from + (to - from) * eased;
-      const f = v.toFixed(2).split('.');
-      wholeEl.textContent = (parseInt(f[0], 10) || 0).toLocaleString('zh-CN');
-      centsEl.textContent = '.' + f[1];
+      paintAmount(from + (total - from) * eased);
       if (p < 1) _mastheadRaf = requestAnimationFrame(step);
-      else _mastheadPrev = to;
+      else _mastheadPrev = total;
     };
-    _mastheadPrev = to;
+    _mastheadPrev = total;
     _mastheadRaf = requestAnimationFrame(step);
   }
 
-  const today = new Date();
-  dateEl.textContent = today.getFullYear() + '/' + String(today.getMonth() + 1).padStart(2, '0') + '/' + String(today.getDate()).padStart(2, '0');
+  dateEl.textContent = getLocalDateStr().replace(/-/g, '/');
 
   // currency composition
   const byCur = { CNY: 0, HKD: 0, USD: 0 };
   state.assets.forEach(a => { byCur[a.currency] = (byCur[a.currency] || 0) + toCNY(a.amount, a.currency); });
   const segs = [
-    { key: 'CNY', cls: 'seg-cny', color: 'var(--accent)' },
-    { key: 'HKD', cls: 'seg-hkd', color: 'var(--verdigris)' },
-    { key: 'USD', cls: 'seg-usd', color: 'var(--usd)' },
+    { key: 'CNY', cls: 'seg-cny' },
+    { key: 'HKD', cls: 'seg-hkd' },
+    { key: 'USD', cls: 'seg-usd' },
   ];
   const parts = segs.map(s => ({ ...s, val: byCur[s.key] })).filter(s => s.val > 0);
   ruleEl.innerHTML = parts.map(p =>
@@ -2633,8 +2615,7 @@ function renderMasthead(total) {
   ).join('') || '<span class="seg-other" style="flex-grow:1"></span>';
   legendEl.innerHTML = segs.map(s => {
     const v = byCur[s.key];
-    const pct = total > 0 ? (v / total * 100).toFixed(1) : '0.0';
-    return `<span><span class="dot" style="background:${s.color}"></span>${s.key} <span class="tabular text-value">${pct}%</span></span>`;
+    return `<span><span class="dot ${s.cls}"></span>${s.key} <span class="tabular text-value">${pctStr(v, total)}%</span></span>`;
   }).join('');
 
   // 目标净资产进度（独立面板与货币构成条区分；总资产为 0 时不显示避免误报达成）
@@ -2692,10 +2673,9 @@ function renderMasthead(total) {
 function openTargetModal() {
   document.getElementById('target-input').value = moneyStr(state.netWorthTarget);
   openModal('target-modal');
-  setTimeout(() => document.getElementById('target-input').focus(), 100);
 }
 function saveTarget() {
-  const v = parseFloat(document.getElementById('target-input').value.replace(/,/g, ''));
+  const v = parseMoneyInput(document.getElementById('target-input').value);
   if (!v || v <= 0) { toast('请输入有效的目标金额', 'error'); return; }
   const hadTarget = (state.netWorthTarget || 0) > 0;
   state.netWorthTarget = v;
@@ -2762,6 +2742,20 @@ function selectTagChoice(btn) {
   picker.querySelectorAll('.tag-choice').forEach(b => b.setAttribute('aria-pressed', b === btn));
 }
 
+// 读取平铺 picker 的选中值（资产/消费两侧表单共用）：任一分类没选 → complete=false，
+// 表单据此提示「请为每个分类选择标签」，不各自再写一遍收集循环。
+function collectPickedTags(cats, idPrefix) {
+  const tags = {};
+  let complete = true;
+  cats.forEach(cat => {
+    const el = document.getElementById(idPrefix + cat.id);
+    const val = el ? el.value : '';
+    if (val) tags[cat.id] = val;
+    else complete = false;
+  });
+  return { tags, complete };
+}
+
 // hexToRgba / money2 已下沉 logic.js（颜色数学与金额格式化归位），此处直接用全局
 
 // ========== ASSET CRUD ==========
@@ -2769,10 +2763,6 @@ function selectTagChoice(btn) {
 // 行内金额快速编辑（免开弹窗）: 点击金额单元格 → input 替换 → Enter 提交 / Esc 取消 / 失焦提交。
 // 编辑态为单例（_inlineEditId）; renderAssets 重绘前统一收尾, 避免 input 被销毁后未提交的改动丢失。
 let _inlineEditId = null;
-
-function amountHtml(a) {
-  return money2(a.amount);
-}
 
 function startInlineEdit(id) {
   if (_inlineEditId === id) return; // 已在编辑该行: 点击 input 移动光标时忽略冒泡, 不触发提交
@@ -2807,14 +2797,14 @@ function commitInlineEdit(doRender) {
   if (row) row.classList.remove('editing');
   if (cell.dataset.title != null) { cell.title = cell.dataset.title; delete cell.dataset.title; }
   const inp = cell.querySelector('input');
-  if (!inp) { cell.innerHTML = amountHtml(a); return true; } // input 已销毁（重绘前收尾）, 直接恢复
-  const val = parseFloat(inp.value.replace(/,/g, ''));
+  if (!inp) { cell.innerHTML = money2(a.amount); return true; } // input 已销毁（重绘前收尾）, 直接恢复
+  const val = parseMoneyInput(inp.value);
   if (isNaN(val) || val < 0) {
     toast('金额无效，已恢复原值', 'error');
-    cell.innerHTML = amountHtml(a);
+    cell.innerHTML = money2(a.amount);
     return false;
   }
-  if (val === a.amount) { cell.innerHTML = amountHtml(a); return true; }
+  if (val === a.amount) { cell.innerHTML = money2(a.amount); return true; }
   a.amount = val;
   saveState();
   if (doRender) {
@@ -2824,7 +2814,7 @@ function commitInlineEdit(doRender) {
     } else {
       // 用户主动提交（blur/Enter/Tab）: 不整表重绘, 手动同步 cell/报头/图表,
       // 保证 blur 后正在点击的按钮（编辑/删除）DOM 不被替换、click 正常触发
-      cell.innerHTML = amountHtml(a);
+      cell.innerHTML = money2(a.amount);
       renderMasthead(totalAssetsCNY());
     }
     refreshVisibleCharts();
@@ -2847,7 +2837,7 @@ function onInlineEditKey(e, id) {
     const a = state.assets.find(x => x.id === id);
     const cell = e.target.closest('.amount-cell');
     if (cell && a) {
-      cell.innerHTML = amountHtml(a);
+      cell.innerHTML = money2(a.amount);
       const row = cell.closest('.asset-row');
       if (row) row.classList.remove('editing');
       if (cell.dataset.title != null) { cell.title = cell.dataset.title; delete cell.dataset.title; }
@@ -2908,7 +2898,7 @@ function saveAsset(e) {
   e.preventDefault();
   const editId = document.getElementById('asset-edit-id').value;
   const name = document.getElementById('asset-name').value.trim();
-  const amount = parseFloat(document.getElementById('asset-amount').value.replace(/,/g, ''));
+  const amount = parseMoneyInput(document.getElementById('asset-amount').value);
   if (isNaN(amount) || amount < 0) { toast('请输入有效的金额', 'error'); return; }
   const currency = document.getElementById('asset-currency').value;
 
@@ -2934,18 +2924,13 @@ function saveAsset(e) {
   if (!isFinite(cashRatio)) cashRatio = 100;
   cashRatio = Math.min(100, Math.max(0, cashRatio));
 
-  const tags = {};
+  const tags = { currency };
   // auto-assign currency tag from the currency dropdown
-  tags['currency'] = currency;
-  let tagsValid = true;
-  state.categories.filter(cat => cat.id !== 'currency').forEach(cat => {
-    const el = document.getElementById(`asset-tag-${cat.id}`);
-    const val = el ? el.value : '';
-    if (val) tags[cat.id] = val;
-    else tagsValid = false;
-  });
+  const picked = collectPickedTags(
+    state.categories.filter(cat => cat.id !== 'currency'), 'asset-tag-');
+  Object.assign(tags, picked.tags);
 
-  if (!tagsValid) {
+  if (!picked.complete) {
     toast('请为每个分类选择标签', 'error');
     return;
   }
@@ -3029,6 +3014,8 @@ function renameExpenseTag(btn, catId, tagName) {
 // 图表文字/线条随主题取色（ECharts canvas 不识别 CSS 变量, 需读取计算后的值）
 // 注：CATEGORY_PALETTE（旭日图 / 堆叠柱调色板）已迁移至 logic.js，浏览器下由全局注入，逻辑与单测共用同一份。
 const TOOLTIP_CSS = 'border-radius:6px;padding:10px 14px;box-shadow:0 6px 18px rgba(33,27,16,0.14);';
+// ECharts canvas 不认 CSS 变量，字体族只能以字面量传给各图；集中一处，改字族只改这里。
+const CHART_FONT = '"IBM Plex Mono", monospace';
 
 // 图表/空态显隐切换：show=true 显示图表、隐藏空态；反之显示空态
 function showChartOrEmpty(chartEl, emptyEl, show) {
@@ -3189,7 +3176,7 @@ function chartTooltipBase(th) {
     backgroundColor: th.card,
     borderColor: th.line,
     borderWidth: 1,
-    textStyle: { color: th.fg, fontFamily: '"IBM Plex Mono", monospace', fontSize: 12 },
+    textStyle: { color: th.fg, fontFamily: CHART_FONT, fontSize: 12 },
     extraCssText: TOOLTIP_CSS,
   };
 }
@@ -3207,10 +3194,22 @@ function barChartBase(th, dates, mode, legendData, legendSelected) {
       legendData ? { data: legendData } : {},
       legendSelected && Object.keys(legendSelected).length ? { selected: legendSelected } : {}),
     grid: { left: '3%', right: '4%', bottom: '22%', top: '10%', containLabel: true },
-    xAxis: { type: 'category', data: dates, axisLine: { lineStyle: { color: th.line } }, axisLabel: { color: th.muted, fontFamily: '"IBM Plex Mono", monospace', fontSize: 11 } },
+    xAxis: { type: 'category', data: dates, axisLine: { lineStyle: { color: th.line } }, axisLabel: { color: th.muted, fontFamily: CHART_FONT, fontSize: 11 } },
     yAxis: mode === 'percent'
-      ? { type: 'value', max: 100, axisLabel: { color: th.muted, fontFamily: '"IBM Plex Mono", monospace', fontSize: 11, formatter: '{value}%' }, splitLine: { lineStyle: { color: th.split } } }
-      : { type: 'value', axisLabel: { color: th.muted, fontFamily: '"IBM Plex Mono", monospace', fontSize: 11, formatter: v => v.toLocaleString('zh-CN', {minimumFractionDigits:0, maximumFractionDigits:0}) }, splitLine: { lineStyle: { color: th.split } } },
+      ? { type: 'value', max: 100, axisLabel: { color: th.muted, fontFamily: CHART_FONT, fontSize: 11, formatter: '{value}%' }, splitLine: { lineStyle: { color: th.split } } }
+      : { type: 'value', axisLabel: { color: th.muted, fontFamily: CHART_FONT, fontSize: 11, formatter: v => v.toLocaleString('zh-CN', {minimumFractionDigits:0, maximumFractionDigits:0}) }, splitLine: { lineStyle: { color: th.split } } },
+  };
+}
+
+// 堆叠柱系列样式（历史净值 / 消费趋势共用，原先两处逐字重复）：
+// 颜色按标签在分类中的原始下标取色，保持稳定不随排序变化；focus/blur 也同一套。
+function barSeriesStyle(cat, tag) {
+  const pal = CATEGORY_PALETTE[cat.tags.indexOf(tag) % CATEGORY_PALETTE.length];
+  return {
+    name: tag, type: 'bar', stack: 'total',
+    itemStyle: { color: pal.base },
+    emphasis: { focus: 'self' },
+    blur: { itemStyle: { opacity: 0.2 } },
   };
 }
 
@@ -3361,7 +3360,7 @@ function buildSunburstOption(data, tooltipFormatter) {
         {
           r0: '12%', r: '50%',
           itemStyle: { borderWidth: 2, borderColor: th.card },
-          label: { rotate: 'tangential', fontSize: 13, fontWeight: 600, fontFamily: '"IBM Plex Mono", monospace',
+          label: { rotate: 'tangential', fontSize: 13, fontWeight: 600, fontFamily: CHART_FONT,
             minAngle: 12, // 扇区小于 12°(≈3.3%) 时隐藏标签
             formatter: function(p) { return truncateLabel(p.name, 13, 132); }
           }
@@ -3369,7 +3368,7 @@ function buildSunburstOption(data, tooltipFormatter) {
         {
           r0: '50%', r: '88%',
           itemStyle: { borderWidth: 1, borderColor: th.card },
-          label: { rotate: 'radial', fontSize: 11, fontFamily: '"IBM Plex Mono", monospace',
+          label: { rotate: 'radial', fontSize: 11, fontFamily: CHART_FONT,
             minAngle: 8, // 扇区小于 8°(≈2.2%) 时隐藏标签
             formatter: function(p) { return truncateLabel(p.name, 11, 96); }
           }
@@ -3391,10 +3390,9 @@ function catColorImpl(cats, catId, tagName) {
   const idx = cats.findIndex(c => c.id === catId);
   const base = CATEGORY_COLORS[idx % CATEGORY_COLORS.length];
   const dark = document.documentElement.classList.contains('dark');
-  const cat = cats.find(c => c.id === catId);
-  if (!tagName || !cat || cat.tags.length <= 1) return basePill(base, dark);
-  const ti = cat.tags.indexOf(tagName);
-  if (ti < 0) return basePill(base, dark);
+  const cat = cats[idx];
+  const ti = cat && tagName ? cat.tags.indexOf(tagName) : -1;
+  if (ti < 0 || cat.tags.length <= 1) return basePill(base, dark);
   return pillColors(base, ti / (cat.tags.length - 1), dark);
 }
 
@@ -3712,7 +3710,6 @@ function startTagPress(e, pill) {
   cancelTagPress();
   tagPress = { el: pill, start: performance.now(), raf: 0, moved: false };
   pill.classList.add('pressing');
-  pill.style.setProperty('--tag-press', 0);
   // 指针一移开就放弃：长按的对象必须始终是同一枚胶囊
   const onMove = (ev) => {
     if (!tagPress) return;
@@ -3730,7 +3727,6 @@ function startTagPress(e, pill) {
     if (!tagPress || tagPress.el !== pill) return;
     const held = performance.now() - tagPress.start;
     const progress = pressProgress(held, TAG_PRESS_MS);
-    pill.style.setProperty('--tag-press', progress);
     // 进度条宽度按胶囊实宽算：box-shadow 的 inset 宽度无法用百分比表达
     pill.style.boxShadow = `inset ${Math.round(progress * pill.offsetWidth)}px 0 0 0 rgba(180, 132, 26, 0.22), inset 0 -2px 0 0 var(--accent)`;
     if (pressDecision(held, TAG_PRESS_MS) !== 'done') { tagPress.raf = requestAnimationFrame(tick); return; }
@@ -3773,7 +3769,6 @@ function resetTagPress() {
   const el = tagPress.el;
   if (el) {
     el.classList.remove('pressing');
-    el.style.removeProperty('--tag-press');
     el.style.removeProperty('box-shadow');
   }
   tagPress = null;
@@ -3962,7 +3957,6 @@ function renderChart() {
 function takeSnapshot() {
   document.getElementById('snapshot-note-input').value = '';
   openModal('snapshot-note-modal');
-  setTimeout(() => document.getElementById('snapshot-note-input').focus(), 100);
 }
 
 function confirmSnapshot(overwrite) {
@@ -4301,19 +4295,14 @@ function renderHistoryChart() {
     const data = historyChartMode === 'percent'
       ? percentSeriesData(raw, totals)
       : raw;
-    // 颜色按标签在分类中的原始下标取色，保持稳定不随排序变化
-    const pi = cat.tags.indexOf(tag);
-    const pal = CATEGORY_PALETTE[pi % CATEGORY_PALETTE.length];
     return {
-      name: tag, type: 'bar', stack: 'total', data,
-      itemStyle: { color: pal.base },
-      emphasis: { focus: 'self' },
-      blur: { itemStyle: { opacity: 0.2 } },
+      ...barSeriesStyle(cat, tag),
+      data,
       label: isLast && historyChartMode === 'value' ? {
         show: true,
         position: 'top',
         formatter: function(p) { return formatCNY(totals[p.dataIndex]); },
-        fontFamily: '"IBM Plex Mono", monospace',
+        fontFamily: CHART_FONT,
         fontSize: 11,
         color: th.muted,
       } : undefined,
@@ -5506,22 +5495,16 @@ function saveExpense(e) {
   e.preventDefault();
   const editId = document.getElementById('expense-edit-id').value;
   const date = document.getElementById('expense-date').value;
-  const amount = parseFloat(document.getElementById('expense-amount').value.replace(/,/g, ''));
+  const amount = parseMoneyInput(document.getElementById('expense-amount').value);
   const note = document.getElementById('expense-note').value.trim();
 
   if (!date) { toast('请选择日期', 'error'); return; }
   if (!amount || amount <= 0) { toast('金额必须大于 0', 'error'); return; }
 
-  const tags = {};
-  let tagsValid = true;
-  state.expenseCategories.forEach(cat => {
-    const el = document.getElementById(`expense-tag-${cat.id}`);
-    const val = el ? el.value : '';
-    if (val) tags[cat.id] = val;
-    else tagsValid = false;
-  });
+  const picked = collectPickedTags(state.expenseCategories, 'expense-tag-');
+  const tags = picked.tags;
 
-  if (!tagsValid) {
+  if (!picked.complete) {
     toast('请为每个分类选择标签', 'error');
     return;
   }
@@ -5838,10 +5821,9 @@ function setExpenseTrendMode(mode) {
 function openExpectationModal() {
   document.getElementById('expectation-input').value = moneyStr(state.expenseExpectation);
   openModal('expectation-modal');
-  setTimeout(() => document.getElementById('expectation-input').focus(), 100);
 }
 function saveExpectation() {
-  const v = parseFloat(document.getElementById('expectation-input').value.replace(/,/g, ''));
+  const v = parseMoneyInput(document.getElementById('expectation-input').value);
   if (!v || v <= 0) { toast('请输入有效的预期消费金额', 'error'); return; }
   const hadValue = (state.expenseExpectation || 0) > 0;
   state.expenseExpectation = v;
@@ -5926,15 +5908,7 @@ function renderExpenseTrendChart() {
     const data = expenseTrendMode === 'percent'
       ? percentSeriesData(raw, totals)
       : raw;
-    // 颜色按标签在分类中的原始下标取色，保持稳定不随排序变化
-    const si = cat.tags.indexOf(tag);
-    const pal = CATEGORY_PALETTE[si % CATEGORY_PALETTE.length];
-    return {
-      name: tag, type: 'bar', stack: 'total', data,
-      itemStyle: { color: pal.base },
-      emphasis: { focus: 'self' },
-      blur: { itemStyle: { opacity: 0.2 } },
-    };
+    return { ...barSeriesStyle(cat, tag), data };
   });
 
   // 透明「合计」系列：仅用于在堆叠柱顶部展示当前可见各项之和
@@ -5961,9 +5935,9 @@ function renderExpenseTrendChart() {
         return formatCNY(visTotal);
       },
       rich: {
-        red: { color: th.down, fontFamily: '"IBM Plex Mono", monospace', fontSize: 11, fontWeight: 600 },
+        red: { color: th.down, fontFamily: CHART_FONT, fontSize: 11, fontWeight: 600 },
       },
-      fontFamily: '"IBM Plex Mono", monospace',
+      fontFamily: CHART_FONT,
       fontSize: 11,
       color: th.muted,
     },
@@ -5977,7 +5951,7 @@ function renderExpenseTrendChart() {
         position: 'insideEndTop',
         color: th.fg,
         fontSize: 11,
-        fontFamily: '"IBM Plex Mono", monospace',
+        fontFamily: CHART_FONT,
         backgroundColor: th.card,
         borderColor: th.line,
         borderWidth: 1,
@@ -6227,7 +6201,7 @@ function doLoadExpenseDemoData() {
     const d = new Date(year, month, 1);
     const monthStr = getLocalMonthStr(d);
     const factor = 1 + jitter[mi];
-    const daysInMonth = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+    const daysInMonth = daysInMonthOf(monthStr);
 
     seed.forEach((s, si) => {
       const day = Math.min(1 + (si * 3 + mi * 5) % 28, daysInMonth);

@@ -80,8 +80,8 @@
   // 由调用方负责翻回 touched 标记。返回新 {by, dir}，不修改入参
   function nextSortState(by, dir, field, flipSticky) {
     if (by === field) {
-      if (flipSticky) return { by: by, dir: dir === 'asc' ? 'desc' : 'asc' };
-      if (dir === 'asc') return { by: by, dir: 'desc' };
+      if (flipSticky) return { by, dir: dir === 'asc' ? 'desc' : 'asc' };
+      if (dir === 'asc') return { by, dir: 'desc' };
       return { by: '', dir: 'asc' };
     }
     return { by: field, dir: 'asc' };
@@ -135,15 +135,15 @@
 
   // 已按住时长 → 进度比例（0~1，供进度动画取宽度；超时封顶不溢出）
   function modePressProgress(heldMs) {
-    if (!(heldMs > 0)) return 0;
-    return Math.min(1, heldMs / MODE_PRESS_MS);
+    return pressProgress(heldMs, MODE_PRESS_MS);
   }
 
   // 松手时的处置：'enter' = 放行到确认框；'hint' = 短击，弹一句「长按多久」的教学。
   // 无有效按住时长（0/负值/NaN）视为没按，不响应
   function modePressDecision(heldMs) {
-    if (!(heldMs > 0)) return 'ignore';
-    return heldMs >= MODE_PRESS_MS ? 'enter' : 'hint';
+    const d = pressDecision(heldMs, MODE_PRESS_MS);
+    if (d === 'done') return 'enter';
+    return d === 'short' ? 'hint' : 'ignore';
   }
 
   // ===== 长按判定（可传阈值）=====
@@ -152,16 +152,21 @@
   // 而这类漂移的表现是「同一手势在两个地方手感不同」，很难查。
   const TAG_PRESS_MS = 600;
 
+  // 阈值归一（脏值退回资产入口那一档）：进度与处置两处共用，绝不产生 NaN/Infinity
+  function pressThreshold(threshold) {
+    return threshold > 0 && Number.isFinite(threshold) ? threshold : MODE_PRESS_MS;
+  }
+
   // 已按住时长 → 进度比例（0~1）。脏阈值退回资产入口那一档，绝不产生 NaN/Infinity
   function pressProgress(heldMs, threshold) {
-    const t = threshold > 0 && Number.isFinite(threshold) ? threshold : MODE_PRESS_MS;
+    const t = pressThreshold(threshold);
     if (!(heldMs > 0)) return 0;
     return Math.min(1, heldMs / t);
   }
 
   // 松手处置：'done' = 动作成立；'short' = 短按（教学/无动作）；'ignore' = 没按
   function pressDecision(heldMs, threshold) {
-    const t = threshold > 0 && Number.isFinite(threshold) ? threshold : MODE_PRESS_MS;
+    const t = pressThreshold(threshold);
     if (!(heldMs > 0)) return 'ignore';
     return heldMs >= t ? 'done' : 'short';
   }
@@ -536,9 +541,10 @@
     if (gap <= 0) return { need: null, rate: 0 };
     const a = Number(annual);
     const p = Number(principal);
-    const rate = (isFinite(a) && isFinite(p) && p > 0) ? a / p * 100 : 0;
-    if (!isFinite(a) || a <= 0 || !isFinite(p) || p <= 0) return { need: Infinity, rate: rate };
-    return { need: gap * 12 * p / a, rate: rate };
+    const valid = isFinite(a) && isFinite(p) && p > 0;
+    const rate = valid ? a / p * 100 : 0;
+    if (!valid || a <= 0) return { need: Infinity, rate };
+    return { need: gap * 12 * p / a, rate };
   }
 
   // ========== 所选标签的钱 ÷ 预期月消费（消费趋势的读数卡，与收益测算无关）==========
@@ -621,8 +627,7 @@
   // 写入侧（saveRunwayTags）与弹窗实时预览共用这一处解析+归一; 读取侧的回落见 runwayExpectationOf。
   // 两侧不得各写一份: 值恰好等价也靠不住, 只改一处就会让预览与保存后的读数分家且不报错。
   function normalizeRunwayExpectationInput(raw, expenseExpectation) {
-    const s = String(raw == null ? '' : raw).replace(/,/g, '').trim();
-    const v = s === '' ? NaN : parseFloat(s);
+    const v = parseMoneyInput(raw);
     if (!isFinite(v) || v <= 0) return 0;
     const global = Number(expenseExpectation);
     if (isFinite(global) && global > 0 && v === global) return 0;
@@ -748,9 +753,8 @@
     // 汇率重算（与 confirmSnapshot 保存时算法一致）, 保证历史净值图表/详情可用
     state.snapshots.forEach(s => {
       if (s && s.totalCNY == null) {
-        const snapRates = s.currencyRates || state.rates;
-        s.totalCNY = (s.assets || []).reduce((sum, a) =>
-          sum + (a.amount || 0) * (snapRates[a.currency] || 1), 0);
+        // 与图表聚合共用同一折算口径（amountAtRates 的容错），不在此另写一份 reduce
+        s.totalCNY = sumAmountCNY(s.assets, s.currencyRates || state.rates);
       }
     });
     // ensure categories/assets arrays
@@ -873,6 +877,12 @@
     if (isNaN(num)) return '';
     const [int, dec] = String(num).split('.');
     return int.replace(/\B(?=(\d{3})+(?!\d))/g, ',') + (dec != null ? '.' + dec : '');
+  }
+
+  // 金额输入框字符串 → 数值：剥离千分位后 parseFloat，空/非法 → NaN（由调用方决定提示与兜底）。
+  // 目标/资产/消费/预期/行内编辑四处保存共用，不再各写一遍 replace(/,/g)+parseFloat。
+  function parseMoneyInput(raw) {
+    return parseFloat(String(raw == null ? '' : raw).replace(/,/g, ''));
   }
 
   // 金额千分位 2 位格式化（与 formatCNY 区别: 不带 ¥ 符号；与 moneyStr 区别: 恒为两位小数的展示态，
@@ -1128,7 +1138,7 @@
         }))
         .sort((a, b) => b.value - a.value);
     }
-    return (data || [])
+    return list
       .map((n, idx) => ({ idx, name: (n && n.name) || '', value: nodeValue(n), pct: pctStr(nodeValue(n), Number(total) || 0), path: null }))
       .sort((a, b) => b.value - a.value);
   }
@@ -1314,7 +1324,7 @@
   }
 
   return {
-    toCNY, formatCNY, money2,
+    toCNY, formatCNY, money2, parseMoneyInput,
     addMonths, getCurrentMonth, getLocalDateStr, getLocalMonthStr, monthLabel,
     daysBetweenStr,
     BACKUP_STALE_DAYS, normalizeBackupFreq, backupNoteText, hasAnyBackupWorthyData, shouldAutoBackup, backupStaleDays,

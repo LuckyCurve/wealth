@@ -400,6 +400,14 @@ describe('文本与金额工具', () => {
     assert.strictEqual(L.moneyStr(null), '');
     assert.strictEqual(L.moneyStr('abc'), '');
   });
+  test('parseMoneyInput 金额输入串解析（千分位剥离，空/非法 → NaN）', () => {
+    assert.strictEqual(L.parseMoneyInput('1,234.5'), 1234.5);
+    assert.strictEqual(L.parseMoneyInput(' 9000 '), 9000);
+    assert.strictEqual(L.parseMoneyInput(9000), 9000);
+    assert.ok(isNaN(L.parseMoneyInput('')));
+    assert.ok(isNaN(L.parseMoneyInput('abc')));
+    assert.ok(isNaN(L.parseMoneyInput(null)));
+  });
   test('jsAttr JS + HTML 属性转义', () => {
     assert.strictEqual(L.jsAttr('a&b'), 'a&amp;b');
     assert.strictEqual(L.jsAttr("a'b"), "a\\'b");
