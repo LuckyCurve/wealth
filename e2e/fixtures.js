@@ -103,7 +103,7 @@ async function stubCdn(page, rates) {
       status: 200,
       contentType: 'text/javascript',
       body: `
-        window.__echartsCalls = { init: [], setOption: [], on: [], dispatch: [], resize: 0, dispose: 0, instances: {} };
+        window.__echartsCalls = { init: [], setOption: [], clear: [], on: [], dispatch: [], resize: 0, dispose: 0, instances: {} };
         function FakeChart(dom) {
           this._dom = dom;
           this._w = dom ? dom.clientWidth : 0;
@@ -133,6 +133,7 @@ async function stubCdn(page, rates) {
           this._h = this._dom ? this._dom.clientHeight : 0;
           window.__echartsCalls.resize++;
         };
+        FakeChart.prototype.clear = function () { window.__echartsCalls.clear.push(this._dom && this._dom.id); };
         FakeChart.prototype.dispose = function () { window.__echartsCalls.dispose++; };
         FakeChart.prototype.getOption = function () { return {}; };
         FakeChart.prototype.dispatchAction = function (a) {

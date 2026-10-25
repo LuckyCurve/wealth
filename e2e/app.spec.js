@@ -318,6 +318,36 @@ test.describe('已经在某一页上时再点它：空点击', () => {
   });
 });
 
+test.describe('消费分布：每次进入都重播入场动画', () => {
+  // 用户实测：「第一次进来的时候 ECharts 绘制图表会有动画，其余时候进来都没有」。
+  // ECharts 对**相同数据**的 setOption 只做差值更新，画面原地不动；要让入场动画重播，
+  // 必须在重画前 clear()，让它按首次绘制处理。
+  const count = (page, kind, id) =>
+    page.evaluate(([k, i]) => {
+      const calls = window.__echartsCalls;
+      if (!calls) return 0; // 图表库按需加载：还没进过图表 Tab 时对象尚不存在
+      return calls[k].filter((c) => (c && c.id ? c.id === i : c === i)).length;
+    }, [kind, id]);
+
+  test('再次进入消费分布先 clear 再画（相同数据的 setOption 不会重播动画）', async ({ appPage: page }) => {
+    const tab = page.locator('#tabs-expenses .tab-btn[data-tab="expense-chart"]');
+
+    await tab.click();
+    await expect
+      .poll(() => count(page, 'setOption', 'expense-sunburst-chart'), { message: '进入消费分布应完成一次图表渲染' })
+      .toBeGreaterThan(0);
+    const firstClear = await count(page, 'clear', 'expense-sunburst-chart');
+
+    await page.locator('#tabs-expenses .tab-btn[data-tab="expenses"]').click();
+    await tab.click();
+
+    await expect
+      .poll(() => count(page, 'clear', 'expense-sunburst-chart'), { message: '重进消费分布应从零重画以重播动画' })
+      .toBeGreaterThan(firstClear);
+    expect(await count(page, 'setOption', 'expense-sunburst-chart'), '重进后要接着重画').toBeGreaterThan(1);
+  });
+});
+
 test.describe('资产增删改', () => {
   test('登记资产：填表 → 列表出现 → 落 localStorage', async ({ appPage: page }) => {
     await gotoAssetsTab(page);
