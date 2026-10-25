@@ -819,7 +819,7 @@ tailwind.config = {
   /* 退场只用位移，不用透明度：压淡文字会让便条在消失前的一瞬掉到 1.06:1
      （Lighthouse 实测抓到），而它承载的是刚发生的结论。visibility 延迟到动画结束才切，
      中间没有「半透明但仍占位」的样式。 */
-  .toast.leaving { transform: translateY(6px); visibility: hidden; transition: transform 0.3s ease, visibility 0s 0.3s; }
+  .toast.leaving { transform: translateY(6px); visibility: hidden; }
   /* 与 mo-badge 同色系: 提示即一张盖在账页上的便条。三种墨色=三种语义:
      绿=操作已落账 / 红=出错待处理 / 金墨边注(info)=系统自己的中性知会，注意但不报警 */
   .toast-success { background: #e8f5ec; color: #3d7a52; border-color: #b8dfc4; }
@@ -3049,10 +3049,9 @@ function ensureEChartsReady(el) {
       const s = document.createElement('script');
       s.src = 'https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js';
       s.onload = resolve;
-      s.onerror = () => reject(new Error('echarts-load-failed'));
+      s.onerror = () => { echartsLoading = null; reject(new Error('echarts-load-failed')); }; // 失败允许下次重试
       document.head.appendChild(s);
     });
-    echartsLoading.catch(() => { echartsLoading = null; }); // 失败允许下次重试
   }
   return echartsLoading.then(() => true, () => {
     toast('图表组件加载失败', 'error');
@@ -4997,7 +4996,7 @@ const BACKUP_DB = 'wealth-backup';
 const BACKUP_STORE = 'handles';
 const BACKUP_DIR_KEY = 'backupDir';
 let backupDirHandle = null;
-let backupDirReady = Promise.resolve(null);
+let backupDirReady = Promise.resolve();
 let backupDirTouched = false; // 用户已主动选择/清除：启动恢复不得覆盖新值
 let dirPickInFlight = false;
 let backupInFlight = false;
@@ -5013,45 +5012,32 @@ function openBackupDB() {
   });
 }
 
-async function idbGetBackupDir() {
+// 目录句柄读写的唯一事务入口：成功以 tx.oncomplete 为准（单条请求的回执不代表已提交）
+async function idbBackupStore(mode, run) {
   const db = await openBackupDB();
   try {
     return await new Promise((resolve, reject) => {
-      const tx = db.transaction(BACKUP_STORE, 'readonly');
-      const req = tx.objectStore(BACKUP_STORE).get(BACKUP_DIR_KEY);
-      req.onsuccess = () => {
-        const h = req.result && req.result.handle;
-        resolve(h && typeof h.getFileHandle === 'function' ? h : null);
-      };
-      req.onerror = () => reject(req.error);
+      const tx = db.transaction(BACKUP_STORE, mode);
+      const req = run(tx.objectStore(BACKUP_STORE));
+      tx.oncomplete = () => resolve(req.result);
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error);
     });
   } finally { db.close(); }
+}
+
+async function idbGetBackupDir() {
+  const rec = await idbBackupStore('readonly', store => store.get(BACKUP_DIR_KEY));
+  const h = rec && rec.handle;
+  return h && typeof h.getFileHandle === 'function' ? h : null;
 }
 
 async function idbSetBackupDir(handle) {
-  const db = await openBackupDB();
-  try {
-    await new Promise((resolve, reject) => {
-      const tx = db.transaction(BACKUP_STORE, 'readwrite');
-      tx.objectStore(BACKUP_STORE).put({ handle, name: handle.name || '', savedAt: Date.now() }, BACKUP_DIR_KEY);
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
-      tx.onabort = () => reject(tx.error);
-    });
-  } finally { db.close(); }
+  await idbBackupStore('readwrite', store => store.put({ handle }, BACKUP_DIR_KEY));
 }
 
 async function idbClearBackupDir() {
-  const db = await openBackupDB();
-  try {
-    await new Promise((resolve, reject) => {
-      const tx = db.transaction(BACKUP_STORE, 'readwrite');
-      tx.objectStore(BACKUP_STORE).delete(BACKUP_DIR_KEY);
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
-      tx.onabort = () => reject(tx.error);
-    });
-  } finally { db.close(); }
+  await idbBackupStore('readwrite', store => store.delete(BACKUP_DIR_KEY));
 }
 
 // 启动恢复：失败/为空都按「未选择」处理；用户已在本次会话操作过则不回滚
@@ -5061,24 +5047,20 @@ async function restoreBackupDir() {
     if (h && !backupDirTouched) backupDirHandle = h;
   } catch (e) { /* IndexedDB 不可用：本次会话没有持久句柄 */ }
   syncBackupControls();
-  return backupDirHandle;
 }
 
 function canPickBackupDir() { return typeof window.showDirectoryPicker === 'function'; }
 function canSaveBackupFile() { return typeof window.showSaveFilePicker === 'function'; }
 
-// 权限三态：没有 queryPermission 的句柄（如 OPFS）按已授权处理
-async function queryDirPermission(handle) {
-  if (!handle || typeof handle.queryPermission !== 'function') return 'granted';
-  try { return normalizeDirPermission(await handle.queryPermission({ mode: 'readwrite' })); }
+// 权限三态：没有对应方法的句柄（如 OPFS）按已授权处理；异常一律保守归 denied
+async function dirPermission(handle, method) {
+  if (!handle || typeof handle[method] !== 'function') return 'granted';
+  try { return normalizeDirPermission(await handle[method]({ mode: 'readwrite' })); }
   catch (e) { return 'denied'; }
 }
 
-async function requestDirPermission(handle) {
-  if (!handle || typeof handle.requestPermission !== 'function') return 'granted';
-  try { return normalizeDirPermission(await handle.requestPermission({ mode: 'readwrite' })); }
-  catch (e) { return 'denied'; }
-}
+function queryDirPermission(handle) { return dirPermission(handle, 'queryPermission'); }
+function requestDirPermission(handle) { return dirPermission(handle, 'requestPermission'); }
 
 // ===== 设置入口（onclick 只挂同步包装；异步实现单独命名）=====
 function chooseBackupDir() { chooseBackupDirAsync(); }
@@ -5133,11 +5115,14 @@ async function firstAvailableBackupName(dir, today) {
 }
 
 // close() 成功才算写入完成；中途失败不会提交半截文件
-async function writeDirFile(dir, name, text) {
-  const fh = await dir.getFileHandle(name, { create: true });
+async function writeFileHandleText(fh, text) {
   const w = await fh.createWritable();
   await w.write(text);
   await w.close();
+}
+
+async function writeDirFile(dir, name, text) {
+  await writeFileHandleText(await dir.getFileHandle(name, { create: true }), text);
 }
 
 // 自动备份尝试写目录：只有目录可用且已授权才返回结果；
@@ -5280,15 +5265,12 @@ async function exportDataAsync() {
           return;
         } catch (e) { /* 目录被删/权限失效 → 继续走保存框或下载 */ }
       }
-      await exportViaSavePicker(today);
+    }
+    if (plan.target !== 'download') {
+      await exportViaSavePicker(today); // 目录不可写 / 未选目录：保存框（不可用则内部回退下载）
       return;
     }
-    if (plan.target === 'save-picker') {
-      await exportViaSavePicker(today);
-      return;
-    }
-    downloadBackupJSON();
-    applyBackupResult(backupResultNotice({ mode: 'manual', target: 'download', status: 'downloaded' }), today);
+    exportViaDownload(today);
   } catch (e) {
     applyBackupResult(backupResultNotice({ mode: 'manual', target: 'dir', status: 'error' }), today);
   } finally {
@@ -5296,11 +5278,16 @@ async function exportDataAsync() {
   }
 }
 
+// 手动导出的兜底路径：<a download> 无回执，只提示「已开始下载」，不记「已备份」
+function exportViaDownload(today) {
+  downloadBackupJSON();
+  applyBackupResult(backupResultNotice({ mode: 'manual', target: 'download', status: 'downloaded' }), today);
+}
+
 // 保存框：只有 close() 成功才算导出成功；取消不记任何状态
 async function exportViaSavePicker(today) {
   if (!canSaveBackupFile()) {
-    downloadBackupJSON();
-    applyBackupResult(backupResultNotice({ mode: 'manual', target: 'download', status: 'downloaded' }), today);
+    exportViaDownload(today);
     return;
   }
   try {
@@ -5308,17 +5295,14 @@ async function exportViaSavePicker(today) {
       suggestedName: backupFileName(today),
       types: [{ description: 'JSON', accept: { 'application/json': ['.json'] } }],
     });
-    const w = await handle.createWritable();
-    await w.write(backupJSONText(state));
-    await w.close();
+    await writeFileHandleText(handle, backupJSONText(state));
     applyBackupResult(backupResultNotice({ mode: 'manual', target: 'save-picker', status: 'written' }), today);
   } catch (e) {
     if (e && e.name === 'AbortError') {
       applyBackupResult(backupResultNotice({ mode: 'manual', target: 'save-picker', status: 'cancelled' }), today);
       return;
     }
-    downloadBackupJSON();
-    applyBackupResult(backupResultNotice({ mode: 'manual', target: 'download', status: 'downloaded' }), today);
+    exportViaDownload(today);
   }
 }
 
@@ -5558,8 +5542,8 @@ function toast(msg, type) {
 function armToastHide(t) {
   t._hideTimer = setTimeout(() => {
     t.classList.add('leaving');
-    // 退场元素不该继续参与对比度/可点击判定：标记 aria-hidden 并摘掉指针事件。
-    // 300ms 后移出 DOM（与 CSS 的退场过渡时长一致）。
+    // 退场元素不该继续被对比度巡检/读屏器当成内容：标记 aria-hidden。
+    // 归隐由 CSS 的 visibility 负责（顺带不再吃指针）；300ms 后移出 DOM（与退场过渡等长）。
     t.setAttribute('aria-hidden', 'true');
     setTimeout(() => t.remove(), 300);
   }, 2500);

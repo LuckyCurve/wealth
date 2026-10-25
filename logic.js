@@ -1233,10 +1233,9 @@
   }
 
   // 当天备份文件名：第 1 次 base，第 2 次起加 -2/-3 后缀（不覆盖已有文件）。
-  // attempt 只认正整数，脏值一律回落 base，避免拼出 -NaN / -1.5 之类文件名。
+  // attempt 只认 ≥2 的整数，脏值一律回落 base，避免拼出 -NaN / -1.5 之类文件名。
   function backupFileName(today, attempt) {
-    const seq = (typeof attempt === 'number' && Number.isInteger(attempt) && attempt >= 2)
-      ? '-' + attempt : '';
+    const seq = Number.isInteger(attempt) && attempt >= 2 ? '-' + attempt : '';
     return `wealth-data-${today}${seq}.json`;
   }
 
@@ -1263,15 +1262,14 @@
     const mode = opts.mode === 'auto' ? 'auto' : 'manual';
     const userGesture = opts.userGesture !== undefined ? !!opts.userGesture : mode === 'manual';
     const permission = normalizeDirPermission(opts.permission);
-    const supportsDir = !!opts.supportsDir;
-    const supportsSavePicker = !!opts.supportsSavePicker;
-    if (opts.hasDir && supportsDir && permission === 'granted') {
+    const dirUsable = !!opts.hasDir && !!opts.supportsDir;
+    if (dirUsable && permission === 'granted') {
       return { target: 'dir', requestPermission: false };
     }
-    if (opts.hasDir && supportsDir && permission === 'prompt' && userGesture && mode === 'manual') {
+    if (dirUsable && permission === 'prompt' && userGesture && mode === 'manual') {
       return { target: 'dir', requestPermission: true };
     }
-    if (mode === 'manual' && userGesture && supportsSavePicker) {
+    if (mode === 'manual' && userGesture && !!opts.supportsSavePicker) {
       return { target: 'save-picker', requestPermission: false };
     }
     return { target: 'download', requestPermission: false };

@@ -1,13 +1,11 @@
 const { test, expect, stubCdn, seed, waitReady, disableMotion, sampleState, INDEX_URL } = require('./fixtures');
+const { getLocalDateStr } = require('../logic.js');
 
 // 备份文件夹 E2E：File System Access API 在 headless 里没有原生选择器，
 // 用 OPFS（navigator.storage.getDirectory）提供**真实可写句柄**，
 // 这样目录写入、同名探测、IDB 持久化都跑的是真实 API，而不是假对象。
 
-function today() {
-  const d = new Date();
-  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
-}
+const today = getLocalDateStr;
 
 async function setup(page, opts = {}) {
   await disableMotion(page);
