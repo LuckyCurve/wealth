@@ -2341,6 +2341,26 @@ function tabClick(btn) {
   switchTab(btn.dataset.tab);
 }
 
+// 图表 Tab 实例查表：进入 Tab 时清掉旧模型用。存 getter 而不是实例本身——
+// 实例是首次渲染时才创建的，且声明分散在各图区块里。
+const chartByTab = {
+  chart: () => chart,
+  history: () => historyChart,
+  income: () => incomeChart,
+  'expense-chart': () => expenseChart,
+  'expense-trend': () => expenseTrendChart,
+};
+
+// 进入图表 Tab 前清掉旧模型：ECharts 对**相同数据**的 setOption 只做差值更新，节点原地不动，
+// 入场动画不会重播（首次 init 才有——用户实测「只有第一次进来有动画」）。
+// clear() 保留实例与接线（下钻监听、ResizeObserver），只清模型；随后的 setOption 按首绘处理，
+// 动画重播一遍。只在 switchTab 调用：快照保存、汇率/主题刷新等重绘不走这里，不该闪。
+function clearChartForEnter(tab) {
+  const get = chartByTab[tab];
+  const c = get && get();
+  if (c) c.clear();
+}
+
 function switchTab(tab, shift) {
   const tabBar = currentMode === 'assets' ? '#tabs-assets' : '#tabs-expenses';
   // 方向感（与模式切换共用同一份判定）：目标按钮在旧按钮右侧 = 内容自右滑入。
@@ -2358,6 +2378,7 @@ function switchTab(tab, shift) {
   ['assets', 'categories', 'chart', 'history', 'income',
     'expenses', 'expense-categories', 'expense-chart', 'expense-trend']
     .forEach(id => { document.getElementById('tab-' + id).style.display = tab === id ? '' : 'none'; });
+  clearChartForEnter(tab); // 与 display 翻转同帧，下一帧才画，看不到清空的那一瞬
   if (tab === 'chart') {
     fillCategorySelect('chart-category-select', state.categories);
     afterTabPaint(tab, renderChart);
@@ -2376,7 +2397,6 @@ function switchTab(tab, shift) {
   }
   if (tab === 'expense-chart') {
     populateExpenseChartSelects();
-    expenseChartEnterAnim = true; // 进入 Tab 的那次重画从零开始，才有入场动画（见 renderExpenseChart）
     afterTabPaint(tab, renderExpenseChart);
   }
   if (tab === 'expense-trend') {
@@ -6051,10 +6071,6 @@ function onTagCheckPick(e) {
 
 // ========== EXPENSE CHART ==========
 let expenseChart = null;
-// 「这次重画是进入 Tab 触发的」标记：switchTab 置位、renderExpenseChart 开头消费。
-// 用标记而不是给渲染函数加参数，是为了保住 afterTabPaint(tab, renderExpenseChart) 这条单一接线形状
-// （契约测试按函数名守它，加一层箭头函数会让「五个图表 Tab 共用同一入口」读不出来）。
-let expenseChartEnterAnim = false;
 
 function populateExpenseChartSelects() {
   fillCategorySelect('expense-chart-category-select', state.expenseCategories);
@@ -6066,10 +6082,6 @@ function populateExpenseChartSelects() {
 }
 
 async function renderExpenseChart() {
-  // 进入 Tab 标记只对这一次重画有效：不管下面走哪条分支（含提前 return 的空态）都先消费掉，
-  // 否则标记会滞留到下一次「换月份/下钻」的重画上，让那次也白闪一遍。
-  const animate = expenseChartEnterAnim;
-  expenseChartEnterAnim = false;
   const catId = document.getElementById('expense-chart-category-select').value;
   const monthFilter = document.getElementById('expense-chart-month-select').value;
 
@@ -6131,13 +6143,8 @@ async function renderExpenseChart() {
   }
 
   const th = chartTheme();
-  // 换数据前先清掉强调态（同 renderChart：否则 blur 会粘到新扇区上）。
-  // animate：进入 Tab 时要求出场动画重播，而 ECharts 对**相同数据**的 setOption 只做差值更新，
-  // 节点原地不动、动画根本不播（实测：二次 setOption 后 100ms 画面已与终态一致）。
-  // clear() 保留实例与接线（下钻监听、ResizeObserver），只清模型；下一次 setOption 按首绘处理，
-  // 动画重新播一遍。换月份/维度/下钻不走这条路，避免每次交互都闪一次全图重绘。
-  if (animate) expenseChart.clear();
-  else expenseChart.dispatchAction({ type: 'downplay' });
+  // 换数据前先清掉强调态（同 renderChart：否则 blur 会粘到新扇区上）
+  expenseChart.dispatchAction({ type: 'downplay' });
   expenseChart.setOption(buildSunburstOption(view.data, p => sunburstTooltipContent(p, th, view.total)), true);
   // 重绘回调登记的是**整个渲染函数**：下钻既换清单也换图，只重绘清单会让图留在上一层
   sunburstRerender['expense-chart-legend'] = renderExpenseChart;

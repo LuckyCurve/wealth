@@ -318,34 +318,67 @@ test.describe('已经在某一页上时再点它：空点击', () => {
   });
 });
 
-test.describe('消费分布：每次进入都重播入场动画', () => {
-  // 用户实测：「第一次进来的时候 ECharts 绘制图表会有动画，其余时候进来都没有」。
-  // ECharts 对**相同数据**的 setOption 只做差值更新，画面原地不动；要让入场动画重播，
-  // 必须在重画前 clear()，让它按首次绘制处理。
-  const count = (page, kind, id) =>
-    page.evaluate(([k, i]) => {
-      const calls = window.__echartsCalls;
-      if (!calls) return 0; // 图表库按需加载：还没进过图表 Tab 时对象尚不存在
-      return calls[k].filter((c) => (c && c.id ? c.id === i : c === i)).length;
-    }, [kind, id]);
+test.describe('图表 Tab：每次进入都重播入场动画', () => {
+  // 用户实测：「第一次进来的时候 ECharts 绘制图表会有动画，其余时候进来都没有」
+  // （先说消费分布，随即指出消费趋势也有，要求全站一起看）。
+  // 根因是共性的：ECharts 对**相同数据**的 setOption 只做差值更新，节点原地不动；
+  // 只有首次 init 绘制才有动画。要让每次进入都重播，进入 Tab 时必须先 clear()。
+  // 所以这里一次覆盖五个图表 Tab，而不是只补用户点名的两个。
+  const clears = (page, id) =>
+    page.evaluate((i) => {
+      const calls = window.__echartsCalls; // 按需加载：尚未注入时为 undefined
+      if (!calls) return 0;
+      return calls.clear.filter((c) => c === i).length;
+    }, id);
 
-  test('再次进入消费分布先 clear 再画（相同数据的 setOption 不会重播动画）', async ({ appPage: page }) => {
-    const tab = page.locator('#tabs-expenses .tab-btn[data-tab="expense-chart"]');
+  const cases = [
+    // [子 Tab 栏, 子 Tab, 图表容器 id, 需要先进入资产模式, 离开时切到的 Tab]
+    ['#tabs-assets', 'chart', 'sunburst-chart', true, 'assets'],
+    // 历史净值要有快照才画图：没快照时渲染提前 return，根本走不到 clear（空态不播动画）
+    ['#tabs-assets', 'history', 'history-chart', true, 'assets'],
+    ['#tabs-assets', 'income', 'income-chart', true, 'assets'],
+    ['#tabs-expenses', 'expense-chart', 'expense-sunburst-chart', false, 'expenses'],
+    ['#tabs-expenses', 'expense-trend', 'expense-trend-chart', false, 'expenses'],
+  ];
 
-    await tab.click();
-    await expect
-      .poll(() => count(page, 'setOption', 'expense-sunburst-chart'), { message: '进入消费分布应完成一次图表渲染' })
-      .toBeGreaterThan(0);
-    const firstClear = await count(page, 'clear', 'expense-sunburst-chart');
+  for (const [bar, tab, chartId, needAssets, away] of cases) {
+    test(`${tab}：离开再进来先 clear 再画（相同数据的 setOption 不会重播动画）`, async ({ page }) => {
+      // 播种带快照的存档：历史净值少于 2 条快照就不画图（renderHistoryChart 提前 return），
+      // 用例会空转在「等渲染」上
+      const base = sampleState();
+      const snap = (month, updatedAt) => ({
+        month,
+        note: '初始',
+        currencyRates: { CNY: 1, HKD: 0.92, USD: 7.24 },
+        assets: base.assets.map((a) => ({ ...a, tags: { ...a.tags } })),
+        updatedAt,
+      });
+      await openWith(page, {
+        ...base,
+        snapshots: [snap('2026-01', '2026-01-31T00:00:00.000Z'), snap('2026-02', '2026-02-28T00:00:00.000Z')],
+      });
+      if (needAssets) await gotoAssets(page);
 
-    await page.locator('#tabs-expenses .tab-btn[data-tab="expenses"]').click();
-    await tab.click();
+      const btn = page.locator(`${bar} .tab-btn[data-tab="${tab}"]`);
+      await btn.click();
+      // 先等这次渲染真的画出图（按需加载 + 排下一帧），再谈 clear
+      await expect
+        .poll(() => page.evaluate((i) => {
+          const calls = window.__echartsCalls;
+          if (!calls) return false;
+          return calls.setOption.some((c) => c.id === i);
+        }, chartId), { message: `进入 ${tab} 应完成一次图表渲染` })
+        .toBe(true);
+      expect(await clears(page, chartId), `首次进入 ${tab} 靠 init 首绘，不该 clear`).toBe(0);
 
-    await expect
-      .poll(() => count(page, 'clear', 'expense-sunburst-chart'), { message: '重进消费分布应从零重画以重播动画' })
-      .toBeGreaterThan(firstClear);
-    expect(await count(page, 'setOption', 'expense-sunburst-chart'), '重进后要接着重画').toBeGreaterThan(1);
-  });
+      await page.locator(`${bar} .tab-btn[data-tab="${away}"]`).click();
+      await btn.click();
+
+      await expect
+        .poll(() => clears(page, chartId), { message: `重进 ${tab} 应先 clear 以重播入场动画` })
+        .toBeGreaterThan(0);
+    });
+  }
 });
 
 test.describe('资产增删改', () => {
