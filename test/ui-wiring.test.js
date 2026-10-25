@@ -71,9 +71,10 @@ describe('UI 接线契约：设置是唯一入口', () => {
     assert.strictEqual(count(/id="settings-backup-note"/g), 1, '设置弹窗备份边注存在');
   });
 
-  test('syncBackupControls 是备份控件同步的唯一入口，四条路径都走它', () => {
+  test('syncBackupControls 是备份控件同步的唯一入口，各处路径都走它', () => {
     assert.match(html, /function syncBackupControls\(\)/);
-    for (const fn of ['showImportExport', 'showSettings', 'setBackupFreq', 'exportData']) {
+    for (const fn of ['showImportExport', 'showSettings', 'setBackupFreq', 'exportData',
+      'restoreBackupDir', 'chooseBackupDirAsync', 'clearBackupDirAsync', 'applyBackupResult']) {
       assert.match(fnSource(fn), /syncBackupControls\(\)/, `${fn} 应调用 syncBackupControls`);
     }
   });
@@ -554,11 +555,18 @@ describe('UI 接线契约：自动备份等待汇率拉取完成再导出', () =
 });
 
 describe('UI 接线契约：导入/导出（纯原始格式 + 迁移兜底共用一套）', () => {
-  test('导出剥离快照的加工字段 totalCNY（可由 assets × currencyRates 重算，不落盘）', () => {
-    // 先剥注释：把实现整行注释掉后残留的文本不得继续当「实现存在」的证据
-    const src = stripComments(fnSource('downloadBackupJSON'));
-    assert.match(src, /delete s\.totalCNY/,
+  test('导出内容走 logic.js backupJSONText（唯一来源，剥离快照加工字段 totalCNY）', () => {
+    // 三条导出路径（目录 / 保存框 / 下载）必须落盘同一份内容：
+    // 生成逻辑下沉 logic.js，页面不得再各写一份深拷贝 + delete
+    const logicSrc = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'logic.js'), 'utf8');
+    const fnSrc = logicSrc.match(/function backupJSONText\([\s\S]*?\n {2}\}/);
+    assert.ok(fnSrc, 'logic.js 必须有 backupJSONText');
+    assert.match(stripComments(fnSrc[0]), /delete sn\.totalCNY/,
       '导出前必须逐条剥离 totalCNY：它的唯一真相是 assets × currencyRates，写进文件后一旦导入端不重算就会留下与资产脱节的旧值');
+    for (const fn of ['downloadBackupJSON', 'exportDataAsync', 'exportViaSavePicker', 'writeAutoBackupToDir']) {
+      assert.match(stripComments(fnSource(fn)), /backupJSONText\(state\)/,
+        `${fn} 必须用同一份 backupJSONText 生成内容`);
+    }
   });
 
   test('导入合并后必须走 migrateState()（与 loadState 共用同一套迁移/兜底）', () => {
@@ -568,6 +576,58 @@ describe('UI 接线契约：导入/导出（纯原始格式 + 迁移兜底共用
     assert.ok(mergeIdx >= 0, '导入应先合并顶层字段');
     assert.ok(migrateIdx > mergeIdx,
       '合并后必须调用 migrateState（旧 expectedRate、旧快照格式、缺字段、孤儿标签的兜底唯一入口）');
+  });
+});
+
+describe('UI 接线契约：备份文件夹', () => {
+  test('设置弹窗必须有备份文件夹行，且回显走 syncBackupControls', () => {
+    assert.strictEqual(count(/id="settings-backup-dir-note"/g), 1);
+    assert.match(html, /id="backup-dir-choose"[^>]*onclick="chooseBackupDir\(\)"/);
+    assert.match(html, /id="backup-dir-clear"[^>]*onclick="clearBackupDir\(\)"/);
+    const src = stripComments(fnSource('syncBackupControls'));
+    assert.match(src, /settings-backup-dir-note/);
+    assert.match(src, /backupDirNoteText\(/);
+    assert.match(src, /backup-dir-clear/);
+  });
+
+  test('onclick 只挂同步入口，异步实现单独命名（内联名收集器不认 async function）', () => {
+    assert.match(html, /function chooseBackupDir\(\) \{ chooseBackupDirAsync\(\); \}/);
+    assert.match(html, /function clearBackupDir\(\) \{ clearBackupDirAsync\(\); \}/);
+    assert.match(html, /function exportData\(\) \{\n {2}syncBackupControls\(\);[\s\S]*?exportDataAsync\(\);/);
+    assert.strictEqual(count(/onclick="chooseBackupDirAsync/g), 0);
+    assert.strictEqual(count(/onclick="clearBackupDirAsync/g), 0);
+    assert.strictEqual(count(/onclick="exportDataAsync/g), 0);
+  });
+
+  test('目录句柄只进 IndexedDB，绝不进 state / 导出 JSON', () => {
+    assert.match(html, /const BACKUP_DB = 'wealth-backup'/);
+    assert.match(html, /idbSetBackupDir\(/);
+    assert.match(html, /idbGetBackupDir\(/);
+    assert.strictEqual(count(/state\.backup\.dir/g), 0, '句柄不可序列化，不得写进 state');
+    const fresh = stripComments(fnSource('freshAppState'));
+    assert.doesNotMatch(fresh, /dir|handle|folder/i, 'state 初始值不得出现目录字段');
+  });
+
+  test('自动备份路径绝不申请权限 / 弹保存框：只 query，回退下载', () => {
+    const auto = stripComments(fnSource('writeAutoBackupToDir'));
+    assert.doesNotMatch(auto, /requestPermission|showDirectoryPicker|showSaveFilePicker/,
+      '4 秒定时器没有用户手势，弹框/申请权限必然失败');
+    assert.match(auto, /queryDirPermission\(/);
+    const maybe = stripComments(fnSource('maybeAutoBackup'));
+    assert.match(maybe, /await backupDirReady/, '写盘前必须等 IDB 恢复完成');
+    assert.match(maybe, /downloadBackupJSON\(\);/, '目录不可用时回退下载');
+  });
+
+  test('只有确认写入才记「已备份」：所有路径统一走 applyBackupResult', () => {
+    const apply = stripComments(fnSource('applyBackupResult'));
+    assert.match(apply, /if \(notice\.recordBackup\) markBackedUp\(today\)/);
+    assert.match(apply, /if \(notice\.recordAutoDownload\) state\.backup\.lastAutoDownload = today/);
+    assert.match(apply, /syncBackupControls\(\)/);
+    for (const fn of ['exportDataAsync', 'exportViaSavePicker', 'maybeAutoBackup']) {
+      const src = stripComments(fnSource(fn));
+      assert.match(src, /applyBackupResult\(/, `${fn} 的结果必须交统一口径判定`);
+      assert.doesNotMatch(src, /markBackedUp\(/, `${fn} 不得绕过 applyBackupResult 直接记成功`);
+    }
   });
 });
 
@@ -1346,7 +1406,9 @@ describe('UI 接线契约：内联事件属性必须是合法 JS（单测看不�
     const logic = fs.readFileSync(path.join(__dirname, '..', 'logic.js'), 'utf8');
     const declared = new Set();
     const collect = (src, indent) => {
-      const re = new RegExp(`^${indent}(?:function|let|const|var)\\s+([A-Za-z_$][\\w$]*)`, 'gm');
+      // `async function` 同样是**顶格声明**（函数声明提升，内联处理器能直接调用），
+      // 漏掉它会把「图表渲染改成 async」这种正常重构误报成「名字不存在」。
+      const re = new RegExp(`^${indent}(?:async\\s+)?(?:function|let|const|var)\\s+([A-Za-z_$][\\w$]*)`, 'gm');
       for (const m of src.matchAll(re)) declared.add(m[1]);
       // `let a = 1, b = 2;` 这类同行多声明（同样只认顶层）
       const re2 = new RegExp(`^${indent}(?:let|const|var)\\s+[^;=]+=[^;]*;`, 'gm');

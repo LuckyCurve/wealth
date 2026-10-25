@@ -45,8 +45,9 @@ interface AppState {
   runwayExpectation: number;     // 读数卡自定月消费 (CNY)，0=用全局 expenseExpectation，不回填全局
   backup: {
     autoFreq: 'daily' | 'weekly' | 'off';
-    lastBackup: string | null;
-    lastAutoDownload: string | null;
+    lastBackup: string | null;      // 只在**确认写入成功**后更新
+    lastAutoDownload: string | null; // 自动备份节流；回退下载也更新
+    // 备份文件夹句柄不进 state（不可序列化），只存 IndexedDB
   };
 }
 
@@ -189,7 +190,7 @@ interface Expense {
   - **不用时间进度做对照基准**：消费沿时间并不均匀（房租这类大额固定支出在月初入账），「比时间进度多花/少花」几乎只由那笔支出的入账日决定，不携带「是否花超了」的信息，还会诱导用户把正常支出当异常。只报两个不依赖均匀假设、直接可决策的数：**剩余预算**与**日均可用**（剩余 ÷ 余下天数）。
   - 余下天数按**今天算整天**；打平算不超（与收益差额口径同精神）；超支时剩余归零、不呈现负的日均，只报超出额；月末推算不做（月初噪声大，违背保守口径）。
 - **暗色模式** — 切换入口唯一在设置弹窗；`<head>` 内联脚本在渲染前定好初始主题（跟随系统，显式切换后以存储为准），避免首屏闪烁。
-- **设置弹窗** — 导入/导出、外观、自动备份的唯一入口。
+- **设置弹窗** — 导入/导出、外观、自动备份、备份文件夹的唯一入口。
 - **统一提示便条** — 全站唯一的瞬时反馈出口（`toast` / `#toast-area`），**禁止第二套通道**；三种语义色（success/error/info）；同文案同类型且未退场时只重置计时不堆叠。
 - **图表空态与转义** — 所选维度无数据时显示空态而非空白画布；旭日图标签只显示名称，数值/占比在 tooltip；**tooltip 中插值的用户输入（资产名/标签等）必须转义，防存储型 XSS**。
   - **拼进 `id` / `data-*` 的元素 id 同样要转义**：记录 id 不经用户手、来自导入的 JSON，一个双引号就能截断属性并插进新标签——实测校验面板真执行了脚本。`id` 与 `data-target` 必须走**同一个**转义后的串（否则 `getElementById` 对不上）；`data-*` 用 `esc` 而非 `jsAttr`（后者会把反斜杠翻倍，`dataset` 读回与 state 的 id 失配）。
@@ -219,7 +220,10 @@ interface Expense {
     - 可聚焦元素用 `offsetParent === null` 过滤：CSS 藏起来的控件还在 DOM 里，`focus()` 上去等于把焦点丢出弹窗。
 - **便条播报档位** — 容器上留 `aria-live="polite"` 初值是对的（live region 要在加载时就存在，读屏器才会注册），但**每条便条都要按类型改写档位**：`error` → `assertive`（出错了要立刻打断朗读），其余 → `polite`。写死 `polite` 会把 22 处 error 全排到用户下次操作之后才念，等于把「现在就得知道」降级成「顺口提一句」。判据在 logic.js `toastLiveMode`。档位必须写在**容器**上——读屏器只认 live region 的档位，逐条设 `aria-live` 无效。
 - **数据导入/导出** — 导出剥离快照加工字段 `totalCNY`；导入校验必要字段后走 `migrateState()`。
-- **数据防丢备份** — 两层：①启动后按频率静默自动下载（仅在有数据时），导出前须 `await` 同一笔汇率拉取完成，避免写入过期汇率；②距上次备份超期时温和提醒。是否该备份、超期天数、文案等决策在 logic.js（可单测），index.html 只留 DOM 副作用。
+- **数据防丢备份** — 两层：①启动后按频率自动备份（仅在有数据时），导出前须 `await` 同一笔汇率拉取完成，避免写入过期汇率；②距上次备份超期时温和提醒。是否该备份、超期天数、文案等决策在 logic.js（可单测），index.html 只留 DOM 副作用。
+  - **只有确认写入才记「已备份」**：`<a download>` 没有回执（保存到哪、是否被拦截都不知道），据此记成功就是虚报。故设置里可选备份文件夹（File System Access API，句柄只进 IndexedDB），手动导出与自动备份都写入该目录；未选时手动走保存框（确认才算成功），自动与不支持的浏览器回退下载——回退只更新 `lastAutoDownload` 节流，不动 `lastBackup`，文案中性（「已开始下载，请在下载栏确认」）。手动导出取消不算失败也不算成功。
+  - **自动路径没有用户手势**：4 秒定时器里绝不能弹选择器或 `requestPermission`，权限为 `prompt` 时只能回退下载。写盘目标与结果口径（`backupWritePlan` / `backupResultNotice`）在 logic.js 单一判定。
+  - **同名文件不覆盖**：自动备份视为「今日已备份」；手动导出自动加 `-2`、`-3` 后缀。探测文件是否存在失败时不得当成「不存在」（那样会覆盖）。
 - **示例数据** — 资产/消费各有示例加载，覆盖前二次确认；示例含现金比例演示。
 
 ## 开发
@@ -265,6 +269,7 @@ interface Expense {
 - **进资产的入口只有 `fixtures.gotoAssets()` 一处**：它走键盘通道（合成 click）直达确认框，既不必等满按住时长，也顺带护住「不用鼠标的人不被挡在门外」这条路径；长按手势本身由 `app.spec.js` 的专测用真实鼠标覆盖。已在资产模式时为幂等（不再走门）。
 - **读内存态 vs 读存档**：`migrateState()` 只修内存态、不回写 localStorage。验证「已落盘」读 localStorage，验证「迁移/兜底已生效」读 `state`。
 - **seed 只在首次导航生效**：`addInitScript` 对每次导航（含 reload）都会重跑，若无条件覆盖，reload 会把存档洗回种子值 —— 持久化用例会「永远绿」（假通过）。标记用 sessionStorage（同一标签页跨 reload 存活、每个用例独立）。
+- **OPFS 句柄不能跨 reload 读回**：目录写入用例用 `navigator.storage.getDirectory()` 造真实可写句柄，但 headless Chromium 从 IndexedDB 反序列化该句柄会让渲染进程崩溃（真实选择器句柄不受影响）。因此只断言记录已写入（`getAllKeys`），不在 reload 后使用它。
 - **静态服务器的健康检查要验明正身**：`webServer.url` 指向 `/__e2e_health__`（仅本服务器提供）。`reuseExistingServer` 只看端口是否响应，固定端口被别的服务占用时会静默连错，症状是一堆难以理解的失败。
 - 静态服务器 `e2e/server.js` 是零依赖的、只服务本项目目录；不用 `file://`，因为 localStorage 在 file origin 下不可靠。
 - TDD 同样适用：E2E 是发现「能打开但点不动」这类 bug 的地方（如原生 `step` 校验静默拦截提交），先写失败用例再改实现。

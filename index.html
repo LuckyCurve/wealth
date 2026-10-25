@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='%23d9b25e'/><stop offset='1' stop-color='%238f6713'/></linearGradient></defs><path fill-rule='evenodd' d='M16 2a14 14 0 1 0 0 28 14 14 0 1 0 0-28zM10.5 10.5h11v11h-11z' fill='url(%23g)'/><path d='M10.5 10.5v3M10.5 10.5h3M21.5 10.5v3M21.5 10.5h-3M10.5 21.5v-3M10.5 21.5h3M21.5 21.5v-3M21.5 21.5h-3' stroke='%23211b10' stroke-width='1.8' stroke-linecap='round' fill='none'/></svg>">
 <title>财富管理</title>
+<meta name="description" content="本机保存的个人资产与消费账本：记录资产、月度快照、消费与趋势，数据不上传。">
 <script>
   // 开屏入场的两态（见 CSS 里的「落纸」）：booting = 「骨架先说：我要入场了」。
   // 放在 <head> 同步执行是为了首帧就到「未落定」那一态（晚一帧会先看见内容再跳一下）。
@@ -20,10 +21,11 @@
   })();
 </script>
 <script src="https://cdn.tailwindcss.com"></script>
-<script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+<!-- 图表库按需加载（见 ensureEChartsReady）：默认页不画图，首屏不下载 ~420KB。
+     日期选择器不参与首屏渲染：defer 让它们不阻塞解析/首绘。 -->
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
-<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-<script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/zh.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/zh.js"></script>
 <!-- 字体走 Google 官方大陆端点 fonts.googleapis.cn / fonts.gstatic.cn（国内 CDN，比直连 gstatic.com 快且稳）。
      子集化按 unicode-range 按需下载，仅取页面实际用到的字重；display=swap 保证字体未就绪时先用系统字体渲染。
      media=print + onload 让字体 CSS 不阻塞首屏——CDN 再慢页面也会立即显示。 -->
@@ -812,9 +814,12 @@ tailwind.config = {
     padding: 12px 24px; border-radius: 8px; font-size: var(--fs-body);
     animation: slideUp 0.25s ease; box-shadow: 0 4px 20px rgba(0,0,0,0.1);
     font-family: var(--font-body); border: 1px solid;
-    pointer-events: auto; transition: opacity 0.3s ease, transform 0.3s ease;
+    pointer-events: auto; transition: transform 0.3s ease, visibility 0s 0.3s;
   }
-  .toast.leaving { opacity: 0; transform: translateY(6px); }
+  /* 退场只用位移，不用透明度：压淡文字会让便条在消失前的一瞬掉到 1.06:1
+     （Lighthouse 实测抓到），而它承载的是刚发生的结论。visibility 延迟到动画结束才切，
+     中间没有「半透明但仍占位」的样式。 */
+  .toast.leaving { transform: translateY(6px); visibility: hidden; transition: transform 0.3s ease, visibility 0s 0.3s; }
   /* 与 mo-badge 同色系: 提示即一张盖在账页上的便条。三种墨色=三种语义:
      绿=操作已落账 / 红=出错待处理 / 金墨边注(info)=系统自己的中性知会，注意但不报警 */
   .toast-success { background: #e8f5ec; color: #3d7a52; border-color: #b8dfc4; }
@@ -893,6 +898,8 @@ tailwind.config = {
   /* 边注状态行: 金墨点引导, 与 masthead live-dot / 章节线同语言 */
   .setting-note { display: inline-flex; align-items: center; gap: 7px; margin-top: 10px; font-size: var(--fs-micro); letter-spacing: 0.04em; color: var(--muted); }
   .setting-note::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: var(--accent-soft); flex-shrink: 0; }
+  /* 设置行右侧的操作按钮组（如备份文件夹的选择/清除），窄屏可换行 */
+  .setting-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
   /* 安全边际因子: 与 seg-control 同语言的参数条, 账页边注式 */
   .safety-control { display: inline-flex; align-items: center; gap: 10px; padding: 5px 10px; border-radius: 8px; background: var(--bg-2); border: 1px solid var(--border); }
   .safety-label { font-family: var(--font-body); font-size: var(--fs-micro); color: var(--muted); letter-spacing: 0.08em; }
@@ -1338,7 +1345,7 @@ tailwind.config = {
         <h2 class="font-display">资产分布</h2>
         <p class="sub">按分类维度查看资产分布（已换算 CNY）</p>
       </div>
-      <select id="chart-category-select" onchange="renderChart()" class="select-field">
+      <select id="chart-category-select" onchange="renderChart()" class="select-field" aria-label="资产分布分类维度">
       </select>
     </div>
     <div class="card">
@@ -1365,7 +1372,7 @@ tailwind.config = {
         <p class="sub">记录每月快照，看净值趋势</p>
       </div>
       <div class="flex items-center gap-3 flex-wrap">
-        <select id="history-category-select" onchange="renderHistoryChart()" class="select-field"></select>
+        <select id="history-category-select" onchange="renderHistoryChart()" class="select-field" aria-label="历史净值分类维度"></select>
         <div class="seg-control">
           <button id="hist-mode-value" onclick="setHistoryChartMode('value')" class="seg-btn active">金额</button>
           <button id="hist-mode-percent" onclick="setHistoryChartMode('percent')" class="seg-btn">占比</button>
@@ -1470,7 +1477,7 @@ tailwind.config = {
             <button id="income-chart-mode-cash" onclick="setIncomeChartMode('cash')" class="seg-btn active">现金收益</button>
             <button id="income-chart-mode-total" onclick="setIncomeChartMode('total')" class="seg-btn">总收益</button>
           </div>
-          <select id="income-chart-category-select" onchange="renderIncomeChart()" class="select-field"></select>
+          <select id="income-chart-category-select" onchange="renderIncomeChart()" class="select-field" aria-label="收益分布分类维度"></select>
         </div>
       </div>
       <div class="chart-split">
@@ -1498,7 +1505,7 @@ tailwind.config = {
             <input type="text" id="expense-search" placeholder="搜索备注 / 标签 / 分类" class="t-body" autocomplete="off" oninput="renderExpenses()" onkeydown="if(event.key==='Escape')clearExpenseSearch()">
             <button type="button" id="expense-search-clear" class="search-clear" onclick="clearExpenseSearch()" tabindex="-1" aria-label="清除搜索" style="display:none;">×</button>
           </span>
-          <select id="expense-month-filter" onchange="renderExpenses()" class="select-field"></select>
+          <select id="expense-month-filter" onchange="renderExpenses()" class="select-field" aria-label="消费月份筛选"></select>
           <select id="expense-tag-filter" onchange="renderExpenses()" class="select-field" aria-label="按标签筛选"></select>
           <button onclick="openExpenseModal()" class="btn-gold">＋ 记录消费</button>
         </div>
@@ -1552,8 +1559,8 @@ tailwind.config = {
           <p class="sub">按分类维度和月份查看消费分布</p>
         </div>
         <div class="flex items-center gap-3">
-          <select id="expense-chart-month-select" onchange="renderExpenseChart()" class="select-field"></select>
-          <select id="expense-chart-category-select" onchange="renderExpenseChart()" class="select-field"></select>
+          <select id="expense-chart-month-select" onchange="renderExpenseChart()" class="select-field" aria-label="消费分布月份"></select>
+          <select id="expense-chart-category-select" onchange="renderExpenseChart()" class="select-field" aria-label="消费分布分类维度"></select>
         </div>
       </div>
       <div class="card">
@@ -1580,7 +1587,7 @@ tailwind.config = {
           <p class="sub">按月查看消费趋势</p>
         </div>
         <div class="flex items-center gap-3">
-          <select id="expense-trend-category-select" onchange="renderExpenseTrendChart()" class="select-field"></select>
+          <select id="expense-trend-category-select" onchange="renderExpenseTrendChart()" class="select-field" aria-label="消费趋势分类维度"></select>
           <div class="seg-control">
             <button id="expense-trend-mode-value" onclick="setExpenseTrendMode('value')" class="seg-btn active">金额</button>
             <button id="expense-trend-mode-percent" onclick="setExpenseTrendMode('percent')" class="seg-btn">占比</button>
@@ -1999,6 +2006,18 @@ tailwind.config = {
           <button id="backup-freq-off" onclick="setBackupFreq('off')" class="seg-btn" aria-pressed="false">关闭</button>
         </div>
       </div>
+      <hr>
+      <div class="setting-row">
+        <div class="setting-info">
+          <p class="setting-label">备份文件夹</p>
+          <p class="setting-desc">选择后，手动导出与自动备份都直接写入该文件夹；未选择时手动导出弹保存框、自动备份进「下载」文件夹。仅 Chrome / Edge 支持直接写入。</p>
+          <p id="settings-backup-dir-note" class="setting-note"></p>
+        </div>
+        <div class="setting-actions">
+          <button type="button" id="backup-dir-choose" onclick="chooseBackupDir()" class="btn-ghost btn-sm">选择文件夹</button>
+          <button type="button" id="backup-dir-clear" onclick="clearBackupDir()" class="btn-danger btn-sm" hidden>清除</button>
+        </div>
+      </div>
     </div>
     <div class="modal-footer between">
       <button type="button" onclick="closeModal('settings-modal');showImportExport();" class="btn-ghost">备份与导入…</button>
@@ -2109,9 +2128,10 @@ function observeChartSize(chart) {
     if (document.fonts && document.fonts.ready) {
       document.fonts.ready.then(() => refreshVisibleCharts());
     }
-    // 备份守护：先进新鲜度提醒（方案 C），再按需触发当日自动下载（方案 A）；
-    // 自动下载在 maybeAutoBackup 内部延迟数秒，避开首屏渲染高峰
+    // 备份守护：先进新鲜度提醒（方案 C），再按需触发当日自动备份（方案 A）；
+    // 自动备份在 maybeAutoBackup 内部延迟数秒，避开首屏渲染高峰
     checkBackupStale();
+    backupDirReady = restoreBackupDir(); // 句柄从 IndexedDB 恢复；自动备份写盘前会 await
     maybeAutoBackup(ratePromise);
     syncLamp(); // 判定开关（此时还没指针坐标，灯不会亮；首枚坐标到达时再由 setLampAt 点亮）
   });
@@ -3017,6 +3037,29 @@ const TOOLTIP_CSS = 'border-radius:6px;padding:10px 14px;box-shadow:0 6px 18px r
 // ECharts canvas 不认 CSS 变量，字体族只能以字面量传给各图；集中一处，改字族只改这里。
 const CHART_FONT = '"IBM Plex Mono", monospace';
 
+// ECharts 按需加载：默认（消费）页不画图，首屏不必下载整包图表库。
+// 只在第一次 init 时加载；容器不可见（0 宽/高）既不加载也不 init——
+// 拿 0 去 init 才是把图做废的那一步（与 observeChartSize 同一约束）。
+let echartsLoading = null;
+function ensureEChartsReady(el) {
+  if (!el || el.clientWidth === 0 || el.clientHeight === 0) return Promise.resolve(false);
+  if (window.echarts) return Promise.resolve(true);
+  if (!echartsLoading) {
+    echartsLoading = new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = 'https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js';
+      s.onload = resolve;
+      s.onerror = () => reject(new Error('echarts-load-failed'));
+      document.head.appendChild(s);
+    });
+    echartsLoading.catch(() => { echartsLoading = null; }); // 失败允许下次重试
+  }
+  return echartsLoading.then(() => true, () => {
+    toast('图表组件加载失败', 'error');
+    return false;
+  });
+}
+
 // 图表/空态显隐切换：show=true 显示图表、隐藏空态；反之显示空态
 function showChartOrEmpty(chartEl, emptyEl, show) {
   chartEl.style.display = show ? '' : 'none';
@@ -3890,7 +3933,7 @@ function fillCategorySelect(selId, cats) {
   if (current && sel.querySelector(`option[value="${current}"]`)) sel.value = current;
 }
 
-function renderChart() {
+async function renderChart() {
   const catId = document.getElementById('chart-category-select').value;
   if (!catId) return;
 
@@ -3937,6 +3980,8 @@ function renderChart() {
   renderChartTotal(totalEl, view.total);
 
   if (!chart) {
+    if (!(await ensureEChartsReady(chartEl))) return;
+    if (chart) return; // 并发调用已经建好实例
     chart = echarts.init(chartEl);
     observeChartSize(chart);
     wireSunburstDrill(chart, 'chart-legend');
@@ -4252,7 +4297,7 @@ function setHistoryChartMode(mode) {
   setSegMode('hist-mode-value', 'hist-mode-percent', mode, 'value', 'percent', renderHistoryChart);
 }
 
-function renderHistoryChart() {
+async function renderHistoryChart() {
   const catId = document.getElementById('history-category-select').value;
   const chartEl = document.getElementById('history-chart');
   const emptyEl = document.getElementById('history-empty');
@@ -4310,6 +4355,8 @@ function renderHistoryChart() {
   });
 
   if (!historyChart) {
+    if (!(await ensureEChartsReady(chartEl))) return;
+    if (historyChart) return; // 并发调用已经建好实例
     historyChart = echarts.init(chartEl);
     observeChartSize(historyChart);
     // 图例选中态记忆：用户点击图例隐藏/显示系列时保存，重绘后回灌（切模式/切主题不丢）
@@ -4745,7 +4792,7 @@ function setIncomeChartMode(mode) {
   setSegMode('income-chart-mode-cash', 'income-chart-mode-total', mode, 'cash', 'total', renderIncomeChart);
 }
 
-function renderIncomeChart() {
+async function renderIncomeChart() {
   const catId = document.getElementById('income-chart-category-select').value;
   if (!catId) return;
 
@@ -4773,6 +4820,8 @@ function renderIncomeChart() {
   });
 
   if (!incomeChart) {
+    if (!(await ensureEChartsReady(el))) return;
+    if (incomeChart) return; // 并发调用已经建好实例
     incomeChart = echarts.init(el);
     observeChartSize(incomeChart);
     wireSunburstDrill(incomeChart, 'income-chart-legend');
@@ -4936,23 +4985,185 @@ function showImportExport() {
 }
 
 // ========== BACKUP (自动备份 + 新鲜度提醒) ==========
-// 方案 A：当天首次打开页面时，静默触发一次 JSON 下载到浏览器默认「下载」目录
-// （<a download> 无需任何授权 API）。带日期的文件按日堆积即版本历史；建议用户
-// 把浏览器下载目录指向网盘同步文件夹，即可获得异地容灾。
+// 方案 A：当天首次打开页面时备份一次。已选备份文件夹且授权可用 → 静默写入该文件夹；
+// 否则回退浏览器「下载」目录（<a download>，无任何回执）。带日期的文件按日堆积即版本历史。
 // 方案 C：距上次备份超过 7 天且已有数据时，进页面温和提醒。
-// 决策逻辑（shouldAutoBackup / backupStaleDays / hasAnyBackupWorthyData）在 logic.js，
-// 此处只保留 DOM 副作用（下载、toast、storage 写入），保证分支可被 node --test 覆盖
+// 决策逻辑（shouldAutoBackup / backupStaleDays / backupWritePlan / backupResultNotice）在 logic.js，
+// 此处只保留 DOM 副作用（写盘、toast、storage 写入），保证分支可被 node --test 覆盖
 
-// 触发一次浏览器下载（纯原始数据格式：剥离快照中的加工字段 totalCNY，
-// 该值可由快照 assets × currencyRates 重算，导入时由 migrateState 补全）
+// 目录句柄不能进 state（不可 JSON 序列化，也不该随导出走）：只存 IndexedDB。
+// 全部读写容错——隐私模式 / IDB 不可用时退化为「仅本次会话可用」，不阻塞首屏。
+const BACKUP_DB = 'wealth-backup';
+const BACKUP_STORE = 'handles';
+const BACKUP_DIR_KEY = 'backupDir';
+let backupDirHandle = null;
+let backupDirReady = Promise.resolve(null);
+let backupDirTouched = false; // 用户已主动选择/清除：启动恢复不得覆盖新值
+let dirPickInFlight = false;
+let backupInFlight = false;
+
+function openBackupDB() {
+  if (typeof indexedDB === 'undefined') return Promise.reject(new Error('no-idb'));
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(BACKUP_DB, 1);
+    req.onupgradeneeded = () => { req.result.createObjectStore(BACKUP_STORE); };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+    req.onblocked = () => reject(new Error('idb-blocked'));
+  });
+}
+
+async function idbGetBackupDir() {
+  const db = await openBackupDB();
+  try {
+    return await new Promise((resolve, reject) => {
+      const tx = db.transaction(BACKUP_STORE, 'readonly');
+      const req = tx.objectStore(BACKUP_STORE).get(BACKUP_DIR_KEY);
+      req.onsuccess = () => {
+        const h = req.result && req.result.handle;
+        resolve(h && typeof h.getFileHandle === 'function' ? h : null);
+      };
+      req.onerror = () => reject(req.error);
+    });
+  } finally { db.close(); }
+}
+
+async function idbSetBackupDir(handle) {
+  const db = await openBackupDB();
+  try {
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction(BACKUP_STORE, 'readwrite');
+      tx.objectStore(BACKUP_STORE).put({ handle, name: handle.name || '', savedAt: Date.now() }, BACKUP_DIR_KEY);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error);
+    });
+  } finally { db.close(); }
+}
+
+async function idbClearBackupDir() {
+  const db = await openBackupDB();
+  try {
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction(BACKUP_STORE, 'readwrite');
+      tx.objectStore(BACKUP_STORE).delete(BACKUP_DIR_KEY);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error);
+    });
+  } finally { db.close(); }
+}
+
+// 启动恢复：失败/为空都按「未选择」处理；用户已在本次会话操作过则不回滚
+async function restoreBackupDir() {
+  try {
+    const h = await idbGetBackupDir();
+    if (h && !backupDirTouched) backupDirHandle = h;
+  } catch (e) { /* IndexedDB 不可用：本次会话没有持久句柄 */ }
+  syncBackupControls();
+  return backupDirHandle;
+}
+
+function canPickBackupDir() { return typeof window.showDirectoryPicker === 'function'; }
+function canSaveBackupFile() { return typeof window.showSaveFilePicker === 'function'; }
+
+// 权限三态：没有 queryPermission 的句柄（如 OPFS）按已授权处理
+async function queryDirPermission(handle) {
+  if (!handle || typeof handle.queryPermission !== 'function') return 'granted';
+  try { return normalizeDirPermission(await handle.queryPermission({ mode: 'readwrite' })); }
+  catch (e) { return 'denied'; }
+}
+
+async function requestDirPermission(handle) {
+  if (!handle || typeof handle.requestPermission !== 'function') return 'granted';
+  try { return normalizeDirPermission(await handle.requestPermission({ mode: 'readwrite' })); }
+  catch (e) { return 'denied'; }
+}
+
+// ===== 设置入口（onclick 只挂同步包装；异步实现单独命名）=====
+function chooseBackupDir() { chooseBackupDirAsync(); }
+
+async function chooseBackupDirAsync() {
+  if (!canPickBackupDir()) {
+    toast('当前浏览器不支持选择文件夹，备份将保存到「下载」文件夹', 'info');
+    return;
+  }
+  if (dirPickInFlight) return;
+  dirPickInFlight = true;
+  try {
+    // 第一个 await 之前先弹选择器：拖到别的 await 之后会丢失用户手势
+    const handle = await window.showDirectoryPicker({ mode: 'readwrite' });
+    backupDirTouched = true;
+    backupDirHandle = handle;
+    try { await idbSetBackupDir(handle); } catch (e) { /* 本次会话仍可用，刷新后需重选 */ }
+    syncBackupControls();
+    toast(`已选择备份文件夹「${handle.name || '备份文件夹'}」`, 'success');
+  } catch (e) {
+    if (e && e.name === 'AbortError') return; // 用户取消，不打扰
+    toast('选择文件夹失败', 'error');
+  } finally { dirPickInFlight = false; }
+}
+
+// 只忘句柄与持久化记录，不删除任何文件
+function clearBackupDir() { clearBackupDirAsync(); }
+
+async function clearBackupDirAsync() {
+  backupDirTouched = true;
+  backupDirHandle = null;
+  try { await idbClearBackupDir(); } catch (e) { /* IDB 不可用：内存已清 */ }
+  syncBackupControls();
+  toast('已清除备份文件夹', 'success');
+}
+
+// ===== 写盘 =====
+async function dirHasFile(dir, name) {
+  try { await dir.getFileHandle(name); return true; }
+  catch (e) {
+    if (e && e.name === 'NotFoundError') return false;
+    throw e; // 探测失败不能当成「不存在」，否则可能覆盖
+  }
+}
+
+async function firstAvailableBackupName(dir, today) {
+  for (let seq = 1; seq < 1000; seq++) {
+    const name = backupFileName(today, seq);
+    if (!(await dirHasFile(dir, name))) return name;
+  }
+  throw new Error('no-free-backup-name');
+}
+
+// close() 成功才算写入完成；中途失败不会提交半截文件
+async function writeDirFile(dir, name, text) {
+  const fh = await dir.getFileHandle(name, { create: true });
+  const w = await fh.createWritable();
+  await w.write(text);
+  await w.close();
+}
+
+// 自动备份尝试写目录：只有目录可用且已授权才返回结果；
+// 无句柄 / 权限不足 / 任何异常都返回 null，由调用方回退下载（绝不弹框、绝不申请权限）
+async function writeAutoBackupToDir(today) {
+  if (!backupDirHandle) return null;
+  try {
+    const permission = await queryDirPermission(backupDirHandle);
+    const plan = backupWritePlan({
+      mode: 'auto', hasDir: true, permission, supportsDir: canPickBackupDir(),
+    });
+    if (plan.target !== 'dir') return null;
+    const name = backupFileName(today);
+    if (await dirHasFile(backupDirHandle, name)) return 'exists';
+    await writeDirFile(backupDirHandle, name, backupJSONText(state));
+    return 'written';
+  } catch (e) { return null; }
+}
+
+// 触发一次浏览器下载（兜底路径：无回执，绝不能据此记「已备份」）
 function downloadBackupJSON() {
-  const clean = JSON.parse(JSON.stringify(state));
-  (clean.snapshots || []).forEach(s => { delete s.totalCNY; });
-  const blob = new Blob([JSON.stringify(clean, null, 2)], { type: 'application/json' });
+  const blob = new Blob([backupJSONText(state)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `wealth-data-${getLocalDateStr()}.json`;
+  a.download = backupFileName(getLocalDateStr());
   document.body.appendChild(a);
   a.click();
   a.remove();
@@ -4963,11 +5174,19 @@ function markBackedUp(today) {
   state.backup.lastBackup = today;
 }
 
+// 所有备份路径的唯一收尾点：按结果决定记不记成功，再统一刷新控件与便条
+function applyBackupResult(notice, today) {
+  if (notice.recordBackup) markBackedUp(today);
+  if (notice.recordAutoDownload) state.backup.lastAutoDownload = today;
+  if (notice.recordBackup || notice.recordAutoDownload) saveState();
+  syncBackupControls();
+  toast(notice.msg, notice.type);
+}
+
 // 方案 A 入口：是否触发由 logic.js 的 shouldAutoBackup 判定，此处延迟数秒执行
-// （避开首屏渲染；非手势单次下载 Chrome/Edge 通常放行，被拦截时静默跳过仍可手动导出）
 // ratePromise 为本次启动 DOMContentLoaded 中那笔 fetchRates 的 promise：
-// 导出前先 await 它，确保 state.rates 已更新（成功写入新汇率 / 失败回退缓存）再下载，
-// 避免备份抢在汇率刷新前落盘拿到过期汇率。失败也不阻塞备份，用缓存汇率继续。
+// 备份前先 await 它，确保 state.rates 已更新（成功写入新汇率 / 失败回退缓存）再落盘，
+// 避免备份抢在汇率刷新前拿到过期汇率。失败也不阻塞备份，用缓存汇率继续。
 async function maybeAutoBackup(ratePromise) {
   if (!shouldAutoBackup(state, getLocalDateStr())) return;
   setTimeout(async () => {
@@ -4975,12 +5194,22 @@ async function maybeAutoBackup(ratePromise) {
       if (ratePromise) await ratePromise;
     } catch (e) { /* 汇率拉取失败也无妨，用缓存汇率继续备份 */ }
     try {
-      downloadBackupJSON();
-      const t = getLocalDateStr();
-      state.backup.lastAutoDownload = t;
-      markBackedUp(t);
-      saveState();
-      toast('已自动备份到「下载」文件夹', 'success');
+      await backupDirReady; // 目录句柄从 IDB 恢复完成后再决定写哪
+      if (backupInFlight) return;
+      backupInFlight = true;
+      try {
+        const t = getLocalDateStr();
+        const outcome = await writeAutoBackupToDir(t);
+        if (outcome) {
+          applyBackupResult(backupResultNotice({
+            mode: 'auto', target: 'dir', status: outcome,
+            folderName: backupDirHandle && backupDirHandle.name,
+          }), t);
+        } else {
+          downloadBackupJSON();
+          applyBackupResult(backupResultNotice({ mode: 'auto', target: 'download', status: 'downloaded' }), t);
+        }
+      } finally { backupInFlight = false; }
     } catch (e) { /* 忽略 */ }
   }, 4000);
 }
@@ -4994,8 +5223,8 @@ function checkBackupStale() {
   }
 }
 
-// 统一同步备份控件：设置弹窗（频率 seg + 边注）与 io-modal 的上次备份文案。
-// 打开任一弹窗、setBackupFreq、手动导出后调用——单一入口，杜绝多 UI 失同步
+// 统一同步备份控件：设置弹窗（频率 seg + 边注 + 文件夹状态）与 io-modal 的上次备份文案。
+// 打开任一弹窗、setBackupFreq、选择/清除文件夹、手动导出后调用——单一入口，杜绝多 UI 失同步
 function syncBackupControls() {
   const freq = normalizeBackupFreq(state.backup.autoFreq);       // 白名单归一，单一来源
   const noteText = backupNoteText(state.backup.lastBackup, getLocalDateStr()); // 文案纯函数在 logic.js
@@ -5009,6 +5238,12 @@ function syncBackupControls() {
   });
   const noteEl = document.getElementById('settings-backup-note');
   if (noteEl) noteEl.textContent = noteText;
+  const dirNote = document.getElementById('settings-backup-dir-note');
+  if (dirNote) {
+    dirNote.textContent = backupDirNoteText(!!backupDirHandle, backupDirHandle && backupDirHandle.name, canPickBackupDir());
+  }
+  const clearBtn = document.getElementById('backup-dir-clear');
+  if (clearBtn) clearBtn.hidden = !backupDirHandle;
 }
 
 function setBackupFreq(v) {
@@ -5019,11 +5254,72 @@ function setBackupFreq(v) {
 }
 
 function exportData() {
-  downloadBackupJSON();
-  markBackedUp(getLocalDateStr());
-  saveState();
-  syncBackupControls(); // 两处「上次备份」显示同源刷新
-  toast('数据已导出', 'success');
+  syncBackupControls(); // 两处「上次备份」显示同源刷新（既有契约）
+  exportDataAsync();
+}
+
+async function exportDataAsync() {
+  if (backupInFlight) return;
+  backupInFlight = true;
+  const today = getLocalDateStr();
+  try {
+    const dir = backupDirHandle;
+    // 无目录时不要 await：保住用户手势给保存框
+    const permission = dir ? await queryDirPermission(dir) : 'denied';
+    const plan = backupWritePlan({
+      mode: 'manual', hasDir: !!dir, permission, userGesture: true,
+      supportsDir: canPickBackupDir(), supportsSavePicker: canSaveBackupFile(),
+    });
+    if (plan.target === 'dir') {
+      const granted = plan.requestPermission ? await requestDirPermission(dir) : permission;
+      if (granted === 'granted') {
+        try {
+          const name = await firstAvailableBackupName(dir, today); // 手动导出同名自动加后缀
+          await writeDirFile(dir, name, backupJSONText(state));
+          applyBackupResult(backupResultNotice({ mode: 'manual', target: 'dir', status: 'written' }), today);
+          return;
+        } catch (e) { /* 目录被删/权限失效 → 继续走保存框或下载 */ }
+      }
+      await exportViaSavePicker(today);
+      return;
+    }
+    if (plan.target === 'save-picker') {
+      await exportViaSavePicker(today);
+      return;
+    }
+    downloadBackupJSON();
+    applyBackupResult(backupResultNotice({ mode: 'manual', target: 'download', status: 'downloaded' }), today);
+  } catch (e) {
+    applyBackupResult(backupResultNotice({ mode: 'manual', target: 'dir', status: 'error' }), today);
+  } finally {
+    backupInFlight = false;
+  }
+}
+
+// 保存框：只有 close() 成功才算导出成功；取消不记任何状态
+async function exportViaSavePicker(today) {
+  if (!canSaveBackupFile()) {
+    downloadBackupJSON();
+    applyBackupResult(backupResultNotice({ mode: 'manual', target: 'download', status: 'downloaded' }), today);
+    return;
+  }
+  try {
+    const handle = await window.showSaveFilePicker({
+      suggestedName: backupFileName(today),
+      types: [{ description: 'JSON', accept: { 'application/json': ['.json'] } }],
+    });
+    const w = await handle.createWritable();
+    await w.write(backupJSONText(state));
+    await w.close();
+    applyBackupResult(backupResultNotice({ mode: 'manual', target: 'save-picker', status: 'written' }), today);
+  } catch (e) {
+    if (e && e.name === 'AbortError') {
+      applyBackupResult(backupResultNotice({ mode: 'manual', target: 'save-picker', status: 'cancelled' }), today);
+      return;
+    }
+    downloadBackupJSON();
+    applyBackupResult(backupResultNotice({ mode: 'manual', target: 'download', status: 'downloaded' }), today);
+  }
 }
 
 function importData(e) {
@@ -5262,6 +5558,9 @@ function toast(msg, type) {
 function armToastHide(t) {
   t._hideTimer = setTimeout(() => {
     t.classList.add('leaving');
+    // 退场元素不该继续参与对比度/可点击判定：标记 aria-hidden 并摘掉指针事件。
+    // 300ms 后移出 DOM（与 CSS 的退场过渡时长一致）。
+    t.setAttribute('aria-hidden', 'true');
     setTimeout(() => t.remove(), 300);
   }, 2500);
 }
@@ -5735,7 +6034,7 @@ function populateExpenseChartSelects() {
   if (monthSel && !monthSel.value && months.length > 0) monthSel.value = months[0];
 }
 
-function renderExpenseChart() {
+async function renderExpenseChart() {
   const catId = document.getElementById('expense-chart-category-select').value;
   const monthFilter = document.getElementById('expense-chart-month-select').value;
 
@@ -5789,6 +6088,8 @@ function renderExpenseChart() {
   renderChartTotal(totalEl, view.total);
 
   if (!expenseChart) {
+    if (!(await ensureEChartsReady(chartEl))) return;
+    if (expenseChart) return; // 并发调用已经建好实例
     expenseChart = echarts.init(chartEl);
     observeChartSize(expenseChart);
     wireSunburstDrill(expenseChart, 'expense-chart-legend');
@@ -5848,7 +6149,7 @@ function clearExpectation() {
   toast('已清除预期消费', 'success');
 }
 
-function renderExpenseTrendChart() {
+async function renderExpenseTrendChart() {
   // 读数卡跟着「预期月消费」走: 放在早退之前, 无消费记录时也照样同步（口径与本页记录无关）
   renderRunwayRow();
   renderMonthPace();
@@ -5965,6 +6266,8 @@ function renderExpenseTrendChart() {
   const series = tagSeries.concat(totalSeries);
 
   if (!expenseTrendChart) {
+    if (!(await ensureEChartsReady(chartEl))) return;
+    if (expenseTrendChart) return; // 并发调用已经建好实例
     expenseTrendChart = echarts.init(chartEl);
     observeChartSize(expenseTrendChart);
     // 图例选中态记忆：用户点击图例隐藏/显示系列时保存，重绘后回灌（切模式/切主题不丢）

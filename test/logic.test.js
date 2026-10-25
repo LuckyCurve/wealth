@@ -1021,6 +1021,144 @@ describe('备份决策 normalizeBackupFreq / hasAnyBackupWorthyData / shouldAuto
   });
 });
 
+describe('备份文件夹 / 文件名 / 写入目标 / 结果文案', () => {
+  test('backupJSONText：剥离快照加工字段 totalCNY，其余原样、两空格缩进、不改入参', () => {
+    const src = freshState({
+      snapshots: [
+        { month: '2024-05', totalCNY: 123, note: 'a', assets: [{ id: 'x', amount: 1 }] },
+        { month: '2024-06', note: 'b', assets: [] },
+      ],
+    });
+    const text = L.backupJSONText(src);
+    const parsed = JSON.parse(text);
+    assert.ok(!('totalCNY' in parsed.snapshots[0]), '导出文件里不得留 totalCNY');
+    assert.strictEqual(parsed.snapshots[1].month, '2024-06');
+    assert.strictEqual(src.snapshots[0].totalCNY, 123, '不得修改传入的 state');
+    assert.match(text, /^\{\n {2}"rates"/, '两空格缩进的 JSON');
+  });
+
+  test('backupJSONText：空 / null 输入不抛错', () => {
+    assert.strictEqual(L.backupJSONText(null), '{}');
+    assert.strictEqual(L.backupJSONText({}), '{}');
+    assert.strictEqual(L.backupJSONText({ snapshots: null }), '{\n  "snapshots": null\n}');
+  });
+
+  test('backupFileName：当天基础名，第 2 次起加后缀', () => {
+    assert.strictEqual(L.backupFileName('2024-05-01'), 'wealth-data-2024-05-01.json');
+    assert.strictEqual(L.backupFileName('2024-05-01', 1), 'wealth-data-2024-05-01.json');
+    assert.strictEqual(L.backupFileName('2024-05-01', 2), 'wealth-data-2024-05-01-2.json');
+    assert.strictEqual(L.backupFileName('2024-05-01', 3), 'wealth-data-2024-05-01-3.json');
+    for (const bad of [0, -1, 1.5, NaN, '2', null, undefined]) {
+      assert.strictEqual(L.backupFileName('2024-05-01', bad), 'wealth-data-2024-05-01.json');
+    }
+  });
+
+  test('nextBackupFileName：找第一个未占用名，绝不覆盖', () => {
+    assert.strictEqual(L.nextBackupFileName('2024-05-01', []), 'wealth-data-2024-05-01.json');
+    assert.strictEqual(
+      L.nextBackupFileName('2024-05-01', ['wealth-data-2024-05-01.json']),
+      'wealth-data-2024-05-01-2.json');
+    assert.strictEqual(
+      L.nextBackupFileName('2024-05-01', new Set([
+        'wealth-data-2024-05-01.json', 'wealth-data-2024-05-01-2.json'])),
+      'wealth-data-2024-05-01-3.json');
+    assert.strictEqual(
+      L.nextBackupFileName('2024-05-01', ['其他.json', 'wealth-data-2024-04-30.json']),
+      'wealth-data-2024-05-01.json', '无关文件不影响');
+  });
+
+  test('normalizeDirPermission：只认 granted / prompt，其余归 denied', () => {
+    assert.strictEqual(L.normalizeDirPermission('granted'), 'granted');
+    assert.strictEqual(L.normalizeDirPermission('prompt'), 'prompt');
+    assert.strictEqual(L.normalizeDirPermission('denied'), 'denied');
+    for (const bad of [undefined, null, '', 'GRANTED', 0, {}]) {
+      assert.strictEqual(L.normalizeDirPermission(bad), 'denied');
+    }
+  });
+
+  test('backupWritePlan：目录已授权 → 直接写目录', () => {
+    assert.deepStrictEqual(
+      L.backupWritePlan({ mode: 'auto', hasDir: true, permission: 'granted', supportsDir: true }),
+      { target: 'dir', requestPermission: false });
+    assert.deepStrictEqual(
+      L.backupWritePlan({ mode: 'manual', hasDir: true, permission: 'granted', userGesture: true, supportsDir: true }),
+      { target: 'dir', requestPermission: false });
+  });
+
+  test('backupWritePlan：权限 prompt 时只有手动（有手势）才申请授权', () => {
+    assert.deepStrictEqual(
+      L.backupWritePlan({ mode: 'manual', hasDir: true, permission: 'prompt', userGesture: true, supportsDir: true }),
+      { target: 'dir', requestPermission: true });
+    assert.deepStrictEqual(
+      L.backupWritePlan({ mode: 'auto', hasDir: true, permission: 'prompt', supportsDir: true }),
+      { target: 'download', requestPermission: false },
+      '自动路径无用户手势，不得申请权限、不得弹框');
+  });
+
+  test('backupWritePlan：手动未选目录 / 目录不可写 → 保存框；再不行 → 下载', () => {
+    assert.deepStrictEqual(
+      L.backupWritePlan({ mode: 'manual', hasDir: false, userGesture: true, supportsSavePicker: true }),
+      { target: 'save-picker', requestPermission: false });
+    assert.deepStrictEqual(
+      L.backupWritePlan({ mode: 'manual', hasDir: true, permission: 'denied', userGesture: true, supportsSavePicker: true }),
+      { target: 'save-picker', requestPermission: false });
+    assert.deepStrictEqual(
+      L.backupWritePlan({ mode: 'manual', hasDir: false, userGesture: true, supportsSavePicker: false }),
+      { target: 'download', requestPermission: false });
+  });
+
+  test('backupWritePlan：自动路径永不弹保存框；缺省参数一律回退下载', () => {
+    assert.deepStrictEqual(
+      L.backupWritePlan({ mode: 'auto', hasDir: false, supportsSavePicker: true }),
+      { target: 'download', requestPermission: false });
+    assert.deepStrictEqual(
+      L.backupWritePlan({ mode: 'auto', hasDir: true, permission: 'granted', supportsDir: false }),
+      { target: 'download', requestPermission: false });
+    assert.deepStrictEqual(L.backupWritePlan({}), { target: 'download', requestPermission: false });
+    assert.deepStrictEqual(
+      L.backupWritePlan({ mode: 'manual', hasDir: true, permission: 'garbage', userGesture: true, supportsDir: true }),
+      { target: 'download', requestPermission: false });
+  });
+
+  test('backupResultNotice：写入 / 已存在才记 lastBackup', () => {
+    assert.deepStrictEqual(
+      L.backupResultNotice({ mode: 'manual', target: 'dir', status: 'written' }),
+      { msg: '数据已导出', type: 'success', recordBackup: true, recordAutoDownload: false });
+    assert.deepStrictEqual(
+      L.backupResultNotice({ mode: 'auto', target: 'dir', status: 'written', folderName: '账本' }),
+      { msg: '已自动备份到「账本」', type: 'success', recordBackup: true, recordAutoDownload: true });
+    assert.deepStrictEqual(
+      L.backupResultNotice({ mode: 'auto', target: 'dir', status: 'exists' }),
+      { msg: '今日备份已存在，未覆盖', type: 'info', recordBackup: true, recordAutoDownload: true });
+  });
+
+  test('backupResultNotice：回退下载只在自动路径记节流，不记 lastBackup', () => {
+    assert.deepStrictEqual(
+      L.backupResultNotice({ mode: 'manual', target: 'download', status: 'downloaded' }),
+      { msg: '已开始下载，请在下载栏确认', type: 'info', recordBackup: false, recordAutoDownload: false });
+    assert.deepStrictEqual(
+      L.backupResultNotice({ mode: 'auto', target: 'download', status: 'downloaded' }),
+      { msg: '已开始下载，请在下载栏确认', type: 'info', recordBackup: false, recordAutoDownload: true });
+  });
+
+  test('backupResultNotice：取消 / 失败一律不记成功', () => {
+    assert.deepStrictEqual(
+      L.backupResultNotice({ mode: 'manual', target: 'save-picker', status: 'cancelled' }),
+      { msg: '已取消导出', type: 'info', recordBackup: false, recordAutoDownload: false });
+    assert.deepStrictEqual(
+      L.backupResultNotice({ mode: 'manual', target: 'dir', status: 'error' }),
+      { msg: '导出失败，请重试', type: 'error', recordBackup: false, recordAutoDownload: false });
+  });
+
+  test('backupDirNoteText：未选 / 已选 × 支持 / 不支持，四处分支', () => {
+    assert.strictEqual(L.backupDirNoteText(false, null, true), '未选择，备份将保存到「下载」文件夹');
+    assert.strictEqual(L.backupDirNoteText(false, null, false), '当前浏览器不支持选择文件夹，备份将保存到「下载」文件夹');
+    assert.strictEqual(L.backupDirNoteText(true, '账本备份', true), '已选择「账本备份」');
+    assert.strictEqual(L.backupDirNoteText(true, '', true), '已选择「备份文件夹」');
+    assert.strictEqual(L.backupDirNoteText(true, '账本备份', false), '已选择「账本备份」，但当前浏览器不支持直接写入，将回退下载');
+  });
+});
+
 describe('汇率刷新提示决策 rateFallbackNotice（统一提示便条）', () => {
   test('有缓存可回退 → 中性便条 info「使用缓存汇率」（注意但不报警）', () => {
     assert.deepStrictEqual(L.rateFallbackNotice(true), { msg: '使用缓存汇率', type: 'info' });

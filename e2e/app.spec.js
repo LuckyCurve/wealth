@@ -149,11 +149,12 @@ test.describe('模式与 Tab 导航', () => {
     const ctx = await browser.newContext({ hasTouch: true, viewport: { width: 420, height: 800 }, isMobile: true });
     const touch = await ctx.newPage();
     await stubCdn(touch);
+    // 探针：window.tailwind 只有 stubCdn 的空壳脚本才会定义（真 CDN 会挂完整实现）。
+    // 它存在 = 这个上下文确实走了替身路由——这就是「不再真连外网」的证据。
+    // 图表库现在按需加载，且空账本不画图，故不拿 __echartsCalls 当探针。
     await touch.goto(INDEX_URL);
     await waitReady(touch);
-    // 探针：__echartsCalls 只有 stubCdn 的占位脚本才会定义（真 CDN 不定义它）。
-    // 它存在 = 这个上下文确实走了替身路由——这就是「不再真连外网」的证据。
-    expect(await touch.evaluate(() => !!window.__echartsCalls), '触摸上下文也必须走 CDN 替身').toBe(true);
+    expect(await touch.evaluate(() => !!window.tailwind), '触摸上下文也必须走 CDN 替身').toBe(true);
     await touch.locator('#mode-assets').tap();
     await expect(touch.locator('#content-assets')).toBeHidden();
     await expect(touch.locator('#confirm-modal')).toBeHidden();
@@ -609,16 +610,17 @@ test.describe('图表初始化与空态', () => {
     await gotoAssets(page);
     await page.evaluate(() => { switchTab('chart'); switchTab('assets'); });
     await expect(page.locator('#tab-chart')).toBeHidden();
-    // 等的不是固定时长，而是「若真有那次延迟渲染，它已经跑过了」
-    await expect.poll(() => page.evaluate(() => window.__echartsCalls.init.length)).toBe(0);
+    // 等的不是固定时长，而是「若真有那次延迟渲染，它已经跑过了」。
+    // 图表库按需加载：连一次 init 都不该发生，`__echartsCalls` 也可能压根没被创建。
+    await expect.poll(() => page.evaluate(() => (window.__echartsCalls ? window.__echartsCalls.init.length : 0))).toBe(0);
     const sizes = await page.evaluate(() =>
-      Object.fromEntries(Object.entries(window.__echartsCalls.instances).map(([k, v]) => [k, [v.getWidth(), v.getHeight()]])));
+      Object.fromEntries(Object.entries((window.__echartsCalls || {}).instances || {}).map(([k, v]) => [k, [v.getWidth(), v.getHeight()]])));
     for (const [id, [w, h]] of Object.entries(sizes)) {
       expect(w > 0 && h > 0, `${id} 被 init 成了 ${w}×${h}（隐藏容器）`).toBe(true);
     }
-    // 真正进入时仍要照常渲染（守卫不能把它一起挡掉）
+    // 真正进入时仍要照常渲染（守卫不能把它一起挡掉）：按需加载完成后才 init
     await page.locator('#tabs-assets .tab-btn[data-tab="chart"]').click();
-    await expect.poll(() => page.evaluate(() => window.__echartsCalls.init)).toContain('sunburst-chart');
+    await expect.poll(() => page.evaluate(() => (window.__echartsCalls ? window.__echartsCalls.init : []))).toContain('sunburst-chart');
   });
 
   test('旭日图空态：所选维度无数据时不留空白画布', async ({ page }) => {

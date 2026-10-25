@@ -381,7 +381,10 @@ async function collectOffThemeColors(page) {
 const chartSize = (page, id) =>
   page.evaluate((domId) => {
     const el = document.getElementById(domId);
-    const inst = (window.__echartsCalls.instances || {})[domId];
+    // 图表库按需加载：还没进过任何图表 Tab 时 __echartsCalls 尚不存在，
+    // 这里按「图还没初始化」处理，而不是让轮询抛 TypeError 直接失败。
+    const calls = window.__echartsCalls;
+    const inst = calls && calls.instances ? calls.instances[domId] : null;
     return { container: [el.clientWidth, el.clientHeight], chart: inst ? [inst.getWidth(), inst.getHeight()] : null };
   }, id);
 

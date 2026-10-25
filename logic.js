@@ -1223,6 +1223,99 @@
     return gap != null && gap > BACKUP_STALE_DAYS ? gap : null;
   }
 
+  // ========== 备份写入位置 / 文件名 / 结果口径 ==========
+  // 导出内容的唯一来源：深拷贝后逐条剥离快照加工字段 totalCNY（可由 assets × currencyRates 重算）。
+  // 不改入参；null / 缺字段按空处理，保证三条导出路径（目录 / 保存框 / 下载）落盘内容一致。
+  function backupJSONText(s) {
+    const clean = JSON.parse(JSON.stringify(s == null ? {} : s));
+    (clean.snapshots || []).forEach(sn => { delete sn.totalCNY; });
+    return JSON.stringify(clean, null, 2);
+  }
+
+  // 当天备份文件名：第 1 次 base，第 2 次起加 -2/-3 后缀（不覆盖已有文件）。
+  // attempt 只认正整数，脏值一律回落 base，避免拼出 -NaN / -1.5 之类文件名。
+  function backupFileName(today, attempt) {
+    const seq = (typeof attempt === 'number' && Number.isInteger(attempt) && attempt >= 2)
+      ? '-' + attempt : '';
+    return `wealth-data-${today}${seq}.json`;
+  }
+
+  // 在已有文件名集合里找第一个未占用的当天备份名（数组 / Set 均可）。绝不覆盖：探测不到空闲名就返回带更大的后缀
+  function nextBackupFileName(today, existingNames) {
+    const taken = existingNames instanceof Set
+      ? existingNames
+      : new Set(Array.isArray(existingNames) ? existingNames : []);
+    let seq = 1;
+    while (taken.has(backupFileName(today, seq))) seq++;
+    return backupFileName(today, seq);
+  }
+
+  // 目录权限三态归一：只认 granted / prompt；undefined / 异常字符串等一律按 denied（保守，不误写）
+  function normalizeDirPermission(v) {
+    return v === 'granted' || v === 'prompt' ? v : 'denied';
+  }
+
+  // 写盘目标决策：目录授权可用 → dir；手动且有手势时才能申请授权 / 弹保存框；
+  // 自动路径没有用户手势，绝不弹框、绝不 requestPermission，只能回退下载。
+  // 缺省参数按「无目录、无手势、不支持」保守处理，调用方漏传不会误写。
+  function backupWritePlan(opts) {
+    opts = opts || {};
+    const mode = opts.mode === 'auto' ? 'auto' : 'manual';
+    const userGesture = opts.userGesture !== undefined ? !!opts.userGesture : mode === 'manual';
+    const permission = normalizeDirPermission(opts.permission);
+    const supportsDir = !!opts.supportsDir;
+    const supportsSavePicker = !!opts.supportsSavePicker;
+    if (opts.hasDir && supportsDir && permission === 'granted') {
+      return { target: 'dir', requestPermission: false };
+    }
+    if (opts.hasDir && supportsDir && permission === 'prompt' && userGesture && mode === 'manual') {
+      return { target: 'dir', requestPermission: true };
+    }
+    if (mode === 'manual' && userGesture && supportsSavePicker) {
+      return { target: 'save-picker', requestPermission: false };
+    }
+    return { target: 'download', requestPermission: false };
+  }
+
+  // 写入结果 → 便条与状态口径（单一来源）。只有 written / exists 算「已备份」；
+  // 回退下载只更新自动备份的节流字段 lastAutoDownload，绝不虚报 lastBackup。
+  function backupResultNotice(o) {
+    o = o || {};
+    const auto = o.mode === 'auto';
+    if (o.status === 'error') {
+      return { msg: '导出失败，请重试', type: 'error', recordBackup: false, recordAutoDownload: false };
+    }
+    if (o.status === 'cancelled') {
+      return { msg: '已取消导出', type: 'info', recordBackup: false, recordAutoDownload: false };
+    }
+    if (o.status === 'exists') {
+      return { msg: '今日备份已存在，未覆盖', type: 'info', recordBackup: true, recordAutoDownload: auto };
+    }
+    if (o.status === 'downloaded' || o.target === 'download') {
+      return { msg: '已开始下载，请在下载栏确认', type: 'info', recordBackup: false, recordAutoDownload: auto };
+    }
+    if (auto) {
+      return {
+        msg: '已自动备份' + (o.folderName ? `到「${o.folderName}」` : ''),
+        type: 'success', recordBackup: true, recordAutoDownload: true,
+      };
+    }
+    return { msg: '数据已导出', type: 'success', recordBackup: true, recordAutoDownload: false };
+  }
+
+  // 设置里「备份文件夹」边注：未选 / 已选 × 支持 / 不支持
+  function backupDirNoteText(hasDir, name, supported) {
+    if (!hasDir) {
+      return supported
+        ? '未选择，备份将保存到「下载」文件夹'
+        : '当前浏览器不支持选择文件夹，备份将保存到「下载」文件夹';
+    }
+    const n = name || '备份文件夹';
+    return supported
+      ? `已选择「${n}」`
+      : `已选择「${n}」，但当前浏览器不支持直接写入，将回退下载`;
+  }
+
   // ========== 汇率刷新提示决策 ==========
   // 拉取失败时的便条文案与类型：有缓存可回退 → info「使用缓存汇率」（中性金墨边注，注意但不报警）；
   // 连缓存都没有 → error「汇率获取失败」（报警红）。fetchRates 的 catch 只做 DOM 副作用，
@@ -1328,6 +1421,7 @@
     addMonths, getCurrentMonth, getLocalDateStr, getLocalMonthStr, monthLabel,
     daysBetweenStr,
     BACKUP_STALE_DAYS, normalizeBackupFreq, backupNoteText, hasAnyBackupWorthyData, shouldAutoBackup, backupStaleDays,
+    backupJSONText, backupFileName, nextBackupFileName, normalizeDirPermission, backupWritePlan, backupResultNotice, backupDirNoteText,
     rateFallbackNotice,
     ratesFromApi,
     nextSortState, inlineEditKeyAction, expenseMonths,
