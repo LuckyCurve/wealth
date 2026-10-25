@@ -122,7 +122,10 @@ interface Expense {
   - **规格不写进 Tailwind 类**：Tailwind 走 CDN，且 E2E 里是空壳（`window.tailwind = {}`）——写进工具类的规格既不可测、又随 CDN 抖动。关键布局用自有 CSS，顺带保证 CDN 挂掉时页面不塌。已有的 Tailwind 间距类（`mb-6`、`gap-3`）保持不动；**排版（字号/字重/字距/字体族）一律不进门**，只用 `<style>` 里的档位类（`.t-micro`/`.t-body`）与角色类。
   - **章节头的操作行是 `.toolbar`，不是 `flex gap-3`**：同一行里并排放筛选控件与主按钮时，行本身要给 `flex-wrap` 与 `justify-content:flex-end`——只靠 Tailwind 的 `flex items-center gap-3`（无换行），窄屏放不下就会把按钮挤成一根竖排的字柱（390px 实测「记录消费」变成 56×123）。判据量与「放不下时整组换行」有关的行为，见 `consistency.spec.js`。
   - **Tailwind preflight 会在运行时抢走表单控件的内边距**：CDN 把 preflight 的 `<style>` 插到页面自有样式**之后**，其中 `input,select,button,textarea{padding:0}` 与裸选择器同特异性、位置更后即胜出——实测搜索框塌到 23px、下拉框 22px，紧挨着的金色按钮 39px，一行三种高度。故表单控件规格**必须挂在有容器前缀的选择器下**（`body input`），把胜负从「注入次序」改成「特异性」；只改注入时序是治不了的（CDN 何时插入不由我们决定）。E2E 里 Tailwind 是空壳，这条缺陷在常规用例里永远看不见，`consistency.spec.js` 用一条**只复刻这条 preflight 规则**的替身用例把守。
-  - **字体族必须显式写 CJK 回落**：正文是等宽字体（拉丁/数字），而它没有中文字形——不写这一层，中文会落到 monospace 的宋体兜底，小字号下笔画极细、与拉丁粗细不接，观感就是「字很浅、字重不够」。栈与档位 token 集中在 `:root, :root.dark`（与明暗无关，故意不进两套主题块，省得同一值声明两遍）。
+  - **原生控件的外观由页面接管**：箭头、spinner 这类「浏览器自己画」的东西不认主题、也不受页面控制。三条实测缺陷同源，修法都是关掉原生外观：① `<select>` 的箭头由浏览器画在右侧，页面拿不到位置（文字距左 18.5px、箭头距右 4px，永远对不齐）→ `appearance:none` + 自绘 `--chevron`（亮/暗各一套，色值走变量）；② `number` 输入的上下箭头只在 hover/聚焦时出现、是块灰疙瘩 → `appearance:textfield` + 隐藏 spin button；③ 全局 `:focus-visible` 上曾写 `border-radius:4px`，聚焦时把控件 6px 圆角改成 4px、失焦再跳回来——**焦点只该在外面加一圈环，不该改元素自身的形状**。
+    - **主题覆盖别用 `background` 简写**：`.dark input,.dark select { background: var(--bg-2) }` 会把自绘箭头的 `background-image` 一并重置成 `none`，暗色下箭头凭空消失，而亮色用例全绿。凡是元素自带 `background-image`，覆盖时只写 `background-color`。
+    - **控件等高要靠 `line-height`**：`select` 的默认行高是 `normal`、`input` 是数值，同一套 padding 下差 1px（39 vs 38），并排时底边对不齐。
+    - 判据在 `consistency.spec.js`：遍历所有 `select` 断言非原生外观且有自绘箭头（**亮/暗两套都查**）、所有 `number` 输入无 spinner、所有控件聚焦前后圆角不变。
   - **展示档必须逐级递减且互不坍缩**：主读数 > 弹窗标题 > 区块标题 > 卡片标题 > 卡片小标题。各角色用**各自的** token——曾把主读数与弹窗标题并到同一个 token，主读数被从 32px 压到 22px 而无人发现（同类一致性巡检只保证同一类内部统一，挡不住跨角色坍缩），故 `consistency.spec.js` 另有一条层级断言。
   - **文字对比度达 AA**：不再用 `opacity` 压淡承载信息的文字（分类名、pill 内 ✕ 都是真信息/真控件；实测 opacity .55 时对比掉到 1.6–2.1:1）。层级靠字重与颜色区分。
   - **`e2e/consistency.spec.js` 会自动巡检**：在真实浏览器里量同类元素的计算样式（集合大小须为 1）、「表头 vs 数据行列宽是否相等」与「窄表相邻单元格的文本间隙」——单测看不到「写对了 class 但 CSS 被覆盖 / 漏挂 class」，这里补上。另有一条**全站文字对比度 ≥ AA** 巡检（含亮/暗两套）与一条**展示档层级递减**断言；已知「有意淡出」的元素（未设利率的收益行、日期选择器的非本月日期）在巡检里显式豁免。

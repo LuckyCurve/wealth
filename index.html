@@ -122,6 +122,11 @@ tailwind.config = {
        桌光只该是纸面上的一层明暗，不该是第二个白底。 */
     --desk-lit: rgba(255, 252, 240, 0.35);
     --desk-fall: rgba(72, 56, 24, 0.20);
+    /* 下拉框箭头（自绘）。为什么必须自绘：原生箭头由浏览器画在控件右侧，页面拿不到它的
+       位置——实测文字距左 18.5px、箭头距右 4px，左右永远对不齐（用户原话「左右都不对齐」）。
+       关掉 appearance 之后箭头就是我们自己的一张图，位置、颜色、留白全由页面决定。
+       色值走变量：写死则暗色下箭头仍是亮色的墨，且会被 theme 巡检判为越界。 */
+    --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 4.5 6 8l3.5-3.5' fill='none' stroke='%236b5c3a' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
   }
   :root.dark {
     color-scheme: dark;
@@ -162,6 +167,8 @@ tailwind.config = {
         二期：与亮色同一套深度语言（受光更聚、退光更沉）。 */
     --desk-lit: rgba(255, 240, 200, 0.09);
     --desk-fall: rgba(0, 0, 0, 0.44);
+    /* 暗色下箭头改用 muted 的亮版（#b0a078）：沿用亮色的深墨会在深棕底上看不见 */
+    --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 4.5 6 8l3.5-3.5' fill='none' stroke='%23b0a078' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
   }
   /* 卡片的边缘色不再另设一套（原先 .dark .card 改回 --border，等于材质的边缘有两处定义） */
   /* ===== 排版 token（字号 / 字重 / 字体族）=====
@@ -310,7 +317,10 @@ tailwind.config = {
      与列宽给多大无关。故「数字列右对齐 + 等宽数字」提成一个角色类，两处各自手写会漂。
      .amount-cell 已经在做 tabular 与 padding-left（铅笔批注的留白），这里只补对齐。 */
   .num { text-align: right; font-variant-numeric: tabular-nums; font-feature-settings: 'tnum' 1; }
-  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+  /* 焦点环只画环，**不改元素自身的形状**：曾在这里写 border-radius: 4px，于是控件一聚焦
+     圆角就从 6px 跳成 4px、失焦再跳回来——焦点本不该改变控件的外观，只该在它外面加一圈。
+     环的形状由浏览器跟随元素自己的 border-radius，无需在此声明。 */
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   /* 视觉隐藏但仍留在 Tab 序 / 可被脚本点击。
      为什么不能用 display:none：它会把元素从 Tab 序里摘掉——文件选择框正是这样
      让键盘用户整块够不到「导入数据」的（label 不可聚焦 + input display:none = 无路可走）。 */
@@ -407,12 +417,34 @@ tailwind.config = {
      限定为 `body input` 后特异性高出两级，不再依赖注入次序。 */
   body input, body select {
     font-family: var(--font-body); font-size: var(--fs-body); font-variant-numeric: tabular-nums;
+    /* line-height 必须写死：select 的默认值是 normal、input 是浏览器给的数值行高，同一套
+       padding 下两者会差 1px（实测 39px vs 38px），并排时底边对不齐。 */
+    line-height: 1.5;
     border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px;
     background: var(--card); color: var(--fg); transition: border-color 0.15s, box-shadow 0.15s;
     outline: none;
   }
+  /* 下拉框：外观由页面接管（理由见 --chevron）。关掉原生外观后浏览器不再画箭头，
+     箭头位置就是「right 10px」，与左侧 12px 的内边距成为一对，左右才对称。
+     background-image 只在这一处（背景色仍是 --card，AA 巡检按它算对比度）。 */
+  body select {
+    -webkit-appearance: none; appearance: none;
+    padding-right: 32px;
+    background-image: var(--chevron);
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    background-size: 12px 12px;
+  }
+  /* 数字输入：去掉 UA 的上下箭头。它是浏览器画的灰块，只在 hover/聚焦时出现，
+     与纸面主题无关，还会把右侧内边距挤掉——这里的数字由键盘输入，不需要步进器。 */
+  body input[type=number] { -webkit-appearance: none; appearance: textfield; }
+  body input[type=number]::-webkit-inner-spin-button,
+  body input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
   body input:focus, body select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(180,132,26,0.14); }
-  .dark input, .dark select { background: var(--bg-2); }
+  /* 只改背景色，**不能用 background 简写**：简写会把自绘箭头的 background-image 一并重置成
+     none——暗色下箭头会凭空消失（实测 bgImg: none）。这类「简写吃掉长写」的坑在主题覆盖里
+     最常见，凡是别处有 background-image 的元素，覆盖时一律只写 background-color。 */
+  .dark input, .dark select { background-color: var(--bg-2); }
   /* Flatpickr 日期选择器 — 账本主题定制 */
   .flatpickr-calendar {
     font-family: var(--font-body) !important;

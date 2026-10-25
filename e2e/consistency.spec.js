@@ -111,6 +111,84 @@ test.describe('版式一致性', () => {
     }
   });
 
+  test('原生控件的外观由页面接管：无 UA 箭头 / 无 UA spinner / 聚焦不改形', async ({ appPage: page }) => {
+    // 三处缺陷同源：把「长什么样」留给了浏览器，而浏览器画的东西不认主题、不认对齐。
+    // ① select 的箭头由浏览器画在右侧，页面拿不到它的位置——实测文字距左 18.5px、
+    //    箭头距右 4px，左右永远对不齐（用户原话「左右都不对齐」）。
+    // ② number 输入的上下箭头是 UA 画的，hover/聚焦才出现，一出现就是灰块，与暖色纸面脱节。
+    // ③ 全局 :focus-visible 上写了 border-radius: 4px，聚焦时把控件的 6px 圆角改掉——
+    //    焦点一来形状就跳一下，这是最不该有的那种「细节」。
+    await visitAllTabs(page);
+
+    const bad = await page.evaluate(() => {
+      const out = [];
+      // ① select 必须是自绘外观
+      for (const el of document.querySelectorAll('select')) {
+        const r = el.getBoundingClientRect();
+        if (!r.width) continue;
+        const cs = getComputedStyle(el);
+        if (cs.appearance !== 'none') out.push(`select#${el.id} 仍是原生外观（箭头由浏览器画）`);
+        if (cs.backgroundImage === 'none') out.push(`select#${el.id} 没有自绘箭头`);
+      }
+      // ② number 输入不能带 UA spinner
+      for (const el of document.querySelectorAll('input[type=number]')) {
+        if (getComputedStyle(el).appearance !== 'textfield') out.push(`input#${el.id} 仍带原生 spinner`);
+      }
+      // ③ 聚焦不得改变圆角（对比同一个元素聚焦前后）
+      for (const el of document.querySelectorAll('input:not([type=range]):not([type=file]), select')) {
+        const r = el.getBoundingClientRect();
+        if (!r.width) continue;
+        const idle = getComputedStyle(el).borderRadius;
+        el.focus();
+        const focused = getComputedStyle(el).borderRadius;
+        el.blur();
+        if (idle !== focused) out.push(`${el.tagName.toLowerCase()}#${el.id} 聚焦时圆角 ${idle} → ${focused}`);
+      }
+      return out;
+    });
+    expect(bad, `控件外观仍交给浏览器：\n  ${bad.join('\n  ')}`).toEqual([]);
+  });
+
+  test('暗色下自绘箭头仍在（主题覆盖不得用 background 简写吃掉它）', async ({ appPage: page }) => {
+    // 实测漏网：`.dark input, .dark select { background: var(--bg-2) }` 这条简写会把
+    // background-image 一并重置成 none，暗色下箭头凭空消失——亮色的用例全绿。
+    // 判据只看「亮/暗两套都得有箭头」，色值本身由 theme 巡检的变量对应关系把守。
+    const arrowOf = () =>
+      page.evaluate(() =>
+        [...document.querySelectorAll('select')]
+          .filter((el) => el.getBoundingClientRect().width)
+          .filter((el) => getComputedStyle(el).backgroundImage === 'none')
+          .map((el) => `select#${el.id}`)
+      );
+    expect(await arrowOf(), '亮色下有 select 没有自绘箭头').toEqual([]);
+    await page.getByRole('button', { name: '设置' }).click();
+    await page.locator('#theme-seg-dark').click();
+    await page.keyboard.press('Escape');
+    await expect(page.locator('html')).toHaveClass(/dark/);
+    expect(await arrowOf(), '暗色下有 select 没有自绘箭头（多半是被 background 简写吃掉了）').toEqual([]);
+  });
+
+  test('同一行的表单控件等高（select 不得比 input 矮）', async ({ appPage: page }) => {
+    // select 的 line-height 是 normal、input 是 21px，同一套 padding 下底边差 1px。
+    // 单看各自都「有内边距」，并排才看得出没对齐——故判据是同一行的实测高度。
+    await visitAllTabs(page);
+    await page.evaluate(() => openAssetModal());
+    await expect(page.locator('#asset-modal')).toBeVisible();
+
+    // 只比高度：E2E 里 Tailwind 是空壳，两列网格不生效、控件纵向堆叠，比上边会得到
+    // 与缺陷无关的巨大差值（实测 64px）。高度差才是 line-height 那条缺陷的判据。
+    const rows = await page.evaluate(() =>
+      [['#asset-amount', '#asset-currency']].map(([a, b]) => {
+        const ra = document.querySelector(a).getBoundingClientRect();
+        const rb = document.querySelector(b).getBoundingClientRect();
+        return { a, b, ha: ra.height, hb: rb.height };
+      })
+    );
+    for (const r of rows) {
+      expect(Math.abs(r.ha - r.hb), `${r.a}(${r.ha}px) 与 ${r.b}(${r.hb}px) 不等高`).toBeLessThanOrEqual(0.5);
+    }
+  });
+
   test('表格：每张表的表头与数据行列宽一致（模板不是各写一遍）', async ({ appPage: page }) => {
     await visitAllTabs(page);
     // 种子数据里没有快照：直接写内存态补齐，再开对比弹窗（弹窗内两张表也要检）
