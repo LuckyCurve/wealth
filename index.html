@@ -400,13 +400,18 @@ tailwind.config = {
   .card:hover { box-shadow: var(--glass-shadow), var(--glass-depth-lift); }
   .card-interactive { cursor: pointer; }
   .card-interactive:hover { box-shadow: var(--glass-shadow), var(--glass-depth-lift); border-color: var(--accent-soft); }
-  input, select {
+  /* 表单控件（输入框 / 下拉框）统一规格。**必须限定在一处容器前缀下**：
+     Tailwind CDN 的 preflight 在 <style> 之后注入，其中 `input,select,button,textarea{padding:0}`
+     与裸选择器同特异性但位置更后，会把内边距整片抹掉——实测输入框塌成 23px、下拉框 22px，
+     而旁边的金色按钮仍是 39px，同一行里三种高度。E2E 里 Tailwind 是空壳、永远看不见这一幕。
+     限定为 `body input` 后特异性高出两级，不再依赖注入次序。 */
+  body input, body select {
     font-family: var(--font-body); font-size: var(--fs-body); font-variant-numeric: tabular-nums;
     border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px;
     background: var(--card); color: var(--fg); transition: border-color 0.15s, box-shadow 0.15s;
     outline: none;
   }
-  input:focus, select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(180,132,26,0.14); }
+  body input:focus, body select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(180,132,26,0.14); }
   .dark input, .dark select { background: var(--bg-2); }
   /* Flatpickr 日期选择器 — 账本主题定制 */
   .flatpickr-calendar {
@@ -1204,6 +1209,11 @@ tailwind.config = {
   /* 品牌题名：与区块标题同档，字距单独收紧（-0.005em 与 .card-title/.section-head h2 同源） */
   .brand-title { font-family: var(--font-display); font-size: var(--fs-section); font-weight: var(--fw-bold); letter-spacing: -0.005em; line-height: 1; }
   .section-head .sub { font-size: var(--fs-body); color: var(--muted); margin-top: 2px; }
+  /* 章节头右侧的操作行（筛选下拉 / 搜索 / 主操作按钮）：放不下时整组换行。
+     为什么不用 Tailwind 的 flex gap-3：CDN 空壳下它在 E2E 里根本不生效（等于没写这个版式），
+     窄屏上 390px 实测会挤成「按钮变 56×123 的字柱」——那正是工具类在这儿帮不上忙的证明。
+     对齐用 center，控件高度差 1–2px 时两端不会各自错位。 */
+  .toolbar { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 12px; }
 </style>
 </head>
 <body class="min-h-screen">
@@ -1371,7 +1381,7 @@ tailwind.config = {
         <h2 class="font-display">历史净值</h2>
         <p class="sub">记录每月快照，看净值趋势</p>
       </div>
-      <div class="flex items-center gap-3 flex-wrap">
+      <div class="toolbar">
         <select id="history-category-select" onchange="renderHistoryChart()" class="select-field" aria-label="历史净值分类维度"></select>
         <div class="seg-control">
           <button id="hist-mode-value" onclick="setHistoryChartMode('value')" class="seg-btn active">金额</button>
@@ -1472,7 +1482,7 @@ tailwind.config = {
     <div id="income-chart-container" class="card mt-6" style="display:none;">
       <div class="flex items-center justify-between mb-4">
         <h3 class="font-display t-body t-bold">收益分布</h3>
-        <div class="flex items-center gap-3">
+        <div class="toolbar">
           <div class="seg-control">
             <button id="income-chart-mode-cash" onclick="setIncomeChartMode('cash')" class="seg-btn active">现金收益</button>
             <button id="income-chart-mode-total" onclick="setIncomeChartMode('total')" class="seg-btn">总收益</button>
@@ -1499,7 +1509,7 @@ tailwind.config = {
           <h2 class="font-display">消费记录</h2>
           <p class="sub" id="expense-total-line"></p>
         </div>
-        <div class="flex items-center gap-3">
+        <div class="toolbar">
           <span class="search-wrap">
             <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><line x1="10.5" y1="10.5" x2="14" y2="14"/></svg>
             <input type="text" id="expense-search" placeholder="搜索备注 / 标签 / 分类" class="t-body" autocomplete="off" oninput="renderExpenses()" onkeydown="if(event.key==='Escape')clearExpenseSearch()">
@@ -1558,7 +1568,7 @@ tailwind.config = {
           <h2 class="font-display">消费分布</h2>
           <p class="sub">按分类维度和月份查看消费分布</p>
         </div>
-        <div class="flex items-center gap-3">
+        <div class="toolbar">
           <select id="expense-chart-month-select" onchange="renderExpenseChart()" class="select-field" aria-label="消费分布月份"></select>
           <select id="expense-chart-category-select" onchange="renderExpenseChart()" class="select-field" aria-label="消费分布分类维度"></select>
         </div>
@@ -1586,7 +1596,7 @@ tailwind.config = {
           <h2 class="font-display">消费趋势</h2>
           <p class="sub">按月查看消费趋势</p>
         </div>
-        <div class="flex items-center gap-3">
+        <div class="toolbar">
           <select id="expense-trend-category-select" onchange="renderExpenseTrendChart()" class="select-field" aria-label="消费趋势分类维度"></select>
           <div class="seg-control">
             <button id="expense-trend-mode-value" onclick="setExpenseTrendMode('value')" class="seg-btn active">金额</button>

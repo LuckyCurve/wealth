@@ -9,7 +9,7 @@
  * 判据统一为「同类元素的计算样式集合大小 == 1」，集合里直接打印越界值，失败信息可读。
  * 与主题巡检（theme.spec.js）同思路：不写死期望值，从页面自身求值。
  */
-const { test, expect, visitAllTabs, gotoAssets, sampleState, seed, waitReady, stubCdn, samplePixels } = require('./fixtures');
+const { test, expect, visitAllTabs, gotoAssets, sampleState, seed, waitReady, stubCdn, samplePixels, INDEX_URL } = require('./fixtures');
 
 /**
  * 本文件要按「指定存档」打开页面（fixtures 只导出工厂，组合放在这里）。
@@ -60,6 +60,55 @@ test.describe('版式一致性', () => {
     await once(await uniqStyles(page, '.ink-accent', ['color']));
     await once(await uniqStyles(page, '.ink-up', ['color']));
     await once(await uniqStyles(page, '.text-value', ['color', 'opacity']));
+  });
+
+  test('同一行的表单控件与按钮等高（Tailwind preflight 不得吃掉内边距）', async ({ page }) => {
+    // 盲区回归：E2E 里 Tailwind 是空壳（window.tailwind = {}），preflight 从不注入，
+    // 于是「CDN 真身把 input/select 的 padding 抹成 0」在测试里永远看不见——用户实测
+    // 搜索框 23px、下拉框 22px，紧挨着的金色按钮 39px，一行里三种高度。
+    // 这里**替身复刻那一条真实规则**（只复刻会伤到规格的那部分，不引真实 CDN），
+    // 判据是「同一行内等高」而不是写死像素值。
+    await stubCdn(page);
+    await page.route('**/cdn.tailwindcss.com**', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'text/javascript',
+        body: 'window.tailwind = {};',
+      })
+    );
+    // preflight 的注入面：<style> 由 CDN 在运行时插到页头末尾。规则照抄 Tailwind 的原文
+    // （逐条声明，不是 font 简写——简写会连 font-variant 一起重置，量出来的高度与真身不同）。
+    await page.addInitScript(() => {
+      document.addEventListener('DOMContentLoaded', () => {
+        const s = document.createElement('style');
+        s.textContent = 'button,input,optgroup,select,textarea{font-family:inherit;'
+          + 'font-feature-settings:inherit;font-variation-settings:inherit;font-size:100%;'
+          + 'font-weight:inherit;line-height:inherit;color:inherit;margin:0;padding:0}';
+        document.head.appendChild(s);
+      });
+    });
+    await seed(page, sampleState());
+    await page.goto(INDEX_URL);
+    await waitReady(page);
+
+    // 判据用**内边距与描边**而不是像素高度：stub 下字体不加载，按钮与输入框的字形度量
+    // 天然差 1–2px（真机里也只差 0–1px），拿高度当判据会得到与缺陷无关的噪声。
+    // 缺陷本身是「内边距整片变成 0」——量它，既精确又与字体无关。
+    const boxes = await page.evaluate(() =>
+      ['#expense-search', '#expense-month-filter', '#expense-tag-filter', '#tab-expenses .btn-gold']
+        .map((sel) => {
+          const el = document.querySelector(sel);
+          if (!el) return null;
+          const cs = getComputedStyle(el);
+          return { sel, pt: cs.paddingTop, pb: cs.paddingBottom, bt: cs.borderTopWidth };
+        })
+    );
+    expect(boxes.every(Boolean), '四个控件都应可见').toBe(true);
+    for (const b of boxes) {
+      expect(b.pt, `${b.sel} 的上内边距被覆盖了（Tailwind preflight 的 padding:0 抢到了）`).toBe('8px');
+      expect(b.pb, `${b.sel} 的下内边距被覆盖了`).toBe('8px');
+      expect(b.bt, `${b.sel} 的描边被覆盖了`).toBe('1px');
+    }
   });
 
   test('表格：每张表的表头与数据行列宽一致（模板不是各写一遍）', async ({ appPage: page }) => {
