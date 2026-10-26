@@ -2039,7 +2039,7 @@ tailwind.config = {
       <div class="setting-row">
         <div class="setting-info">
           <p class="setting-label">自动备份</p>
-          <p class="setting-desc">打开页面时自动下载一份带日期的备份到浏览器「下载」文件夹，日积月累即是版本历史。建议把下载目录设为网盘同步文件夹（OneDrive / iCloud 等），电脑损坏后也能找回。</p>
+          <p class="setting-desc">打开页面几秒后会弹一次确认，确认后弹出文件窗口保存一份带日期的备份，日积月累即是版本历史。建议把保存位置设为网盘同步文件夹（OneDrive / iCloud 等），电脑损坏后也能找回。</p>
           <p id="settings-backup-note" class="setting-note"></p>
         </div>
         <div class="seg-control" role="group" aria-label="自动备份频率">
@@ -2052,7 +2052,7 @@ tailwind.config = {
       <div class="setting-row">
         <div class="setting-info">
           <p class="setting-label">备份文件夹</p>
-          <p class="setting-desc">选择后，手动导出与自动备份都直接写入该文件夹；未选择时手动导出弹保存框、自动备份进「下载」文件夹。仅 Chrome / Edge 支持直接写入。</p>
+          <p class="setting-desc">选择后，备份时弹出的文件窗口默认就打开这个目录（自动与手动一致）；未选择时窗口打开上次用过的目录。仅 Chrome / Edge 支持指定目录。</p>
           <p id="settings-backup-dir-note" class="setting-note"></p>
         </div>
         <div class="setting-actions">
@@ -2086,7 +2086,7 @@ function freshAppState() {
     rates: { CNY: 1, HKD: 1, USD: 1, fetchedAt: null },
     expenseExpectation: 0, netWorthTarget: 0, incomeSafetyFactor: 100,
     runwayTags: [], runwayExpectation: 0,
-    backup: { autoFreq: 'daily', lastBackup: null, lastAutoDownload: null },
+    backup: { autoFreq: 'daily', lastBackup: null },
   };
 }
 let state = freshAppState();
@@ -5046,12 +5046,15 @@ function showImportExport() {
   openModal('io-modal');
 }
 
-// ========== BACKUP (自动备份 + 新鲜度提醒) ==========
-// 方案 A：当天首次打开页面时备份一次。已选备份文件夹且授权可用 → 静默写入该文件夹；
-// 否则回退浏览器「下载」目录（<a download>，无任何回执）。带日期的文件按日堆积即版本历史。
+// ========== BACKUP (确认框 + 文件窗口 + 新鲜度提醒) ==========
+// 方案 A：当天首次打开页面时问一次「要不要备份」，点确认才弹系统文件窗口落盘。
+// 为什么必须先问：自动备份跑在定时器里**没有用户手势**，直接开文件窗口必然失败；
+// 而「目录已授权就静默写」也不成立——Chrome 的目录授权只撑到关闭该 origin 最后一个标签页，
+// 重开后 queryPermission 就是 prompt，定时器又没有手势去申请授权（详见 LESSONS.md）。
+// 于是统一成一条路：确认框（点击 = 手势）→ showSaveFilePicker（startIn = 设置里的目录）。
 // 方案 C：距上次备份超过 7 天且已有数据时，进页面温和提醒。
-// 决策逻辑（shouldAutoBackup / backupStaleDays / backupWritePlan / backupResultNotice）在 logic.js，
-// 此处只保留 DOM 副作用（写盘、toast、storage 写入），保证分支可被 node --test 覆盖
+// 决策逻辑（shouldAutoBackup / backupStaleDays / backupWritePlan / backupPromptText /
+// backupResultNotice）在 logic.js，此处只保留 DOM 副作用（弹框、写盘、toast、storage 写入）
 
 // 目录句柄不能进 state（不可 JSON 序列化，也不该随导出走）：只存 IndexedDB。
 // 全部读写容错——隐私模式 / IDB 不可用时退化为「仅本次会话可用」，不阻塞首屏。
@@ -5062,7 +5065,7 @@ let backupDirHandle = null;
 let backupDirReady = Promise.resolve();
 let backupDirTouched = false; // 用户已主动选择/清除：启动恢复不得覆盖新值
 let dirPickInFlight = false;
-let backupInFlight = false;
+let backupInFlight = false; // 一次落盘从「弹窗口」到「写完」全程占位：防同一份被并行写两次
 
 function openBackupDB() {
   if (typeof indexedDB === 'undefined') return Promise.reject(new Error('no-idb'));
@@ -5112,32 +5115,26 @@ async function restoreBackupDir() {
   syncBackupControls();
 }
 
+// 只认 Chromium 系的 File System Access API：没有它就没有「指定起点目录的文件窗口」，
+// 落点只能回退成浏览器下载（backupWritePlan 会据此判定）
 function canPickBackupDir() { return typeof window.showDirectoryPicker === 'function'; }
 function canSaveBackupFile() { return typeof window.showSaveFilePicker === 'function'; }
-
-// 权限三态：没有对应方法的句柄（如 OPFS）按已授权处理；异常一律保守归 denied
-async function dirPermission(handle, method) {
-  if (!handle || typeof handle[method] !== 'function') return 'granted';
-  try { return normalizeDirPermission(await handle[method]({ mode: 'readwrite' })); }
-  catch (e) { return 'denied'; }
-}
-
-function queryDirPermission(handle) { return dirPermission(handle, 'queryPermission'); }
-function requestDirPermission(handle) { return dirPermission(handle, 'requestPermission'); }
 
 // ===== 设置入口（onclick 只挂同步包装；异步实现单独命名）=====
 function chooseBackupDir() { chooseBackupDirAsync(); }
 
 async function chooseBackupDirAsync() {
   if (!canPickBackupDir()) {
-    toast('当前浏览器不支持选择文件夹，备份将保存到「下载」文件夹', 'info');
+    toast('当前浏览器不支持选择文件夹，备份将下载到「下载」文件夹', 'info');
     return;
   }
   if (dirPickInFlight) return;
   dirPickInFlight = true;
   try {
-    // 第一个 await 之前先弹选择器：拖到别的 await 之后会丢失用户手势
-    const handle = await window.showDirectoryPicker({ mode: 'readwrite' });
+    // 第一个 await 之前先弹选择器：拖到别的 await 之后会丢失用户手势。
+    // mode 只要 read：这个句柄只用来给文件窗口指定起点（startIn），不再往目录里直接写文件，
+    // 所以不必再申请写权限——那正是「每次重开都要重新授权」的来源。
+    const handle = await window.showDirectoryPicker({ mode: 'read' });
     backupDirTouched = true;
     backupDirHandle = handle;
     try { await idbSetBackupDir(handle); } catch (e) { /* 本次会话仍可用，刷新后需重选 */ }
@@ -5160,21 +5157,29 @@ async function clearBackupDirAsync() {
   toast('已清除备份文件夹', 'success');
 }
 
-// ===== 写盘 =====
-async function dirHasFile(dir, name) {
-  try { await dir.getFileHandle(name); return true; }
-  catch (e) {
-    if (e && e.name === 'NotFoundError') return false;
-    throw e; // 探测失败不能当成「不存在」，否则可能覆盖
-  }
-}
-
-async function firstAvailableBackupName(dir, today) {
-  for (let seq = 1; seq < 1000; seq++) {
-    const name = backupFileName(today, seq);
-    if (!(await dirHasFile(dir, name))) return name;
-  }
-  throw new Error('no-free-backup-name');
+// ===== 落盘 =====
+// 系统文件窗口：**落盘的唯一入口**（手动导出与自动备份都走它），窗口位置由 startIn 决定。
+// 两个硬约束：
+//   1) 调用前不得有 await —— 自动备份的唯一手势来自确认框那次点击，一个 await 就把它消耗掉；
+//   2) close() 成功才算写完 —— 中途失败不会提交半截文件。
+// 用户取消返回 'cancelled'（不记任何状态，于是当天还会再问一次）。
+async function saveBackupToFile(today, mode) {
+  if (backupInFlight) return 'cancelled';
+  backupInFlight = true;
+  try {
+    const handle = await window.showSaveFilePicker({
+      suggestedName: backupFileName(today),
+      startIn: backupDirHandle, // undefined = 浏览器按 origin 记住的上次目录
+      types: [{ description: 'JSON', accept: { 'application/json': ['.json'] } }],
+    });
+    await writeFileHandleText(handle, backupJSONText(state));
+    applyBackupResult(backupResultNotice({ mode, target: 'file', status: 'written' }), today);
+    return 'written';
+  } catch (e) {
+    const cancelled = e && e.name === 'AbortError';
+    applyBackupResult(backupResultNotice({ mode, target: 'file', status: cancelled ? 'cancelled' : 'error' }), today);
+    return cancelled ? 'cancelled' : 'error';
+  } finally { backupInFlight = false; }
 }
 
 // close() 成功才算写入完成；中途失败不会提交半截文件
@@ -5182,27 +5187,6 @@ async function writeFileHandleText(fh, text) {
   const w = await fh.createWritable();
   await w.write(text);
   await w.close();
-}
-
-async function writeDirFile(dir, name, text) {
-  await writeFileHandleText(await dir.getFileHandle(name, { create: true }), text);
-}
-
-// 自动备份尝试写目录：只有目录可用且已授权才返回结果；
-// 无句柄 / 权限不足 / 任何异常都返回 null，由调用方回退下载（绝不弹框、绝不申请权限）
-async function writeAutoBackupToDir(today) {
-  if (!backupDirHandle) return null;
-  try {
-    const permission = await queryDirPermission(backupDirHandle);
-    const plan = backupWritePlan({
-      mode: 'auto', hasDir: true, permission, supportsDir: canPickBackupDir(),
-    });
-    if (plan.target !== 'dir') return null;
-    const name = backupFileName(today);
-    if (await dirHasFile(backupDirHandle, name)) return 'exists';
-    await writeDirFile(backupDirHandle, name, backupJSONText(state));
-    return 'written';
-  } catch (e) { return null; }
 }
 
 // 触发一次浏览器下载（兜底路径：无回执，绝不能据此记「已备份」）
@@ -5222,19 +5206,22 @@ function markBackedUp(today) {
   state.backup.lastBackup = today;
 }
 
-// 所有备份路径的唯一收尾点：按结果决定记不记成功，再统一刷新控件与便条
+// 所有备份路径的唯一收尾点：按结果决定记不记成功，再统一刷新控件与便条。
+// 只有「确认写入」才记 lastBackup；取消 / 失败 / 回退下载一律不记，
+// 于是当天再进来还会再问一次（旧实现用 lastAutoDownload 节流，取消后当天就「没了」）
 function applyBackupResult(notice, today) {
   if (notice.recordBackup) markBackedUp(today);
-  if (notice.recordAutoDownload) state.backup.lastAutoDownload = today;
-  if (notice.recordBackup || notice.recordAutoDownload) saveState();
+  if (notice.recordBackup) saveState();
   syncBackupControls();
   toast(notice.msg, notice.type);
 }
 
-// 方案 A 入口：是否触发由 logic.js 的 shouldAutoBackup 判定，此处延迟数秒执行
+// 方案 A 入口：是否触发由 logic.js 的 shouldAutoBackup 判定，此处延迟数秒执行。
 // ratePromise 为本次启动 DOMContentLoaded 中那笔 fetchRates 的 promise：
-// 备份前先 await 它，确保 state.rates 已更新（成功写入新汇率 / 失败回退缓存）再落盘，
+// 弹框前先 await 它，确保 state.rates 已更新（成功写入新汇率 / 失败回退缓存），
 // 避免备份抢在汇率刷新前拿到过期汇率。失败也不阻塞备份，用缓存汇率继续。
+// 确认框的「确认」就是那次用户手势：回调里**不得有任何 await** 就调 saveBackupToFile，
+// 否则手势被消耗、文件窗口打不开（测试把守这一条）。
 async function maybeAutoBackup(ratePromise) {
   if (!shouldAutoBackup(state, getLocalDateStr())) return;
   setTimeout(async () => {
@@ -5242,22 +5229,14 @@ async function maybeAutoBackup(ratePromise) {
       if (ratePromise) await ratePromise;
     } catch (e) { /* 汇率拉取失败也无妨，用缓存汇率继续备份 */ }
     try {
-      await backupDirReady; // 目录句柄从 IDB 恢复完成后再决定写哪
-      if (backupInFlight) return;
-      backupInFlight = true;
-      try {
-        const t = getLocalDateStr();
-        const outcome = await writeAutoBackupToDir(t);
-        if (outcome) {
-          applyBackupResult(backupResultNotice({
-            mode: 'auto', target: 'dir', status: outcome,
-            folderName: backupDirHandle && backupDirHandle.name,
-          }), t);
-        } else {
-          downloadBackupJSON();
-          applyBackupResult(backupResultNotice({ mode: 'auto', target: 'download', status: 'downloaded' }), t);
-        }
-      } finally { backupInFlight = false; }
+      await backupDirReady; // 目录句柄从 IDB 恢复完成后再弹框（确认文案要写目录名）
+      const t = getLocalDateStr();
+      const prompt = backupPromptText('auto', backupFileName(t), backupDirHandle && backupDirHandle.name);
+      showConfirm(prompt.msg, () => {
+        const plan = backupWritePlan({ supportsPicker: canSaveBackupFile() });
+        if (plan.target === 'file') saveBackupToFile(t, 'auto');
+        else exportViaDownload(t);
+      }, prompt.title, { okLabel: '备份', tone: 'gold' });
     } catch (e) { /* 忽略 */ }
   }, 4000);
 }
@@ -5306,67 +5285,21 @@ function exportData() {
   exportDataAsync();
 }
 
+// 手动导出：点按钮本身就是确认，直接进文件窗口（不再多一层确认框）
 async function exportDataAsync() {
-  if (backupInFlight) return;
-  backupInFlight = true;
   const today = getLocalDateStr();
-  try {
-    const dir = backupDirHandle;
-    // 无目录时不要 await：保住用户手势给保存框
-    const permission = dir ? await queryDirPermission(dir) : 'denied';
-    const plan = backupWritePlan({
-      mode: 'manual', hasDir: !!dir, permission, userGesture: true,
-      supportsDir: canPickBackupDir(), supportsSavePicker: canSaveBackupFile(),
-    });
-    if (plan.target === 'dir') {
-      const granted = plan.requestPermission ? await requestDirPermission(dir) : permission;
-      if (granted === 'granted') {
-        try {
-          const name = await firstAvailableBackupName(dir, today); // 手动导出同名自动加后缀
-          await writeDirFile(dir, name, backupJSONText(state));
-          applyBackupResult(backupResultNotice({ mode: 'manual', target: 'dir', status: 'written' }), today);
-          return;
-        } catch (e) { /* 目录被删/权限失效 → 继续走保存框或下载 */ }
-      }
-    }
-    if (plan.target !== 'download') {
-      await exportViaSavePicker(today); // 目录不可写 / 未选目录：保存框（不可用则内部回退下载）
-      return;
-    }
-    exportViaDownload(today);
-  } catch (e) {
-    applyBackupResult(backupResultNotice({ mode: 'manual', target: 'dir', status: 'error' }), today);
-  } finally {
-    backupInFlight = false;
-  }
-}
-
-// 手动导出的兜底路径：<a download> 无回执，只提示「已开始下载」，不记「已备份」
-function exportViaDownload(today) {
-  downloadBackupJSON();
-  applyBackupResult(backupResultNotice({ mode: 'manual', target: 'download', status: 'downloaded' }), today);
-}
-
-// 保存框：只有 close() 成功才算导出成功；取消不记任何状态
-async function exportViaSavePicker(today) {
-  if (!canSaveBackupFile()) {
+  const plan = backupWritePlan({ supportsPicker: canSaveBackupFile() });
+  if (plan.target !== 'file') {
     exportViaDownload(today);
     return;
   }
-  try {
-    const handle = await window.showSaveFilePicker({
-      suggestedName: backupFileName(today),
-      types: [{ description: 'JSON', accept: { 'application/json': ['.json'] } }],
-    });
-    await writeFileHandleText(handle, backupJSONText(state));
-    applyBackupResult(backupResultNotice({ mode: 'manual', target: 'save-picker', status: 'written' }), today);
-  } catch (e) {
-    if (e && e.name === 'AbortError') {
-      applyBackupResult(backupResultNotice({ mode: 'manual', target: 'save-picker', status: 'cancelled' }), today);
-      return;
-    }
-    exportViaDownload(today);
-  }
+  await saveBackupToFile(today, 'manual');
+}
+
+// 不支持文件窗口时的兜底：<a download> 无回执，只提示「已开始下载」，不记「已备份」
+function exportViaDownload(today) {
+  downloadBackupJSON();
+  applyBackupResult(backupResultNotice({ mode: 'manual', target: 'download', status: 'downloaded' }), today);
 }
 
 function importData(e) {

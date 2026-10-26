@@ -918,7 +918,7 @@ describe('备份 daysBetweenStr / backup 设置兜底', () => {
   test('migrateState 补全缺失的 backup 设置（默认每天）', () => {
     globalThis.state = freshState({}); // 无 backup 字段
     L.migrateState();
-    assert.deepStrictEqual(state.backup, { autoFreq: 'daily', lastBackup: null, lastAutoDownload: null });
+    assert.deepStrictEqual(state.backup, { autoFreq: 'daily', lastBackup: null });
   });
   test('migrateState 非法频率归位 daily，合法值保留', () => {
     globalThis.state = freshState({ backup: { autoFreq: 'monthly' } });
@@ -981,26 +981,31 @@ describe('备份决策 normalizeBackupFreq / hasAnyBackupWorthyData / shouldAuto
       L.shouldAutoBackup(freshState({ backup: { autoFreq: 'daily' } }), '2024-05-01'), false);
   });
 
-  test('shouldAutoBackup daily：从未→是；当天已下→否；隔天→是', () => {
+  test('shouldAutoBackup daily：从未备份→是；今天已备份→否；隔天→是', () => {
     assert.strictEqual(L.shouldAutoBackup(withBackup({ autoFreq: 'daily' }), '2024-05-01'), true);
     assert.strictEqual(
-      L.shouldAutoBackup(withBackup({ autoFreq: 'daily', lastAutoDownload: '2024-05-01' }), '2024-05-01'), false);
+      L.shouldAutoBackup(withBackup({ autoFreq: 'daily', lastBackup: '2024-05-01' }), '2024-05-01'), false);
     assert.strictEqual(
-      L.shouldAutoBackup(withBackup({ autoFreq: 'daily', lastAutoDownload: '2024-04-30' }), '2024-05-01'), true);
+      L.shouldAutoBackup(withBackup({ autoFreq: 'daily', lastBackup: '2024-04-30' }), '2024-05-01'), true);
   });
 
   test('shouldAutoBackup weekly：不足 7 天否，满 7 天是', () => {
-    const wk = (last) => withBackup({ autoFreq: 'weekly', lastAutoDownload: last });
+    const wk = (last) => withBackup({ autoFreq: 'weekly', lastBackup: last });
     assert.strictEqual(L.shouldAutoBackup(wk('2024-04-25'), '2024-05-01'), false); // 恰好 6 天
     assert.strictEqual(L.shouldAutoBackup(wk('2024-04-24'), '2024-05-01'), true);  // 恰好 7 天
   });
 
-  test('shouldAutoBackup：历史日期损坏视为需要备份；缺 backup 对象按默认 daily+从未下载', () => {
+  test('shouldAutoBackup：取消 / 回退下载 / 日期损坏都算「今天还没备份」→ 当天再次询问', () => {
+    // 用户实测「取消后第二次进来就没了」：旧实现把「回退下载」记成 lastAutoDownload，
+    // 于是当天再进来什么都不做——文件没落盘，节流账却已记上。
     assert.strictEqual(
-      L.shouldAutoBackup(withBackup({ autoFreq: 'daily', lastAutoDownload: 'garbage' }), '2024-05-01'), true);
+      L.shouldAutoBackup(withBackup({ autoFreq: 'daily', lastAutoDownload: '2024-05-01' }), '2024-05-01'), true,
+      '只有「尝试过下载」的记录、没有确认写入时，当天仍应再次询问');
+    assert.strictEqual(
+      L.shouldAutoBackup(withBackup({ autoFreq: 'daily', lastBackup: 'garbage' }), '2024-05-01'), true);
     const noBackupObj = freshState({ assets: [{ amount: 1 }] });
     assert.strictEqual(L.shouldAutoBackup(noBackupObj, '2024-05-01'), true);
-    noBackupObj.backup = { autoFreq: 'daily', lastAutoDownload: '2024-05-01' };
+    noBackupObj.backup = { autoFreq: 'daily', lastBackup: '2024-05-01' };
     assert.strictEqual(L.shouldAutoBackup(noBackupObj, '2024-05-01'), false);
   });
 
@@ -1053,109 +1058,79 @@ describe('备份文件夹 / 文件名 / 写入目标 / 结果文案', () => {
     }
   });
 
-  test('nextBackupFileName：找第一个未占用名，绝不覆盖', () => {
-    assert.strictEqual(L.nextBackupFileName('2024-05-01', []), 'wealth-data-2024-05-01.json');
-    assert.strictEqual(
-      L.nextBackupFileName('2024-05-01', ['wealth-data-2024-05-01.json']),
-      'wealth-data-2024-05-01-2.json');
-    assert.strictEqual(
-      L.nextBackupFileName('2024-05-01', new Set([
-        'wealth-data-2024-05-01.json', 'wealth-data-2024-05-01-2.json'])),
-      'wealth-data-2024-05-01-3.json');
-    assert.strictEqual(
-      L.nextBackupFileName('2024-05-01', ['其他.json', 'wealth-data-2024-04-30.json']),
-      'wealth-data-2024-05-01.json', '无关文件不影响');
+  test('backupWritePlan：能弹系统文件窗口 → file；不能 → 回退下载', () => {
+    assert.deepStrictEqual(L.backupWritePlan({ supportsPicker: true }), { target: 'file' });
+    assert.deepStrictEqual(L.backupWritePlan({ supportsPicker: false }), { target: 'download' });
+    assert.deepStrictEqual(L.backupWritePlan({}), { target: 'download' });
+    assert.deepStrictEqual(L.backupWritePlan(), { target: 'download' });
   });
 
-  test('normalizeDirPermission：只认 granted / prompt，其余归 denied', () => {
-    assert.strictEqual(L.normalizeDirPermission('granted'), 'granted');
-    assert.strictEqual(L.normalizeDirPermission('prompt'), 'prompt');
-    assert.strictEqual(L.normalizeDirPermission('denied'), 'denied');
-    for (const bad of [undefined, null, '', 'GRANTED', 0, {}]) {
-      assert.strictEqual(L.normalizeDirPermission(bad), 'denied');
+  test('backupWritePlan：目录 / 权限 / 手势都改不了落点（不再静默写目录是唯一口径）', () => {
+    const variants = [
+      { mode: 'auto', hasDir: true, permission: 'granted', supportsDir: true, supportsPicker: true },
+      { mode: 'manual', hasDir: true, permission: 'granted', userGesture: true, supportsDir: true, supportsPicker: true },
+      { mode: 'manual', hasDir: false, userGesture: true, supportsPicker: true },
+      { mode: 'auto', hasDir: true, permission: 'prompt', supportsPicker: true },
+    ];
+    for (const v of variants) {
+      assert.deepStrictEqual(L.backupWritePlan(v), { target: 'file' },
+        '一律过系统文件窗口：窗口位置由 startIn（所选目录）决定，不再直接写目录');
     }
   });
 
-  test('backupWritePlan：目录已授权 → 直接写目录', () => {
+  test('backupPromptText：自动备份的确认框文案（文件名 + 目录名，缺省不留空括号）', () => {
     assert.deepStrictEqual(
-      L.backupWritePlan({ mode: 'auto', hasDir: true, permission: 'granted', supportsDir: true }),
-      { target: 'dir', requestPermission: false });
+      L.backupPromptText('auto', 'wealth-data-2024-05-01.json', '账本备份'),
+      { msg: '今日自动备份：wealth-data-2024-05-01.json → 「账本备份」', title: '自动备份' });
     assert.deepStrictEqual(
-      L.backupWritePlan({ mode: 'manual', hasDir: true, permission: 'granted', userGesture: true, supportsDir: true }),
-      { target: 'dir', requestPermission: false });
+      L.backupPromptText('auto', 'wealth-data-2024-05-01.json', ''),
+      { msg: '今日自动备份：wealth-data-2024-05-01.json', title: '自动备份' });
+    assert.deepStrictEqual(
+      L.backupPromptText('auto', 'wealth-data-2024-05-01.json', null),
+      { msg: '今日自动备份：wealth-data-2024-05-01.json', title: '自动备份' });
+    assert.deepStrictEqual(
+      L.backupPromptText('manual', 'wealth-data-2024-05-01.json', '账本备份'),
+      { msg: '导出备份：wealth-data-2024-05-01.json → 「账本备份」', title: '导出备份' });
   });
 
-  test('backupWritePlan：权限 prompt 时只有手动（有手势）才申请授权', () => {
+  test('backupResultNotice：确认写入才记 lastBackup', () => {
     assert.deepStrictEqual(
-      L.backupWritePlan({ mode: 'manual', hasDir: true, permission: 'prompt', userGesture: true, supportsDir: true }),
-      { target: 'dir', requestPermission: true });
+      L.backupResultNotice({ mode: 'manual', target: 'file', status: 'written' }),
+      { msg: '数据已导出', type: 'success', recordBackup: true });
     assert.deepStrictEqual(
-      L.backupWritePlan({ mode: 'auto', hasDir: true, permission: 'prompt', supportsDir: true }),
-      { target: 'download', requestPermission: false },
-      '自动路径无用户手势，不得申请权限、不得弹框');
+      L.backupResultNotice({ mode: 'auto', target: 'file', status: 'written', folderName: '账本' }),
+      { msg: '已自动备份到「账本」', type: 'success', recordBackup: true });
+    assert.deepStrictEqual(
+      L.backupResultNotice({ mode: 'auto', target: 'file', status: 'written' }),
+      { msg: '已自动备份', type: 'success', recordBackup: true });
   });
 
-  test('backupWritePlan：手动未选目录 / 目录不可写 → 保存框；再不行 → 下载', () => {
-    assert.deepStrictEqual(
-      L.backupWritePlan({ mode: 'manual', hasDir: false, userGesture: true, supportsSavePicker: true }),
-      { target: 'save-picker', requestPermission: false });
-    assert.deepStrictEqual(
-      L.backupWritePlan({ mode: 'manual', hasDir: true, permission: 'denied', userGesture: true, supportsSavePicker: true }),
-      { target: 'save-picker', requestPermission: false });
-    assert.deepStrictEqual(
-      L.backupWritePlan({ mode: 'manual', hasDir: false, userGesture: true, supportsSavePicker: false }),
-      { target: 'download', requestPermission: false });
+  test('backupResultNotice：回退下载没有回执，两条路径都不记「已备份」', () => {
+    for (const mode of ['auto', 'manual']) {
+      assert.deepStrictEqual(
+        L.backupResultNotice({ mode, target: 'download', status: 'downloaded' }),
+        { msg: '已开始下载，请在下载栏确认', type: 'info', recordBackup: false });
+    }
   });
 
-  test('backupWritePlan：自动路径永不弹保存框；缺省参数一律回退下载', () => {
+  test('backupResultNotice：取消 / 失败一律不记成功，取消连节流都不写（否则当天不再询问）', () => {
+    for (const mode of ['auto', 'manual']) {
+      assert.deepStrictEqual(
+        L.backupResultNotice({ mode, target: 'file', status: 'cancelled' }),
+        { msg: '已取消备份', type: 'info', recordBackup: false },
+        '取消后当天再进来必须还能再问一次');
+    }
     assert.deepStrictEqual(
-      L.backupWritePlan({ mode: 'auto', hasDir: false, supportsSavePicker: true }),
-      { target: 'download', requestPermission: false });
-    assert.deepStrictEqual(
-      L.backupWritePlan({ mode: 'auto', hasDir: true, permission: 'granted', supportsDir: false }),
-      { target: 'download', requestPermission: false });
-    assert.deepStrictEqual(L.backupWritePlan({}), { target: 'download', requestPermission: false });
-    assert.deepStrictEqual(
-      L.backupWritePlan({ mode: 'manual', hasDir: true, permission: 'garbage', userGesture: true, supportsDir: true }),
-      { target: 'download', requestPermission: false });
+      L.backupResultNotice({ mode: 'auto', target: 'file', status: 'error' }),
+      { msg: '导出失败，请重试', type: 'error', recordBackup: false });
   });
 
-  test('backupResultNotice：写入 / 已存在才记 lastBackup', () => {
-    assert.deepStrictEqual(
-      L.backupResultNotice({ mode: 'manual', target: 'dir', status: 'written' }),
-      { msg: '数据已导出', type: 'success', recordBackup: true, recordAutoDownload: false });
-    assert.deepStrictEqual(
-      L.backupResultNotice({ mode: 'auto', target: 'dir', status: 'written', folderName: '账本' }),
-      { msg: '已自动备份到「账本」', type: 'success', recordBackup: true, recordAutoDownload: true });
-    assert.deepStrictEqual(
-      L.backupResultNotice({ mode: 'auto', target: 'dir', status: 'exists' }),
-      { msg: '今日备份已存在，未覆盖', type: 'info', recordBackup: true, recordAutoDownload: true });
-  });
-
-  test('backupResultNotice：回退下载只在自动路径记节流，不记 lastBackup', () => {
-    assert.deepStrictEqual(
-      L.backupResultNotice({ mode: 'manual', target: 'download', status: 'downloaded' }),
-      { msg: '已开始下载，请在下载栏确认', type: 'info', recordBackup: false, recordAutoDownload: false });
-    assert.deepStrictEqual(
-      L.backupResultNotice({ mode: 'auto', target: 'download', status: 'downloaded' }),
-      { msg: '已开始下载，请在下载栏确认', type: 'info', recordBackup: false, recordAutoDownload: true });
-  });
-
-  test('backupResultNotice：取消 / 失败一律不记成功', () => {
-    assert.deepStrictEqual(
-      L.backupResultNotice({ mode: 'manual', target: 'save-picker', status: 'cancelled' }),
-      { msg: '已取消导出', type: 'info', recordBackup: false, recordAutoDownload: false });
-    assert.deepStrictEqual(
-      L.backupResultNotice({ mode: 'manual', target: 'dir', status: 'error' }),
-      { msg: '导出失败，请重试', type: 'error', recordBackup: false, recordAutoDownload: false });
-  });
-
-  test('backupDirNoteText：未选 / 已选 × 支持 / 不支持，四处分支', () => {
-    assert.strictEqual(L.backupDirNoteText(false, null, true), '未选择，备份将保存到「下载」文件夹');
-    assert.strictEqual(L.backupDirNoteText(false, null, false), '当前浏览器不支持选择文件夹，备份将保存到「下载」文件夹');
-    assert.strictEqual(L.backupDirNoteText(true, '账本备份', true), '已选择「账本备份」');
-    assert.strictEqual(L.backupDirNoteText(true, '', true), '已选择「备份文件夹」');
-    assert.strictEqual(L.backupDirNoteText(true, '账本备份', false), '已选择「账本备份」，但当前浏览器不支持直接写入，将回退下载');
+  test('backupDirNoteText：目录只作文件窗口起点，不再承诺直接写入', () => {
+    assert.strictEqual(L.backupDirNoteText(false, null, true), '未选择，文件窗口默认打开上次的目录');
+    assert.strictEqual(L.backupDirNoteText(false, null, false), '当前浏览器不支持选择文件夹，备份将下载到「下载」文件夹');
+    assert.strictEqual(L.backupDirNoteText(true, '账本备份', true), '已选择「账本备份」，文件窗口默认打开这里');
+    assert.strictEqual(L.backupDirNoteText(true, '', true), '已选择「备份文件夹」，文件窗口默认打开这里');
+    assert.strictEqual(L.backupDirNoteText(true, '账本备份', false), '已选择「账本备份」，但当前浏览器不支持指定目录，文件窗口从默认位置打开');
   });
 });
 

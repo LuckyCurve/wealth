@@ -772,12 +772,12 @@
       if (state.rates.HKD == null) state.rates.HKD = 1;
       if (state.rates.USD == null) state.rates.USD = 1;
     }
-    // 备份设置（旧数据/导入文件可能缺失）：默认每天自动下载，'off' 表示关闭；
-    // lastBackup 含手动导出（新鲜度提醒用），lastAutoDownload 仅节流自动下载
+    // 备份设置（旧数据/导入文件可能缺失）：默认每天自动备份，'off' 表示关闭。
+    // lastBackup 只在**确认写入**后更新（手动导出与自动备份共用），也是「今天要不要再问」的唯一依据；
+    // 旧的 lastAutoDownload（回退下载的节流）已移除——它让「没落盘」也记成「今天备份过了」
     if (!state.backup || typeof state.backup !== 'object') state.backup = {};
     state.backup.autoFreq = normalizeBackupFreq(state.backup.autoFreq);
     if (!state.backup.lastBackup) state.backup.lastBackup = null;
-    if (!state.backup.lastAutoDownload) state.backup.lastAutoDownload = null;
     // 用户设置字段（旧数据/导入数据可能缺失或为字符串）
     // 数字归一：字符串会让 formatCNY 走 String.toLocaleString 丢掉两位小数，统一转数字
     state.expenseExpectation = Number(state.expenseExpectation) || 0;
@@ -1201,14 +1201,15 @@
     return `上次备份 ${lastBackup}${lastBackup === today ? '（今天）' : ''}`;
   }
 
-  // 方案 A 决策：今天是否应触发自动下载备份。
-  // off / 无数据 → 否；从未下载或历史日期损坏(gap==null) → 是；
-  // daily 当天已下过(gap<=0) → 否；weekly 不足 7 天(gap<7) → 否。
-  // backup 对象缺失时按默认 daily + 从未下载处理（与 migrateState 兑底一致）
+  // 方案 A 决策：今天是否该弹一次自动备份确认框。
+  // off / 无数据 → 否；从未备份或历史日期损坏(gap==null) → 是；
+  // daily 当天已备份过(gap<=0) → 否；weekly 不足 7 天(gap<7) → 否。
+  // 只看 lastBackup（确认写入才更新）：取消/回退下载一律不算「备份过」，当天再进来仍会再问一次。
+  // backup 对象缺失时按默认 daily + 从未备份处理（与 migrateState 兑底一致）
   function shouldAutoBackup(s, today) {
     const b = (s && s.backup) || {};
     if (b.autoFreq === 'off' || !hasAnyBackupWorthyData(s)) return false;
-    const gap = b.lastAutoDownload ? daysBetweenStr(b.lastAutoDownload, today) : null;
+    const gap = b.lastBackup ? daysBetweenStr(b.lastBackup, today) : null;
     if (gap == null) return true;
     return b.autoFreq === 'daily' ? gap > 0 : gap >= 7;
   }
@@ -1249,69 +1250,61 @@
     return backupFileName(today, seq);
   }
 
-  // 目录权限三态归一：只认 granted / prompt；undefined / 异常字符串等一律按 denied（保守，不误写）
-  function normalizeDirPermission(v) {
-    return v === 'granted' || v === 'prompt' ? v : 'denied';
-  }
-
-  // 写盘目标决策：目录授权可用 → dir；手动且有手势时才能申请授权 / 弹保存框；
-  // 自动路径没有用户手势，绝不弹框、绝不 requestPermission，只能回退下载。
-  // 缺省参数按「无目录、无手势、不支持」保守处理，调用方漏传不会误写。
+  // 落点决策：**一律过系统文件窗口**（能弹 → file），弹不出来才回退浏览器下载。
+  // 为什么不再「目录已授权就静默写」：跨会话的目录写权限靠不住（Chrome 的授权只撑到关闭该 origin
+  // 最后一个标签页，重开后 queryPermission 就是 prompt），而自动备份跑在定时器里没有用户手势、
+  // 无法申请授权——结果是「设置了文件夹却仍在弹下载框」。现在统一：先弹确认框（用户点击 =
+  // 手势），再开文件窗口，位置由 startIn（设置里选的目录）决定。
+  // 缺省参数按「弹不出」保守处理，调用方漏传不会误写。
   function backupWritePlan(opts) {
     opts = opts || {};
-    const mode = opts.mode === 'auto' ? 'auto' : 'manual';
-    const userGesture = opts.userGesture !== undefined ? !!opts.userGesture : mode === 'manual';
-    const permission = normalizeDirPermission(opts.permission);
-    const dirUsable = !!opts.hasDir && !!opts.supportsDir;
-    if (dirUsable && permission === 'granted') {
-      return { target: 'dir', requestPermission: false };
-    }
-    if (dirUsable && permission === 'prompt' && userGesture && mode === 'manual') {
-      return { target: 'dir', requestPermission: true };
-    }
-    if (mode === 'manual' && userGesture && !!opts.supportsSavePicker) {
-      return { target: 'save-picker', requestPermission: false };
-    }
-    return { target: 'download', requestPermission: false };
+    return { target: opts.supportsPicker ? 'file' : 'download' };
   }
 
-  // 写入结果 → 便条与状态口径（单一来源）。只有 written / exists 算「已备份」；
-  // 回退下载只更新自动备份的节流字段 lastAutoDownload，绝不虚报 lastBackup。
+  // 备份确认框文案（自动备份专用）：写清「哪个文件、写到哪个目录」，
+  // 目录名缺省时不留空括号。手动导出由按钮本身承担确认，不需要这一层。
+  function backupPromptText(mode, fileName, folderName) {
+    const name = fileName || '';
+    const where = folderName ? ` → 「${folderName}」` : '';
+    const head = mode === 'auto' ? '今日自动备份' : '导出备份';
+    return { msg: `${head}：${name}${where}`, title: mode === 'auto' ? '自动备份' : '导出备份' };
+  }
+
+  // 写入结果 → 便条与状态口径（单一来源）。只有 written 算「已备份」；
+  // 取消 / 失败 / 回退下载一律不记 lastBackup（也就意味着当天再进来还会再问一次），
+  // 回退下载同样没有回执，故文案中性、不虚报成功。
   function backupResultNotice(o) {
     o = o || {};
     const auto = o.mode === 'auto';
     if (o.status === 'error') {
-      return { msg: '导出失败，请重试', type: 'error', recordBackup: false, recordAutoDownload: false };
+      return { msg: '导出失败，请重试', type: 'error', recordBackup: false };
     }
     if (o.status === 'cancelled') {
-      return { msg: '已取消导出', type: 'info', recordBackup: false, recordAutoDownload: false };
-    }
-    if (o.status === 'exists') {
-      return { msg: '今日备份已存在，未覆盖', type: 'info', recordBackup: true, recordAutoDownload: auto };
+      return { msg: '已取消备份', type: 'info', recordBackup: false };
     }
     if (o.status === 'downloaded' || o.target === 'download') {
-      return { msg: '已开始下载，请在下载栏确认', type: 'info', recordBackup: false, recordAutoDownload: auto };
+      return { msg: '已开始下载，请在下载栏确认', type: 'info', recordBackup: false };
     }
     if (auto) {
       return {
         msg: '已自动备份' + (o.folderName ? `到「${o.folderName}」` : ''),
-        type: 'success', recordBackup: true, recordAutoDownload: true,
+        type: 'success', recordBackup: true,
       };
     }
-    return { msg: '数据已导出', type: 'success', recordBackup: true, recordAutoDownload: false };
+    return { msg: '数据已导出', type: 'success', recordBackup: true };
   }
 
-  // 设置里「备份文件夹」边注：未选 / 已选 × 支持 / 不支持
+  // 设置里「备份文件夹」边注：它现在是**文件窗口的起点目录**，不再是「直接写入」的开关
   function backupDirNoteText(hasDir, name, supported) {
     if (!hasDir) {
       return supported
-        ? '未选择，备份将保存到「下载」文件夹'
-        : '当前浏览器不支持选择文件夹，备份将保存到「下载」文件夹';
+        ? '未选择，文件窗口默认打开上次的目录'
+        : '当前浏览器不支持选择文件夹，备份将下载到「下载」文件夹';
     }
     const n = name || '备份文件夹';
     return supported
-      ? `已选择「${n}」`
-      : `已选择「${n}」，但当前浏览器不支持直接写入，将回退下载`;
+      ? `已选择「${n}」，文件窗口默认打开这里`
+      : `已选择「${n}」，但当前浏览器不支持指定目录，文件窗口从默认位置打开`;
   }
 
   // ========== 汇率刷新提示决策 ==========
@@ -1419,7 +1412,7 @@
     addMonths, getCurrentMonth, getLocalDateStr, getLocalMonthStr, monthLabel,
     daysBetweenStr,
     BACKUP_STALE_DAYS, normalizeBackupFreq, backupNoteText, hasAnyBackupWorthyData, shouldAutoBackup, backupStaleDays,
-    backupJSONText, backupFileName, nextBackupFileName, normalizeDirPermission, backupWritePlan, backupResultNotice, backupDirNoteText,
+    backupJSONText, backupFileName, backupPromptText, backupWritePlan, backupResultNotice, backupDirNoteText,
     rateFallbackNotice,
     ratesFromApi,
     nextSortState, inlineEditKeyAction, expenseMonths,

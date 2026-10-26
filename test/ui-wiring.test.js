@@ -525,48 +525,70 @@ describe('UI 接线契约：收益覆盖标尺（分子口径可切换的预期�
   });
 });
 
-describe('UI 接线契约：自动备份等待汇率拉取完成再导出', () => {
+describe('UI 接线契约：备份落盘统一走确认框 + 系统文件窗口', () => {
   test('DOMContentLoaded 捕获 fetchRates() 的 promise 并传给 maybeAutoBackup', () => {
     assert.match(html, /const ratePromise = fetchRates\(\);/, '应捕获本次启动的汇率拉取 promise 复用同一笔请求');
     assert.match(html, /maybeAutoBackup\(ratePromise\);/, '应把 promise 传给 maybeAutoBackup（而非无参调用）');
     assert.strictEqual(count(/maybeAutoBackup\(\)/g), 0, '不应再有无参调用，否则会抢在汇率刷新前导出拿到过期汇率');
   });
 
-  test('maybeAutoBackup 先 await 汇率 promise 再 downloadBackupJSON', () => {
+  test('maybeAutoBackup 先 await 汇率与句柄恢复，再弹确认框；确认框自己不落盘', () => {
     assert.match(html, /async function maybeAutoBackup\(ratePromise\)/, '应为 async 且接收 ratePromise 参数');
-    const src = fnSource('maybeAutoBackup');
-    assert.match(src, /if \(ratePromise\) await ratePromise;/, '下载前应 await 汇率拉取完成（含空值守卫）');
-    assert.match(src, /downloadBackupJSON\(\)/, 'await 之后才执行下载');
-    // 顺序保证：await 必须排在 downloadBackupJSON 之前，否则导出拿到旧汇率
-    assert.ok(
-      src.indexOf('await ratePromise') < src.indexOf('downloadBackupJSON()'),
-      'await ratePromise 必须排在 downloadBackupJSON 之前');
+    const src = stripComments(fnSource('maybeAutoBackup'));
+    assert.match(src, /if \(ratePromise\) await ratePromise;/, '弹框前应 await 汇率拉取完成（含空值守卫）');
+    assert.match(src, /await backupDirReady/, '弹框前应等 IDB 里的目录句柄恢复（确认文案要写目录名）');
+    assert.match(src, /backupPromptText\(/, '确认框文案走 logic.js 单一来源');
+    assert.match(src, /showConfirm\(/, '自动备份必须先弹确认框：定时器没有用户手势，直接开文件窗口必然失败');
+    assert.ok(src.indexOf('await ratePromise') < src.indexOf('showConfirm('),
+      'await ratePromise 必须排在弹框之前，否则确认框里的文件名/汇率是旧的');
+    assert.doesNotMatch(src, /showSaveFilePicker|downloadBackupJSON|backupJSONText/,
+      '确认框只负责问：落盘必须交给 saveBackupToFile 唯一出口');
+    // 确认回调就是那次手势：回调体里出现 await（或写成 async 回调）都会让文件窗口打不开
+    const cb = src.slice(src.indexOf('showConfirm('));
+    const cbBody = cb.slice(cb.indexOf('=> {'), cb.indexOf('}, prompt.title'));
+    assert.ok(cbBody.length > 0, '确认回调体必须能被定位（改形会让这条断言静默失效）');
+    assert.doesNotMatch(cbBody, /await|async/, '确认回调里不得有 await：手势会被消耗，文件窗口打不开');
   });
 
-  test('汇率拉取失败时不阻塞备份：await 包在独立 try/catch 且 catch 不 return，下载在后续独立 try 块', () => {
+  test('确认框与文件窗口之间不得有 await：一旦 await，用户手势就被消耗、窗口打不开', () => {
+    const src = stripComments(fnSource('saveBackupToFile'));
+    const pickerIdx = src.indexOf('window.showSaveFilePicker(');
+    assert.ok(pickerIdx > 0, '必须直接调 showSaveFilePicker（仅 Chromium 支持；其余走 fallback）');
+    // 只允许写盘那一段 await（try 块内），函数入口到「弹窗口」之间一步都不许停
+    const head = src.slice(src.indexOf('try {'), pickerIdx);
+    // 入口到「弹窗口」之间只允许一个 await —— 就是打开窗口本身那一个
+    assert.strictEqual((head.match(/await/g) || []).length, 1,
+      'showSaveFilePicker 之前不得先 await 别的：自动备份的唯一手势来自确认框那次点击');
+    assert.match(head, /await\s*$/, '唯一那个 await 必须紧贴打开窗口这一句');
+    assert.match(src.slice(pickerIdx), /await writeFileHandleText\(/,
+      '窗口确认后才写内容（close() 成功才算写完）');
+    assert.match(src, /startIn: backupDirHandle/, '文件窗口必须从设置里选的目录打开');
+  });
+
+  test('汇率拉取失败时不阻塞备份：await 包在独立 try/catch 且 catch 不 return，弹框在后续独立 try 块', () => {
     const src = fnSource('maybeAutoBackup');
-    // await 的 catch 不得提前 return 中断备份流程
     assert.doesNotMatch(src, /catch \(e\) \{[^}]*return/, 'await 的 catch 不应 return 中断备份');
-    // 下载逻辑位于 await 的 catch 闭合之后、独立的 try 块内，失败也照常执行
     const awaitCatchEnd = src.indexOf('用缓存汇率继续备份');
-    const dlIdx = src.indexOf('downloadBackupJSON()');
-    assert.ok(awaitCatchEnd > 0 && dlIdx > awaitCatchEnd, '下载块应在 await 的 catch 之后，失败仍继续备份');
+    const confirmIdx = src.indexOf('showConfirm(');
+    assert.ok(awaitCatchEnd > 0 && confirmIdx > awaitCatchEnd, '弹框应在 await 的 catch 之后，失败仍继续');
   });
 });
 
 describe('UI 接线契约：导入/导出（纯原始格式 + 迁移兜底共用一套）', () => {
   test('导出内容走 logic.js backupJSONText（唯一来源，剥离快照加工字段 totalCNY）', () => {
-    // 三条导出路径（目录 / 保存框 / 下载）必须落盘同一份内容：
+    // 两条落盘路径（系统文件窗口 / 回退下载）必须落盘同一份内容：
     // 生成逻辑下沉 logic.js，页面不得再各写一份深拷贝 + delete
     const logicSrc = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'logic.js'), 'utf8');
     const fnSrc = logicSrc.match(/function backupJSONText\([\s\S]*?\n {2}\}/);
     assert.ok(fnSrc, 'logic.js 必须有 backupJSONText');
     assert.match(stripComments(fnSrc[0]), /delete sn\.totalCNY/,
       '导出前必须逐条剥离 totalCNY：它的唯一真相是 assets × currencyRates，写进文件后一旦导入端不重算就会留下与资产脱节的旧值');
-    for (const fn of ['downloadBackupJSON', 'exportDataAsync', 'exportViaSavePicker', 'writeAutoBackupToDir']) {
+    for (const fn of ['downloadBackupJSON', 'saveBackupToFile']) {
       assert.match(stripComments(fnSource(fn)), /backupJSONText\(state\)/,
         `${fn} 必须用同一份 backupJSONText 生成内容`);
     }
+    assert.match(stripComments(fnSource('exportDataAsync')), /saveBackupToFile\(/,
+      '手动导出必须汇到同一落盘出口，不得另写一份写盘');
   });
 
   test('导入合并后必须走 migrateState()（与 loadState 共用同一套迁移/兜底）', () => {
@@ -608,26 +630,26 @@ describe('UI 接线契约：备份文件夹', () => {
     assert.doesNotMatch(fresh, /dir|handle|folder/i, 'state 初始值不得出现目录字段');
   });
 
-  test('自动备份路径绝不申请权限 / 弹保存框：只 query，回退下载', () => {
-    const auto = stripComments(fnSource('writeAutoBackupToDir'));
-    assert.doesNotMatch(auto, /requestPermission|showDirectoryPicker|showSaveFilePicker/,
-      '4 秒定时器没有用户手势，弹框/申请权限必然失败');
-    assert.match(auto, /queryDirPermission\(/);
-    const maybe = stripComments(fnSource('maybeAutoBackup'));
-    assert.match(maybe, /await backupDirReady/, '写盘前必须等 IDB 恢复完成');
-    assert.match(maybe, /downloadBackupJSON\(\);/, '目录不可用时回退下载');
+  test('旧入口不回潮：静默写目录 / 权限申请 / 回退下载节流全部移除', () => {
+    const logicSrc = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'logic.js'), 'utf8');
+    const dead = /writeAutoBackupToDir|dirHasFile|firstAvailableBackupName|writeDirFile|queryDirPermission|requestDirPermission|normalizeDirPermission|lastAutoDownload/;
+    assert.doesNotMatch(stripComments(html), dead, 'index.html 不得再出现静默写目录/权限申请/下载节流');
+    assert.doesNotMatch(stripComments(logicSrc), dead, 'logic.js 不得再出现静默写目录/权限申请/下载节流');
   });
 
-  test('只有确认写入才记「已备份」：所有路径统一走 applyBackupResult', () => {
+  test('只有确认写入才记「已备份」：所有落盘路径统一走 applyBackupResult', () => {
     const apply = stripComments(fnSource('applyBackupResult'));
     assert.match(apply, /if \(notice\.recordBackup\) markBackedUp\(today\)/);
-    assert.match(apply, /if \(notice\.recordAutoDownload\) state\.backup\.lastAutoDownload = today/);
     assert.match(apply, /syncBackupControls\(\)/);
-    for (const fn of ['exportDataAsync', 'exportViaSavePicker', 'maybeAutoBackup']) {
+    for (const fn of ['exportViaDownload', 'saveBackupToFile']) {
       const src = stripComments(fnSource(fn));
       assert.match(src, /applyBackupResult\(/, `${fn} 的结果必须交统一口径判定`);
       assert.doesNotMatch(src, /markBackedUp\(/, `${fn} 不得绕过 applyBackupResult 直接记成功`);
     }
+    assert.match(stripComments(fnSource('maybeAutoBackup')), /saveBackupToFile\(/,
+      '自动路径必须汇到同一落盘出口');
+    assert.match(stripComments(fnSource('exportDataAsync')), /saveBackupToFile\(/,
+      '手动路径必须汇到同一落盘出口');
   });
 });
 

@@ -53,9 +53,8 @@ interface AppState {
   runwayExpectation: number;     // 读数卡自定月消费 (CNY)，0=用全局 expenseExpectation，不回填全局
   backup: {
     autoFreq: 'daily' | 'weekly' | 'off';
-    lastBackup: string | null;      // 只在**确认写入成功**后更新
-    lastAutoDownload: string | null; // 自动备份节流；回退下载也更新
-    // 备份文件夹句柄不进 state（不可序列化），只存 IndexedDB
+    lastBackup: string | null;      // 只在**确认写入成功**后更新；也是「今天要不要再问」的唯一依据
+    // 备份文件夹句柄不进 state（不可序列化），只存 IndexedDB；它只是文件窗口的起点目录
   };
 }
 
