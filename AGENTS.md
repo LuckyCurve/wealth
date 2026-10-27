@@ -16,7 +16,7 @@ AGENTS.md             # 路标：结构、命令、怎么提交
 LESSONS.md            # 踩过的坑与原因（改哪块读哪节）
 GLOSSARY.md           # 领域术语（下拉控件 / 下拉弹层 / 巡检）
 docs/adr/             # 不可逆且反直觉的决定（下拉弹层为什么用 base-select）
-docs/code-standards.md # 评审清单
+docs/code-standards.md # 评审规则（只留判断类；形态类归测试）
 docs/agents/          # 工程技能的仓库约定（票存哪 / triage 标签 / 领域文档）
 .gitignore            # 忽略 .superpowers/ .pi/ .scratch/ node_modules/ 与测试产物
 ```
@@ -36,7 +36,7 @@ docs/agents/          # 工程技能的仓库约定（票存哪 / triage 标签 
 ## 开工前
 
 1. 改哪块，先读 [LESSONS.md](LESSONS.md) 的对应小节：每条都对应一次真实翻车或用户原话。
-2. 提交前对照 [docs/code-standards.md](docs/code-standards.md) 的清单。
+2. 提交前对照 [docs/code-standards.md](docs/code-standards.md) 的清单；文末那张表里的规则由测试把守，直接跑测试。
 3. 行为有变，同一 commit 更新文档；能写成测试的约定，写测试，不写文档。
 
 ## 技术栈
@@ -140,6 +140,7 @@ interface Expense {
 - `test/logic.test.js` — 纯函数单测。
 - `test/ui-wiring.test.js` — 对 `index.html` 的文本契约断言，把守「单一来源 / 旧入口不回潮 / 关键接线」；完整清单见文件内 `describe` 标题。其中一条用 `new Function` 对整段内联脚本**做真解析**：单文件 SPA 没有构建步骤，一个顶层声明重名就会让整段脚本死在解析期（症状是「页面在、但没数字」，且 renderAll 之后的接线全部不存在）。
 - `test/size-budget.test.js` — 体积预算，见下节。
+- `test/e2e-hygiene.test.js` — E2E 用例卫生（禁用固定睡眠），把守下节那条铁律。
 - 依赖全局 `state` / `incomeMode` 的函数，测试中经 `globalThis` 注入。
 - 改动纯逻辑时同步更新 `logic.js` 与单测。
 
@@ -163,7 +164,7 @@ interface Expense {
 - **版式巡检（`consistency.spec.js`）**：同类元素的计算样式集合须为 1，表头与数据行列宽须相等，同档字号/字重唯一，展示档逐级递减。新增同类结构时不必改测试（判据从页面自身求值）；它拓的是「写对 class 但被覆盖 / 漏挂 class」这类单测看不见的漏洞。另有一条**全站文字对比度 ≥ AA** 巡检（亮/暗两套；「有意淡出」的元素显式豁免）。
 - **route 后注册者优先**：兜底「拦掉一切外网」必须先注册，具体 CDN 替身后注册才能覆盖它。次序写反会让所有替身失效且不报错，只表现为一串莫名失败。
 - **先关动效再断言数字**：masthead 净资产是计数动画，等它收敛会让每个数字断言吃满超时。`fixtures` 里统一 `emulateMedia({ reducedMotion: 'reduce' })`。
-- **E2E 里禁止 `waitForTimeout` 睡眠**：`switchTab` 的 display 翻转、`setTheme` 的 classList 翻转都是同步的，用可见断言即可到位；固定等待会让主题巡检这类全 Tab 遍历的用例凭空多吃数秒（曾占全套时长的 1/3）。确需等待异步渲染时用 `expect.poll`。
+- **E2E 里禁止 `waitForTimeout` 睡眠**：`switchTab` 的 display 翻转、`setTheme` 的 classList 翻转都是同步的，用可见断言即可到位；固定等待会让主题巡检这类全 Tab 遍历的用例凭空多吃数秒（曾占全套时长的 1/3）。确需等待异步渲染时用 `expect.poll`。`test/e2e-hygiene.test.js` 扫 `e2e/*.spec.js` 把守这一条。
 - **进资产的入口只有 `fixtures.gotoAssets()` 一处**：它走键盘通道（合成 click）直达确认框，既不必等满按住时长，也顺带护住「不用鼠标的人不被挡在门外」这条路径；长按手势本身由 `app.spec.js` 的专测用真实鼠标覆盖。已在资产模式时为幂等（不再走门）。
 - **读内存态 vs 读存档**：`migrateState()` 只修内存态、不回写 localStorage。验证「已落盘」读 localStorage，验证「迁移/兜底已生效」读 `state`。
 - **seed 只在首次导航生效**：`addInitScript` 对每次导航（含 reload）都会重跑，若无条件覆盖，reload 会把存档洗回种子值 —— 持久化用例会「永远绿」（假通过）。标记用 sessionStorage（同一标签页跨 reload 存活、每个用例独立）。
