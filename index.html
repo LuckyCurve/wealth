@@ -284,7 +284,7 @@ tailwind.config = {
   /* 台灯掠光: 两条斜光带（同一角度、错开位置） + 指针处的小圆芯。
      带子用 calc(var(--lamp-x) ± …) 定位——光带跟着指针的横向位置扫，纵向只由圆芯微调，
      所以鼠标横移时纸面像被灯拂过，而不是一个球在跳。
-     坐标只认 --lamp-x/--lamp-y（percent），由 updateLamp 写入（换算在 logic.js lampPos）。
+     坐标只认 --lamp-x/--lamp-y（percent），由 updateLamp 写入（换算在 logic.js ui.lampPos）。
      默认 50% 50% = 居中，故未启用（触屏/减动效）时它就是一层静止的柔和照射。 */
   .lamp-layer {
     position: fixed; inset: 0; z-index: -1; pointer-events: none;
@@ -296,7 +296,7 @@ tailwind.config = {
   }
   /* 指针进入后淡入（避免首帧在 50%/50% 处闪一下） */
   .lamp-layer.on { opacity: 1; }
-  /* 减动效：明确要求安静就不画灯（与 logic.js lampEnabled 同一道闸，双重保险） */
+  /* 减动效：明确要求安静就不画灯（与 logic.js ui.lampEnabled 同一道闸，双重保险） */
   @media (prefers-reduced-motion: reduce) { .lamp-layer { display: none; } }
   .font-display { font-family: var(--font-display); }
   /* 内容栏（页头/子 Tab/正文共用同一套宽度与左右边距）。
@@ -641,7 +641,7 @@ tailwind.config = {
      ① 卡片自身有 backdrop-filter，会自成层叠上下文——气泡的 z-index 只在卡片内部有效，
         后面那张卡片就整块盖上来（用户实测：「缺口」旁气泡的下半被下面的表格盖住）；
      ② 弹窗正文 overflow-y:auto、窄屏表格 overflow-x:auto 会直接裁掉溢出的气泡。
-     fixed 一次解决这两类；坐标由 JS 调 logic.js tipBubblePos 写入（--tip-x/--tip-y），
+     fixed 一次解决这两类；坐标由 JS 调 logic.js ui.tipBubblePos 写入（--tip-x/--tip-y），
      故这里不写 left/top（写了会与内联变量打架）。 */
   .tip-bubble {
     /* z-index 必须高于弹窗（.modal-overlay 是 100）与遮罩：气泡要能从弹窗正文里
@@ -675,7 +675,7 @@ tailwind.config = {
   }
   .tag-pill .tag-val { font-weight: var(--fw-strong); }
   .tag-pill.active { border-color: var(--accent); border-left-color: var(--accent); }
-  /* 长按改名：按住期间给一条金墨进度线（进度比例来自 logic.js pressProgress，宽度由 JS 写内联 box-shadow）。
+  /* 长按改名：按住期间给一条金墨进度线（进度比例来自 logic.js ui.pressProgress，宽度由 JS 写内联 box-shadow）。
      为什么必须有：长按是**无声的**手势——不给进度，用户按到一半就放手，永远学不会这个入口。
      与「进资产页」的长按门槛同一套视觉语言（底边墨线浸满），按住时整枚胶囊微微抬起。
      用 box-shadow 而非伪元素：胶囊自身有 border-radius 与背景，伪元素还要再对付 overflow。 */
@@ -728,7 +728,7 @@ tailwind.config = {
   }
   .tag-choice:hover { color: var(--fg); border-color: var(--accent-soft); }
   /* 已选态 = 实心盖印：浅 tint 底 + **分类字色**的实线描边。
-     描边为何不能用 --chip-border：pillColors 的 border 与 bg 同为 90%+ 明度的浅 tint，
+     描边为何不能用 --chip-border：color.pillColors 的 border 与 bg 同为 90%+ 明度的浅 tint，
      与弹窗卡面只差 1.04–1.09:1，而待选空栏的中性虚线有 1.38:1 —— 选择指示一度是倒挂的，
      用户原话「已经选中了日常但快看不出来了」。用分类字色做描边后实测 4.99–7.46:1，
      既明显强于空栏，又满足 WCAG 非图形文字 3:1 的下限。 */
@@ -892,7 +892,7 @@ tailwind.config = {
      距离刻意小（8px）：这是「翻到下一页」的呼吸感，不是「跳出来吓一跳」；
      大距离的入场在频繁切 Tab 时会显得拖沓。
      方向感：往右翻页内容自右滑入、往回翻自左滑入——方向由 enterTab 写进 --pane-x，
-     判定在 logic.js paneEnterShift（按目标按钮的实测位置），横向距离同样刻意小（10px）。 */
+     判定在 logic.js ui.paneEnterShift（按目标按钮的实测位置），横向距离同样刻意小（10px）。 */
   [id^="tab-"].enter { animation: paneEnter 0.22s cubic-bezier(0.22, 0.61, 0.36, 1); }
   @keyframes paneEnter {
     from { opacity: 0; transform: translate(calc(var(--pane-x, 0) * 10px), 8px); }
@@ -1251,7 +1251,7 @@ tailwind.config = {
 <body class="min-h-screen">
 
 <!-- 纸面掠光层: 跟随指针的「台灯」——账本摊在桌上，灯在纸上游走。
-     固定视口层, 不吃指针事件; --lamp-x/--lamp-y 由 updateLamp 写（换算在 logic.js lampPos）。
+     固定视口层, 不吃指针事件; --lamp-x/--lamp-y 由 updateLamp 写（换算在 logic.js ui.lampPos）。
      z-index: -1 = 落在在流内容之后、根背景之前（为何仍可见见 CSS 里的实测说明）。 -->
 <div class="lamp-layer" aria-hidden="true"></div>
 
@@ -1356,10 +1356,10 @@ tailwind.config = {
     <div id="assets-list" class="card">
       <div class="asset-row grid-wide list-head">
         <div></div>
-        <div onclick="toggleSort('name')" role="button" tabindex="0" aria-sort="none" onkeydown="if(activateKeyAction(event.key)){event.preventDefault();toggleSort('name');}" class="row-hit">名称<span class="sort-indicator" id="sort-name"></span></div>
-        <div class="num row-hit" onclick="toggleSort('amount')" role="button" tabindex="0" aria-sort="none" onkeydown="if(activateKeyAction(event.key)){event.preventDefault();toggleSort('amount');}">金额<span class="sort-indicator" id="sort-amount"></span></div>
-        <div onclick="toggleSort('currency')" role="button" tabindex="0" aria-sort="none" onkeydown="if(activateKeyAction(event.key)){event.preventDefault();toggleSort('currency');}" class="row-hit">货币<span class="sort-indicator" id="sort-currency"></span></div>
-        <div class="num row-hit" onclick="toggleSort('cny')" role="button" tabindex="0" aria-sort="none" onkeydown="if(activateKeyAction(event.key)){event.preventDefault();toggleSort('cny');}">金额 (CNY)<span class="sort-indicator" id="sort-cny"></span></div>
+        <div onclick="toggleSort('name')" role="button" tabindex="0" aria-sort="none" onkeydown="if(ui.activateKeyAction(event.key)){event.preventDefault();toggleSort('name');}" class="row-hit">名称<span class="sort-indicator" id="sort-name"></span></div>
+        <div class="num row-hit" onclick="toggleSort('amount')" role="button" tabindex="0" aria-sort="none" onkeydown="if(ui.activateKeyAction(event.key)){event.preventDefault();toggleSort('amount');}">金额<span class="sort-indicator" id="sort-amount"></span></div>
+        <div onclick="toggleSort('currency')" role="button" tabindex="0" aria-sort="none" onkeydown="if(ui.activateKeyAction(event.key)){event.preventDefault();toggleSort('currency');}" class="row-hit">货币<span class="sort-indicator" id="sort-currency"></span></div>
+        <div class="num row-hit" onclick="toggleSort('cny')" role="button" tabindex="0" aria-sort="none" onkeydown="if(ui.activateKeyAction(event.key)){event.preventDefault();toggleSort('cny');}">金额 (CNY)<span class="sort-indicator" id="sort-cny"></span></div>
         <div class="num">预期年化</div><div>标签</div><div></div>
       </div>
       <div id="assets-rows" ondragover="onAssetDragOver(event)" ondrop="onAssetDrop(event)"></div>
@@ -1571,8 +1571,8 @@ tailwind.config = {
 
       <div id="expenses-list" class="card">
         <div class="asset-row list-head cols-expenses">
-          <div onclick="toggleExpenseSort('date')" role="button" tabindex="0" aria-sort="none" onkeydown="if(activateKeyAction(event.key)){event.preventDefault();toggleExpenseSort('date');}" class="row-hit">日期<span class="sort-indicator" id="expense-sort-date"></span></div>
-          <div class="num row-hit" onclick="toggleExpenseSort('amount')" role="button" tabindex="0" aria-sort="none" onkeydown="if(activateKeyAction(event.key)){event.preventDefault();toggleExpenseSort('amount');}">金额<span class="sort-indicator" id="expense-sort-amount"></span></div>
+          <div onclick="toggleExpenseSort('date')" role="button" tabindex="0" aria-sort="none" onkeydown="if(ui.activateKeyAction(event.key)){event.preventDefault();toggleExpenseSort('date');}" class="row-hit">日期<span class="sort-indicator" id="expense-sort-date"></span></div>
+          <div class="num row-hit" onclick="toggleExpenseSort('amount')" role="button" tabindex="0" aria-sort="none" onkeydown="if(ui.activateKeyAction(event.key)){event.preventDefault();toggleExpenseSort('amount');}">金额<span class="sort-indicator" id="expense-sort-amount"></span></div>
           <div>备注</div><div>标签</div><div></div>
         </div>
         <div id="expenses-rows"></div>
@@ -1652,7 +1652,7 @@ tailwind.config = {
            尺子语义是**预算容器**: 实心填充 = 已花占整月预期, 25/50/75% 发丝刻度与货币构成条/比例尺同语言。
            刻意**不用时间进度做对照基准** —— 消费沿时间并不均匀（房租这类大额固定支出在月初入账）,
            「比时间进度多花/少花」几乎只由那笔支出的入账日决定, 不携带「是否花超了」的信息。
-           改为剩余预算与日均可用这两个不依赖均匀假设的数（口径在 logic.js monthBudgetReading()）。
+           改为剩余预算与日均可用这两个不依赖均匀假设的数（口径在 logic.js expense.monthBudgetReading()）。
            公式直呈现, 骨架静态存在, JS 只同步文案;
            未设预期消费时整张卡不显示（入口即上方「预期消费」按钮） -->
       <div id="month-pace-card" class="card mb-6" style="display:none;">
@@ -2094,7 +2094,7 @@ let chart = null;
 let historyChart = null;
 let historyChartMode = 'value';
 // 堆叠柱下钻与图例记忆（历史净值）：
-// histLegendSel 由原生 legendselectchanged 维护，重绘时经 pruneLegendSelected 清理后回灌
+// histLegendSel 由原生 legendselectchanged 维护，重绘时经 chartData.pruneLegendSelected 清理后回灌
 //（非破坏性：原始映射不回写，切换分类再切回可恢复原选中态）；
 // histDrillMeta 存当前渲染上下文，供 wireStackedBarDrill 反查「月份 × 标签」
 let histLegendSel = {};
@@ -2149,7 +2149,7 @@ function observeChartSize(chart) {
       flatpickr('#expense-date', {
         locale: 'zh',
         dateFormat: 'Y-m-d',
-        defaultDate: getLocalDateStr(),
+        defaultDate: date.getLocalDateStr(),
         disableMobile: true,
         animate: true,
         weekNumbers: false,
@@ -2205,13 +2205,13 @@ function observeChartSize(chart) {
 function loadState() {
   try {
     const raw = localStorage.getItem(LS_KEY);
-    // 有存档：用存档字段覆盖初始状态；无存档：直接用初始状态（currency 分类由 migrateState 保证）
+    // 有存档：用存档字段覆盖初始状态；无存档：直接用初始状态（currency 分类由 migrate.migrateState 保证）
     state = raw ? { ...freshAppState(), ...JSON.parse(raw) } : freshAppState();
-    migrateState();
+    migrate.migrateState();
   } catch(e) {
     // 回退到完整初始状态（单一来源），避免上次半解析残留
     state = freshAppState();
-    migrateState();
+    migrate.migrateState();
   }
 }
 
@@ -2227,9 +2227,9 @@ async function fetchRates() {
     // 这里强制不缓存，由外层 1 小时节流（visibilitychange/pageshow）控制请求频率。
     const resp = await fetch('https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/cny.json', { cache: 'no-store' });
     const data = await resp.json();
-    // 形状校验与「取倒数」口径在 logic.js ratesFromApi（可单测）：脏响应返回 null，
+    // 形状校验与「取倒数」口径在 logic.js backup.ratesFromApi（可单测）：脏响应返回 null，
     // 走下面的 catch 回退，不得把 NaN / Infinity 写进 state 并落盘。
-    const next = ratesFromApi(data && data.cny);
+    const next = backup.ratesFromApi(data && data.cny);
     if (!next) throw new Error('汇率响应缺少有效币种');
     state.rates = next;
     saveState();
@@ -2240,7 +2240,7 @@ async function fetchRates() {
     toast('汇率已更新', 'info');
   } catch(e) {
     // use saved rates if available（文案与类型由 logic.js 纯函数决策）
-    const n = rateFallbackNotice(!!state.rates.fetchedAt);
+    const n = backup.rateFallbackNotice(!!state.rates.fetchedAt);
     toast(n.msg, n.type);
   }
 }
@@ -2253,7 +2253,7 @@ function switchMode(mode) {
   // 方向感：模式按钮的次序即「翻页」方向（消费在左、资产在右），与子 Tab 共用同一份判定
   const prevBtn = document.querySelector('#mode-assets.active, #mode-expenses.active');
   const nextBtn = document.getElementById('mode-' + mode);
-  const shift = paneEnterShift(prevBtn ? prevBtn.offsetLeft : null, nextBtn ? nextBtn.offsetLeft : null);
+  const shift = ui.paneEnterShift(prevBtn ? prevBtn.offsetLeft : null, nextBtn ? nextBtn.offsetLeft : null);
   currentMode = mode;
   // 只切 'active'，不用 className 整体赋值：模式按钮上还挂着长按专用的 .mode-press
   document.getElementById('mode-assets').classList.toggle('active', mode === 'assets');
@@ -2305,7 +2305,7 @@ window.addEventListener('resize', () => {
 // 必须隔一帧：display 翻转与 .enter 同一帧画出的话，初始态根本不会被渲染，动画不播
 // （与开屏「booting→ready 两态」同一道理）。动画结束后摘掉 class，下次切换重新播。
 // 方向感写进 --pane-x（keyframes 的唯一消费点）：往右翻页内容自右滑入、往回翻自左滑入；
-// 判定在 logic.js paneEnterShift，调用方只把实测位置喂进去，不各写一份算式。
+// 判定在 logic.js ui.paneEnterShift，调用方只把实测位置喂进去，不各写一份算式。
 function enterTab(pane, shift) {
   if (!pane) return;
   pane.style.setProperty('--pane-x', String(shift || 0));
@@ -2370,7 +2370,7 @@ function switchTab(tab, shift) {
     const bar = document.querySelector(tabBar);
     const prevBtn = bar && bar.querySelector('.tab-btn.active');
     const nextBtn = bar && bar.querySelector('.tab-btn[data-tab="' + tab + '"]');
-    shift = paneEnterShift(prevBtn ? prevBtn.offsetLeft : null, nextBtn ? nextBtn.offsetLeft : null);
+    shift = ui.paneEnterShift(prevBtn ? prevBtn.offsetLeft : null, nextBtn ? nextBtn.offsetLeft : null);
   }
   document.querySelectorAll(tabBar + ' .tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
   moveTabIndicator(tabBar, tab);
@@ -2406,7 +2406,7 @@ function switchTab(tab, shift) {
 }
 
 // ========== 进入资产页的长按门槛 ==========
-// 按住「资产」满 MODE_PRESS_MS 才算送达：资产短期波动天然大，日常顺手点开只会被涨跌牵着走。
+// 按住「资产」满 ui.MODE_PRESS_MS 才算送达：资产短期波动天然大，日常顺手点开只会被涨跌牵着走。
 // 按住期间底边墨线浸满按钮（每帧只写 --mode-press，宽度换算在 CSS），短按只弹一句
 // 「长按多久」的教学。**松手才弹确认框** —— 满时长就弹的话，抬起的手指会立刻点到刚出现的遮罩上。
 let modePressStart = null;
@@ -2433,13 +2433,13 @@ function tickModePress() {
   if (modePressStart === null) return; // 已被收尾的残留帧（cancel 后仍排到的那一帧）
   const held = performance.now() - modePressStart;
   const btn = document.getElementById('mode-assets');
-  btn.style.setProperty('--mode-press', modePressProgress(held));
-  if (modePressDecision(held) !== 'enter') {
+  btn.style.setProperty('--mode-press', ui.modePressProgress(held));
+  if (ui.modePressDecision(held) !== 'enter') {
     modePressRaf = requestAnimationFrame(tickModePress);
     return;
   }
   // 满时长**直接弹窗**（不再等松手）：按满的那一瞬间确认框出现，跟手的 pointerup/click
-  // 由 autoOpenGuard 守卫窗忽略（旧实现让用户「按满—松手」两步，且松手前墨线停在满格
+  // 由 ui.autoOpenGuard 守卫窗忽略（旧实现让用户「按满—松手」两步，且松手前墨线停在满格
   // 像卡住；旧决策躲的「手指落在遮罩上把弹窗点掉」由守卫窗解决，两全）。
   modePressRaf = 0;
   modePressStart = null;
@@ -2450,7 +2450,7 @@ function tickModePress() {
 }
 
 // 自动弹出后一小段时间内的指针事件全部忽略（抬起的手指紧跟一次 pointerup/click，
-// 不忽略的话会把刚出现的确认框当场点掉）。窗口判据在 logic.js autoOpenGuard。
+// 不忽略的话会把刚出现的确认框当场点掉）。窗口判据在 logic.js ui.autoOpenGuard。
 let __autoOpenedAt = null;
 
 // 松手收尾：短按只教一句（按满的情形已在 tick 里弹掉，不会走到这里）。
@@ -2458,11 +2458,11 @@ function endModePress(e) {
   if (modePressStart === null) return; // 没有进行中的按下（在页面别处松手），不响应
   if (e && e.button !== 0) return;     // 右键松开不该替左键的按住收尾
   // 自动弹出后紧跟的松手：守卫窗内一律忽略（不是用户的「第二次操作」）
-  if (__autoOpenedAt !== null && !autoOpenGuard(performance.now() - __autoOpenedAt)) return;
-  const decision = modePressDecision(performance.now() - modePressStart);
+  if (__autoOpenedAt !== null && !ui.autoOpenGuard(performance.now() - __autoOpenedAt)) return;
+  const decision = ui.modePressDecision(performance.now() - modePressStart);
   resetModePress();
   if (decision === 'enter') enterAssets();
-  else if (decision === 'hint') toast(modePressHint(), 'info');
+  else if (decision === 'hint') toast(ui.modePressHint(), 'info');
 }
 
 // click 的处置：键盘 Enter/Space、读屏器与程序化激活的 click 都不带指针按压过程，
@@ -2509,7 +2509,7 @@ function enterAssets() {
 
 // ========== 台灯掠光（跟随指针的纸面光）==========
 // 账本摊在桌上，灯在纸上游走：指针即光源。全站唯一的常驻动效，其余都是一次性/状态性的。
-// 位置换算与开关判定在 logic.js（lampPos / lampEnabled），这里只负责取信号、写变量、收事件。
+// 位置换算与开关判定在 logic.js（ui.lampPos / ui.lampEnabled），这里只负责取信号、写变量、收事件。
 // 减动效查询与取值：与 masthead 计数动画共用同一份（两处各查一遍 matchMedia，
 // 就是同一件事在文件里出现两次；且同名 const 重复声明会让整个脚本死在解析期）
 const _reduceMotionQuery = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
@@ -2526,7 +2526,7 @@ let _lampRaf = 0;
 function syncLamp() {
   const layer = document.querySelector('.lamp-layer');
   if (!layer) return;
-  const on = lampEnabled({
+  const on = ui.lampEnabled({
     reducedMotion: _reduceMotion,
     coarsePointer: _coarsePointer,
     hidden: document.hidden,
@@ -2559,7 +2559,7 @@ function flushLamp() {
   if (!p) return;
   const layer = document.querySelector('.lamp-layer');
   if (!layer || !layer.classList.contains('on')) return;
-  const pos = lampPos(p.x, p.y, window.innerWidth, window.innerHeight);
+  const pos = ui.lampPos(p.x, p.y, window.innerWidth, window.innerHeight);
   layer.style.setProperty('--lamp-x', pos.x + '%');
   layer.style.setProperty('--lamp-y', pos.y + '%');
 }
@@ -2597,7 +2597,7 @@ function renderAssets() {
     // sort
     let sorted = [...state.assets];
     if (sortBy) {
-      const getVal = sortBy === 'cny' ? (x) => toCNY(x.amount, x.currency) : null;
+      const getVal = sortBy === 'cny' ? (x) => money.toCNY(x.amount, x.currency) : null;
       sorted.sort((a, b) => compareBy(a, b, sortBy, sortDir, getVal));
     }
     updateSortIndicators('sort-', ['name', 'amount', 'currency', 'cny'], sortBy, sortDir);
@@ -2610,27 +2610,27 @@ function renderAssets() {
       const rateText = rateLabelText(a);
       const rateLabel = rateText || '<span class="muted hint-xs">未设置</span>';
       const cashTag = rateText
-        ? `<span class="ink-accent hint-xs"> · 现金 ${cashRatioPct(a)}%</span>`
+        ? `<span class="ink-accent hint-xs"> · 现金 ${income.cashRatioPct(a)}%</span>`
         : '';
-      const cnyVal = toCNY(a.amount, a.currency);
-      return `<div class="asset-row grid-wide" data-id="${esc(a.id)}">
+      const cnyVal = money.toCNY(a.amount, a.currency);
+      return `<div class="asset-row grid-wide" data-id="${text.esc(a.id)}">
         <!-- 把手可聚焦：拖拽是指针手势，键盘用户靠 ↑/↓ 完成同一件事（moveAsset 与 drop 走同一套收尾）。 -->
         <div class="drag-handle" role="button" tabindex="0" aria-label="调整排序，按上移或下移"
           title="拖动排序（键盘：聚焦后按 ↑/↓）" draggable="true"
           ondragstart="onAssetDragStart(event)" ondragend="onAssetDragEnd(event)"
-          onkeydown="if(event.key==='ArrowUp'){event.preventDefault();moveAsset('${jsAttr(a.id)}',-1);}else if(event.key==='ArrowDown'){event.preventDefault();moveAsset('${jsAttr(a.id)}',1);}">⠿</div>
-        <div class="t-medium t-body">${esc(a.name)}</div>
-        <div class="t-body tabular num amount-cell" data-id="${esc(a.id)}" role="button" tabindex="0" title="点击快速更新金额" onclick="startInlineEdit('${jsAttr(a.id)}')" onkeydown="if(event.key==='Enter')startInlineEdit('${jsAttr(a.id)}')">
+          onkeydown="if(event.key==='ArrowUp'){event.preventDefault();moveAsset('${text.jsAttr(a.id)}',-1);}else if(event.key==='ArrowDown'){event.preventDefault();moveAsset('${text.jsAttr(a.id)}',1);}">⠿</div>
+        <div class="t-medium t-body">${text.esc(a.name)}</div>
+        <div class="t-body tabular num amount-cell" data-id="${text.esc(a.id)}" role="button" tabindex="0" title="点击快速更新金额" onclick="startInlineEdit('${text.jsAttr(a.id)}')" onkeydown="if(event.key==='Enter')startInlineEdit('${text.jsAttr(a.id)}')">
           <svg class="edit-pencil" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 3l1 1-9 9-2.5.5.5-2.5L13 3z"/><path d="M10.7 5.3l1 1"/></svg>
-          <span>${money2(a.amount)}</span>
+          <span>${money.money2(a.amount)}</span>
         </div>
         <div class="t-body muted">${a.currency}</div>
-        <div class="t-micro tabular num muted">${formatCNY(cnyVal)}</div>
+        <div class="t-micro tabular num muted">${money.formatCNY(cnyVal)}</div>
         <div class="t-body tabular num">${rateLabel}${cashTag}</div>
         <div class="flex flex-wrap gap-1">${tagHtml}</div>
         <div class="flex gap-2 justify-end">
-          <button onclick="editAsset('${jsAttr(a.id)}')" class="row-btn edit">编辑</button>
-          <button onclick="deleteAsset('${jsAttr(a.id)}')" class="row-btn danger">删除</button>
+          <button onclick="editAsset('${text.jsAttr(a.id)}')" class="row-btn edit">编辑</button>
+          <button onclick="deleteAsset('${text.jsAttr(a.id)}')" class="row-btn danger">删除</button>
         </div>
       </div>`;
     }).join('');
@@ -2682,11 +2682,11 @@ function renderMasthead(total) {
     _mastheadRaf = requestAnimationFrame(step);
   }
 
-  dateEl.textContent = getLocalDateStr().replace(/-/g, '/');
+  dateEl.textContent = date.getLocalDateStr().replace(/-/g, '/');
 
   // currency composition
   const byCur = { CNY: 0, HKD: 0, USD: 0 };
-  state.assets.forEach(a => { byCur[a.currency] = (byCur[a.currency] || 0) + toCNY(a.amount, a.currency); });
+  state.assets.forEach(a => { byCur[a.currency] = (byCur[a.currency] || 0) + money.toCNY(a.amount, a.currency); });
   const segs = [
     { key: 'CNY', cls: 'seg-cny' },
     { key: 'HKD', cls: 'seg-hkd' },
@@ -2698,7 +2698,7 @@ function renderMasthead(total) {
   ).join('') || '<span class="seg-other" style="flex-grow:1"></span>';
   legendEl.innerHTML = segs.map(s => {
     const v = byCur[s.key];
-    return `<span><span class="dot ${s.cls}"></span>${s.key} <span class="tabular text-value">${pctStr(v, total)}%</span></span>`;
+    return `<span><span class="dot ${s.cls}"></span>${s.key} <span class="tabular text-value">${money.pctStr(v, total)}%</span></span>`;
   }).join('');
 
   // 目标净资产进度（独立面板与货币构成条区分；总资产为 0 时不显示避免误报达成）
@@ -2711,13 +2711,13 @@ function renderMasthead(total) {
     const fillColor = achieved ? 'var(--verdigris)' : (pct >= 90 ? 'var(--accent)' : 'var(--accent-soft)');
     const gap = achieved
       ? '<span class="mo-badge up">目标已达成</span>'
-      : `<span class="tabular ink-accent">还差 ${formatCNY(target - total)}</span>`;
+      : `<span class="tabular ink-accent">还差 ${money.formatCNY(target - total)}</span>`;
     targetEl.innerHTML = `
       <div class="target-panel">
         <div class="flex items-center justify-between t-micro mb-1.5 muted">
           <span>目标净资产 · <span class="tabular text-value">${pct.toFixed(0)}%</span></span>
           <span class="flex items-center gap-2">
-            <span class="tabular text-value">${formatCNY(total)} / ${formatCNY(target)}</span>
+            <span class="tabular text-value">${money.formatCNY(total)} / ${money.formatCNY(target)}</span>
             ${gap}
             <button onclick="openTargetModal()" class="btn-ghost btn-xs">修改</button>
           </span>
@@ -2737,28 +2737,28 @@ function renderMasthead(total) {
   // sub line: 资产数 + 月收益/现金 双口径平齐展示（任一资产设置利率后出现）
   // 覆盖率差额叙述已完整收归覆盖标尺, 报头只保留收入金额与预期锚点, 不再重复叙述
   const count = state.assets.length;
-  const hasRate = hasAnyRatedAsset(state.assets); // 纯函数在 logic.js（与收益 Tab 共用同一判定）
+  const hasRate = income.hasAnyRatedAsset(state.assets); // 纯函数在 logic.js（与收益 Tab 共用同一判定）
   const expectation = state.expenseExpectation || 0;
   let subText = `<span>${count} 项资产</span>`;
   if (hasRate) {
-    // 两口径合计单一来源（logic.js sumAssetIncomes, 与收益摘要/覆盖标尺共用）
-    const { monthly, cashMonthly } = sumAssetIncomes(state.assets);
+    // 两口径合计单一来源（logic.js income.sumAssetIncomes, 与收益摘要/覆盖标尺共用）
+    const { monthly, cashMonthly } = income.sumAssetIncomes(state.assets);
     if (expectation > 0) {
-      subText += ` · <span class="muted">预期月消费 <span class="tabular t-medium text-value">${formatCNY(expectation)}</span></span>`;
+      subText += ` · <span class="muted">预期月消费 <span class="tabular t-medium text-value">${money.formatCNY(expectation)}</span></span>`;
     }
-    subText += ` · <span>预估月收益 <span class="tabular t-medium ink-up">${formatCNY(monthly)}</span></span>`;
-    subText += ` · <span>现金收益 <span class="tabular t-medium ink-accent">${formatCNY(cashMonthly)}</span></span>`;
+    subText += ` · <span>预估月收益 <span class="tabular t-medium ink-up">${money.formatCNY(monthly)}</span></span>`;
+    subText += ` · <span>现金收益 <span class="tabular t-medium ink-accent">${money.formatCNY(cashMonthly)}</span></span>`;
   }
   subEl.innerHTML = subText;
 }
 
 // ========== NET WORTH TARGET ==========
 function openTargetModal() {
-  document.getElementById('target-input').value = moneyStr(state.netWorthTarget);
+  document.getElementById('target-input').value = money.moneyStr(state.netWorthTarget);
   openModal('target-modal');
 }
 function saveTarget() {
-  const v = parseMoneyInput(document.getElementById('target-input').value);
+  const v = money.parseMoneyInput(document.getElementById('target-input').value);
   if (!v || v <= 0) { toast('请输入有效的目标金额', 'error'); return; }
   const hadTarget = (state.netWorthTarget || 0) > 0;
   state.netWorthTarget = v;
@@ -2785,7 +2785,7 @@ function renderCategories() {
 function tagChipHtml(catId, tag, pressed, attrs, colorFn) {
   const c = colorFn(catId, tag);
   return `<button type="button" class="tag-choice" aria-pressed="${pressed}" ${attrs}
-    style="--chip-bg:${c.bg};--chip-fg:${c.fg};--chip-ring:${hexToRgba(c.fg, 0.28)};">${esc(tag)}</button>`;
+    style="--chip-bg:${c.bg};--chip-fg:${c.fg};--chip-ring:${color.hexToRgba(c.fg, 0.28)};">${text.esc(tag)}</button>`;
 }
 
 // 分类标签从下拉框改为平铺 chips: 「虚线空栏 = 待选, 实心盖印 = 已选」。
@@ -2797,15 +2797,15 @@ function tagPickerHtml(cats, selectedFor, idPrefix, colorFn, opts) {
     const selected = selectedFor(cat) || '';
     const chips = cat.tags.map(t => tagChipHtml(
       cat.id, t, t === selected,
-      `data-val="${esc(t)}" onclick="selectTagChoice(this)"`, colorFn)).join('');
+      `data-val="${text.esc(t)}" onclick="selectTagChoice(this)"`, colorFn)).join('');
     // id 与 data-target 由**调用方拼好的前缀 + cat.id** 组成，两者都可能来自存档（导入的 JSON）：
     // 不转义时 id 里一个双引号就截断属性并插进新标签（实测 data-eid 那条路径能执行脚本），
     // 而「前缀里的记录 id」正是最脏的那一段（记录 id 不经用户手，出问题时也最难查）。
     // 写入与查找两端都走同一个转义后的串，getElementById 才对得上。
-    const hidId = esc(idPrefix + cat.id);
+    const hidId = text.esc(idPrefix + cat.id);
     return `<div>
-      ${withLabel ? `<label class="field-label">${esc(cat.name)}</label>` : ''}
-      <input type="hidden" id="${hidId}" value="${esc(selected)}">
+      ${withLabel ? `<label class="field-label">${text.esc(cat.name)}</label>` : ''}
+      <input type="hidden" id="${hidId}" value="${text.esc(selected)}">
       <div class="tag-picker" data-target="${hidId}">${chips}</div>
     </div>`;
   }).join('');
@@ -2839,7 +2839,7 @@ function collectPickedTags(cats, idPrefix) {
   return { tags, complete };
 }
 
-// hexToRgba / money2 已下沉 logic.js（颜色数学与金额格式化归位），此处直接用全局
+// color.hexToRgba / money.money2 已下沉 logic.js（颜色数学与金额格式化归位），此处直接用全局
 
 // ========== ASSET CRUD ==========
 
@@ -2861,7 +2861,7 @@ function startInlineEdit(id) {
   // 编辑态 title 改为键位教学（非编辑态 hover 提示「点击快速更新金额」）; dataset 备份退出时恢复
   cell.dataset.title = cell.title;
   cell.title = 'Enter 保存 · 小键盘 Enter/Tab 下一行 · Esc 取消';
-  cell.innerHTML = `<input type="text" class="inline-edit-input" value="${moneyStr(a.amount)}" inputmode="decimal" autocomplete="off" oninput="formatMoneyInput(this)" onkeydown="onInlineEditKey(event,'${jsAttr(id)}')" onblur="commitInlineEdit()">`;
+  cell.innerHTML = `<input type="text" class="inline-edit-input" value="${money.moneyStr(a.amount)}" inputmode="decimal" autocomplete="off" oninput="formatMoneyInput(this)" onkeydown="onInlineEditKey(event,'${text.jsAttr(id)}')" onblur="commitInlineEdit()">`;
   const inp = cell.querySelector('input');
   if (inp) { inp.focus(); inp.select(); }
 }
@@ -2880,14 +2880,14 @@ function commitInlineEdit(doRender) {
   if (row) row.classList.remove('editing');
   if (cell.dataset.title != null) { cell.title = cell.dataset.title; delete cell.dataset.title; }
   const inp = cell.querySelector('input');
-  if (!inp) { cell.innerHTML = money2(a.amount); return true; } // input 已销毁（重绘前收尾）, 直接恢复
-  const val = parseMoneyInput(inp.value);
+  if (!inp) { cell.innerHTML = money.money2(a.amount); return true; } // input 已销毁（重绘前收尾）, 直接恢复
+  const val = money.parseMoneyInput(inp.value);
   if (isNaN(val) || val < 0) {
     toast('金额无效，已恢复原值', 'error');
-    cell.innerHTML = money2(a.amount);
+    cell.innerHTML = money.money2(a.amount);
     return false;
   }
-  if (val === a.amount) { cell.innerHTML = money2(a.amount); return true; }
+  if (val === a.amount) { cell.innerHTML = money.money2(a.amount); return true; }
   a.amount = val;
   saveState();
   if (doRender) {
@@ -2897,7 +2897,7 @@ function commitInlineEdit(doRender) {
     } else {
       // 用户主动提交（blur/Enter/Tab）: 不整表重绘, 手动同步 cell/报头/图表,
       // 保证 blur 后正在点击的按钮（编辑/删除）DOM 不被替换、click 正常触发
-      cell.innerHTML = money2(a.amount);
+      cell.innerHTML = money.money2(a.amount);
       renderMasthead(totalAssetsCNY());
     }
     refreshVisibleCharts();
@@ -2909,7 +2909,7 @@ function commitInlineEdit(doRender) {
 // 行内编辑键盘: 主键盘 Enter 仅保存（blur 触发保存）; 小键盘 Enter 与 Tab/Shift+Tab 同义, 保存并跳到下一/上一行;
 // Esc 取消并恢复原值。键位判定下沉 logic.js 纯函数, 不在此内联区分主/副键盘分支。
 function onInlineEditKey(e, id) {
-  const action = inlineEditKeyAction(e.key, e.code);
+  const action = ui.inlineEditKeyAction(e.key, e.code);
   if (action === 'commit') {
     e.preventDefault();
     e.stopPropagation(); // 阻止 keydown 冒泡到 cell 的 onkeydown（Enter 会 startInlineEdit, 且此时 _inlineEditId 已被 commit 清空、守卫失效, 会导致提交后立即重新进入编辑态）
@@ -2920,7 +2920,7 @@ function onInlineEditKey(e, id) {
     const a = state.assets.find(x => x.id === id);
     const cell = e.target.closest('.amount-cell');
     if (cell && a) {
-      cell.innerHTML = money2(a.amount);
+      cell.innerHTML = money.money2(a.amount);
       const row = cell.closest('.asset-row');
       if (row) row.classList.remove('editing');
       if (cell.dataset.title != null) { cell.title = cell.dataset.title; delete cell.dataset.title; }
@@ -2954,7 +2954,7 @@ function openAssetModal(editId) {
     const a = state.assets.find(x => x.id === editId);
     if (a) {
       document.getElementById('asset-name').value = a.name;
-      document.getElementById('asset-amount').value = moneyStr(a.amount);
+      document.getElementById('asset-amount').value = money.moneyStr(a.amount);
       document.getElementById('asset-currency').value = a.currency;
       document.getElementById('asset-rate-min').value = a.expectedRateMin ?? 0;
       document.getElementById('asset-rate-max').value = a.expectedRateMax ?? 0;
@@ -2981,7 +2981,7 @@ function saveAsset(e) {
   e.preventDefault();
   const editId = document.getElementById('asset-edit-id').value;
   const name = document.getElementById('asset-name').value.trim();
-  const amount = parseMoneyInput(document.getElementById('asset-amount').value);
+  const amount = money.parseMoneyInput(document.getElementById('asset-amount').value);
   if (isNaN(amount) || amount < 0) { toast('请输入有效的金额', 'error'); return; }
   const currency = document.getElementById('asset-currency').value;
 
@@ -3066,7 +3066,7 @@ function deleteAsset(id) {
 // 三级跳，改一个名字要动配置表与两个函数。
 
 // 图表文字/线条随主题取色（ECharts canvas 不识别 CSS 变量, 需读取计算后的值）
-// 注：CATEGORY_PALETTE（旭日图 / 堆叠柱调色板）已迁移至 logic.js，浏览器下由全局注入，逻辑与单测共用同一份。
+// 注：color.CATEGORY_PALETTE（旭日图 / 堆叠柱调色板）已迁移至 logic.js，浏览器下由全局注入，逻辑与单测共用同一份。
 const TOOLTIP_CSS = 'border-radius:6px;padding:10px 14px;box-shadow:0 6px 18px rgba(33,27,16,0.14);';
 // ECharts canvas 不认 CSS 变量，字体族只能以字面量传给各图；集中一处，改字族只改这里。
 const CHART_FONT = '"IBM Plex Mono", monospace';
@@ -3132,16 +3132,16 @@ function showChartOrEmpty(chartEl, emptyEl, show) {
 //   · data   喂给 echarts 的同一份 data（顶层分类 = 内环节点，顺序一致）
 //   · total  占比分母——**必须与 tooltip 百分比同一个变量**（口径分裂在「分布图总数」踩过一次）
 //   · chartObj 悬停清单行时高亮对应扇区，两栏才是「同一张量表」而不是两张无关的表
-// 色块取 CATEGORY_PALETTE（与图同色板），不混用 pill 调色板：两套色板各司其职。
+// 色块取 color.CATEGORY_PALETTE（与图同色板），不混用 pill 调色板：两套色板各司其职。
 // data 为空（空态）时清空容器：它与图同生共死，留着上一次的行会在空态提示旁
 // 显示一份过期数据（同 hideChartTotal 的理由）。
 function renderSunburstLegend(elId, data, total, chartObj) {
   const el = document.getElementById(elId);
   if (!el) return;
   const selected = sunburstLegendSel[elId] || null;
-  const rows = sunburstLegendRows(data, total, selected);
+  const rows = chartData.sunburstLegendRows(data, total, selected);
   // 选中态在当前数据里已不存在（换了分类维度/月份，或那个分类被删）→ 顺势清掉。
-  // 只靠 sunburstLegendRows 回落是不够的：状态会一直卡着，等用户切回一个恰好含同名分类的
+  // 只靠 chartData.sunburstLegendRows 回落是不够的：状态会一直卡着，等用户切回一个恰好含同名分类的
   // 维度时就会莫名其妙地「又是下钻态」（像见了鬼）。
   // 不在当前数据里就归零（一行写完：两个分支各写一次会让「选中态写入点」难以数清）
   const atTop = !selected || !data.some(n => n && n.name === selected);
@@ -3150,7 +3150,7 @@ function renderSunburstLegend(elId, data, total, chartObj) {
     el.innerHTML = '';
     return;
   }
-  // 色块直接取数据节点自带的 itemStyle.color——那就是扇区的颜色（buildSunburstData 一处写入）。
+  // 色块直接取数据节点自带的 itemStyle.color——那就是扇区的颜色（chartData.buildSunburstData 一处写入）。
   // **不能**按「分类在 data 里的下标」重算色板：下钻时 data 已被裁成单个分类，
   // 下标恒为 0，于是 HKD（绿）的色块会变成 CNY 的红色（真实浏览器实测）。
   const nodeOf = (r) => {
@@ -3165,19 +3165,19 @@ function renderSunburstLegend(elId, data, total, chartObj) {
   };
   el.innerHTML = rows.map((r) => {
     // data-flat 是**扁平树下标**（供图上高亮定位），path 是 [分类名, 序] 或 null（与图上同序）
-    const flat = sunburstNodePath(data, atTop ? r.idx : data.findIndex(n => n && n.name === r.path[0]), atTop ? null : r.idx);
+    const flat = chartData.sunburstNodePath(data, atTop ? r.idx : data.findIndex(n => n && n.name === r.path[0]), atTop ? null : r.idx);
     // 只有顶层行会带你去别处（下钻），故只有它给可点语义。
     // 明细行随鼠标高亮扇区是「看着这里」而不是导航，不必占 Tab 序——
     // 可点就要键盘可达，不可点就不该抢焦点。
     const hit = atTop
       ? ` class="chart-legend-row row-hit" tabindex="0" role="button"` +
-        ` onkeydown="if(activateKeyAction(event.key)){event.preventDefault();drillSunburst('${elId}','${jsAttr(r.name)}');}"`
+        ` onkeydown="if(ui.activateKeyAction(event.key)){event.preventDefault();drillSunburst('${elId}','${text.jsAttr(r.name)}');}"`
       : ' class="chart-legend-row"';
     return `<div${hit} data-idx="${r.idx}" data-flat="${flat === null ? '' : flat}" data-top="${atTop ? '1' : ''}"` +
-      ` data-name="${esc(r.name)}" title="${esc(r.name)}">` +
+      ` data-name="${text.esc(r.name)}" title="${text.esc(r.name)}">` +
       `<span class="chart-legend-swatch" style="background:${swatchOf(r)}"></span>` +
-      `<span class="chart-legend-name">${esc(r.name)}</span>` +
-      `<span class="chart-legend-amt tabular">${formatCNY(r.value)}</span>` +
+      `<span class="chart-legend-name">${text.esc(r.name)}</span>` +
+      `<span class="chart-legend-amt tabular">${money.formatCNY(r.value)}</span>` +
       `<span class="chart-legend-pct tabular">${r.pct}%</span></div>`;
   }).join('');
   // 顶部标题：选中后换成一个返回条，否则用户不知道自己在哪一层、也回不去
@@ -3186,7 +3186,7 @@ function renderSunburstLegend(elId, data, total, chartObj) {
     head.innerHTML = atTop
       ? '<span class="meta-label muted">构成</span>'
       : `<button type="button" class="legend-back" data-back="1">‹ 全部分类</button>` +
-        `<span class="legend-scope">${esc(selected)}</span>`;
+        `<span class="legend-scope">${text.esc(selected)}</span>`;
   }
   // 悬停联动用事件委派挂在容器上（行数随分类变，逐行挂监听会随重绘越积越多）
   const at = (e) => {
@@ -3205,9 +3205,9 @@ function renderSunburstLegend(elId, data, total, chartObj) {
 }
 
 // 旭日图的「选中分类」状态：按清单容器各存一份（三个图各自独立）。
-// 存名字而不是下标：切分类维度/月份后下标会指向别的分类，名字能靠 sunburstLegendRows 校验后回落
+// 存名字而不是下标：切分类维度/月份后下标会指向别的分类，名字能靠 chartData.sunburstLegendRows 校验后回落
 // （指向不存在的分类 → 当作未选中），不会留下悬空状态。
-// 这是图的**唯一**视图状态：喂给图的数据由它派生（logic.js sunburstDrillView），
+// 这是图的**唯一**视图状态：喂给图的数据由它派生（logic.js chartData.sunburstDrillView），
 // 不再让 ECharts 的 nodeClick 自己维护一套 viewRoot（两套状态就是「返回了但图没回来」的根因）。
 let sunburstLegendSel = {};
 
@@ -3250,7 +3250,7 @@ function wireSunburstDrill(chartObj, elId) {
 // 与 showChartOrEmpty 同判据——空态时一并收起，否则会留下一个孤零零的数字压在空态提示上。
 function renderChartTotal(el, value) {
   if (!el) return;
-  el.textContent = formatCNY(value);
+  el.textContent = money.formatCNY(value);
   el.style.display = '';
 }
 
@@ -3287,7 +3287,7 @@ function chartTooltipBase(th) {
 // 堆叠柱状图共用底座（历史净值 / 消费趋势单一来源，原先两处逐字重复）：
 // legend/grid/xAxis/yAxis；mode='percent' 时 y 轴固定 0~100 并带 % 后缀。
 // legendData 可选：显式传入标签序列以控制图例顺序；
-// legendSelected 可选：回灌图例选中态（legendselectchanged 记住、经 pruneLegendSelected 清理），
+// legendSelected 可选：回灌图例选中态（legendselectchanged 记住、经 chartData.pruneLegendSelected 清理），
 // 使切模式/切主题/汇率刷新等重绘不丢失用户的图例隐藏状态
 function barChartBase(th, dates, mode, legendData, legendSelected) {
   return {
@@ -3307,7 +3307,7 @@ function barChartBase(th, dates, mode, legendData, legendSelected) {
 // 堆叠柱系列样式（历史净值 / 消费趋势共用，原先两处逐字重复）：
 // 颜色按标签在分类中的原始下标取色，保持稳定不随排序变化；focus/blur 也同一套。
 function barSeriesStyle(cat, tag) {
-  const pal = CATEGORY_PALETTE[cat.tags.indexOf(tag) % CATEGORY_PALETTE.length];
+  const pal = color.CATEGORY_PALETTE[cat.tags.indexOf(tag) % color.CATEGORY_PALETTE.length];
   return {
     name: tag, type: 'bar', stack: 'total',
     itemStyle: { color: pal.base },
@@ -3340,15 +3340,15 @@ function renderCompareHero(heroEl, ctxEl, diff, baseTotal, compTotal, baseLabel,
   const sign = up ? '+' : '-';
   if (diff === 0) {
     heroEl.style.color = 'var(--muted)';
-    heroEl.innerHTML = `±${formatCNY(0)} (0.00%)`;
+    heroEl.innerHTML = `±${money.formatCNY(0)} (0.00%)`;
   } else {
     const pct = baseTotal > 0
       ? `<span class="muted" style="font-family:'IBM Plex Mono',monospace;font-size:14px;font-weight:400;"> (${sign}${(Math.abs(diff) / baseTotal * 100).toFixed(2)}%)</span>`
       : '';
     heroEl.style.color = compareColor(diff, goodWhenUp);
-    heroEl.innerHTML = `${up ? '▲' : '▼'} ${sign}${formatCNY(Math.abs(diff))}${pct}`;
+    heroEl.innerHTML = `${up ? '▲' : '▼'} ${sign}${money.formatCNY(Math.abs(diff))}${pct}`;
   }
-  ctxEl.textContent = `${baseLabel} ${formatCNY(baseTotal)} → ${compLabel} ${formatCNY(compTotal)}`;
+  ctxEl.textContent = `${baseLabel} ${money.formatCNY(baseTotal)} → ${compLabel} ${money.formatCNY(compTotal)}`;
 }
 
 // 对比表「变动 %」单元格（资产快照对比 / 消费月对比共用）：无基数 —、零变动 0.00%、否则带符号着色
@@ -3372,7 +3372,7 @@ function cmpBar(d, maxAbs, colorFn) {
 // 弹窗外的内容），第一下 Tab 就走出弹窗，关闭后焦点掉到 body（下次 Tab 从页头重来）。
 // 写对了 ARIA 不等于做了行为——这里把行为补上。
 //
-// 判据（谁绕回谁、下标怎么算）在 logic.js trapFocus（可单测），这里只做 DOM 副作用。
+// 判据（谁绕回谁、下标怎么算）在 logic.js ui.trapFocus（可单测），这里只做 DOM 副作用。
 
 // 弹窗内可聚焦元素：打开时取第一个、Tab 陷阱取全集，两处共用一份（不许各写一遍选择器）。
 // 为什么过滤 offsetParent：被 CSS 隐藏/折叠的控件仍在 DOM 里，focus() 上去等于把焦点丢出弹窗。
@@ -3427,18 +3427,18 @@ function openModal(id) {
 // 资产/消费两套逻辑共用的小工具：旭日图配置、分类配色、利率标签、排序、金额格式化、月份下拉、分段按钮。
 // 抽到这里避免三处旭日图、两处 catColor、四处利率标签等重复实现各自漂移。
 // 旭日图 tooltip 内容单一来源（资产/收入/消费三图共用）：标签路径 › 名称 + 金额 · 占比。
-// 名称与标签路径可能来自用户输入（资产名/备注/标签），统一经 esc 后拼接
+// 名称与标签路径可能来自用户输入（资产名/备注/标签），统一经 text.esc 后拼接
 // （ECharts tooltip 默认 renderMode:'html'，未转义会执行脚本）。
 // opts.prefix 加在金额前（收入图「月现金收益/月总收益」）；opts.pctLabel 加在百分比前（收入图「占比 」）。
 // 收入图的「单资产明细」分支自建内容，不走此函数。
 function sunburstTooltipContent(p, th, total, opts) {
   opts = opts || {};
-  const pct = pctStr(p.value, total);
+  const pct = money.pctStr(p.value, total);
   const arrow = p.treePathInfo && p.treePathInfo.length > 2
-    ? esc(p.treePathInfo[1].name) + ' › '
+    ? text.esc(p.treePathInfo[1].name) + ' › '
     : '';
-  const amount = (opts.prefix ? opts.prefix + ' ' : '') + formatCNY(p.value);
-  return `<b>${arrow}${esc(p.name)}</b><br/><span style="color:${th.muted}">${amount} · ${opts.pctLabel || ''}${pct}%</span>`;
+  const amount = (opts.prefix ? opts.prefix + ' ' : '') + money.formatCNY(p.value);
+  return `<b>${arrow}${text.esc(p.name)}</b><br/><span style="color:${th.muted}">${amount} · ${opts.pctLabel || ''}${pct}%</span>`;
 }
 
 function buildSunburstOption(data, tooltipFormatter) {
@@ -3452,12 +3452,12 @@ function buildSunburstOption(data, tooltipFormatter) {
       sort: null,
       // 关掉 ECharts 原生下钻（默认 'rootToNode'）：它会维护自己的 viewRoot，
       // 与清单的选中态构成两套视图状态——「‹ 全部分类」只清了清单、图仍停在下钻层
-      // （用户实测：返回全景后图上还是某个分类的值）。下钻改由选中态派生数据（sunburstDrillView）。
+      // （用户实测：返回全景后图上还是某个分类的值）。下钻改由选中态派生数据（chartData.sunburstDrillView）。
       nodeClick: false,
       emphasis: { focus: 'ancestor' },
       // 字色**不在这一层写**：层级 label 的函数型 color 在 ECharts 5 的 sunburst 上
       // 不保证逐节点求值（实测内环退回默认黑字，HKD 深底黑字只有 2.15:1）。
-      // 改由 buildSunburstData 写在节点 label.color 上——确定生效，且色与字同表可单测。
+      // 改由 chartData.buildSunburstData 写在节点 label.color 上——确定生效，且色与字同表可单测。
       levels: [
         {},
         {
@@ -3465,7 +3465,7 @@ function buildSunburstOption(data, tooltipFormatter) {
           itemStyle: { borderWidth: 2, borderColor: th.card },
           label: { rotate: 'tangential', fontSize: 13, fontWeight: 600, fontFamily: CHART_FONT,
             minAngle: 12, // 扇区小于 12°(≈3.3%) 时隐藏标签
-            formatter: function(p) { return truncateLabel(p.name, 13, 132); }
+            formatter: function(p) { return text.truncateLabel(p.name, 13, 132); }
           }
         },
         {
@@ -3473,7 +3473,7 @@ function buildSunburstOption(data, tooltipFormatter) {
           itemStyle: { borderWidth: 1, borderColor: th.card },
           label: { rotate: 'radial', fontSize: 11, fontFamily: CHART_FONT,
             minAngle: 8, // 扇区小于 8°(≈2.2%) 时隐藏标签
-            formatter: function(p) { return truncateLabel(p.name, 11, 96); }
+            formatter: function(p) { return text.truncateLabel(p.name, 11, 96); }
           }
         }
       ]
@@ -3484,19 +3484,19 @@ function buildSunburstOption(data, tooltipFormatter) {
 
 // 分类基础色（pill 配色）：每项含 bg/fg/border，fg 全部 ≥4.5:1。
 // 定义在 catColorImpl 之前，消除「const 后置引用」的 TDZ 隐患。
-// CATEGORY_COLORS（分类 pill 基色）在 logic.js：它是「配色 × 插值点都达 AA」这条不变量的
+// color.CATEGORY_COLORS（分类 pill 基色）在 logic.js：它是「配色 × 插值点都达 AA」这条不变量的
 // 数据源，放 logic.js 才能被单测逐点校验（原在 index.html，曾在这里翻车：亮色插值
 // 把底色压深而字没跟着加深，实测最低 2.4:1）。
 
 // 分类 pill 配色：资产/消费共用同一套逻辑, 仅分类集合不同
 function catColorImpl(cats, catId, tagName) {
   const idx = cats.findIndex(c => c.id === catId);
-  const base = CATEGORY_COLORS[idx % CATEGORY_COLORS.length];
+  const base = color.CATEGORY_COLORS[idx % color.CATEGORY_COLORS.length];
   const dark = document.documentElement.classList.contains('dark');
   const cat = cats[idx];
   const ti = cat && tagName ? cat.tags.indexOf(tagName) : -1;
-  if (ti < 0 || cat.tags.length <= 1) return basePill(base, dark);
-  return pillColors(base, ti / (cat.tags.length - 1), dark);
+  if (ti < 0 || cat.tags.length <= 1) return color.basePill(base, dark);
+  return color.pillColors(base, ti / (cat.tags.length - 1), dark);
 }
 
 // 利率标签: 有利率返回 "min%-max%" 或单值 "x%", 无利率返回 null; digits 控制小数位
@@ -3509,11 +3509,11 @@ function rateLabelText(a, digits) {
   return min === max ? `${f(min)}%` : `${f(min)}-${f(max)}%`;
 }
 
-// money2 在 logic.js（与 formatCNY/moneyStr 同族）
+// money.money2 在 logic.js（与 money.formatCNY/money.moneyStr 同族）
 
 // 总资产折算 CNY（资产/收益/报头多处复用同一公式，集中避免漂移）
 function totalAssetsCNY() {
-  return sumAmountCNY(state.assets, state.rates);
+  return money.sumAmountCNY(state.assets, state.rates);
 }
 
 // 统一的分类标签 pill 渲染（资产/消费/快照列表共用），避免六处重复的内联 HTML 漂移
@@ -3523,17 +3523,17 @@ function totalAssetsCNY() {
 function tagPillHtml(cat, tagVal, colorFn, opts) {
   opts = opts || {};
   const c = colorFn(cat.id, tagVal);
-  const key = opts.showKey === false ? '' : `<span class="tag-key">${opts.keyHtml != null ? opts.keyHtml : esc(cat.name)}</span>`;
-  const val = `<span class="tag-val">${opts.valHtml != null ? opts.valHtml : esc(tagVal)}</span>`;
+  const key = opts.showKey === false ? '' : `<span class="tag-key">${opts.keyHtml != null ? opts.keyHtml : text.esc(cat.name)}</span>`;
+  const val = `<span class="tag-val">${opts.valHtml != null ? opts.valHtml : text.esc(tagVal)}</span>`;
   // 改名入口 = **长按整枚胶囊**（卡片上的编辑图标已去掉：它太小，还把每一枚胶囊都变成
   // 「带控件的样子」）。故这里只带数据，行为由事件委托接（见 startTagPress）：
   //   data-rename="<side>"  → 长按后走 startTagRename（唯一的改名实现）
   // 可聚焦 + Enter 直达改名：长按是**手势**，不是权限——键盘与读屏器不该被挡在门外
   // （与「进资产页」的长按门槛同一条原则）。
   const ren = opts.renameSide
-    ? ` data-rename="${jsAttr(opts.renameSide || '')}" data-cat="${jsAttr(cat.id)}" data-tag="${jsAttr(tagVal)}" tabindex="0" role="button" title="长按可改名" aria-label="标签 ${jsAttr(tagVal)}，长按或按回车改名" onkeydown="if(event.key==='Enter')renameTagFromKey(event)"`
+    ? ` data-rename="${text.jsAttr(opts.renameSide || '')}" data-cat="${text.jsAttr(cat.id)}" data-tag="${text.jsAttr(tagVal)}" tabindex="0" role="button" title="长按可改名" aria-label="标签 ${text.jsAttr(tagVal)}，长按或按回车改名" onkeydown="if(event.key==='Enter')renameTagFromKey(event)"`
     : '';
-  const del = opts.removeSide ? ` <button class="pill-del" onclick="removeTag('${jsAttr(opts.removeSide)}', '${jsAttr(cat.id)}','${jsAttr(tagVal)}')" aria-label="移除标签">✕</button>` : '';
+  const del = opts.removeSide ? ` <button class="pill-del" onclick="removeTag('${text.jsAttr(opts.removeSide)}', '${text.jsAttr(cat.id)}','${text.jsAttr(tagVal)}')" aria-label="移除标签">✕</button>` : '';
   return `<span class="tag-pill"${ren} style="background:${c.bg};color:${c.fg};border-left-color:${c.border};">${key}${val}${del}</span>`;
 }
 
@@ -3598,7 +3598,7 @@ function renderCategoryCards(side) {
   const cfg = CAT_SIDES[side];
   const container = document.getElementById(cfg.listId);
   // 数据校验入口（仅 cfg.tagCheck=true 的一侧）：卡片尾部提示「N 条记录未归到本分类」
-  const gaps = cfg.tagCheck ? missingTagGroups(cfg.items(), cfg.cats()) : [];
+  const gaps = cfg.tagCheck ? expense.missingTagGroups(cfg.items(), cfg.cats()) : [];
   const gapOf = id => gaps.find(g => g.catId === id);
   container.innerHTML = cfg.cats().map(cat => {
     // 内置分类（货币类型）是写死的逻辑：标签就是币种代码，改名与删除在守卫里都只回一句
@@ -3610,28 +3610,28 @@ function renderCategoryCards(side) {
       : { showKey: false, removeSide: side, renameSide: side };
     const tagPills = cat.tags.map(t => tagPillHtml(cat, t, cfg.colorFn, tagOpts)).join(' ');
     // 「添加」按钮与回车共用同一调用表达式, 防两处接线各自漂移
-    const addTagCall = `addTag('${jsAttr(side)}', '${jsAttr(cat.id)}')`;
+    const addTagCall = `addTag('${text.jsAttr(side)}', '${text.jsAttr(cat.id)}')`;
     const gap = gapOf(cat.id);
     return `<div class="card">
       <div class="flex items-center justify-between mb-3">
         <div class="flex items-center gap-2">
-          <h3 class="card-title">${esc(cat.name)}</h3>
+          <h3 class="card-title">${text.esc(cat.name)}</h3>
           ${cat.builtin ? '<span class="t-micro px-2 py-0.5 rounded muted" style="background:var(--bg-2);border:1px solid var(--border);">内置</span>' : ''}
         </div>
         <div class="flex gap-2">
-          ${!cat.builtin ? `<button onclick="openCategoryModal('${jsAttr(side)}', '${jsAttr(cat.id)}')" class="row-btn edit">编辑</button>
-          <button onclick="deleteCategory('${jsAttr(side)}', '${jsAttr(cat.id)}')" class="row-btn danger">删除</button>` : ''}
+          ${!cat.builtin ? `<button onclick="openCategoryModal('${text.jsAttr(side)}', '${text.jsAttr(cat.id)}')" class="row-btn edit">编辑</button>
+          <button onclick="deleteCategory('${text.jsAttr(side)}', '${text.jsAttr(cat.id)}')" class="row-btn danger">删除</button>` : ''}
         </div>
       </div>
       <div class="flex flex-wrap gap-2 mb-3">${tagPills}</div>
       ${cat.builtin ? '' : `
       <div class="new-tag-row">
-        <input type="text" id="${esc(cfg.newTagPrefix + cat.id)}" placeholder="新增标签（回车添加）" class="t-body" autocomplete="off" onkeydown="if(event.key==='Enter'&&!event.isComposing){event.preventDefault();${addTagCall};}">
+        <input type="text" id="${text.esc(cfg.newTagPrefix + cat.id)}" placeholder="新增标签（回车添加）" class="t-body" autocomplete="off" onkeydown="if(event.key==='Enter'&&!event.isComposing){event.preventDefault();${addTagCall};}">
         <button onclick="${addTagCall}" class="btn-ghost btn-sm">添加</button>
       </div>`}
       ${gap ? `<div class="tagcheck-strip">
         <span class="t-micro"><b class="ink-accent">${gap.items.length}</b> 条记录未归到本分类</span>
-        <button type="button" class="row-btn edit" onclick="openTagCheck('${jsAttr(side)}', '${jsAttr(cat.id)}')">去校验</button>
+        <button type="button" class="row-btn edit" onclick="openTagCheck('${text.jsAttr(side)}', '${text.jsAttr(cat.id)}')">去校验</button>
       </div>` : ''}
     </div>`;
   }).join('');
@@ -3691,7 +3691,7 @@ function saveCategory(side, e) {
       if (it.tags[editId] && !tags.includes(it.tags[editId])) delete it.tags[editId];
     });
     // 分类标签被移除后同步清理读数行引用（消费分类与读数行无关，带侧别闸门）
-    if (side === 'asset') state.runwayTags = pruneRunwayTags(state.runwayTags, state.categories);
+    if (side === 'asset') state.runwayTags = income.pruneRunwayTags(state.runwayTags, state.categories);
     saveState();
     renderCategoryCards(side);
     cfg.renderItems();
@@ -3699,13 +3699,13 @@ function saveCategory(side, e) {
     toast(editId ? cfg.savedUpdated : cfg.savedCreated, 'success');
     // 新建分类后立刻补历史数据（资产/消费两侧都接数据校验）
     if (createdId && cfg.tagCheck) {
-      const gap = missingTagGroups(cfg.items(), cfg.cats()).find(g => g.catId === createdId);
+      const gap = expense.missingTagGroups(cfg.items(), cfg.cats()).find(g => g.catId === createdId);
       if (gap) openTagCheck(side, createdId);
     }
   };
 
   // 被移除的标签若仍被引用，先告知将清空多少条记录（静默清空归类会让分布/收益默默失真）
-  const refs = countTagRefs(cfg.items(), editId, removed);
+  const refs = expense.countTagRefs(cfg.items(), editId, removed);
   if (refs > 0) {
     showConfirm(
       `「${removed.join('、')}」已不在标签列表中，保存后将清空 ${refs} 条记录上的归类。` +
@@ -3726,7 +3726,7 @@ function deleteCategory(side, id) {
     const newCats = cfg.cats().filter(c => c.id !== id);
     if (side === 'asset') state.categories = newCats; else state.expenseCategories = newCats;
     cfg.items().forEach(it => { delete it.tags[id]; });
-    if (side === 'asset') state.runwayTags = pruneRunwayTags(state.runwayTags, state.categories);
+    if (side === 'asset') state.runwayTags = income.pruneRunwayTags(state.runwayTags, state.categories);
     saveState();
     renderCategoryCards(side);
     cfg.renderItems();
@@ -3761,7 +3761,7 @@ function removeTag(side, catId, tagName) {
   if (cat.tags.length <= 1) { toast('至少保留一个标签', 'error'); return; }
   cat.tags = cat.tags.filter(t => t !== tagName);
   cfg.items().forEach(it => { if (it.tags[catId] === tagName) delete it.tags[catId]; });
-  if (side === 'asset') state.runwayTags = pruneRunwayTags(state.runwayTags, state.categories);
+  if (side === 'asset') state.runwayTags = income.pruneRunwayTags(state.runwayTags, state.categories);
   saveState();
   renderCategoryCards(side);
   cfg.renderItems();
@@ -3783,9 +3783,9 @@ function renameTag(side, catId, oldName, newName) {
   const at = cat.tags.indexOf(oldName);
   if (at < 0) { renderCategoryCards(side); return; }
   cat.tags[at] = newName;
-  migrateTagRefs(cfg.items(), catId, oldName, newName);
+  expense.migrateTagRefs(cfg.items(), catId, oldName, newName);
   // 读数卡所选标签同按「分类 + 名字」引用，改名要一并迁移，否则 prune 会把选择清掉
-  if (side === 'asset') state.runwayTags = migrateRunwayTagRefs(state.runwayTags, catId, oldName, newName);
+  if (side === 'asset') state.runwayTags = income.migrateRunwayTagRefs(state.runwayTags, catId, oldName, newName);
   saveState();
   renderCategoryCards(side);
   cfg.renderItems();
@@ -3795,7 +3795,7 @@ function renameTag(side, catId, oldName, newName) {
 // ===== 长按胶囊改标签名 =====
 // 为什么用长按而不是一枚编辑图标：图标太小（15px）、又把每一枚胶囊都变成「带控件的样子」；
 // 而改成本身是个低频动作，不该常驻在视觉里。长按的判定与「进资产页」那套**同源**
-// （logic.js pressDecision / pressProgress，只换阈值 TAG_PRESS_MS）。
+// （logic.js ui.pressDecision / ui.pressProgress，只换阈值 ui.TAG_PRESS_MS）。
 //
 // 三条必须守住的：
 //   ① 短按什么都不做——胶囊上的点击本来没有语义，别给它发明一个；
@@ -3827,10 +3827,10 @@ function startTagPress(e, pill) {
   const tick = () => {
     if (!tagPress || tagPress.el !== pill) return;
     const held = performance.now() - tagPress.start;
-    const progress = pressProgress(held, TAG_PRESS_MS);
+    const progress = ui.pressProgress(held, ui.TAG_PRESS_MS);
     // 进度条宽度按胶囊实宽算：box-shadow 的 inset 宽度无法用百分比表达
     pill.style.boxShadow = `inset ${Math.round(progress * pill.offsetWidth)}px 0 0 0 rgba(180, 132, 26, 0.22), inset 0 -2px 0 0 var(--accent)`;
-    if (pressDecision(held, TAG_PRESS_MS) !== 'done') { tagPress.raf = requestAnimationFrame(tick); return; }
+    if (ui.pressDecision(held, ui.TAG_PRESS_MS) !== 'done') { tagPress.raf = requestAnimationFrame(tick); return; }
     // 满时长**直接进编辑态**（不再等松手）：墨线涨满的那一瞬输入框就在原地出现——与
     // 「进资产页」按满即弹同一处置（旧实现让用户「按满—松手」两步，松手前墨线停在满格像卡住）。
     // 先收尾再开输入框：不先收尾的话，紧跟着的松手会让 endTagPress 再开一次（同一次长按两个入口）。
@@ -3849,7 +3849,7 @@ function startTagPress(e, pill) {
 // 那时判定同源，仍然进编辑态（手势够长了，不该因为少一帧而作废）。
 function endTagPress(e, pill) {
   if (!tagPress || tagPress.el !== pill) return;
-  const decision = pressDecision(performance.now() - tagPress.start, TAG_PRESS_MS);
+  const decision = ui.pressDecision(performance.now() - tagPress.start, ui.TAG_PRESS_MS);
   const side = pill.dataset.rename;
   const catId = pill.dataset.cat;
   const tagName = pill.dataset.tag;
@@ -3938,15 +3938,15 @@ function updateSortIndicators(prefix, fields, sortBy, sortDir) {
     //   aria-sort  ——按 WAI-ARIA 规范**未定义在 role=button 上**（那位子是 columnheader/
     //                rowheader），实测 Chrome 的 AX 树里它不产生任何 sort 信息；
     //                留着是为了「将来表头改成真正的 columnheader 就自动接上」。
-    //   aria-label ——真正到达读屏器的是**可访问名**。取值走 logic.js sortAriaLabel
+    //   aria-label ——真正到达读屏器的是**可访问名**。取值走 logic.js ui.sortAriaLabel
     //                （可见列名在前，满足 WCAG「名称包含可见文字」）。
     // 必须**每次**都 setAttribute：只在选中时设的话，换一列排序后旧方向会粘在上一列上。
     const head = el.parentElement;
     if (head && head.getAttribute('role') === 'button') {
-      head.setAttribute('aria-sort', sortAriaSort(sortBy, sortDir, f));
+      head.setAttribute('aria-sort', ui.sortAriaSort(sortBy, sortDir, f));
       const label = (head.dataset.colLabel || head.textContent.replace(/[▲▼]/g, '').trim());
       head.dataset.colLabel = label; // 缓存可见列名：textContent 会被 ▲/▼ 污染，先剥一次再记住
-      head.setAttribute('aria-label', sortAriaLabel(label, sortBy, sortDir, f));
+      head.setAttribute('aria-label', ui.sortAriaLabel(label, sortBy, sortDir, f));
     }
   });
 }
@@ -3967,7 +3967,7 @@ function fillMonthSelect(selId, months) {
   if (!sel) return sel;
   const current = sel.value;
   setSelectOptions(sel, '<option value="">全部时间</option>' +
-    months.map(m => `<option value="${m}">${monthLabel(m)}</option>`).join(''));
+    months.map(m => `<option value="${m}">${date.monthLabel(m)}</option>`).join(''));
   if (current && sel.querySelector(`option[value="${current}"]`)) sel.value = current;
   return sel;
 }
@@ -3986,7 +3986,7 @@ function fillCategorySelect(selId, cats) {
   if (!sel) return sel;
   const current = sel.value;
   setSelectOptions(sel, cats.map(c =>
-    `<option value="${c.id}">${esc(c.name)}</option>`
+    `<option value="${c.id}">${text.esc(c.name)}</option>`
   ).join(''));
   if (current && sel.querySelector(`option[value="${current}"]`)) sel.value = current;
 }
@@ -4018,7 +4018,7 @@ async function renderChart() {
     if (tagVal && groups[tagVal]) groups[tagVal].push(a);
   });
 
-  const data = buildSunburstData(cat, groups, a => toCNY(a.amount, a.currency));
+  const data = chartData.buildSunburstData(cat, groups, a => money.toCNY(a.amount, a.currency));
 
   // 所选维度下所有分组均为空（如新建分类后资产尚未分配标签）时显示空态, 避免空白画布
   if (data.length === 0) {
@@ -4034,7 +4034,7 @@ async function renderChart() {
   const totalCNY = totalAssetsCNY();
   // 图的数据与分母都由选中态派生（图与清单不可能再漂）：下钻时图只剩该分类、
   // 分母换成该分类合计——与清单条目级占比、卡片总数三处同源
-  const view = sunburstDrillView(data, totalCNY, sunburstLegendSel['chart-legend']);
+  const view = chartData.sunburstDrillView(data, totalCNY, sunburstLegendSel['chart-legend']);
   renderChartTotal(totalEl, view.total);
 
   const th = chartTheme();
@@ -4057,8 +4057,8 @@ function takeSnapshot() {
 
 function confirmSnapshot(overwrite) {
   const note = document.getElementById('snapshot-note-input').value.trim();
-  const month = getCurrentMonth();
-  const existing = findMonthSnapshot(month);
+  const month = date.getCurrentMonth();
+  const existing = snapshot.findMonthSnapshot(month);
 
   if (existing && !overwrite) {
     closeModal('snapshot-note-modal');
@@ -4095,14 +4095,14 @@ function confirmSnapshot(overwrite) {
 
 function renderHistoryHeader() {
   const area = document.getElementById('history-record-area');
-  const month = getCurrentMonth();
-  const existing = findMonthSnapshot(month);
+  const month = date.getCurrentMonth();
+  const existing = snapshot.findMonthSnapshot(month);
 
   if (existing) {
     area.innerHTML = `
       <div class="flex items-center gap-2">
         <span class="t-body muted">
-          ${monthLabel(month)} 已记录 ✓
+          ${date.monthLabel(month)} 已记录 ✓
         </span>
         <button onclick="promptOverwrite()" class="btn-ghost btn-xs">覆盖更新</button>
       </div>
@@ -4113,7 +4113,7 @@ function renderHistoryHeader() {
 }
 
 function promptOverwrite() {
-  const existing = findMonthSnapshot(getCurrentMonth());
+  const existing = snapshot.findMonthSnapshot(date.getCurrentMonth());
   if (!existing) return;
   showConfirm('本月已有记录，确定覆盖更新为当前数据？', () => {
     document.getElementById('snapshot-note-input').value = existing.note;
@@ -4169,12 +4169,12 @@ function compareTableHtml(rows, opts) {
     const sign = r.d >= 0 ? '+' : '';
     return [
       { cls: 't-medium t-body flex items-center gap-2', html: opts.firstCellHtml(r) },
-      { cls: 't-body num' + (r.status === 'new' ? ' muted' : ''), html: r.av > 0 ? money2(r.av) : '—' },
-      { cls: 't-body num' + (r.status === 'gone' ? ' muted' : ''), html: r.bv > 0 ? money2(r.bv) : '—' },
+      { cls: 't-body num' + (r.status === 'new' ? ' muted' : ''), html: r.av > 0 ? money.money2(r.av) : '—' },
+      { cls: 't-body num' + (r.status === 'gone' ? ' muted' : ''), html: r.bv > 0 ? money.money2(r.bv) : '—' },
       {
         cls: 't-body num',
         style: `color:${opts.color(r.d)};`,
-        html: `<div class="tabular">${r.d === 0 ? '±0' : `${sign}${money2(r.d)}`}</div>`
+        html: `<div class="tabular">${r.d === 0 ? '±0' : `${sign}${money.money2(r.d)}`}</div>`
           + cmpBar(r.d, maxAbs, opts.color),
       },
       { cls: 't-body num', html: cmpPctCell(r.d, r.p, opts.color) },
@@ -4188,7 +4188,7 @@ function viewSnapshot(month) {
   if (!snap) return;
   openDetail({
     title: '快照详情',
-    summary: `${monthLabel(snap.month)}${snap.note ? ' — ' + esc(snap.note) : ''} | 总净值: <strong>${formatCNY(snap.totalCNY)}</strong>`,
+    summary: `${date.monthLabel(snap.month)}${snap.note ? ' — ' + text.esc(snap.note) : ''} | 总净值: <strong>${money.formatCNY(snap.totalCNY)}</strong>`,
     cols: 'cols-snapshot',
     head: [
       { html: '名称' }, { html: '金额', cls: 'num' }, { html: '货币' },
@@ -4200,8 +4200,8 @@ function viewSnapshot(month) {
         return cat ? tagPillHtml(cat, val, catColor) : '';
       }).join(' ');
       return [
-        { cls: 't-medium t-body', html: esc(a.name) },
-        { cls: 't-body num', html: money2(a.amount) },
+        { cls: 't-medium t-body', html: text.esc(a.name) },
+        { cls: 't-body num', html: money.money2(a.amount) },
         { cls: 't-body muted', html: a.currency },
         { cls: 't-body num', html: rateLabelText(a) || '<span class="muted hint-xs">未设置</span>' },
         { cls: 'flex flex-wrap gap-1', html: tagHtml },
@@ -4222,42 +4222,42 @@ function viewHistorySegment(month, catId, tag) {
   const rates = snap.currencyRates || {};
   const items = (snap.assets || [])
     .filter(a => (a.tags || {})[catId] === tag)
-    .map(a => Object.assign({}, a, { cny: amountAtRates(a.amount, a.currency, rates) }))
+    .map(a => Object.assign({}, a, { cny: money.amountAtRates(a.amount, a.currency, rates) }))
     .sort((a, b) => b.cny - a.cny);
   if (items.length === 0) return;
   const segTotal = items.reduce((s, a) => s + a.cny, 0);
   openDetail({
-    title: monthLabel(month) + ' · ' + tag + '构成',
-    summary: `${esc(cat.name)} › ${esc(tag)} | ${items.length} 项资产 | 合计 <strong>${formatCNY(segTotal)}</strong>`,
+    title: date.monthLabel(month) + ' · ' + tag + '构成',
+    summary: `${text.esc(cat.name)} › ${text.esc(tag)} | ${items.length} 项资产 | 合计 <strong>${money.formatCNY(segTotal)}</strong>`,
     cols: 'cols-segment',
     head: [
       { html: '名称' }, { html: '金额', cls: 'num' }, { html: '货币' },
       { html: '折算 CNY', cls: 'num' }, { html: '占比', cls: 'num' },
     ],
     rows: items.map(a => ([
-      { cls: 't-medium t-body', html: esc(a.name) },
-      { cls: 't-body num', html: money2(a.amount) },
+      { cls: 't-medium t-body', html: text.esc(a.name) },
+      { cls: 't-body num', html: money.money2(a.amount) },
       { cls: 't-body muted', html: a.currency },
-      { cls: 't-body num', html: formatCNY(a.cny) },
-      { cls: 't-body num muted', html: `${pctStr(a.cny, segTotal)}%` },
+      { cls: 't-body num', html: money.formatCNY(a.cny) },
+      { cls: 't-body num muted', html: `${money.pctStr(a.cny, segTotal)}%` },
     ])),
     empty: '该标签下没有资产',
   });
 }
 
 // ========== SNAPSHOT COMPARE ==========
-// 对比基准默认口径在 logic.js defaultCompareBaseMonth：默认与最新月构成「最近两个月」对比。
+// 对比基准默认口径在 logic.js snapshot.defaultCompareBaseMonth：默认与最新月构成「最近两个月」对比。
 function openCompareModal() {
   const sorted = [...state.snapshots].sort((a, b) => a.month.localeCompare(b.month));
   if (sorted.length < 2) { toast('至少需要两个月的快照才能对比', 'error'); return; }
   const baseSel = document.getElementById('compare-base-select');
   const targetSel = document.getElementById('compare-target-select');
   const months = sorted.map(s => s.month);
-  const opts = months.map(m => `<option value="${m}">${monthLabel(m)}</option>`).join('');
+  const opts = months.map(m => `<option value="${m}">${date.monthLabel(m)}</option>`).join('');
   baseSel.innerHTML = opts;
   targetSel.innerHTML = opts;
   // 默认最近两个月：起始=次新月，结束=最新月；不保留上次选择
-  baseSel.value = defaultCompareBaseMonth(sorted);
+  baseSel.value = snapshot.defaultCompareBaseMonth(sorted);
   targetSel.value = sorted[sorted.length - 1].month;
   openModal('compare-modal');
   renderCompareTable();
@@ -4271,11 +4271,11 @@ function renderCompareTable() {
   const heroEl = document.getElementById('compare-hero');
   const ctxEl = document.getElementById('compare-context');
 
-  const cnyAt = (snap, a) => amountAtRates(a.amount, a.currency, snap.currencyRates || {});
+  const cnyAt = (snap, a) => money.amountAtRates(a.amount, a.currency, snap.currencyRates || {});
   const baseTotal = baseSnap.totalCNY || baseSnap.assets.reduce((s, a) => s + cnyAt(baseSnap, a), 0);
   const compTotal = compSnap.totalCNY || compSnap.assets.reduce((s, a) => s + cnyAt(compSnap, a), 0);
   const diff = compTotal - baseTotal;
-  renderCompareHero(heroEl, ctxEl, diff, baseTotal, compTotal, monthLabel(baseSnap.month), monthLabel(compSnap.month), true);
+  renderCompareHero(heroEl, ctxEl, diff, baseTotal, compTotal, date.monthLabel(baseSnap.month), date.monthLabel(compSnap.month), true);
 
   const baseMap = new Map((baseSnap.assets || []).map(a => [a.id, a]));
   const compMap = new Map((compSnap.assets || []).map(a => [a.id, a]));
@@ -4302,7 +4302,7 @@ function renderCompareTable() {
     firstLabel: '资产',
     periods: ['期初', '期末'],
     color: v => compareColor(v, true),
-    firstCellHtml: r => esc(r.name) + `<span class="t-micro muted">${r.cur}</span>`
+    firstCellHtml: r => text.esc(r.name) + `<span class="t-micro muted">${r.cur}</span>`
       + (r.status === 'new' ? '<span class="mo-badge up">新增</span>'
         : r.status === 'gone' ? '<span class="mo-badge down">移除</span>' : ''),
   });
@@ -4342,7 +4342,7 @@ function doLoadDemoData() {
   const now = new Date();
   const months = [];
   for (let i = 5; i >= 0; i--) {
-    months.push(getLocalMonthStr(new Date(now.getFullYear(), now.getMonth() - i, 1)));
+    months.push(date.getLocalMonthStr(new Date(now.getFullYear(), now.getMonth() - i, 1)));
   }
   const notes = ['初始配置', '小幅加仓', '市场波动', '补仓操作', '分红再投', '季度调整'];
   const monthlyChanges = [
@@ -4367,7 +4367,7 @@ function doLoadDemoData() {
         expectedRateMin: d.rMin, expectedRateMax: d.rMax, cashRatio: d.cash,
       };
     });
-    const totalCNY = snapAssets.reduce((s, a) => s + amountAtRates(a.amount, a.currency, state.rates), 0);
+    const totalCNY = snapAssets.reduce((s, a) => s + money.amountAtRates(a.amount, a.currency, state.rates), 0);
     return { month, note: notes[mi], totalCNY, currencyRates: { ...state.rates }, assets: snapAssets, updatedAt: month + '-15T12:00:00.000Z' };
   });
   const latest = state.snapshots[state.snapshots.length - 1];
@@ -4395,7 +4395,7 @@ async function renderHistoryChart() {
 
   const th = chartTheme();
   const sorted = [...state.snapshots].sort((a, b) => a.month.localeCompare(b.month));
-  const dates = sorted.map(s => monthLabel(s.month));
+  const dates = sorted.map(s => date.monthLabel(s.month));
 
   const totals = sorted.map(s => s.totalCNY);
 
@@ -4406,11 +4406,11 @@ async function renderHistoryChart() {
     cat.tags.forEach(tag => {
       m[tag] = (snap.assets || [])
         .filter(a => (a.tags || {})[catId] === tag)
-        .reduce((s, a) => s + amountAtRates(a.amount, a.currency, snap.currencyRates), 0);
+        .reduce((s, a) => s + money.amountAtRates(a.amount, a.currency, snap.currencyRates), 0);
     });
     return m;
   });
-  const sortedTags = sortTagsByTotal(cat, monthTagValues);
+  const sortedTags = chartData.sortTagsByTotal(cat, monthTagValues);
 
   // 下钻上下文：click 事件据 seriesIndex/dataIndex 反查「月份 × 标签」
   histDrillMeta = {
@@ -4423,7 +4423,7 @@ async function renderHistoryChart() {
     const isLast = si === sortedTags.length - 1;
     const raw = monthTagValues.map(m => m[tag]);
     const data = historyChartMode === 'percent'
-      ? percentSeriesData(raw, totals)
+      ? chartData.percentSeriesData(raw, totals)
       : raw;
     return {
       ...barSeriesStyle(cat, tag),
@@ -4431,7 +4431,7 @@ async function renderHistoryChart() {
       label: isLast && historyChartMode === 'value' ? {
         show: true,
         position: 'top',
-        formatter: function(p) { return formatCNY(totals[p.dataIndex]); },
+        formatter: function(p) { return money.formatCNY(totals[p.dataIndex]); },
         fontFamily: CHART_FONT,
         fontSize: 11,
         color: th.muted,
@@ -4441,7 +4441,7 @@ async function renderHistoryChart() {
 
   const option = {
     // 回灌前清理失效项（局部副本，不回写存储）
-    ...barChartBase(th, dates, historyChartMode, sortedTags, pruneLegendSelected(histLegendSel, sortedTags)),
+    ...barChartBase(th, dates, historyChartMode, sortedTags, chartData.pruneLegendSelected(histLegendSel, sortedTags)),
     tooltip: {
       ...chartTooltipBase(th),
       formatter: function(p) {
@@ -4450,10 +4450,10 @@ async function renderHistoryChart() {
         const total = totals[idx];
         if (historyChartMode === 'percent') {
           const raw = p.data && p.data.raw != null ? p.data.raw : 0;
-          return `<b>${d}</b><br/>${p.marker} ${esc(p.seriesName)}: ${p.value}% (${formatCNY(raw)})`;
+          return `<b>${d}</b><br/>${p.marker} ${text.esc(p.seriesName)}: ${p.value}% (${money.formatCNY(raw)})`;
         }
-        const pct = pctStr(p.value, total);
-        return `<b>${d}</b><br/>${p.marker} ${esc(p.seriesName)}: ${formatCNY(p.value)} (${pct}%)`;
+        const pct = money.pctStr(p.value, total);
+        return `<b>${d}</b><br/>${p.marker} ${text.esc(p.seriesName)}: ${money.formatCNY(p.value)} (${pct}%)`;
       }
     },
     series
@@ -4477,13 +4477,13 @@ async function renderHistoryChart() {
 function momCompareHtml(curr, prev, goodWhenUp) {
   if (prev == null) return { badge: '<span class="mo-badge first">首月</span>', diffLine: '' };
   if (prev === 0) return { badge: '<span class="mo-badge up">新增</span>', diffLine: '' };
-  const m = expenseMoM(curr, prev);
+  const m = expense.expenseMoM(curr, prev);
   const sign = m.up ? '+' : '';
   const good = goodWhenUp ? m.up : !m.up;
   const badgeClass = good ? 'up' : 'down';
-  const color = good ? 'var(--verdigris)' : 'var(--down)';
-  const badge = '<span class="mo-badge ' + badgeClass + '" title="较上月 ' + sign + formatCNY(m.diff) + '（' + sign + m.pct.toFixed(1) + '%）">' + (m.up ? '▲' : '▼') + ' ' + sign + m.pct.toFixed(1) + '%</span>';
-  const diffLine = '<span style="color:' + color + ';">较上月 ' + sign + formatCNY(m.diff) + '</span>';
+  const diffColor = good ? 'var(--verdigris)' : 'var(--down)';
+  const badge = '<span class="mo-badge ' + badgeClass + '" title="较上月 ' + sign + money.formatCNY(m.diff) + '（' + sign + m.pct.toFixed(1) + '%）">' + (m.up ? '▲' : '▼') + ' ' + sign + m.pct.toFixed(1) + '%</span>';
+  const diffLine = '<span style="color:' + diffColor + ';">较上月 ' + sign + money.formatCNY(m.diff) + '</span>';
   return { badge: badge, diffLine: diffLine };
 }
 
@@ -4500,18 +4500,18 @@ function renderHistoryTab() {
   const list = document.getElementById('snapshots-list');
   if (state.snapshots.length === 0) { list.innerHTML = ''; return; }
   list.innerHTML = [...state.snapshots].sort((a, b) => b.month.localeCompare(a.month)).map(s => {
-    const prev = getPrevSnapshot(s.month);
+    const prev = snapshot.getPrevSnapshot(s.month);
     const { badge, diffLine } = momCompareHtml(s.totalCNY, prev ? prev.totalCNY : null, true);
     return `<div class="card card-interactive flex items-center justify-between">
-      <div class="flex-1 row-hit" role="button" tabindex="0" onclick="viewSnapshot('${jsAttr(s.month)}')"
-        onkeydown="if(activateKeyAction(event.key)){event.preventDefault();viewSnapshot('${jsAttr(s.month)}');}">
+      <div class="flex-1 row-hit" role="button" tabindex="0" onclick="viewSnapshot('${text.jsAttr(s.month)}')"
+        onkeydown="if(ui.activateKeyAction(event.key)){event.preventDefault();viewSnapshot('${text.jsAttr(s.month)}');}">
         <div class="flex items-center gap-2">
-          <span class="t-medium t-body">${monthLabel(s.month)}</span>
+          <span class="t-medium t-body">${date.monthLabel(s.month)}</span>
           ${badge}
         </div>
-        <div class="t-micro mt-0.5 muted">${esc(s.note) || '无备注'} · ${formatCNY(s.totalCNY)} · ${(s.assets || []).length} 项资产${diffLine ? ' · ' + diffLine : ''}</div>
+        <div class="t-micro mt-0.5 muted">${text.esc(s.note) || '无备注'} · ${money.formatCNY(s.totalCNY)} · ${(s.assets || []).length} 项资产${diffLine ? ' · ' + diffLine : ''}</div>
       </div>
-      <button onclick="deleteSnapshot('${jsAttr(s.month)}')" class="row-btn danger">删除</button>
+      <button onclick="deleteSnapshot('${text.jsAttr(s.month)}')" class="row-btn danger">删除</button>
     </div>`;
   }).join('');
 }
@@ -4538,7 +4538,7 @@ function setIncomeMode(mode) {
 // 骨架静态存在, 此处只同步宽度与文案 —— 安全边际滑块拖动时填充/菱形以过渡动画伸缩。
 // 分子口径 coverageMode 可切换（'cash' 现金=不动本金的严格口径 / 'total' 总收益=含增值宽松口径）,
 // 默认总收益、不持久化（与 incomeChartMode 同惯例）; 切换控件内嵌标签行公式。
-// 覆盖率/差额口径在 logic.js coveragePct()/incomeGap()（单一来源）; 三种状态:
+// 覆盖率/差额口径在 logic.js income.coveragePct()/income.incomeGap()（单一来源）; 三种状态:
 // 未设预期 → 邀请行 / 现金口径下现金流为零 → 指引句 / 正常 → 读数行（达标附「已覆盖」印徽）
 function renderCoverageMeter() {
   const invite = document.getElementById('cov-invite');
@@ -4553,14 +4553,14 @@ function renderCoverageMeter() {
   invite.style.display = 'none';
   section.style.display = '';
 
-  // 两口径合计与报头同源（logic.js sumAssetIncomes; 年值供缺口外推用同一份, 不另算）
-  const { monthly, cashMonthly, annual, cashAnnual } = sumAssetIncomes(state.assets);
+  // 两口径合计与报头同源（logic.js income.sumAssetIncomes; 年值供缺口外推用同一份, 不另算）
+  const { monthly, cashMonthly, annual, cashAnnual } = income.sumAssetIncomes(state.assets);
   const numerator = coverageMode === 'total' ? monthly : cashMonthly;
-  document.getElementById('cov-anchor-num').textContent = formatCNY(numerator);
-  document.getElementById('cov-anchor-expense').textContent = formatCNY(expectation);
+  document.getElementById('cov-anchor-num').textContent = money.formatCNY(numerator);
+  document.getElementById('cov-anchor-expense').textContent = money.formatCNY(expectation);
 
-  // expectation > 0 已保证, coveragePct 不返回 null
-  const pct = coveragePct(numerator, expectation);
+  // expectation > 0 已保证, income.coveragePct 不返回 null
+  const pct = income.coveragePct(numerator, expectation);
   const covered = Math.min(100, Math.max(0, pct));
   document.getElementById('cov-fill').style.width = covered + '%';
   document.getElementById('cov-marker').style.left = covered + '%';
@@ -4571,16 +4571,16 @@ function renderCoverageMeter() {
     reading.textContent = '当前组合没有现金流收益——调高资产的现金比例后，这里开始计量';
     return;
   }
-  // 差额与打平判定同源（logic.js incomeGap, 覆盖标尺为盈余/缺口唯一渲染出口, 报头已不再重复渲染）
-  const g = incomeGap(numerator, expectation);
+  // 差额与打平判定同源（logic.js income.incomeGap, 覆盖标尺为盈余/缺口唯一渲染出口, 报头已不再重复渲染）
+  const g = income.incomeGap(numerator, expectation);
   const ok = g.ok;
   const diffColor = g.ok ? 'var(--verdigris)' : 'var(--down)';
   // 缺口分支挂「还需本金」Tips: 按当前口径（分子/利率档/安全边际）线性外推, 算式在 logic.js（单一来源）
   let shortfallTip = '';
   if (!ok) {
     const annualBase = coverageMode === 'total' ? annual : cashAnnual;
-    const principal = ratedPrincipalCNY(state.assets);
-    const { need, rate } = coverShortfallPrincipal(numerator, expectation, annualBase, principal);
+    const principal = income.ratedPrincipalCNY(state.assets);
+    const { need, rate } = income.coverShortfallPrincipal(numerator, expectation, annualBase, principal);
     shortfallTip = shortfallTipHtml(need, rate);
   }
   dropDetachedBubbles(); // 先扔掉上一帧挂在 body 上的气泡（见函数注释）
@@ -4597,7 +4597,7 @@ function shortfallTipHtml(need, rate) {
   if (need === null) return '';
   const body = need === Infinity
     ? '当前资产的实际年化不高，加本金也补不上这个缺口——先调高预期年利率或降低月消费。'
-    : `按当前实际年化 ${rate.toFixed(2)}% 线性外推，还需本金 <span class="tabular readout-strong">${formatCNY(need)}</span> 才能覆盖。`;
+    : `按当前实际年化 ${rate.toFixed(2)}% 线性外推，还需本金 <span class="tabular readout-strong">${money.formatCNY(need)}</span> 才能覆盖。`;
   return `<span class="tip">` +
     `<button type="button" class="tip-mark" aria-describedby="cov-shortfall-tip" aria-label="还需多少本金才能覆盖">?</button>` +
     `<span class="tip-bubble" id="cov-shortfall-tip" role="tooltip">${body}</span></span>`;
@@ -4614,22 +4614,22 @@ function setCoverageMode(mode) {
 // 依附「预期月消费」这条参考线（与收益测算无关）, 故落在消费趋势; 公式直呈现:
 // 标签摘要 ÷ 月消费, 锚点式数字与月数同一句话里给出。
 // 分母默认取全局「预期月消费」, 也可在弹窗里自定（只对本卡生效, 不回填全局, 目的＝按更保守的月消费看能撑多久）。
-// 口径在 logic.js runwayLiquidCNY()/runwayExpectationOf()/runwayMonths()/runwayMonthsText()（单一来源）。
+// 口径在 logic.js income.runwayLiquidCNY()/income.runwayExpectationOf()/income.runwayMonths()/income.runwayMonthsText()（单一来源）。
 // 三种状态: **全局**预期月消费未设 → 整张卡不显示（入口即趋势页头的「预期消费」按钮, 卡内没有入口无从填起）/ 未选标签 → 指引句 / 正常 → 读数行。
 function renderRunwayRow() {
   const card = document.getElementById('runway-card');
   const guide = document.getElementById('runway-guide');
   const line = document.getElementById('runway-reading');
   if (!card || !guide || !line) return;
-  const expectation = runwayExpectationOf(state.runwayExpectation, state.expenseExpectation);
+  const expectation = income.runwayExpectationOf(state.runwayExpectation, state.expenseExpectation);
   if (!(expectation > 0)) {
     card.style.display = 'none';
     return;
   }
   // 引用先过同一清理入口: 手改/损坏的数据里可能有畸形引用（不仅不计数, 也不能在标签摘要里渲染成 undefined）,
-  // 且非数组时 refs.map 会直接抛错; 清理后的 refs 与 runwayLiquidCNY 的匹配集合必然一致
-  const refs = pruneRunwayTags(state.runwayTags, state.categories);
-  const liquid = runwayLiquidCNY(state.assets, refs);
+  // 且非数组时 refs.map 会直接抛错; 清理后的 refs 与 income.runwayLiquidCNY 的匹配集合必然一致
+  const refs = income.pruneRunwayTags(state.runwayTags, state.categories);
+  const liquid = income.runwayLiquidCNY(state.assets, refs);
   card.style.display = '';
   // 未选标签（null）与选了但无资产命中（0）区分开: 前者走指引句
   const chosen = liquid != null;
@@ -4638,21 +4638,21 @@ function renderRunwayRow() {
   if (!chosen) return;
   // 只同步文案: 公式骨架在 HTML 里静态可见（÷ 与 = 写在结构里）, 这里不拼 HTML
   document.getElementById('runway-tags-label').textContent = refs.map(r => r.tag).join(' · ');
-  document.getElementById('runway-num').textContent = formatCNY(liquid);
+  document.getElementById('runway-num').textContent = money.formatCNY(liquid);
   // 分母名要标出「自定」: 自定值只作用于本卡, 不换名会与旁边的覆盖标尺（仍是全局预期）看着像同一个数
   document.getElementById('runway-expense-name').textContent =
-    runwayExpectationIsCustom(state.runwayExpectation) ? '月消费（自定）' : '预期月消费';
-  document.getElementById('runway-expense').textContent = formatCNY(expectation);
-  document.getElementById('runway-months').textContent = runwayMonthsText(runwayMonths(liquid, expectation));
+    income.runwayExpectationIsCustom(state.runwayExpectation) ? '月消费（自定）' : '预期月消费';
+  document.getElementById('runway-expense').textContent = money.formatCNY(expectation);
+  document.getElementById('runway-months').textContent = income.runwayMonthsText(income.runwayMonths(liquid, expectation));
 }
 
 // 标签与月消费（草稿）: 打开只拷草稿、保存才落 state —— 取消不落库（与预期消费弹窗同惯例）
 let _runwayDraft = [];
 function openRunwayModal() {
-  _runwayDraft = pruneRunwayTags(state.runwayTags, state.categories);
+  _runwayDraft = income.pruneRunwayTags(state.runwayTags, state.categories);
   // 默认带出已填的月消费（自定值优先, 否则全局「预期月消费」）: 字段里就是当前生效的数, 改一个数即可, 不必重敲
   document.getElementById('runway-expectation').value =
-    moneyStr(runwayExpectationOf(state.runwayExpectation, state.expenseExpectation));
+    money.moneyStr(income.runwayExpectationOf(state.runwayExpectation, state.expenseExpectation));
   renderRunwayTagGroups();
   renderRunwayPreview();
   openModal('runway-modal');
@@ -4660,7 +4660,7 @@ function openRunwayModal() {
 
 // 「默认」= 把字段填回全局「预期月消费」（值可见, 不必记住原数字）; 保存时与它相同的值即按默认存（0）
 function useDefaultRunwayExpectation() {
-  document.getElementById('runway-expectation').value = moneyStr(state.expenseExpectation);
+  document.getElementById('runway-expectation').value = money.moneyStr(state.expenseExpectation);
   renderRunwayPreview();
 }
 
@@ -4668,7 +4668,7 @@ function useDefaultRunwayExpectation() {
 // 与「所选标签读数卡」同依附「预期月消费」这条参考线, 落在消费趋势; 公式直呈现: 已花 / 预期月消费。
 // 刻意不用时间进度做对照基准（消费沿时间不均匀, 大额固定支出会让它失真）, 只报两个可决策的数:
 //   剩余预算、以及「剩下这些钱、这些天, 每天能花多少」。
-// 口径在 logic.js monthBudgetReading()/monthBudgetNote()（单一来源）。
+// 口径在 logic.js expense.monthBudgetReading()/expense.monthBudgetNote()（单一来源）。
 // 预算尺上实心填充 = 已花占整月预期（右端即整月预算）; 三态与目标净资产面板同语言:
 // 未超支 verdigris / 预算将尽（≥90%）转金 / 超支转红。骨架静态存在, 这里只同步文案。
 // 未设预期消费 → 整张卡不显示（入口即页头「预期消费」按钮）。
@@ -4682,24 +4682,24 @@ function renderMonthPace() {
   }
   // 合计与读数必须取同一时刻: 各自 new Date 会在跨午夜瞬间分属两个月（合计旧月、读数新月）
   const now = new Date();
-  const spent = monthExpenseTotal(state.expenses, getLocalMonthStr(now));
-  const reading = monthBudgetReading(spent, expectation, now);
+  const spent = expense.monthExpenseTotal(state.expenses, date.getLocalMonthStr(now));
+  const reading = expense.monthBudgetReading(spent, expectation, now);
   card.style.display = '';
   // 尺子宽度物理封顶（右端就是整月预算）, 真实百分比在右侧读数里呈现。
   // 三态与目标净资产面板同语言: 未超支 verdigris / 预算将尽(≥90%) 转金 / 超支转红
   const fill = document.getElementById('pace-fill');
   fill.style.width = Math.min(100, Math.max(0, reading.pctOfMonth)) + '%';
   fill.style.background = reading.over ? 'var(--down)' : (reading.pctOfMonth >= 90 ? 'var(--accent)' : 'var(--verdigris)');
-  document.getElementById('pace-num').textContent = formatCNY(spent);
-  document.getElementById('pace-expense').textContent = formatCNY(expectation);
+  document.getElementById('pace-num').textContent = money.formatCNY(spent);
+  document.getElementById('pace-expense').textContent = money.formatCNY(expectation);
   const pct = document.getElementById('pace-pct');
   // 百分比读数取 reading.pctOfMonth（与尺子宽度、≥90% 判断同源）, 不用 spent/expectation 另算一遍
-  pct.textContent = pctStr(reading.pctOfMonth, 100) + '%';
+  pct.textContent = money.pctStr(reading.pctOfMonth, 100) + '%';
   pct.style.color = reading.over ? 'var(--down)' : 'var(--accent-ink)';
   const note = document.getElementById('pace-note');
-  const text = monthBudgetNote(reading);
-  note.textContent = text;
-  note.style.display = text ? '' : 'none';
+  const noteText = expense.monthBudgetNote(reading);
+  note.textContent = noteText;
+  note.style.display = noteText ? '' : 'none';
   note.style.color = reading.over ? 'var(--down)' : 'var(--muted)';
 }
 
@@ -4717,10 +4717,10 @@ function renderRunwayTagGroups() {
     const chips = cat.tags.map(t => tagChipHtml(
       cat.id, t,
       _runwayDraft.some(r => r.catId === cat.id && r.tag === t),
-      `data-cat="${esc(cat.id)}" data-tag="${esc(t)}" onclick="toggleRunwayTag(this)"`,
+      `data-cat="${text.esc(cat.id)}" data-tag="${text.esc(t)}" onclick="toggleRunwayTag(this)"`,
       catColor)).join('');
     return `<div>
-      <label class="field-label">${esc(cat.name)}</label>
+      <label class="field-label">${text.esc(cat.name)}</label>
       <div class="tag-picker">${chips}</div>
     </div>`;
   }).join('');
@@ -4736,24 +4736,24 @@ function toggleRunwayTag(btn) {
 }
 
 // 弹窗内实时预览: 勾选/改月消费即见结果（同一口径函数, 与读数行同算式）, 不必保存了才知道。
-// 输入解析与归一与写入侧共用 normalizeRunwayExpectationInput: 两处各写一份时值恰好等价, 但
+// 输入解析与归一与写入侧共用 income.normalizeRunwayExpectationInput: 两处各写一份时值恰好等价, 但
 // 一旦只改一处（如把「与全局相同」的判定收掉）预览与保存后的读数就会对不上, 而这类分家不会报错。
 function renderRunwayPreview() {
   const el = document.getElementById('runway-preview');
   if (!el) return;
   const input = document.getElementById('runway-expectation').value;
-  const expectation = runwayExpectationOf(normalizeRunwayExpectationInput(input, state.expenseExpectation), state.expenseExpectation);
-  const liquid = runwayLiquidCNY(state.assets, _runwayDraft);
+  const expectation = income.runwayExpectationOf(income.normalizeRunwayExpectationInput(input, state.expenseExpectation), state.expenseExpectation);
+  const liquid = income.runwayLiquidCNY(state.assets, _runwayDraft);
   if (liquid == null) { el.textContent = '勾选标签后这里显示结果'; return; }
-  const months = runwayMonths(liquid, expectation);
+  const months = income.runwayMonths(liquid, expectation);
   if (months == null) { el.textContent = '先设定预期月消费，再回来看结果'; return; }
-  el.textContent = `${formatCNY(liquid)} ÷ 月消费 ${formatCNY(expectation)} = ${runwayMonthsText(months)}`;
+  el.textContent = `${money.formatCNY(liquid)} ÷ 月消费 ${money.formatCNY(expectation)} = ${income.runwayMonthsText(months)}`;
 }
 
 function saveRunwayTags() {
-  state.runwayTags = pruneRunwayTags(_runwayDraft, state.categories);
+  state.runwayTags = income.pruneRunwayTags(_runwayDraft, state.categories);
   // 自定月消费: 只写读数卡自己的字段, 绝不回填 state.expenseExpectation（全局预期由「预期消费」弹窗独占）
-  state.runwayExpectation = normalizeRunwayExpectationInput(
+  state.runwayExpectation = income.normalizeRunwayExpectationInput(
     document.getElementById('runway-expectation').value, state.expenseExpectation);
   saveState();
   closeModal('runway-modal');
@@ -4774,10 +4774,10 @@ function renderIncomeTab() {
     setScaleValue(safetyEl, 'income-safety-readout');
   }
 
-  const hasAnyRate = hasAnyRatedAsset(state.assets); // 与 masthead 同一判定（logic.js）
+  const hasAnyRate = income.hasAnyRatedAsset(state.assets); // 与 masthead 同一判定（logic.js）
   document.getElementById('income-mode-toggle').style.display = hasAnyRate ? '' : 'none';
 
-  const assets = state.assets.filter(a => getAssetRate(a) > 0);
+  const assets = state.assets.filter(a => income.getAssetRate(a) > 0);
 
   if (assets.length === 0) {
     empty.style.display = '';
@@ -4792,8 +4792,8 @@ function renderIncomeTab() {
   chartContainer.style.display = ''; // 走到这里 assets 必非空（空集已在上面 return）
 
   // --- Summary ---
-  // 两口径合计单一来源（logic.js sumAssetIncomes, 与报头副行/覆盖标尺共用）
-  const sums = sumAssetIncomes(state.assets);
+  // 两口径合计单一来源（logic.js income.sumAssetIncomes, 与报头副行/覆盖标尺共用）
+  const sums = income.sumAssetIncomes(state.assets);
   const totalAnnual = sums.annual;
   const totalMonthly = sums.monthly;
   const totalDaily = sums.daily;
@@ -4801,39 +4801,39 @@ function renderIncomeTab() {
   const cashAnnual = sums.cashAnnual;
   const cashMonthly = sums.cashMonthly;
 
-  document.getElementById('income-monthly').textContent = formatCNY(totalMonthly);
-  document.getElementById('income-cash-monthly').textContent = formatCNY(cashMonthly);
-  document.getElementById('income-annual').textContent = formatCNY(totalAnnual);
-  document.getElementById('income-daily').textContent = formatCNY(totalDaily);
+  document.getElementById('income-monthly').textContent = money.formatCNY(totalMonthly);
+  document.getElementById('income-cash-monthly').textContent = money.formatCNY(cashMonthly);
+  document.getElementById('income-annual').textContent = money.formatCNY(totalAnnual);
+  document.getElementById('income-daily').textContent = money.formatCNY(totalDaily);
   document.getElementById('income-cash-share').textContent = totalAnnual > 0
     ? (cashAnnual / totalAnnual * 100).toFixed(0) + '%' : '—';
 
   // Weighted average rate (总收益与现金收益各自加权平均，安全边际因子相消不影响均值)
   const totalWeighted = assets.reduce((s, a) => {
-    const cny = toCNY(a.amount, a.currency);
-    return s + cny * getAssetRate(a);
+    const cny = money.toCNY(a.amount, a.currency);
+    return s + cny * income.getAssetRate(a);
   }, 0);
   const cashWeighted = assets.reduce((s, a) => {
-    const cny = toCNY(a.amount, a.currency);
-    return s + cny * getAssetRate(a) * getCashRatio(a);
+    const cny = money.toCNY(a.amount, a.currency);
+    return s + cny * income.getAssetRate(a) * income.getCashRatio(a);
   }, 0);
-  // 有息本金（CNY）单一来源（logic.js ratedPrincipalCNY）: 页脚加权平均利率与缺口外推的「还需本金」
+  // 有息本金（CNY）单一来源（logic.js income.ratedPrincipalCNY）: 页脚加权平均利率与缺口外推的「还需本金」
   // 必须同基地 —— 两处各写一份 reduce 时, 改一处忘另一处会让页脚均值与外推年化对不上且不报错
-  const totalAssetCNY = ratedPrincipalCNY(state.assets);
+  const totalAssetCNY = income.ratedPrincipalCNY(state.assets);
   const avgRate = totalAssetCNY > 0 ? (totalWeighted / totalAssetCNY).toFixed(2) : '0.00';
   const avgCashRate = totalAssetCNY > 0 ? (cashWeighted / totalAssetCNY).toFixed(2) : '0.00';
   const safetyPct = state.incomeSafetyFactor || 100;
   const discounted = safetyPct < 100;
   document.getElementById('income-summary-footer').textContent =
-    `加权平均利率 ${avgRate}% · 平均现金收益率 ${avgCashRate}% · 总资产 ${formatCNY(totalCNY)}` +
+    `加权平均利率 ${avgRate}% · 平均现金收益率 ${avgCashRate}% · 总资产 ${money.formatCNY(totalCNY)}` +
     (discounted ? ` · 已按 ${safetyPct}% 安全边际折算` : '');
 
-  // 覆盖标尺（覆盖率/差额口径在 logic.js coveragePct/incomeGap）
+  // 覆盖标尺（覆盖率/差额口径在 logic.js income.coveragePct/income.incomeGap）
   renderCoverageMeter();
 
   // --- Table ---
   const sorted = [...state.assets].sort((a, b) => {
-    return calcAssetIncome(b).monthly - calcAssetIncome(a).monthly;
+    return income.calcAssetIncome(b).monthly - income.calcAssetIncome(a).monthly;
   });
   const rows = document.getElementById('income-rows');
   rows.innerHTML = [
@@ -4841,19 +4841,19 @@ function renderIncomeTab() {
     `  <div>名称</div><div class="num">金额 (CNY)</div><div class="num">年利率</div><div class="num">现金比例</div><div class="num">年收益${discounted ? '*' : ''}</div><div class="num">月收益${discounted ? '*' : ''}</div><div class="num">现金/月${discounted ? '*' : ''}</div>`,
     '</div>',
     ...sorted.map(a => {
-      const inc = calcAssetIncome(a);
-      const hasRate = getAssetRate(a) > 0;
+      const inc = income.calcAssetIncome(a);
+      const hasRate = income.getAssetRate(a) > 0;
       const rowClass = 'asset-row cols-income' + (hasRate ? '' : ' is-unrated');
       const rateLabel = rateLabelText(a, 1) || '<span class="muted">未设置</span>';
-      const cashPct = cashRatioPct(a);
+      const cashPct = income.cashRatioPct(a);
       return `<div class="${rowClass}">
-        <div class="t-medium t-body">${esc(a.name)}</div>
-        <div class="t-body num">${money2(inc.cny)}</div>
+        <div class="t-medium t-body">${text.esc(a.name)}</div>
+        <div class="t-body num">${money.money2(inc.cny)}</div>
         <div class="t-body num">${rateLabel}</div>
         <div class="t-body num">${hasRate ? cashPct + '%' : '-'}</div>
-        <div class="t-body num">${hasRate ? formatCNY(inc.annual) : '-'}</div>
-        <div class="t-body num">${hasRate ? formatCNY(inc.monthly) : '-'}</div>
-        <div class="t-body num ink-accent">${hasRate ? formatCNY(inc.cashMonthly) : '-'}</div>
+        <div class="t-body num">${hasRate ? money.formatCNY(inc.annual) : '-'}</div>
+        <div class="t-body num">${hasRate ? money.formatCNY(inc.monthly) : '-'}</div>
+        <div class="t-body num ink-accent">${hasRate ? money.formatCNY(inc.cashMonthly) : '-'}</div>
       </div>`;
     }).join('')
   ].join('');
@@ -4883,7 +4883,7 @@ async function renderIncomeChart() {
 
   const el = document.getElementById('income-chart');
 
-  const rateAssets = state.assets.filter(a => getAssetRate(a) > 0);
+  const rateAssets = state.assets.filter(a => income.getAssetRate(a) > 0);
   if (rateAssets.length === 0) {
     el.style.display = 'none';
     renderSunburstLegend('income-chart-legend', [], 0, null);
@@ -4906,12 +4906,12 @@ async function renderIncomeChart() {
 
   const modeLabel = incomeChartMode === 'cash' ? '月现金收益' : '月总收益';
   const totalIncome = rateAssets.reduce((s, a) => {
-    const inc = calcAssetIncome(a);
+    const inc = income.calcAssetIncome(a);
     return s + (incomeChartMode === 'cash' ? inc.cashMonthly : inc.monthly);
   }, 0);
 
-  const data = buildSunburstData(cat, groups, ch => {
-    const inc = calcAssetIncome(ch.asset);
+  const data = chartData.buildSunburstData(cat, groups, ch => {
+    const inc = income.calcAssetIncome(ch.asset);
     return incomeChartMode === 'cash' ? inc.cashMonthly : inc.monthly;
   });
 
@@ -4923,16 +4923,16 @@ async function renderIncomeChart() {
 
   const th = chartTheme();
   // 图与清单同源：下钻后分母换成该分类合计（与卡片总数、tooltip、清单三处同口径）
-  const view = sunburstDrillView(data, totalIncome, sunburstLegendSel['income-chart-legend']);
+  const view = chartData.sunburstDrillView(data, totalIncome, sunburstLegendSel['income-chart-legend']);
   const option = buildSunburstOption(view.data, function(p) {
     // ECharts 不会把 data 上的自定义字段展开到 params 顶层, 必须从 p.data 取
     const assetId = p.data && p.data._assetId;
     if (assetId) {
       const a = state.assets.find(x => x.id === assetId);
       if (a) {
-        const inc = calcAssetIncome(a);
+        const inc = income.calcAssetIncome(a);
         const rateRange = rateLabelText(a, 1) || '未设置';
-        return `<b>${esc(a.name)}</b><br/>月现金收益 ${formatCNY(inc.cashMonthly)} · 月总收益 ${formatCNY(inc.monthly)}<br/><span style="color:${th.muted}">利率 ${rateRange} · 现金 ${cashRatioPct(a)}% · 占比 ${pctStr(p.value, view.total)}%</span>`;
+        return `<b>${text.esc(a.name)}</b><br/>月现金收益 ${money.formatCNY(inc.cashMonthly)} · 月总收益 ${money.formatCNY(inc.monthly)}<br/><span style="color:${th.muted}">利率 ${rateRange} · 现金 ${income.cashRatioPct(a)}% · 占比 ${money.pctStr(p.value, view.total)}%</span>`;
       }
     }
     return sunburstTooltipContent(p, th, view.total, { prefix: modeLabel, pctLabel: '占比 ' });
@@ -4990,13 +4990,13 @@ function onAssetDrop(e) {
   renderAssets();
 }
 
-// 键盘移动资产顺序：拖拽 drop 的键盘等价物。数组操作走 logic.js moveAssetIndex（可单测），
+// 键盘移动资产顺序：拖拽 drop 的键盘等价物。数组操作走 logic.js ui.moveAssetIndex（可单测），
 // 收尾（清排序状态 → 落盘 → 重绘）与 onAssetDrop 完全同一套——两处各写一份必然漂移。
 function moveAsset(id, dir) {
   const idx = state.assets.findIndex(a => a.id === id);
   if (idx === -1) return;
   const to = idx + dir;
-  const next = moveAssetIndex(state.assets, idx, to);
+  const next = ui.moveAssetIndex(state.assets, idx, to);
   if (next === state.assets) return; // 越界（已到顶/底）：不动
   state.assets = next;
   sortBy = '';
@@ -5011,7 +5011,7 @@ function moveAsset(id, dir) {
 // ========== SORT ==========
 function toggleSort(field) {
   // 三态循环: 升序 → 降序 → 取消排序（恢复自然/拖拽顺序）；状态机纯函数在 logic.js，与消费侧共用
-  const r = nextSortState(sortBy, sortDir, field, false);
+  const r = ui.nextSortState(sortBy, sortDir, field, false);
   sortBy = r.by;
   sortDir = r.dir;
   renderAssets();
@@ -5020,7 +5020,7 @@ function toggleSort(field) {
 // ========== THEME (日间/夜间，入口唯一：设置弹窗「外观」) ==========
 // 切换主题（设置弹窗「外观」seg 唯一入口）：目标与当前一致时不动、不重绘。
 // 落地：DOM class + localStorage['dark-mode']（首次访问的初始主题由 <head> 内联脚本处理，不走这里）；
-// 随后重绘分类 pill（pillColors 暗色分支）与当前可见图表
+// 随后重绘分类 pill（color.pillColors 暗色分支）与当前可见图表
 // 设置弹窗内的主题 seg 回显（元素未渲染过则跳过）
 function syncThemeSeg() {
   const lightBtn = document.getElementById('theme-seg-light');
@@ -5072,8 +5072,8 @@ function showImportExport() {
 // 重开后 queryPermission 就是 prompt，定时器又没有手势去申请授权（详见 LESSONS.md）。
 // 于是统一成一条路：确认框（点击 = 手势）→ showSaveFilePicker（startIn = 设置里的目录）。
 // 方案 C：距上次备份超过 7 天且已有数据时，进页面温和提醒。
-// 决策逻辑（shouldAutoBackup / backupStaleDays / backupWritePlan / backupPromptText /
-// backupResultNotice）在 logic.js，此处只保留 DOM 副作用（弹框、写盘、toast、storage 写入）
+// 决策逻辑（backup.shouldAutoBackup / backup.backupStaleDays / backup.backupWritePlan / backup.backupPromptText /
+// backup.backupResultNotice）在 logic.js，此处只保留 DOM 副作用（弹框、写盘、toast、storage 写入）
 
 // 目录句柄不能进 state（不可 JSON 序列化，也不该随导出走）：只存 IndexedDB。
 // 全部读写容错——隐私模式 / IDB 不可用时退化为「仅本次会话可用」，不阻塞首屏。
@@ -5135,7 +5135,7 @@ async function restoreBackupDir() {
 }
 
 // 只认 Chromium 系的 File System Access API：没有它就没有「指定起点目录的文件窗口」，
-// 落点只能回退成浏览器下载（backupWritePlan 会据此判定）
+// 落点只能回退成浏览器下载（backup.backupWritePlan 会据此判定）
 function canPickBackupDir() { return typeof window.showDirectoryPicker === 'function'; }
 function canSaveBackupFile() { return typeof window.showSaveFilePicker === 'function'; }
 
@@ -5187,16 +5187,16 @@ async function saveBackupToFile(today, mode) {
   backupInFlight = true;
   try {
     const handle = await window.showSaveFilePicker({
-      suggestedName: backupFileName(today),
+      suggestedName: backup.backupFileName(today),
       startIn: backupDirHandle, // undefined = 浏览器按 origin 记住的上次目录
       types: [{ description: 'JSON', accept: { 'application/json': ['.json'] } }],
     });
-    await writeFileHandleText(handle, backupJSONText(state));
-    applyBackupResult(backupResultNotice({ mode, target: 'file', status: 'written' }), today);
+    await writeFileHandleText(handle, backup.backupJSONText(state));
+    applyBackupResult(backup.backupResultNotice({ mode, target: 'file', status: 'written' }), today);
     return 'written';
   } catch (e) {
     const cancelled = e && e.name === 'AbortError';
-    applyBackupResult(backupResultNotice({ mode, target: 'file', status: cancelled ? 'cancelled' : 'error' }), today);
+    applyBackupResult(backup.backupResultNotice({ mode, target: 'file', status: cancelled ? 'cancelled' : 'error' }), today);
     return cancelled ? 'cancelled' : 'error';
   } finally { backupInFlight = false; }
 }
@@ -5210,11 +5210,11 @@ async function writeFileHandleText(fh, text) {
 
 // 触发一次浏览器下载（兜底路径：无回执，绝不能据此记「已备份」）
 function downloadBackupJSON() {
-  const blob = new Blob([backupJSONText(state)], { type: 'application/json' });
+  const blob = new Blob([backup.backupJSONText(state)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = backupFileName(getLocalDateStr());
+  a.download = backup.backupFileName(date.getLocalDateStr());
   document.body.appendChild(a);
   a.click();
   a.remove();
@@ -5235,24 +5235,24 @@ function applyBackupResult(notice, today) {
   toast(notice.msg, notice.type);
 }
 
-// 方案 A 入口：是否触发由 logic.js 的 shouldAutoBackup 判定，此处延迟数秒执行。
+// 方案 A 入口：是否触发由 logic.js 的 backup.shouldAutoBackup 判定，此处延迟数秒执行。
 // ratePromise 为本次启动 DOMContentLoaded 中那笔 fetchRates 的 promise：
 // 弹框前先 await 它，确保 state.rates 已更新（成功写入新汇率 / 失败回退缓存），
 // 避免备份抢在汇率刷新前拿到过期汇率。失败也不阻塞备份，用缓存汇率继续。
 // 确认框的「确认」就是那次用户手势：回调里**不得有任何 await** 就调 saveBackupToFile，
 // 否则手势被消耗、文件窗口打不开（测试把守这一条）。
 async function maybeAutoBackup(ratePromise) {
-  if (!shouldAutoBackup(state, getLocalDateStr())) return;
+  if (!backup.shouldAutoBackup(state, date.getLocalDateStr())) return;
   setTimeout(async () => {
     try {
       if (ratePromise) await ratePromise;
     } catch (e) { /* 汇率拉取失败也无妨，用缓存汇率继续备份 */ }
     try {
       await backupDirReady; // 目录句柄从 IDB 恢复完成后再弹框（确认文案要写目录名）
-      const t = getLocalDateStr();
-      const prompt = backupPromptText('auto', backupFileName(t), backupDirHandle && backupDirHandle.name);
+      const t = date.getLocalDateStr();
+      const prompt = backup.backupPromptText('auto', backup.backupFileName(t), backupDirHandle && backupDirHandle.name);
       showConfirm(prompt.msg, () => {
-        const plan = backupWritePlan({ supportsPicker: canSaveBackupFile() });
+        const plan = backup.backupWritePlan({ supportsPicker: canSaveBackupFile() });
         if (plan.target === 'file') saveBackupToFile(t, 'auto');
         else exportViaDownload(t);
       }, prompt.title, { okLabel: '备份', tone: 'gold' });
@@ -5261,9 +5261,9 @@ async function maybeAutoBackup(ratePromise) {
 }
 
 // 方案 C：超期未备份提醒（toast 略延迟弹出，避开首屏渲染瞬间）；
-// 是否提醒/超期天数由 logic.js 的 backupStaleDays 判定
+// 是否提醒/超期天数由 logic.js 的 backup.backupStaleDays 判定
 function checkBackupStale() {
-  const staleDays = backupStaleDays(state, getLocalDateStr());
+  const staleDays = backup.backupStaleDays(state, date.getLocalDateStr());
   if (staleDays != null) {
     setTimeout(() => toast(`距上次备份已 ${staleDays} 天，记得导出一份`, 'error'), 1500);
   }
@@ -5272,8 +5272,8 @@ function checkBackupStale() {
 // 统一同步备份控件：设置弹窗（频率 seg + 边注 + 文件夹状态）与 io-modal 的上次备份文案。
 // 打开任一弹窗、setBackupFreq、选择/清除文件夹、手动导出后调用——单一入口，杜绝多 UI 失同步
 function syncBackupControls() {
-  const freq = normalizeBackupFreq(state.backup.autoFreq);       // 白名单归一，单一来源
-  const noteText = backupNoteText(state.backup.lastBackup, getLocalDateStr()); // 文案纯函数在 logic.js
+  const freq = backup.normalizeBackupFreq(state.backup.autoFreq);       // 白名单归一，单一来源
+  const noteText = backup.backupNoteText(state.backup.lastBackup, date.getLocalDateStr()); // 文案纯函数在 logic.js
   const lastEl = document.getElementById('backup-last-text');
   if (lastEl) lastEl.textContent = noteText;
   ['daily', 'weekly', 'off'].forEach(v => {
@@ -5286,14 +5286,14 @@ function syncBackupControls() {
   if (noteEl) noteEl.textContent = noteText;
   const dirNote = document.getElementById('settings-backup-dir-note');
   if (dirNote) {
-    dirNote.textContent = backupDirNoteText(!!backupDirHandle, backupDirHandle && backupDirHandle.name, canPickBackupDir());
+    dirNote.textContent = backup.backupDirNoteText(!!backupDirHandle, backupDirHandle && backupDirHandle.name, canPickBackupDir());
   }
   const clearBtn = document.getElementById('backup-dir-clear');
   if (clearBtn) clearBtn.hidden = !backupDirHandle;
 }
 
 function setBackupFreq(v) {
-  state.backup.autoFreq = normalizeBackupFreq(v); // 白名单归一与 migrateState 同源（logic.js）
+  state.backup.autoFreq = backup.normalizeBackupFreq(v); // 白名单归一与 migrate.migrateState 同源（logic.js）
   saveState();
   syncBackupControls(); // 两处弹窗控件同源刷新
   toast(state.backup.autoFreq === 'off' ? '已关闭自动备份' : `自动备份：${state.backup.autoFreq === 'daily' ? '每天' : '每周'}`, 'success');
@@ -5306,8 +5306,8 @@ function exportData() {
 
 // 手动导出：点按钮本身就是确认，直接进文件窗口（不再多一层确认框）
 async function exportDataAsync() {
-  const today = getLocalDateStr();
-  const plan = backupWritePlan({ supportsPicker: canSaveBackupFile() });
+  const today = date.getLocalDateStr();
+  const plan = backup.backupWritePlan({ supportsPicker: canSaveBackupFile() });
   if (plan.target !== 'file') {
     exportViaDownload(today);
     return;
@@ -5318,7 +5318,7 @@ async function exportDataAsync() {
 // 不支持文件窗口时的兜底：<a download> 无回执，只提示「已开始下载」，不记「已备份」
 function exportViaDownload(today) {
   downloadBackupJSON();
-  applyBackupResult(backupResultNotice({ mode: 'manual', target: 'download', status: 'downloaded' }), today);
+  applyBackupResult(backup.backupResultNotice({ mode: 'manual', target: 'download', status: 'downloaded' }), today);
 }
 
 function importData(e) {
@@ -5333,7 +5333,7 @@ function importData(e) {
       if (data && Array.isArray(data.categories) && Array.isArray(data.assets)) {
         state = { ...state, ...data };
         // 与 loadState 共用同一套迁移/兜底逻辑（旧版 expectedRate、快照格式、孤儿标签等）
-        migrateState();
+        migrate.migrateState();
         saveState();
         renderAll();
         closeModal('io-modal');
@@ -5352,7 +5352,7 @@ function importData(e) {
 /* 悬停气泡的定位：把气泡钉在 ? 图标下方（视口坐标）。
    为什么需要 JS：气泡是 position: fixed（脱离祖先的层叠上下文与 overflow 裁剪，见 CSS 注释），
    于是它不再跟着图标走——位置只能每次显示时按当前滚动/布局算一次。
-   纯算术在 logic.js tipBubblePos（可单测），这里只负责量尺寸与写两个 CSS 变量。
+   纯算术在 logic.js ui.tipBubblePos（可单测），这里只负责量尺寸与写两个 CSS 变量。
    九个 tip 共用这一套（气泡是单一实现，不再逐个写定位）。 */
 function placeTipBubble(tip) {
   if (!tip) return;
@@ -5367,7 +5367,7 @@ function placeTipBubble(tip) {
   bubble.classList.add('placed');
   const a = mark.getBoundingClientRect();
   const b = bubble.getBoundingClientRect();
-  const pos = tipBubblePos(a, b.width, b.height, { w: window.innerWidth, h: window.innerHeight });
+  const pos = ui.tipBubblePos(a, b.width, b.height, { w: window.innerWidth, h: window.innerHeight });
   bubble.style.setProperty('--tip-x', pos.left + 'px');
   bubble.style.setProperty('--tip-y', pos.top + 'px');
   tip.__bubble = bubble;
@@ -5456,7 +5456,7 @@ function confirmCancel() {
 }
 document.getElementById('confirm-ok-btn').addEventListener('click', () => {
   // 守卫窗内落到确认按钮上的 click 是抬手余波（用户并没有真点它），忽略
-  if (__autoOpenedAt !== null && !autoOpenGuard(performance.now() - __autoOpenedAt)) return;
+  if (__autoOpenedAt !== null && !ui.autoOpenGuard(performance.now() - __autoOpenedAt)) return;
   closeModal('confirm-modal');
   if (_confirmCallback) { _confirmCallback(); _confirmCallback = null; }
 });
@@ -5466,7 +5466,7 @@ let __modalMouseDownTarget = null;
 document.addEventListener('mousedown', e => { __modalMouseDownTarget = e.target; });
 document.addEventListener('click', e => {
   // 自动弹窗守卫窗内的遮罩 click 是抬手指的余波，不算「点了遮罩空白」
-  if (__autoOpenedAt !== null && !autoOpenGuard(performance.now() - __autoOpenedAt)) return;
+  if (__autoOpenedAt !== null && !ui.autoOpenGuard(performance.now() - __autoOpenedAt)) return;
   if (e.target.classList.contains('modal-overlay') && __modalMouseDownTarget && !__modalMouseDownTarget.closest('.modal-content')) {
     if (e.target.id === 'confirm-modal') {
       confirmCancel(); // 统一走 confirmCancel：隐藏 + 清空 _confirmCallback
@@ -5480,14 +5480,14 @@ document.addEventListener('click', e => {
 // Tab 焦点陷阱：Tab 只能在上层弹窗内循环。
 // 为什么必须做：弹窗背后是**还活着的**页面（本项目不用 <dialog> 的 inert），
 // 不拦的话 Tab 会一路走进背后的表格与按钮——读屏器用户会以为弹窗已经关了。
-// 判据（绕回谁、下标怎么算）在 logic.js trapFocus（可单测），这里只负责把焦点移过去。
+// 判据（绕回谁、下标怎么算）在 logic.js ui.trapFocus（可单测），这里只负责把焦点移过去。
 document.addEventListener('keydown', e => {
   if (e.key !== 'Tab') return;
   const top = topModal();
   if (!top) return;
   const list = modalFocusables(top);
   const cur = list.indexOf(document.activeElement);
-  const r = trapFocus(cur, list.length, e.shiftKey);
+  const r = ui.trapFocus(cur, list.length, e.shiftKey);
   if (!r.wrap || !list[r.index]) return; // 中间位置交还浏览器默认行为
   e.preventDefault();
   list[r.index].focus();
@@ -5544,7 +5544,7 @@ function toast(msg, type) {
   // 播报档位按类型定：error 走 assertive（立刻打断朗读），其余 polite（择机播报）。
   // 写死在容器上就是「所有错误都排队」；档位写到容器而非每条便条上——
   // 读屏器只认 live region 的档位，逐条设 aria-live 无效。
-  area.setAttribute('aria-live', toastLiveMode(type));
+  area.setAttribute('aria-live', ui.toastLiveMode(type));
   const t = document.createElement('div');
   t.className = `toast toast-${type}`;
   t.textContent = msg;
@@ -5577,7 +5577,7 @@ function setExpenseDate(dateStr) {
 }
 // ====== EXPENSE FILTER ======
 // 筛选状态的唯一所有者：控件只写（onchange/oninput → setExpenseFilter），渲染只读。
-// 失效值（月份已无记录 / 标签已改名或移出）由 normalizeExpenseFilters 丢弃，
+// 失效值（月份已无记录 / 标签已改名或移出）由 expense.normalizeExpenseFilters 丢弃，
 // 因此不再有「先重建选项、再读取」的次序依赖——那个次序曾写反过，表现为
 // 「下拉=全部时间 / 空态=该月无记录」的自相矛盾中间态。
 let expenseFilters = { month: '', tag: '', query: '' };
@@ -5601,7 +5601,7 @@ function syncExpenseControls() {
 
 // 消费月份下拉：选项从数据自动生成（倒序）；选中值由 syncExpenseControls 回写
 function populateExpenseMonthFilter() {
-  fillMonthSelect('expense-month-filter', expenseMonths(state.expenses));
+  fillMonthSelect('expense-month-filter', expense.expenseMonths(state.expenses));
 }
 
 // 标签筛选下拉：类别作 optgroup 分组头（不可选，仅分组），标签才是可选项；首项「全部标签」。
@@ -5609,13 +5609,13 @@ function populateExpenseMonthFilter() {
 function populateExpenseTagFilter() {
   const sel = document.getElementById('expense-tag-filter');
   if (!sel) return;
-  const groups = expenseTagFilterGroups(state.expenseCategories);
+  const groups = expense.expenseTagFilterGroups(state.expenseCategories);
   let opts = '<option value="">全部标签</option>';
   for (const g of groups) {
     const tagOpts = g.tags.length
-      ? g.tags.map(t => `<option value="${esc(tagFilterValue(g.id, t))}">${esc(t)}</option>`).join('')
+      ? g.tags.map(t => `<option value="${text.esc(expense.tagFilterValue(g.id, t))}">${text.esc(t)}</option>`).join('')
       : '<option value="" disabled>（暂无标签）</option>';
-    opts += `<optgroup label="${esc(g.name)}">${tagOpts}</optgroup>`;
+    opts += `<optgroup label="${text.esc(g.name)}">${tagOpts}</optgroup>`;
   }
   setSelectOptions(sel, opts);
 }
@@ -5639,13 +5639,13 @@ function renderExpenses() {
 
   // 失效筛选值先归一（删了记录 / 分类 / 标签之后），再重建选项、回写控件。
   // 三步都由状态驱动：谁先谁后都不再影响结果
-  expenseFilters = normalizeExpenseFilters(expenseFilters, state.expenses, state.expenseCategories);
+  expenseFilters = expense.normalizeExpenseFilters(expenseFilters, state.expenses, state.expenseCategories);
   populateExpenseMonthFilter();
   populateExpenseTagFilter();
   syncExpenseControls();
 
   // 结果、生效维度与空态判据同源（纯函数）：三段叠加与「哪种空态」不再各算一遍
-  const view = expenseListView(state.expenses, expenseFilters, state.expenseCategories);
+  const view = expense.expenseListView(state.expenses, expenseFilters, state.expenseCategories);
   const filtered = view.rows;
   const q = view.active.query.toLowerCase();
   const searchClear = document.getElementById('expense-search-clear');
@@ -5670,7 +5670,7 @@ function renderExpenses() {
       const filterParts = [];
       if (view.active.query) filterParts.push(`匹配「${view.active.query}」`);
       if (view.active.tag) filterParts.push(view.active.tag);
-      if (view.active.month) filterParts.push(monthLabel(view.active.month));
+      if (view.active.month) filterParts.push(date.monthLabel(view.active.month));
       titleEl.textContent = filterParts.length
         ? `${filterParts.join(' · ')}暂无消费记录`
         : '暂无消费记录';
@@ -5695,17 +5695,17 @@ function renderExpenses() {
     rows.innerHTML = sorted.map(e => {
       const tagHtml = state.expenseCategories.map(cat => {
         const tagVal = e.tags[cat.id];
-        return tagVal ? tagPillHtml(cat, tagVal, expenseCatColor, { keyHtml: highlightMatch(cat.name, q), valHtml: highlightMatch(tagVal, q) }) : '';
+        return tagVal ? tagPillHtml(cat, tagVal, expenseCatColor, { keyHtml: text.highlightMatch(cat.name, q), valHtml: text.highlightMatch(tagVal, q) }) : '';
       }).join(' ');
       return `<div class="asset-row cols-expenses">
-        <div class="t-body">${highlightMatch(e.date, q)}</div>
-        <div class="t-body num">${money2(e.amount)}</div>
-        <div class="t-body muted">${e.note ? highlightMatch(e.note, q) : '—'}</div>
+        <div class="t-body">${text.highlightMatch(e.date, q)}</div>
+        <div class="t-body num">${money.money2(e.amount)}</div>
+        <div class="t-body muted">${e.note ? text.highlightMatch(e.note, q) : '—'}</div>
         <div class="flex flex-wrap gap-1">${tagHtml}</div>
         <div class="flex gap-2 justify-end">
-          <button onclick="editExpense('${jsAttr(e.id)}')" class="row-btn edit">编辑</button>
-          <button onclick="duplicateExpense('${jsAttr(e.id)}')" class="row-btn copy">复制</button>
-          <button onclick="deleteExpense('${jsAttr(e.id)}')" class="row-btn danger">删除</button>
+          <button onclick="editExpense('${text.jsAttr(e.id)}')" class="row-btn edit">编辑</button>
+          <button onclick="duplicateExpense('${text.jsAttr(e.id)}')" class="row-btn copy">复制</button>
+          <button onclick="deleteExpense('${text.jsAttr(e.id)}')" class="row-btn danger">删除</button>
         </div>
       </div>`;
     }).join('');
@@ -5714,12 +5714,12 @@ function renderExpenses() {
   // 合计跟随筛选变化：多筛选维度拼接标签名
   const total = filtered.reduce((s, e) => s + e.amount, 0);
   const parts = [];
-  if (view.active.month) parts.push(monthLabel(view.active.month));
+  if (view.active.month) parts.push(date.monthLabel(view.active.month));
   if (view.active.tag) parts.push(view.active.tag);
   if (q) parts.push('匹配');
   const totalLabel = parts.length ? parts.join(' ') : '合计';
   document.getElementById('expense-total-line').innerHTML =
-    `${totalLabel} · <span class="tabular t-medium ink-accent">${formatCNY(total)}</span> · ${filtered.length} 笔`;
+    `${totalLabel} · <span class="tabular t-medium ink-accent">${money.formatCNY(total)}</span> · ${filtered.length} 笔`;
 
   // 数据校验条跟随记录/分类变化（全局口径，不随列表筛选缩小）
   renderTagCheckBar('expense');
@@ -5731,7 +5731,7 @@ function openExpenseModal(editId, prefillId) {
   const form = document.getElementById('expense-form');
   form.reset();
   document.getElementById('expense-edit-id').value = editId || '';
-  setExpenseDate(getLocalDateStr());
+  setExpenseDate(date.getLocalDateStr());
 
   // 数据来源: 编辑取原记录（含原日期）; 复制取源记录但日期改为今天
   const source = editId
@@ -5747,8 +5747,8 @@ function openExpenseModal(editId, prefillId) {
   }
 
   if (source) {
-    setExpenseDate(editId ? source.date : getLocalDateStr());
-    document.getElementById('expense-amount').value = moneyStr(source.amount);
+    setExpenseDate(editId ? source.date : date.getLocalDateStr());
+    document.getElementById('expense-amount').value = money.moneyStr(source.amount);
     document.getElementById('expense-note').value = source.note || '';
   }
 
@@ -5763,11 +5763,11 @@ function openExpenseModal(editId, prefillId) {
 function saveExpense(e) {
   e.preventDefault();
   const editId = document.getElementById('expense-edit-id').value;
-  const date = document.getElementById('expense-date').value;
-  const amount = parseMoneyInput(document.getElementById('expense-amount').value);
+  const dateStr = document.getElementById('expense-date').value;
+  const amount = money.parseMoneyInput(document.getElementById('expense-amount').value);
   const note = document.getElementById('expense-note').value.trim();
 
-  if (!date) { toast('请选择日期', 'error'); return; }
+  if (!dateStr) { toast('请选择日期', 'error'); return; }
   if (!amount || amount <= 0) { toast('金额必须大于 0', 'error'); return; }
 
   const picked = collectPickedTags(state.expenseCategories, 'expense-tag-');
@@ -5780,9 +5780,9 @@ function saveExpense(e) {
 
   if (editId) {
     const idx = state.expenses.findIndex(x => x.id === editId);
-    if (idx >= 0) state.expenses[idx] = { ...state.expenses[idx], date, amount, note, tags };
+    if (idx >= 0) state.expenses[idx] = { ...state.expenses[idx], date: dateStr, amount, note, tags };
   } else {
-    state.expenses.push({ id: genId(), date, amount, note, tags });
+    state.expenses.push({ id: genId(), date: dateStr, amount, note, tags });
   }
 
   saveState();
@@ -5815,7 +5815,7 @@ function toggleExpenseSort(field) {
   // 三态循环（状态机在 logic.js，与资产侧共用）：消费列表默认即日期降序（最新在前），
   // 首次点击保留旧行为（粘性翻转方向、不进入循环），此后才走标准三态循环
   const sticky = expenseSortBy === field && !expenseSortTouched;
-  const r = nextSortState(expenseSortBy, expenseSortDir, field, sticky);
+  const r = ui.nextSortState(expenseSortBy, expenseSortDir, field, sticky);
   expenseSortBy = r.by;
   expenseSortDir = r.dir;
   if (sticky) expenseSortTouched = true;
@@ -5829,7 +5829,7 @@ function expenseCatColor(catId, tagName) {
 
 // ========== 消费数据校验（缺标签：一键批量 / 逐条点选）==========
 // 打开时按分类捕获缺口记录 id；补齐后分组保留（✓ 徽章）以便逐条微调，重开时重新捕获。
-// 写标签一律走 logic.js setTag/backfillTag，此处不直接赋值。
+// 写标签一律走 logic.js expense.setTag/expense.backfillTag，此处不直接赋值。
 let tagCheckGroups = [];
 // 面板同一时刻只服务一侧：两条校验条共用同一弹窗，按侧别取集合/色板/行内摘要
 let tagCheckSide = 'expense';
@@ -5837,14 +5837,14 @@ let tagCheckSide = 'expense';
 // 校验面板的行内摘要（两侧结构一致、字段不同）：消费是日期/备注/金额，资产是名称与原币金额。
 // 两函数保持同一套 class（.tagcheck-meta 是 flex 基准对齐容器，.tagcheck-note 负责截断）
 function expenseTagCheckMeta(e) {
-  return `<span class="t-micro muted">${esc((e.date || '').slice(5))}</span>`
-    + `<span class="t-body tagcheck-note">${e.note ? esc(e.note) : '<span class="muted">（无备注）</span>'}</span>`
-    + `<span class="t-body tabular">${money2(e.amount)}</span>`;
+  return `<span class="t-micro muted">${text.esc((e.date || '').slice(5))}</span>`
+    + `<span class="t-body tagcheck-note">${e.note ? text.esc(e.note) : '<span class="muted">（无备注）</span>'}</span>`
+    + `<span class="t-body tabular">${money.money2(e.amount)}</span>`;
 }
 
 function assetTagCheckMeta(a) {
-  return `<span class="t-body tagcheck-note">${esc(a.name || '（未命名）')}</span>`
-    + `<span class="t-body tabular">${money2(a.amount)} ${esc(a.currency || 'CNY')}</span>`;
+  return `<span class="t-body tagcheck-note">${text.esc(a.name || '（未命名）')}</span>`
+    + `<span class="t-body tabular">${money.money2(a.amount)} ${text.esc(a.currency || 'CNY')}</span>`;
 }
 
 // 校验条（资产/消费各一条）：唯一写入点，renderAssets / renderExpenses 各自重绘后调用
@@ -5852,12 +5852,12 @@ function renderTagCheckBar(side) {
   const cfg = CAT_SIDES[side];
   const bar = document.getElementById(cfg.tagCheckBar);
   if (!bar) return;
-  const groups = missingTagGroups(cfg.items(), cfg.cats());
+  const groups = expense.missingTagGroups(cfg.items(), cfg.cats());
   if (!groups.length) { bar.style.display = 'none'; return; }
   const total = groups.reduce((s, g) => s + g.items.length, 0);
   bar.style.display = '';
   bar.querySelector('.tagcheck-text').innerHTML =
-    `<b class="ink-accent">${total}</b> 条记录分类不完整 · 缺 ${groups.map(g => `「${esc(g.name)}」`).join('')}`;
+    `<b class="ink-accent">${total}</b> 条记录分类不完整 · 缺 ${groups.map(g => `「${text.esc(g.name)}」`).join('')}`;
 }
 
 // 分组卡片：头部计数/✓徽章 + 一键补齐 chips + 逐条记录行（均复用 tagPickerHtml）
@@ -5866,22 +5866,22 @@ function tagCheckGroupHtml(g) {
   const cat = cfg.cats().find(c => c.id === g.catId);
   if (!cat) return '';
   const items = g.ids.map(id => cfg.items().find(e => e.id === id)).filter(Boolean);
-  const left = items.filter(e => isUntaggedItem(e, g.catId, cat.tags));
+  const left = items.filter(e => expense.isUntaggedItem(e, g.catId, cat.tags));
   // 一键补齐选中态：组内取值唯一时盖印该标签（批量补齐后与逐条显示一致）
   const vals = [...new Set(items.map(e => (e.tags && e.tags[g.catId]) || ''))];
   const batchSel = vals.length === 1 && vals[0] ? vals[0] : '';
   const head = left.length
     ? `<span class="t-micro muted"><b>${left.length}</b> / ${items.length} 条待归类</span>`
     : `<span class="mo-badge up">✓ 已补齐 ${items.length} 条</span>`;
-  const rows = items.map(e => `<div class="tagcheck-row" data-eid="${esc(e.id)}">
+  const rows = items.map(e => `<div class="tagcheck-row" data-eid="${text.esc(e.id)}">
       <div class="tagcheck-meta">${cfg.tagCheckMeta(e)}</div>
       <div>${tagPickerHtml([cat], () => (e.tags && e.tags[g.catId]) || '', `tagcheck-r-${e.id}-`, cfg.colorFn, { hideLabel: true })}</div>
     </div>`).join('');
   // 分组头分类名取 cat（会话对象 g 只有 catId/ids，用 g.name 会渲染成空串）
-  return `<div class="tagcheck-group" data-catid="${esc(g.catId)}">
+  return `<div class="tagcheck-group" data-catid="${text.esc(g.catId)}">
     <div class="flex items-center justify-between gap-3 mb-3 flex-wrap">
       <div class="flex items-center gap-2">
-        <h4 class="card-title-sm">${esc(cat.name)}</h4>
+        <h4 class="card-title-sm">${text.esc(cat.name)}</h4>
         ${head}
       </div>
       ${left.length ? '<span class="t-micro muted">点标签即生效</span>' : ''}
@@ -5916,7 +5916,7 @@ function renderTagCheckGroup(catId) {
 function openTagCheck(side, catId) {
   const cfg = CAT_SIDES[side];
   tagCheckSide = side;
-  tagCheckGroups = missingTagGroups(cfg.items(), cfg.cats())
+  tagCheckGroups = expense.missingTagGroups(cfg.items(), cfg.cats())
     .filter(g => !catId || g.catId === catId)
     .map(g => ({ catId: g.catId, ids: g.items.map(i => i.id) }));
   // 顶部说明按侧别换（资产侧必须说清历史快照不随补，否则会以为历史图表也会跟着变）
@@ -5951,11 +5951,11 @@ function onTagCheckPick(e) {
   if (row) {
     const rec = cfg.items().find(x => x.id === row.dataset.eid);
     if (!rec) return;
-    setTag(rec, catId, val);
+    expense.setTag(rec, catId, val);
     n = 1;
   } else {
     const items = g.ids.map(id => cfg.items().find(x => x.id === id)).filter(Boolean);
-    n = backfillTag(items, catId, val, cat.tags);
+    n = expense.backfillTag(items, catId, val, cat.tags);
     if (!n) return;
   }
   saveState();
@@ -5970,7 +5970,7 @@ let expenseChart = null;
 function populateExpenseChartSelects() {
   fillCategorySelect('expense-chart-category-select', state.expenseCategories);
 
-  const months = expenseMonths(state.expenses);
+  const months = expense.expenseMonths(state.expenses);
   const monthSel = fillMonthSelect('expense-chart-month-select', months);
   // 无当前选择时默认取最近月份(与消费月份筛选「全部时间」的差异, 保持原行为)
   if (monthSel && !monthSel.value && months.length > 0) monthSel.value = months[0];
@@ -6013,9 +6013,9 @@ async function renderExpenseChart() {
   });
 
   // 与资产侧同一个纯函数（消费金额本身是 CNY，汇率按 1 折算）——两页不得各 reduce 一遍
-  const total = sumAmountCNY(filtered, null);
+  const total = money.sumAmountCNY(filtered, null);
 
-  const data = buildSunburstData(cat, groups, c => c.value);
+  const data = chartData.buildSunburstData(cat, groups, c => c.value);
 
   // 所选维度下所有分组均为空（如新建分类后消费尚未分配标签）时显示空态, 避免空白画布
   if (data.length === 0) {
@@ -6026,7 +6026,7 @@ async function renderExpenseChart() {
   }
 
   // 图与清单同源：下钻后分母换成该分类合计（与卡片总数、tooltip、清单三处同口径）
-  const view = sunburstDrillView(data, total, sunburstLegendSel['expense-chart-legend']);
+  const view = chartData.sunburstDrillView(data, total, sunburstLegendSel['expense-chart-legend']);
   renderChartTotal(totalEl, view.total);
 
   const th = chartTheme();
@@ -6044,7 +6044,7 @@ async function renderExpenseChart() {
 // ========== EXPENSE TREND ==========
 let expenseTrendChart = null;
 // 堆叠柱下钻与图例记忆（消费趋势），与历史净值同构：
-// trendLegendSel 由原生 legendselectchanged 维护，重绘时经 pruneLegendSelected 清理后回灌
+// trendLegendSel 由原生 legendselectchanged 维护，重绘时经 chartData.pruneLegendSelected 清理后回灌
 //（非破坏性：原始映射不回写，切换分类再切回可恢复原选中态）；
 // trendDrillMeta 存当前渲染上下文，供 wireStackedBarDrill 反查「月份 × 标签」
 let trendLegendSel = {};
@@ -6057,11 +6057,11 @@ function setExpenseTrendMode(mode) {
 
 // ========== EXPECTATION (消费趋势参考线) ==========
 function openExpectationModal() {
-  document.getElementById('expectation-input').value = moneyStr(state.expenseExpectation);
+  document.getElementById('expectation-input').value = money.moneyStr(state.expenseExpectation);
   openModal('expectation-modal');
 }
 function saveExpectation() {
-  const v = parseMoneyInput(document.getElementById('expectation-input').value);
+  const v = money.parseMoneyInput(document.getElementById('expectation-input').value);
   if (!v || v <= 0) { toast('请输入有效的预期消费金额', 'error'); return; }
   const hadValue = (state.expenseExpectation || 0) > 0;
   state.expenseExpectation = v;
@@ -6125,14 +6125,14 @@ async function renderExpenseTrendChart() {
   });
 
   const sorted = Object.keys(monthMap).sort();
-  const dates = sorted.map(m => monthLabel(m));
+  const dates = sorted.map(m => date.monthLabel(m));
 
   const totals = sorted.map(m => {
     return cat.tags.reduce((s, tag) => s + (monthMap[m][tag] || 0), 0);
   });
 
   // 标签顺序按跨月合计降序（大的放堆叠柱底部，小的在上），口径与历史净值同源
-  const sortedTags = sortTagsByTotal(cat, sorted.map(m => monthMap[m]));
+  const sortedTags = chartData.sortTagsByTotal(cat, sorted.map(m => monthMap[m]));
 
   // 下钻上下文：click 事件据 seriesIndex/dataIndex 反查「月份 × 标签」
   trendDrillMeta = {
@@ -6144,7 +6144,7 @@ async function renderExpenseTrendChart() {
   const tagSeries = sortedTags.map((tag) => {
     const raw = sorted.map(m => monthMap[m][tag] || 0);
     const data = expenseTrendMode === 'percent'
-      ? percentSeriesData(raw, totals)
+      ? chartData.percentSeriesData(raw, totals)
       : raw;
     return { ...barSeriesStyle(cat, tag), data };
   });
@@ -6168,9 +6168,9 @@ async function renderExpenseTrendChart() {
         const visTotal = cat.tags.reduce((s, tag) =>
           selected[tag] === false ? s : s + (monthMap[m][tag] || 0), 0);
         if (expectation > 0 && visTotal > expectation) {
-          return '{red|▲ ' + formatCNY(visTotal) + '}';
+          return '{red|▲ ' + money.formatCNY(visTotal) + '}';
         }
-        return formatCNY(visTotal);
+        return money.formatCNY(visTotal);
       },
       rich: {
         red: { color: th.down, fontFamily: CHART_FONT, fontSize: 11, fontWeight: 600 },
@@ -6185,7 +6185,7 @@ async function renderExpenseTrendChart() {
       symbol: ['none', 'none'],
       lineStyle: { color: th.accent, type: 'dashed', width: 1.5 },
       label: {
-        formatter: '预期 ' + formatCNY(expectation) + '/月',
+        formatter: '预期 ' + money.formatCNY(expectation) + '/月',
         position: 'insideEndTop',
         color: th.fg,
         fontSize: 11,
@@ -6204,7 +6204,7 @@ async function renderExpenseTrendChart() {
 
   const option = {
     // 回灌前清理失效项（局部副本，不回写存储）
-    ...barChartBase(th, dates, expenseTrendMode, sortedTags, pruneLegendSelected(trendLegendSel, sortedTags)),
+    ...barChartBase(th, dates, expenseTrendMode, sortedTags, chartData.pruneLegendSelected(trendLegendSel, sortedTags)),
     tooltip: {
       ...chartTooltipBase(th),
       confine: true,
@@ -6227,11 +6227,11 @@ async function renderExpenseTrendChart() {
         const total = totals[idx];
         if (expenseTrendMode === 'percent') {
           const raw = p.data && p.data.raw != null ? p.data.raw : 0;
-          const pct = pctStr(raw, total);
-          return `<b>${d}</b><br/>${p.marker} ${esc(p.seriesName)}: ${formatCNY(raw)} (${pct}%)`;
+          const pct = money.pctStr(raw, total);
+          return `<b>${d}</b><br/>${p.marker} ${text.esc(p.seriesName)}: ${money.formatCNY(raw)} (${pct}%)`;
         }
-        const pct = pctStr(p.value, total);
-        return `<b>${d}</b><br/>${p.marker} ${esc(p.seriesName)}: ${formatCNY(p.value)} (${pct}%)`;
+        const pct = money.pctStr(p.value, total);
+        return `<b>${d}</b><br/>${p.marker} ${text.esc(p.seriesName)}: ${money.formatCNY(p.value)} (${pct}%)`;
       }
     },
     series
@@ -6253,21 +6253,21 @@ async function renderExpenseTrendChart() {
 function renderExpenseTrendList() {
   const list = document.getElementById('expense-trend-list');
   // 按月聚合（升序）并取「此前最近的有数据月份」做环比，逻辑对齐资产快照列表
-  const months = monthlyExpenseTotals(state.expenses);
+  const months = expense.monthlyExpenseTotals(state.expenses);
   if (months.length === 0) { list.innerHTML = ''; return; }
   list.innerHTML = [...months].reverse().map(({ month, total, count }) => {
     // 环比：取此前最近一个有数据的月份（自动跳过空月份），徽章/对比行与资产快照共用 momCompareHtml
-    const prevMonth = prevExpenseMonthOf(month, months);
+    const prevMonth = expense.prevExpenseMonthOf(month, months);
     const prevTotal = prevMonth ? months.find(x => x.month === prevMonth).total : null;
     const { badge, diffLine } = momCompareHtml(total, prevTotal, false);
     return `<div class="card card-interactive flex items-center justify-between">
-      <div class="flex-1 row-hit" role="button" tabindex="0" onclick="viewExpenseMonth('${jsAttr(month)}')"
-        onkeydown="if(activateKeyAction(event.key)){event.preventDefault();viewExpenseMonth('${jsAttr(month)}');}">
+      <div class="flex-1 row-hit" role="button" tabindex="0" onclick="viewExpenseMonth('${text.jsAttr(month)}')"
+        onkeydown="if(ui.activateKeyAction(event.key)){event.preventDefault();viewExpenseMonth('${text.jsAttr(month)}');}">
         <div class="flex items-center gap-2">
-          <span class="t-medium t-body">${monthLabel(month)}</span>
+          <span class="t-medium t-body">${date.monthLabel(month)}</span>
           ${badge}
         </div>
-        <div class="t-micro mt-0.5 muted">${formatCNY(total)} · ${count} 条消费记录${diffLine ? ' · ' + diffLine : ''}</div>
+        <div class="t-micro mt-0.5 muted">${money.formatCNY(total)} · ${count} 条消费记录${diffLine ? ' · ' + diffLine : ''}</div>
       </div>
     </div>`;
   }).join('');
@@ -6275,17 +6275,17 @@ function renderExpenseTrendList() {
 
 // 消费两月对比弹窗：选起始月/结束月 + 维度（消费分类），按所选维度逐标签拆分两月消费并 diff
 function openExpenseCompareModal() {
-  const months = monthlyExpenseTotals(state.expenses);
+  const months = expense.monthlyExpenseTotals(state.expenses);
   if (months.length < 2) { toast('至少需要两个月的消费记录才能对比', 'error'); return; }
   const monthStrs = months.map(m => m.month);
   const baseSel = document.getElementById('exp-compare-base-select');
   const targetSel = document.getElementById('exp-compare-target-select');
   const catSel = document.getElementById('exp-compare-cat-select');
   const trendCat = document.getElementById('expense-trend-category-select').value;
-  catSel.innerHTML = state.expenseCategories.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
+  catSel.innerHTML = state.expenseCategories.map(c => `<option value="${c.id}">${text.esc(c.name)}</option>`).join('');
   catSel.value = state.expenseCategories.some(c => c.id === trendCat) ? trendCat : (state.expenseCategories[0] && state.expenseCategories[0].id) || '';
-  baseSel.innerHTML = monthStrs.map(m => `<option value="${m}">${monthLabel(m)}</option>`).join('');
-  targetSel.innerHTML = monthStrs.map(m => `<option value="${m}">${monthLabel(m)}</option>`).join('');
+  baseSel.innerHTML = monthStrs.map(m => `<option value="${m}">${date.monthLabel(m)}</option>`).join('');
+  targetSel.innerHTML = monthStrs.map(m => `<option value="${m}">${date.monthLabel(m)}</option>`).join('');
   baseSel.value = monthStrs[monthStrs.length - 2];
   targetSel.value = monthStrs[monthStrs.length - 1];
   openModal('expense-compare-modal');
@@ -6302,15 +6302,15 @@ function renderExpenseCompareTable() {
   const cat = state.expenseCategories.find(c => c.id === catId);
   if (!base || !target || !cat) { container.innerHTML = ''; return; }
 
-  const months = monthlyExpenseTotals(state.expenses);
+  const months = expense.monthlyExpenseTotals(state.expenses);
   const baseTotal = (months.find(m => m.month === base) || { total: 0 }).total;
   const compTotal = (months.find(m => m.month === target) || { total: 0 }).total;
   const diff = compTotal - baseTotal;
   // 消费语义：上涨=红(警示)、下降=绿(良好)，与 momCompareHtml(goodWhenUp=false) 一致
-  renderCompareHero(heroEl, ctxEl, diff, baseTotal, compTotal, monthLabel(base), monthLabel(target), false);
+  renderCompareHero(heroEl, ctxEl, diff, baseTotal, compTotal, date.monthLabel(base), date.monthLabel(target), false);
 
-  const baseMap = expenseMonthTagTotals(base, catId, state.expenses);
-  const compMap = expenseMonthTagTotals(target, catId, state.expenses);
+  const baseMap = expense.expenseMonthTagTotals(base, catId, state.expenses);
+  const compMap = expense.expenseMonthTagTotals(target, catId, state.expenses);
   const rows = cat.tags.map(tag => {
     const av = baseMap[tag] || 0;
     const bv = compMap[tag] || 0;
@@ -6336,13 +6336,13 @@ function viewExpenseMonth(month) {
   const total = expenses.reduce((s, e) => s + e.amount, 0);
   openDetail({
     title: '月度消费明细',
-    summary: `${monthLabel(month)} | 总消费: <strong>${formatCNY(total)}</strong> · ${expenses.length} 笔记录`,
+    summary: `${date.monthLabel(month)} | 总消费: <strong>${money.formatCNY(total)}</strong> · ${expenses.length} 笔记录`,
     cols: 'cols-expense-month',
     head: [{ html: '日期' }, { html: '金额', cls: 'num' }, { html: '备注' }, { html: '标签' }],
     rows: expenses.map(e => ([
-      { cls: 't-body', html: esc(e.date) },
-      { cls: 't-body num', html: money2(e.amount) },
-      { cls: 't-body muted', html: e.note ? esc(e.note) : '—' },
+      { cls: 't-body', html: text.esc(e.date) },
+      { cls: 't-body num', html: money.money2(e.amount) },
+      { cls: 't-body muted', html: e.note ? text.esc(e.note) : '—' },
       {
         cls: 'flex flex-wrap gap-1',
         html: state.expenseCategories.map(cat => {
@@ -6364,15 +6364,15 @@ function viewExpenseSegment(month, catId, tag) {
   if (items.length === 0) return;
   const segTotal = items.reduce((s, e) => s + e.amount, 0);
   openDetail({
-    title: monthLabel(month) + ' · ' + tag + '构成',
-    summary: `${esc(cat.name)} › ${esc(tag)} | ${items.length} 笔记录 | 合计 <strong>${formatCNY(segTotal)}</strong>`,
+    title: date.monthLabel(month) + ' · ' + tag + '构成',
+    summary: `${text.esc(cat.name)} › ${text.esc(tag)} | ${items.length} 笔记录 | 合计 <strong>${money.formatCNY(segTotal)}</strong>`,
     cols: 'cols-expense-segment',
     head: [{ html: '日期' }, { html: '金额', cls: 'num' }, { html: '占比', cls: 'num' }, { html: '备注' }],
     rows: items.map(e => ([
-      { cls: 't-body', html: esc(e.date) },
-      { cls: 't-body num', html: money2(e.amount) },
-      { cls: 't-body num muted', html: `${pctStr(e.amount, segTotal)}%` },
-      { cls: 't-body muted', html: e.note ? esc(e.note) : '—' },
+      { cls: 't-body', html: text.esc(e.date) },
+      { cls: 't-body num', html: money.money2(e.amount) },
+      { cls: 't-body num muted', html: `${money.pctStr(e.amount, segTotal)}%` },
+      { cls: 't-body muted', html: e.note ? text.esc(e.note) : '—' },
     ])),
     empty: '该标签下没有消费记录',
   });
@@ -6418,9 +6418,9 @@ function doLoadExpenseDemoData() {
     const year = now.getFullYear();
     const month = now.getMonth() - off;
     const d = new Date(year, month, 1);
-    const monthStr = getLocalMonthStr(d);
+    const monthStr = date.getLocalMonthStr(d);
     const factor = 1 + jitter[mi];
-    const daysInMonth = daysInMonthOf(monthStr);
+    const daysInMonth = date.daysInMonthOf(monthStr);
 
     seed.forEach((s, si) => {
       const day = Math.min(1 + (si * 3 + mi * 5) % 28, daysInMonth);

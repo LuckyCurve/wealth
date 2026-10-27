@@ -1,12 +1,12 @@
 const { test, expect, stubCdn, seed, waitReady, disableMotion, sampleState, INDEX_URL } = require('./fixtures');
-const { getLocalDateStr } = require('../logic.js');
+const { date } = require('../logic.js');
 
 // 备份落点 E2E：自动与手动**统一**先弹确认框、再走系统文件窗口，窗口位置由设置里的目录决定。
 // headless 里没有原生选择器，用 OPFS（navigator.storage.getDirectory）提供**真实可写句柄**，
 // 于是目录写入、IDB 持久化、文件内容都跑真实 API；只有「窗口」本身是假对象，
 // 所以能断言的是「传进去的 startIn 就是那个目录」，不能断言窗口在屏幕上真的开在那里。
 
-const today = getLocalDateStr;
+const today = date.getLocalDateStr;
 
 async function setup(page, opts = {}) {
   await disableMotion(page);
@@ -154,7 +154,7 @@ test('自动备份先弹确认框（写清文件名与目录），点确认才�
   expect(await page.evaluate(() => window.__fs.startInSameHandle)).toBe(true);
   expect(await readBackup(page)).toEqual({ autoFreq: 'daily', lastBackup: today() });
   // 已经确认写入 → 今天不再问
-  expect(await page.evaluate(() => shouldAutoBackup(state, getLocalDateStr()))).toBe(false);
+  expect(await page.evaluate(() => backup.shouldAutoBackup(state, date.getLocalDateStr()))).toBe(false);
 });
 
 test('自动备份点取消：不写盘、不记状态，当天再进来还会再问一次', async ({ page }) => {

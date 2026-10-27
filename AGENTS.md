@@ -6,7 +6,7 @@
 
 ```
 index.html            # 全部 HTML/CSS/JS
-logic.js              # 与 DOM 无关的纯函数（UMD：浏览器挂全局 / Node require）
+logic.js              # 与 DOM 无关的纯函数（UMD：浏览器挂全局 / Node require）；按域分组，页面经域名调用（text.esc）
 test/                 # node --test（logic / ui-wiring 契约 / e2e-server / size-budget）
 e2e/                  # Playwright 端到端（app / theme / consistency / glass-material / chart-resize / entrance + fixtures.js + server.js）
 playwright.config.js

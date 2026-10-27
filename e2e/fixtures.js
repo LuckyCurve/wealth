@@ -346,7 +346,7 @@ async function collectOffThemeColors(page) {
     });
     addPill(catColor, state.categories);
     addPill(expenseCatColor, state.expenseCategories);
-    CATEGORY_PALETTE.forEach((p) => {
+    color.CATEGORY_PALETTE.forEach((p) => {
       const c = canon(p.base); if (c) allowed.add(c);
       const l = canon(p.label); if (l) allowed.add(l); // 内环字色也是主题色板的一部分
       p.shades.forEach((s) => { const cc = canon(s); if (cc) allowed.add(cc); });

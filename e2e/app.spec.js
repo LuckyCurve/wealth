@@ -12,7 +12,8 @@ const {
   stubCdn, seed, waitReady, disableMotion, readAppState, sampleState, gotoAssets,
 } = require('./fixtures');
 // 长按守卫窗阈值：E2E 等它过期时轮询真实常量，不复制一个数字（复制必然漂移）
-const { AUTO_OPEN_GUARD_MS, TAG_PRESS_MS } = require('../logic.js');
+const { ui } = require('../logic.js');
+const { AUTO_OPEN_GUARD_MS, TAG_PRESS_MS } = ui;
 
 /** 按住不放：用页面自己的时钟等到「真的按满 TAG_PRESS_MS」，不猜一个睡眠时长 */
 const holdPastTagPress = async (page) => {
@@ -2013,7 +2014,7 @@ test.describe('分布图的构成清单（与图同源）', () => {
     const rows = await legendRows(page, 'chart-legend');
     // data 顺序 = 分类里的标签序（CNY 第 0、HKD 第 1），清单按值排但 idx 必须仍指向原位
     expect(rows.map((r) => r.idx)).toEqual(['0', '1']);
-    const palette = await page.evaluate(() => CATEGORY_PALETTE.slice(0, 2).map((p) => p.base));
+    const palette = await page.evaluate(() => color.CATEGORY_PALETTE.slice(0, 2).map((p) => p.base));
     const toRgb = (hex) => {
       const n = parseInt(hex.slice(1), 16);
       return `rgb(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255})`;
@@ -2026,7 +2027,7 @@ test.describe('分布图的构成清单（与图同源）', () => {
     await page.locator('#chart-legend .chart-legend-row').nth(1).click();
     await expect(page.locator('#chart-legend .chart-legend-row')).toHaveCount(1);
     const drilled = await legendRows(page, 'chart-legend');
-    const green = await page.evaluate(() => CATEGORY_PALETTE[1].shades[0]);
+    const green = await page.evaluate(() => color.CATEGORY_PALETTE[1].shades[0]);
     expect(drilled[0].swatch, '下钻后色块跟着该分类走，不得变回第一个分类的色').toBe(toRgb(green));
   });
 
