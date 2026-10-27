@@ -196,11 +196,12 @@ describe('UI 接线契约：共享层单一来源（防重复实现各自漂移�
   });
 
   test('对比表迷你量条/百分比单元格单一来源 cmpBar/cmpPctCell', () => {
+    const src = fnSource('compareTableHtml');
+    assert.match(src, /cmpBar\(/, '对比骨架应用 cmpBar');
+    assert.match(src, /cmpPctCell\(/, '对比骨架应用 cmpPctCell');
+    assert.doesNotMatch(src, /cmp-bar-track/, '不内联量条 HTML');
     for (const fn of ['renderCompareTable', 'renderExpenseCompareTable']) {
-      const src = fnSource(fn);
-      assert.match(src, /cmpBar\(/, `${fn} 应用 cmpBar`);
-      assert.match(src, /cmpPctCell\(/, `${fn} 应用 cmpPctCell`);
-      assert.doesNotMatch(src, /cmp-bar-track/, `${fn} 不应再内联量条 HTML`);
+      assert.doesNotMatch(fnSource(fn), /cmp(Bar|PctCell)\(/, `${fn} 只交数据，不自己拼单元格`);
     }
     assert.strictEqual(count(/class="cmp-bar-track"/g), 1, '量条模板只出现在 cmpBar helper 一处（CSS 类定义不计）');
   });
@@ -395,6 +396,42 @@ describe('UI 接线契约：logic.js 导出清单与筛选同步时序', () => {
   });
 });
 
+describe('UI 接线契约：明细弹窗与表格骨架（唯一主人）', () => {
+  test('表格骨架唯一：表头行与数据行只在 detailTableHtml 里生成', () => {
+    assert.strictEqual(count(/function detailTableHtml/), 1, '骨架只定义一处');
+    for (const fn of ['viewSnapshot', 'viewHistorySegment', 'viewExpenseMonth', 'viewExpenseSegment',
+      'renderCompareTable', 'renderExpenseCompareTable']) {
+      assert.doesNotMatch(
+        stripComments(fnSource(fn)),
+        /asset-row/,
+        `${fn} 不再自己拼表格骨架（表头/行/列宽都归骨架）`
+      );
+    }
+  });
+
+  test('明细弹窗的标题与正文只被写入一次（补丁行不回潮）', () => {
+    // 曾有四行「把标题改回来」的补丁：viewSnapshot 写完标题，兄弟函数又改掉它
+    assert.strictEqual(count(/snapshot-modal-title'\)\.textContent/g), 1, '标题只有一个写入点');
+    assert.strictEqual(count(/snapshot-detail-content'\)\.innerHTML/g), 1, '正文只有一个写入点');
+    for (const fn of ['viewSnapshot', 'viewHistorySegment', 'viewExpenseMonth', 'viewExpenseSegment']) {
+      assert.match(stripComments(fnSource(fn)), /openDetail\(/, `${fn} 必须走唯一入口`);
+      assert.doesNotMatch(stripComments(fnSource(fn)), /openModal\(/, `${fn} 不得自己开弹窗`);
+    }
+  });
+
+  test('两张对比表共用一套列与行结构（列名只在骨架里出现一次）', () => {
+    assert.strictEqual(count(/function compareTableHtml/), 1, '对比骨架只定义一处');
+    for (const fn of ['renderCompareTable', 'renderExpenseCompareTable']) {
+      assert.match(stripComments(fnSource(fn)), /compareTableHtml\(/, `${fn} 必须走共用骨架`);
+      assert.doesNotMatch(stripComments(fnSource(fn)), /<div/, `${fn} 不再自己写表格标记`);
+    }
+    // 两个侧别的措辞不同（期初/期末 vs 期初月/期末月），作为参数传入，骨架里不写死
+    assert.match(fnSource('renderCompareTable'), /periods: \['期初', '期末'\]/, '资产侧措辞');
+    assert.match(fnSource('renderExpenseCompareTable'), /periods: \['期初月', '期末月'\]/, '消费侧措辞');
+    assert.strictEqual(count(/变动 %/g), 2, '注释一处 + 骨架一处');
+  });
+});
+
 describe('UI 接线契约：堆叠柱下钻与图例记忆', () => {
   test('点击下钻接线单一来源 wireStackedBarDrill，两图各接一次，内联 chart.on(click) 不回潮', () => {
     assert.match(html, /function wireStackedBarDrill\(/, 'helper 定义存在');
@@ -410,13 +447,14 @@ describe('UI 接线契约：堆叠柱下钻与图例记忆', () => {
     assert.match(fnSource('renderExpenseTrendChart'), /viewExpenseSegment/, '趋势图下钻到消费记录');
   });
 
-  test('下钻弹窗复用 snapshot-modal 且走 openModal 通用路径', () => {
+  test('下钻弹窗复用 snapshot-modal 且走唯一明细入口', () => {
     for (const fn of ['viewHistorySegment', 'viewExpenseSegment']) {
       const src = fnSource(fn);
-      assert.match(src, /openModal\('snapshot-modal'\)/, fn + ' 复用快照弹窗');
+      assert.match(src, /openDetail\(/, fn + ' 走明细弹窗唯一入口');
       assert.match(src, /pctStr\(/, fn + ' 占比列与图表 tooltip 同一来源');
     }
-    assert.strictEqual(count(/snapshot-modal-title..\.textContent/g), 4, '快照/月明细/两个下钻四用途共用同一标题元素');
+    assert.match(fnSource('openDetail'), /openModal\('snapshot-modal'\)/, '唯一入口开快照弹窗');
+    assert.strictEqual(count(/snapshot-modal-title..\.textContent/g), 1, '标题只有一个写入点（快照/月明细/两个下钻四用途共用）');
   });
 
   test('图例选中态经 legendselectchanged 记忆、经 pruneLegendSelected 回灌 barChartBase', () => {
@@ -2104,7 +2142,7 @@ describe('UI 接线契约：版式一致性（同类结构同一套 class）', (
   test('表头统一 list-head：字号/字距/底色/收尾双线都在 CSS，页面不再内联', () => {
     assert.strictEqual(count(/list-head text-xs font-medium/g), 0, '表头不再内联字号类');
     assert.strictEqual(count(/list-head"[^>]*style="[^"]*color:var\(--muted\)/g), 0, '表头不再内联 muted 色');
-    assert.strictEqual(count(/list-head/g), 10, '表头共 10 处（列表 2 + 弹窗/图表明细 8）');
+    assert.strictEqual(count(/list-head/g), 5, '表头共 5 处：CSS 1 + 静态列表 2 + 收益表 1 + 明细骨架 1（六处动态表头已收进骨架）');
     const rule = html.match(/\n  \.list-head \{[^}]*\}/);
     assert.ok(rule, '.list-head 规则存在');
     assert.match(rule[0], /color:\s*var\(--muted\)/, '表头底色归 CSS');
@@ -2128,10 +2166,10 @@ describe('UI 接线契约：版式一致性（同类结构同一套 class）', (
       assert.strictEqual(count(new RegExp(`grid-template-columns: ${tpl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')};`, 'g')), 1,
         `${tpl} 只应出现一次（CSS 定义处）`);
     }
-    // 表头与数据行必须引用同一个常量/类名，而不是各自写一遍
-    for (const name of ['cols-segment', 'cols-compare', 'cols-expense-segment']) {
-      assert.match(html, new RegExp(`const cols = '${name}'`), `${name} 走常量`);
-    }
+    // 表头与数据行必须引用同一份列宽：现在只在骨架里挂一次（cols 由调用点传入）
+    assert.match(html, /function detailTableHtml\(cols, head, rows\)/, '列宽作为参数进骨架');
+    assert.strictEqual(count(/class="asset-row list-head \$\{cols\}"/g), 1, '表头挂同一列宽 class');
+    assert.strictEqual(count(/class="asset-row \$\{cols\}"/g), 1, '数据行挂同一列宽 class');
   });
 
   test('旭日图的高度由列宽决定（不写死像素，否则清单只有一行时右侧塌成一片空白）', () => {

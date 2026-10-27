@@ -4143,32 +4143,83 @@ function deleteSnapshot(month) {
   });
 }
 
+// ========== 明细弹窗 / 表格骨架（唯一主人）==========
+// 四处明细视图与两张对比表共用一套骨架：表头行、数据行、列宽 class 都只在这里生成。
+// 标题也归这里管——此前四个视图各写同一个弹窗的标题，谁后开谁负责收拾
+//（viewSnapshot 里曾专门写一行「把标题改回来」，因为兄弟函数改过它）。
+// cells: [{ html, cls, style? }]，cls/style 原样输出；列宽由调用方传 cols。
+function detailTableHtml(cols, head, rows) {
+  const cellHtml = c => `<div${c.cls ? ` class="${c.cls}"` : ''}${c.style ? ` style="${c.style}"` : ''}>${c.html}</div>`;
+  return `<div class="asset-row list-head ${cols}">${head.map(cellHtml).join('')}</div>`
+    + rows.map(r => `<div class="asset-row ${cols}">${r.map(cellHtml).join('')}</div>`).join('');
+}
+
+// 明细弹窗唯一入口：标题、摘要、空态、表格都从这一份规格来。空态也要有话说，
+// 否则用户看到的是一个只有表头的空表格
+function openDetail(opts) {
+  document.getElementById('snapshot-modal-title').textContent = opts.title;
+  document.getElementById('snapshot-detail-content').innerHTML = opts.rows.length
+    ? (opts.summary ? `<p class="t-body mb-4 muted">${opts.summary}</p>` : '')
+      + detailTableHtml(opts.cols, opts.head, opts.rows)
+    : `<p class="text-center py-8 t-body muted">${opts.empty}</p>`;
+  openModal('snapshot-modal');
+}
+
+// 对比表：资产快照与消费分类两张表的列结构一致，只有首列内容、「期初/期末」措辞
+// 与「新增 / 移除」徽章不同。迷你量条与百分比格仍走既有单一来源
+function compareTableHtml(rows, opts) {
+  const maxAbs = Math.max(...rows.map(r => Math.abs(r.d)), 1);
+  const head = [
+    { html: opts.firstLabel },
+    { html: opts.periods[0], cls: 'num' },
+    { html: opts.periods[1], cls: 'num' },
+    { html: '变动', cls: 'num' },
+    { html: '变动 %', cls: 'num' },
+  ];
+  const body = rows.map(r => {
+    const sign = r.d >= 0 ? '+' : '';
+    return [
+      { cls: 't-medium t-body flex items-center gap-2', html: opts.firstCellHtml(r) },
+      { cls: 't-body num' + (r.status === 'new' ? ' muted' : ''), html: r.av > 0 ? money2(r.av) : '—' },
+      { cls: 't-body num' + (r.status === 'gone' ? ' muted' : ''), html: r.bv > 0 ? money2(r.bv) : '—' },
+      {
+        cls: 't-body num',
+        style: `color:${opts.color(r.d)};`,
+        html: `<div class="tabular">${r.d === 0 ? '±0' : `${sign}${money2(r.d)}`}</div>`
+          + cmpBar(r.d, maxAbs, opts.color),
+      },
+      { cls: 't-body num', html: cmpPctCell(r.d, r.p, opts.color) },
+    ];
+  });
+  return detailTableHtml('cols-compare', head, body);
+}
+
 function viewSnapshot(month) {
   const snap = state.snapshots.find(s => s.month === month);
   if (!snap) return;
-  // viewExpenseMonth 会把标题改成「月度消费明细」，这里重置回快照标题
-  document.getElementById('snapshot-modal-title').textContent = '快照详情';
-  document.getElementById('snapshot-detail-content').innerHTML = `
-    <p class="t-body mb-4 muted">${monthLabel(snap.month)}${snap.note ? ' — ' + esc(snap.note) : ''} | 总净值: <strong>${formatCNY(snap.totalCNY)}</strong></p>
-    <div class="asset-row list-head cols-snapshot">
-      <div>名称</div><div class="num">金额</div><div>货币</div><div class="num">预期年化</div><div>标签</div>
-    </div>
-    ${(snap.assets || []).map(a => {
+  openDetail({
+    title: '快照详情',
+    summary: `${monthLabel(snap.month)}${snap.note ? ' — ' + esc(snap.note) : ''} | 总净值: <strong>${formatCNY(snap.totalCNY)}</strong>`,
+    cols: 'cols-snapshot',
+    head: [
+      { html: '名称' }, { html: '金额', cls: 'num' }, { html: '货币' },
+      { html: '预期年化', cls: 'num' }, { html: '标签' },
+    ],
+    rows: (snap.assets || []).map(a => {
       const tagHtml = Object.entries(a.tags || {}).map(([catId, val]) => {
         const cat = state.categories.find(c => c.id === catId);
         return cat ? tagPillHtml(cat, val, catColor) : '';
       }).join(' ');
-      const snapRateLabel = rateLabelText(a) || '<span class="muted hint-xs">未设置</span>';
-      return `<div class="asset-row cols-snapshot">
-        <div class="t-medium t-body">${esc(a.name)}</div>
-        <div class="t-body num">${money2(a.amount)}</div>
-        <div class="t-body muted">${a.currency}</div>
-        <div class="t-body num">${snapRateLabel}</div>
-        <div class="flex flex-wrap gap-1">${tagHtml}</div>
-      </div>`;
-    }).join('')}
-  `;
-  openModal('snapshot-modal');
+      return [
+        { cls: 't-medium t-body', html: esc(a.name) },
+        { cls: 't-body num', html: money2(a.amount) },
+        { cls: 't-body muted', html: a.currency },
+        { cls: 't-body num', html: rateLabelText(a) || '<span class="muted hint-xs">未设置</span>' },
+        { cls: 'flex flex-wrap gap-1', html: tagHtml },
+      ];
+    }),
+    empty: '该快照没有资产记录',
+  });
 }
 
 // ========== SEGMENT DRILL-DOWN ==========
@@ -4186,23 +4237,23 @@ function viewHistorySegment(month, catId, tag) {
     .sort((a, b) => b.cny - a.cny);
   if (items.length === 0) return;
   const segTotal = items.reduce((s, a) => s + a.cny, 0);
-  const cols = 'cols-segment';
-  document.getElementById('snapshot-modal-title').textContent = monthLabel(month) + ' · ' + tag + '构成';
-  document.getElementById('snapshot-detail-content').innerHTML = `
-    <p class="t-body mb-4 muted">${esc(cat.name)} › ${esc(tag)} | ${items.length} 项资产 | 合计 <strong>${formatCNY(segTotal)}</strong></p>
-    <div class="asset-row list-head ${cols}">
-      <div>名称</div><div class="num">金额</div><div>货币</div><div class="num">折算 CNY</div><div class="num">占比</div>
-    </div>
-    ${items.map(a => `
-      <div class="asset-row ${cols}">
-        <div class="t-medium t-body">${esc(a.name)}</div>
-        <div class="t-body num">${money2(a.amount)}</div>
-        <div class="t-body muted">${a.currency}</div>
-        <div class="t-body num">${formatCNY(a.cny)}</div>
-        <div class="t-body num muted">${pctStr(a.cny, segTotal)}%</div>
-      </div>`).join('')}
-  `;
-  openModal('snapshot-modal');
+  openDetail({
+    title: monthLabel(month) + ' · ' + tag + '构成',
+    summary: `${esc(cat.name)} › ${esc(tag)} | ${items.length} 项资产 | 合计 <strong>${formatCNY(segTotal)}</strong>`,
+    cols: 'cols-segment',
+    head: [
+      { html: '名称' }, { html: '金额', cls: 'num' }, { html: '货币' },
+      { html: '折算 CNY', cls: 'num' }, { html: '占比', cls: 'num' },
+    ],
+    rows: items.map(a => ([
+      { cls: 't-medium t-body', html: esc(a.name) },
+      { cls: 't-body num', html: money2(a.amount) },
+      { cls: 't-body muted', html: a.currency },
+      { cls: 't-body num', html: formatCNY(a.cny) },
+      { cls: 't-body num muted', html: `${pctStr(a.cny, segTotal)}%` },
+    ])),
+    empty: '该标签下没有资产',
+  });
 }
 
 // ========== SNAPSHOT COMPARE ==========
@@ -4258,31 +4309,14 @@ function renderCompareTable() {
     return;
   }
 
-  const color = v => compareColor(v, true);
-  const fmt = v => money2(v);
-  const cols = 'cols-compare'; // 表头/数据行共用同一列宽
-  const maxAbs = Math.max(...rows.map(r => Math.abs(r.d)), 1);
-  container.innerHTML = `
-    <div class="asset-row list-head ${cols}">
-      <div>资产</div><div class="num">期初</div><div class="num">期末</div><div class="num">变动</div><div class="num">变动 %</div>
-    </div>
-    ${rows.map(r => {
-      const badge = r.status === 'new' ? '<span class="mo-badge up">新增</span>'
-        : r.status === 'gone' ? '<span class="mo-badge down">移除</span>' : '';
-      const s = r.d >= 0 ? '+' : '';
-      const pctCell = cmpPctCell(r.d, r.p, color);
-      const bar = cmpBar(r.d, maxAbs, color);
-      return `<div class="asset-row ${cols}">
-        <div class="t-medium t-body flex items-center gap-2">${esc(r.name)}<span class="t-micro muted">${r.cur}</span>${badge}</div>
-        <div class="t-body num${r.status === 'new' ? ' muted' : ''}">${r.av > 0 ? fmt(r.av) : '—'}</div>
-        <div class="t-body num${r.status === 'gone' ? ' muted' : ''}">${r.bv > 0 ? fmt(r.bv) : '—'}</div>
-        <div class="t-body num" style="color:${color(r.d)};">
-          <div class="tabular">${r.d === 0 ? '±0' : `${s}${fmt(r.d)}`}</div>
-          ${bar}
-        </div>
-        <div class="t-body num">${pctCell}</div>
-      </div>`;
-    }).join('')}`;
+  container.innerHTML = compareTableHtml(rows, {
+    firstLabel: '资产',
+    periods: ['期初', '期末'],
+    color: v => compareColor(v, true),
+    firstCellHtml: r => esc(r.name) + `<span class="t-micro muted">${r.cur}</span>`
+      + (r.status === 'new' ? '<span class="mo-badge up">新增</span>'
+        : r.status === 'gone' ? '<span class="mo-badge down">移除</span>' : ''),
+  });
 }
 
 function loadDemoData() {
@@ -6336,55 +6370,37 @@ function renderExpenseCompareTable() {
     return;
   }
 
-  const color = v => compareColor(v, false);
-  const fmt = v => money2(v);
-  const cols = 'cols-compare'; // 表头/数据行共用同一列宽
-  const maxAbs = Math.max(...rows.map(r => Math.abs(r.d)), 1);
-  container.innerHTML = `
-    <div class="asset-row list-head ${cols}">
-      <div>分类标签</div><div class="num">期初月</div><div class="num">期末月</div><div class="num">变动</div><div class="num">变动 %</div>
-    </div>
-    ${rows.map(r => {
-      const s = r.d >= 0 ? '+' : '';
-      const pctCell = cmpPctCell(r.d, r.p, color);
-      const bar = cmpBar(r.d, maxAbs, color);
-      return `<div class="asset-row ${cols}">
-        <div class="t-medium t-body flex items-center gap-2">${tagPillHtml(cat, r.tag, expenseCatColor, { showKey: false })}</div>
-        <div class="t-body num">${fmt(r.av)}</div>
-        <div class="t-body num">${fmt(r.bv)}</div>
-        <div class="t-body num" style="color:${color(r.d)};">
-          <div class="tabular">${r.d === 0 ? '±0' : `${s}${fmt(r.d)}`}</div>
-          ${bar}
-        </div>
-        <div class="t-body num">${pctCell}</div>
-      </div>`;
-    }).join('')}`;
+  container.innerHTML = compareTableHtml(rows, {
+    firstLabel: '分类标签',
+    periods: ['期初月', '期末月'],
+    color: v => compareColor(v, false),
+    firstCellHtml: r => tagPillHtml(cat, r.tag, expenseCatColor, { showKey: false }),
+  });
 }
 
 function viewExpenseMonth(month) {
   const expenses = state.expenses.filter(e => e.date.slice(0, 7) === month).sort((a, b) => b.date.localeCompare(a.date));
   if (expenses.length === 0) return;
   const total = expenses.reduce((s, e) => s + e.amount, 0);
-  document.getElementById('snapshot-modal-title').textContent = '月度消费明细';
-  document.getElementById('snapshot-detail-content').innerHTML = `
-    <p class="t-body mb-4 muted">${monthLabel(month)} | 总消费: <strong>${formatCNY(total)}</strong> · ${expenses.length} 笔记录</p>
-    <div class="asset-row list-head cols-expense-month">
-      <div>日期</div><div class="num">金额</div><div>备注</div><div>标签</div>
-    </div>
-    ${expenses.map(e => {
-      const tagHtml = state.expenseCategories.map(cat => {
-        const tagVal = e.tags[cat.id];
-        return tagVal ? tagPillHtml(cat, tagVal, expenseCatColor) : '';
-      }).join(' ');
-      return `<div class="asset-row cols-expense-month">
-        <div class="t-body">${esc(e.date)}</div>
-        <div class="t-body num">${money2(e.amount)}</div>
-        <div class="t-body muted">${e.note ? esc(e.note) : '—'}</div>
-        <div class="flex flex-wrap gap-1">${tagHtml}</div>
-      </div>`;
-    }).join('')}
-  `;
-  openModal('snapshot-modal');
+  openDetail({
+    title: '月度消费明细',
+    summary: `${monthLabel(month)} | 总消费: <strong>${formatCNY(total)}</strong> · ${expenses.length} 笔记录`,
+    cols: 'cols-expense-month',
+    head: [{ html: '日期' }, { html: '金额', cls: 'num' }, { html: '备注' }, { html: '标签' }],
+    rows: expenses.map(e => ([
+      { cls: 't-body', html: esc(e.date) },
+      { cls: 't-body num', html: money2(e.amount) },
+      { cls: 't-body muted', html: e.note ? esc(e.note) : '—' },
+      {
+        cls: 'flex flex-wrap gap-1',
+        html: state.expenseCategories.map(cat => {
+          const tagVal = e.tags[cat.id];
+          return tagVal ? tagPillHtml(cat, tagVal, expenseCatColor) : '';
+        }).join(' '),
+      },
+    ])),
+    empty: '该月没有消费记录',
+  });
 }
 // 某分类某标签在某月的消费记录构成（消费趋势图点击色块下钻）
 function viewExpenseSegment(month, catId, tag) {
@@ -6395,22 +6411,19 @@ function viewExpenseSegment(month, catId, tag) {
     .sort((a, b) => b.date.localeCompare(a.date));
   if (items.length === 0) return;
   const segTotal = items.reduce((s, e) => s + e.amount, 0);
-  const cols = 'cols-expense-segment';
-  document.getElementById('snapshot-modal-title').textContent = monthLabel(month) + ' · ' + tag + '构成';
-  document.getElementById('snapshot-detail-content').innerHTML = `
-    <p class="t-body mb-4 muted">${esc(cat.name)} › ${esc(tag)} | ${items.length} 笔记录 | 合计 <strong>${formatCNY(segTotal)}</strong></p>
-    <div class="asset-row list-head ${cols}">
-      <div>日期</div><div class="num">金额</div><div class="num">占比</div><div>备注</div>
-    </div>
-    ${items.map(e => `
-      <div class="asset-row ${cols}">
-        <div class="t-body">${esc(e.date)}</div>
-        <div class="t-body num">${money2(e.amount)}</div>
-        <div class="t-body num muted">${pctStr(e.amount, segTotal)}%</div>
-        <div class="t-body muted">${e.note ? esc(e.note) : '—'}</div>
-      </div>`).join('')}
-  `;
-  openModal('snapshot-modal');
+  openDetail({
+    title: monthLabel(month) + ' · ' + tag + '构成',
+    summary: `${esc(cat.name)} › ${esc(tag)} | ${items.length} 笔记录 | 合计 <strong>${formatCNY(segTotal)}</strong>`,
+    cols: 'cols-expense-segment',
+    head: [{ html: '日期' }, { html: '金额', cls: 'num' }, { html: '占比', cls: 'num' }, { html: '备注' }],
+    rows: items.map(e => ([
+      { cls: 't-body', html: esc(e.date) },
+      { cls: 't-body num', html: money2(e.amount) },
+      { cls: 't-body num muted', html: `${pctStr(e.amount, segTotal)}%` },
+      { cls: 't-body muted', html: e.note ? esc(e.note) : '—' },
+    ])),
+    empty: '该标签下没有消费记录',
+  });
 }
 function loadExpenseDemoData() {
   if (state.expenses.length > 0) {
