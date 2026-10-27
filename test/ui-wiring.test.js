@@ -918,13 +918,12 @@ describe('UI 接线契约：分类管理回车添加标签', () => {
 
   test('「添加」按钮与回车共用 addTagCall 单一调用表达式，两处接线不各自漂移', () => {
     assert.strictEqual(count(/const addTagCall = /g), 1, '调用表达式只定义一次');
-    assert.strictEqual(count(/\$\{cfg\.addTag\}\(/g), 1, 'cfg.addTag 拼接只允许出现在定义处');
     assert.strictEqual(count(/\$\{addTagCall\}/g), 2, '输入框回车与「添加」按钮各引用一次');
     assert.match(html, /<button onclick="\$\{addTagCall\}"[^>]*>添加<\/button>/, '按钮仍保留（鼠标路径）');
   });
 
-  test('addTagGeneric 重绘后把焦点交回同分类新输入框，不再写已脱离文档的旧 input', () => {
-    const src = fnSource('addTagGeneric');
+  test('addTag 重绘后把焦点交回同分类新输入框，不再写已脱离文档的旧 input', () => {
+    const src = fnSource('addTag');
     assert.match(src, /const next = document\.getElementById\(cfg\.newTagPrefix \+ catId\)/);
     assert.match(src, /next\.focus\(\)/, '焦点交回新输入框才能连击回车连续添加');
     assert.doesNotMatch(src, /input\.value = ''/, '旧 input 已随 renderCategoryCards 重绘脱离文档，赋值是死代码');
@@ -933,28 +932,55 @@ describe('UI 接线契约：分类管理回车添加标签', () => {
     assert.ok(rerender >= 0 && refocus > rerender, '必须先重绘再取新输入框，否则焦点落在即将被替换的旧节点');
   });
 
-  test('资产/消费两侧的回车与按钮都收敛到 addTagGeneric 单一实现', () => {
-    assert.strictEqual(count(/addTagGeneric\(/g), 3, '定义一处 + addTag / addExpenseTag 包装各一处');
+  test('资产/消费两侧的回车与按钮都收敛到 addTag 单一实现', () => {
+    assert.strictEqual(count(/function addTag\(/g), 1, '只有一处实现');
+    assert.strictEqual(count(/addTag\('\$\{jsAttr\(side\)\}'/g), 1, '两侧共用同一调用表达式（侧别在生成期拼）');
+    assert.doesNotMatch(html, /addExpenseTag|addTagGeneric/, '孪生与一级转发不回潮');
+  });
+});
+
+describe('UI 接线契约：分类 CRUD 入口减半（侧别由调用现场提供）', () => {
+  test('六个操作各一个入口：Expense* 孪生、一级转发、*Generic 后缀全部消失', () => {
+    for (const dead of ['openExpenseCategoryModal', 'saveExpenseCategory', 'editExpenseCategory',
+      'deleteExpenseCategory', 'addExpenseTag', 'removeExpenseTag', 'editCategory',
+      'renderExpenseCategories', 'renameExpenseTag']) {
+      assert.doesNotMatch(html, new RegExp(`function ${dead}\\(`), `${dead} 应已删除`);
+    }
+    for (const live of ['openCategoryModal', 'saveCategory', 'deleteCategory', 'addTag', 'removeTag', 'renameTag']) {
+      assert.strictEqual(count(new RegExp(`function ${live}\\(`, 'g')), 1, `${live} 只定义一处`);
+    }
+    assert.strictEqual(count(/function \w+Generic\(/g), 0, '*Generic 后缀不再需要：它就是实现');
+  });
+
+  test('侧别由调用现场提供：静态控件读 data-side，生成的处理器带字面量', () => {
+    assert.match(html, /id="category-form" data-side="asset" onsubmit="saveCategory\(this\.dataset\.side, event\)"/, '资产侧表单');
+    assert.match(html, /id="expense-category-form" data-side="expense" onsubmit="saveCategory\(this\.dataset\.side, event\)"/, '消费侧表单');
+    assert.strictEqual(count(/onclick="openCategoryModal\(this\.dataset\.side\)"/g), 2, '两处「新增分类」按钮同形');
+    const cards = fnSource('renderCategoryCards');
+    for (const call of ['addTag', 'openCategoryModal', 'deleteCategory']) {
+      assert.match(cards, new RegExp(`${call}\\('\\$\\{jsAttr\\(side\\)\\}'`), `${call} 在生成期带侧别`);
+    }
+  });
+
+  test('配置表只存数据与文案，不再存函数名', () => {
+    const cfg = blockFrom(html, 'const CAT_SIDES = {', '\n};');
+    for (const dead of ['removeTag:', 'addTag:', 'renameTag:', 'edit:', 'del:']) {
+      assert.doesNotMatch(cfg, new RegExp(`\b${dead}`), `CAT_SIDES 不再存 ${dead}`);
+    }
   });
 });
 
 describe('UI 接线契约：标签改名（迁移引用，不是清空）', () => {
-  test('改名入口单一来源：renameTagGeneric 一份 + 两个单侧包装，均走同一 startTagRename', () => {
-    assert.strictEqual(count(/function renameTagGeneric\(/g), 1, '改名实现只定义一次');
-    assert.strictEqual(count(/function renameTag\(/g), 1, '资产侧包装只定义一次');
-    assert.strictEqual(count(/function renameExpenseTag\(/g), 1, '消费侧包装只定义一次');
+  test('改名入口单一来源：胶囊只带 data-rename 侧别，交互只有 startTagRename 一份', () => {
     assert.strictEqual(count(/function startTagRename\(/g), 1, '就地重命名交互只定义一次');
-    // 两个单侧包装都只是把 side 定死，交同一 startTagRename（不再各自写一遍交互）
-    for (const [fn, side] of [['renameTag', 'asset'], ['renameExpenseTag', 'expense']]) {
-      const src = fnSource(fn);
-      assert.ok(src.includes(`startTagRename(`) && src.includes(`'${side}'`), `${fn} 走同一 startTagRename`);
-      assert.strictEqual((src.match(/startTagRename\(/g) || []).length, 1, `${fn} 只调一次`);
-    }
-    assert.strictEqual(count(/renameTag: '[a-zA-Z]+'/g), 2, '两侧 CAT_SIDES 各声明一次入口名');
+    assert.strictEqual(count(/function renameTag\(/g), 1, '改名实现只定义一次');
+    assert.strictEqual(count(/renameTag\(side, catId, oldName, newName\)/g), 1, '提交处只调一次（不再有第二条路径）');
+    assert.match(fnSource('tagPillHtml'), /data-rename="\$\{jsAttr\(opts\.renameSide/, '胶囊只带侧别，行为交给事件委托');
+    assert.doesNotMatch(html, /renameExpenseTag|renameTag: '/, '孪生与配置里的函数名不回潮');
   });
 
   test('改名迁移引用而非删除：走 logic.js migrateTagRefs，读数卡选择同迁移，不出现 delete', () => {
-    const src = fnSource('renameTagGeneric');
+    const src = fnSource('renameTag');
     assert.match(src, /migrateTagRefs\(cfg\.items\(\), catId, oldName, newName\)/, '引用迁移下沉纯函数');
     assert.doesNotMatch(src, /delete [\w.]*\.tags\[/, '改名不得按「旧名已失效」删除引用（那正是丢数据的路径）');
     assert.match(src, /state\.runwayTags = migrateRunwayTagRefs\(state\.runwayTags, catId, oldName, newName\)/,
@@ -963,7 +989,7 @@ describe('UI 接线契约：标签改名（迁移引用，不是清空）', () =
   });
 
   test('改名守卫与落盘：内置分类拒改、重名拒绝、随后保存并两处重绘', () => {
-    const src = fnSource('renameTagGeneric');
+    const src = fnSource('renameTag');
     assert.match(src, /cat\.builtin/, '内置分类（货币类型）不可改名');
     assert.match(src, /cat\.tags\.includes\(newName\)/, '新名已存在则拒绝（不得产生同名双标签）');
     assert.match(src, /saveState\(\)/);
@@ -979,7 +1005,7 @@ describe('UI 接线契约：标签改名（迁移引用，不是清空）', () =
     assert.match(src, /blur/, '点开就走提交，与行内金额编辑同习惯');
     assert.match(src, /let done = false|let done=false/, '防重入标记');
     assert.match(src, /if \(done\) return/, 'Esc 取消后 input 被重绘移除会触发 blur，必须防二次提交');
-    assert.strictEqual(count(/renameTagGeneric\(/g), 2, '定义一处 + startTagRename 提交处一处（不再有第二条改名路径）');
+    assert.strictEqual(count(/renameTag\(/g), 2, '定义一处 + startTagRename 提交处一处（不再有第二条改名路径）');
   });
 
   test('胶囊上不再有 ✎：长按胶囊即改名（长按状态机与资产入口同源）', () => {
@@ -997,7 +1023,7 @@ describe('UI 接线契约：标签改名（迁移引用，不是清空）', () =
     const logicSrc = fs.readFileSync(path.join(__dirname, '..', 'logic.js'), 'utf8');
     assert.match(logicSrc, /function pressDecision\(heldMs, threshold\)/, '判定参数化（不复制第二份阈值逻辑）');
     assert.match(html, /pressDecision\([^)]*TAG_PRESS_MS/, '改名用 TAG_PRESS_MS 那一档');
-    assert.strictEqual(count(/renameTagGeneric\(/g), 2, '定义一处 + startTagRename 提交处一处（不再有第二条改名路径）');
+    assert.strictEqual(count(/renameTag\(/g), 2, '定义一处 + startTagRename 提交处一处（不再有第二条改名路径）');
     // 键盘/读屏器仍要能改名：长按是手势，不是权限（与资产入口同一原则）
     assert.match(pill, /tabindex="0"/, '胶囊可聚焦');
     assert.match(html, /onkeydown="[^"]*renameTagFromKey/, '键盘必须有一条直达改名的路');
@@ -1028,7 +1054,7 @@ describe('UI 接线契约：标签改名（迁移引用，不是清空）', () =
     const src = fnSource('renderCategoryCards');
     assert.match(src, /const tagOpts = cat\.builtin/, '只读由 builtin 单一判定');
     assert.match(src, /cat\.builtin[\s\S]{0,60}?\? \{ showKey: false \}/, '内置分类只给纯展示选项');
-    assert.strictEqual(count(/removeFn: cfg\.removeTag/g), 1, '入口只在这一处按 builtin 收口');
+    assert.strictEqual(count(/removeSide: side/g), 1, '入口只在这一处按 builtin 收口');
     assert.match(src, /tagPillHtml\(cat, t, cfg\.colorFn, tagOpts\)/, '两侧共用同一份 opts（不各写一遍）');
     // 守卫照旧：只读是「不给入口」，不是把守卫当挡箭牌
     assert.strictEqual(count(/toast\('内置分类不可修改'/g), 3, '改名/删除/保存分类三处守卫不漏');
@@ -1037,13 +1063,13 @@ describe('UI 接线契约：标签改名（迁移引用，不是清空）', () =
   test('编辑框必须有归宿：拒绝路径只 return，收尾由 finish 兜住', () => {
     const src = fnSource('startTagRename');
     assert.match(src, /if \(input\.isConnected\) renderCategoryCards\(side\)/,
-      'renameTagGeneric 的每条早退（分类已删/内置/重名/旧名过期）都不重绘，输入框必须有人放回去');
-    assert.ok(src.indexOf('renameTagGeneric(') < src.indexOf('input\.isConnected'),
+      'renameTag 的每条早退（分类已删/内置/重名/旧名过期）都不重绘，输入框必须有人放回去');
+    assert.ok(src.indexOf('renameTag(') < src.indexOf('input\.isConnected'),
       '先提交再兜底：提交成功那条自己重绘，兜底就成空操作（不会重绘两遍）');
   });
 
   test('移除标签前先告知将清空的引用数：确认框与直接保存共用同一段 apply', () => {
-    const src = fnSource('saveCategoryGeneric');
+    const src = fnSource('saveCategory');
     assert.match(src, /countTagRefs\(cfg\.items\(\), editId, removed\)/, '引用数走 logic.js 口径');
     assert.match(src, /showConfirm\(/, '有引用时先确认（静默清空归类会让分布/收益默默失真）');
     assert.strictEqual((src.match(/\bapply\b/g) || []).length, 3, '定义 + 直接调用 + 确认回调：保存只有一段，不得分叉');
@@ -1137,7 +1163,7 @@ describe('UI 接线契约：数据校验（缺标签一键/逐条补齐，资产
   });
 
   test('新建分类后自动打开面板：带 createdId && cfg.tagCheck 守卫，且在关掉分类弹窗之后', () => {
-    const src = fnSource('saveCategoryGeneric');
+    const src = fnSource('saveCategory');
     assert.match(src, /if \(createdId && cfg\.tagCheck\)/, '只有启用校验的一侧且确为新建时才打开');
     assert.match(src, /openTagCheck\(side, createdId\)/, '聚焦新建的那个分类，并带侧别');
     assert.ok(
@@ -1706,7 +1732,7 @@ describe('UI 接线契约：所选标签的钱 ÷ 预期月消费（消费趋势
     assert.match(logic, /function pruneRunwayTags\(/, '清理口径在 logic.js');
     assert.match(logic, /state\.runwayTags = pruneRunwayTags\(state\.runwayTags, state\.categories\)/,
       'migrateState 迁移期清理');
-    for (const fn of ['saveCategoryGeneric', 'deleteCategoryGeneric', 'removeTagGeneric']) {
+    for (const fn of ['saveCategory', 'deleteCategory', 'removeTag']) {
       const src = fnSource(fn);
       assert.match(src, /state\.runwayTags = pruneRunwayTags\(state\.runwayTags, state\.categories\)/,
         `${fn} 改名/删除标签后同步清理读数区引用，避免读数指着已不存在的标签`);

@@ -1374,7 +1374,7 @@ tailwind.config = {
         <h2 class="font-display">分类管理</h2>
         <p class="sub">管理资产的分类与标签</p>
       </div>
-      <button onclick="openCategoryModal()" class="btn-gold">＋ 新增分类</button>
+      <button onclick="openCategoryModal(this.dataset.side)" data-side="asset" class="btn-gold">＋ 新增分类</button>
     </div>
     <div id="categories-list" class="space-y-4"></div>
   </section>
@@ -1587,7 +1587,7 @@ tailwind.config = {
           <h2 class="font-display">消费分类管理</h2>
           <p class="sub">管理消费的分类与标签</p>
         </div>
-        <button onclick="openExpenseCategoryModal()" class="btn-gold">＋ 新增分类</button>
+        <button onclick="openCategoryModal(this.dataset.side)" data-side="expense" class="btn-gold">＋ 新增分类</button>
       </div>
       <div id="expense-categories-list" class="space-y-4"></div>
     </section>
@@ -1841,7 +1841,7 @@ tailwind.config = {
 <div id="category-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="category-modal-title" style="display:none;">
   <div class="modal-content">
     <h3 class="font-display modal-title" id="category-modal-title">新增分类</h3>
-    <form id="category-form" onsubmit="saveCategory(event)">
+    <form id="category-form" data-side="asset" onsubmit="saveCategory(this.dataset.side, event)">
       <input type="hidden" id="cat-edit-id">
       <div class="space-y-4">
         <div>
@@ -1937,7 +1937,7 @@ tailwind.config = {
 <div id="expense-category-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="expense-category-modal-title" style="display:none;">
   <div class="modal-content">
     <h3 class="font-display modal-title" id="expense-category-modal-title">新增消费分类</h3>
-    <form id="expense-category-form" onsubmit="saveExpenseCategory(event)">
+    <form id="expense-category-form" data-side="expense" onsubmit="saveCategory(this.dataset.side, event)">
       <input type="hidden" id="expense-cat-edit-id">
       <div class="space-y-4">
         <div>
@@ -2393,7 +2393,7 @@ function switchTab(tab, shift) {
   // expense tabs
   enterTab(document.getElementById('tab-' + tab), shift);
   if (tab === 'expense-categories') {
-    renderExpenseCategories();
+    renderCategoryCards('expense');
   }
   if (tab === 'expense-chart') {
     populateExpenseChartSelects();
@@ -2579,7 +2579,7 @@ function renderAll() {
   renderCategories();
   renderHistoryTab();
   renderExpenses();
-  renderExpenseCategories();
+  renderCategoryCards('expense');
 }
 
 function renderAssets() {
@@ -3061,38 +3061,9 @@ function deleteAsset(id) {
 }
 
 // ========== CATEGORY CRUD ==========
-function openCategoryModal(editId) {
-  openCategoryModalGeneric('asset', editId);
-}
-
-function saveCategory(e) {
-  saveCategoryGeneric('asset', e);
-}
-
-function editCategory(id) {
-  openCategoryModal(id);
-}
-
-function deleteCategory(id) {
-  deleteCategoryGeneric('asset', id);
-}
-
-function addTag(catId) {
-  addTagGeneric('asset', catId);
-}
-
-function removeTag(catId, tagName) {
-  removeTagGeneric('asset', catId, tagName);
-}
-
-// 标签改名入口（长按胶囊 / 键盘回车）：改名实现只有 renameTagGeneric 一处。
-function renameTag(btn, catId, tagName) {
-  startTagRename(btn && btn.closest ? btn.closest('.tag-pill') : btn, 'asset', catId, tagName);
-}
-
-function renameExpenseTag(btn, catId, tagName) {
-  startTagRename(btn && btn.closest ? btn.closest('.tag-pill') : btn, 'expense', catId, tagName);
-}
+// 六个操作各一个入口：侧别由调用现场给（静态控件读 data-side，卡片模板在生成期拼字面量）。
+// 入口名不再按侧别分叉——此前是 12 个一行转发 + editCategory → openCategoryModal → *Generic
+// 三级跳，改一个名字要动配置表与两个函数。
 
 // 图表文字/线条随主题取色（ECharts canvas 不识别 CSS 变量, 需读取计算后的值）
 // 注：CATEGORY_PALETTE（旭日图 / 堆叠柱调色板）已迁移至 logic.js，浏览器下由全局注入，逻辑与单测共用同一份。
@@ -3559,10 +3530,10 @@ function tagPillHtml(cat, tagVal, colorFn, opts) {
   //   data-rename="<side>"  → 长按后走 startTagRename（唯一的改名实现）
   // 可聚焦 + Enter 直达改名：长按是**手势**，不是权限——键盘与读屏器不该被挡在门外
   // （与「进资产页」的长按门槛同一条原则）。
-  const ren = opts.renameFn
+  const ren = opts.renameSide
     ? ` data-rename="${jsAttr(opts.renameSide || '')}" data-cat="${jsAttr(cat.id)}" data-tag="${jsAttr(tagVal)}" tabindex="0" role="button" title="长按可改名" aria-label="标签 ${jsAttr(tagVal)}，长按或按回车改名" onkeydown="if(event.key==='Enter')renameTagFromKey(event)"`
     : '';
-  const del = opts.removeFn ? ` <button class="pill-del" onclick="${opts.removeFn}('${jsAttr(cat.id)}','${jsAttr(tagVal)}')" aria-label="移除标签">✕</button>` : '';
+  const del = opts.removeSide ? ` <button class="pill-del" onclick="removeTag('${jsAttr(opts.removeSide)}', '${jsAttr(cat.id)}','${jsAttr(tagVal)}')" aria-label="移除标签">✕</button>` : '';
   return `<span class="tag-pill"${ren} style="background:${c.bg};color:${c.fg};border-left-color:${c.border};">${key}${val}${del}</span>`;
 }
 
@@ -3581,7 +3552,6 @@ const CAT_SIDES = {
     items: () => state.assets,
     renderItems: renderAssets,
     newTagPrefix: 'new-tag-',
-    removeTag: 'removeTag', addTag: 'addTag', renameTag: 'renameTag', edit: 'editCategory', del: 'deleteCategory',
     colorFn: catColor,
     listId: 'categories-list',
     noun: '资产',
@@ -3599,7 +3569,6 @@ const CAT_SIDES = {
     items: () => state.expenses,
     renderItems: renderExpenses,
     newTagPrefix: 'expense-new-tag-',
-    removeTag: 'removeExpenseTag', addTag: 'addExpenseTag', renameTag: 'renameExpenseTag', edit: 'editExpenseCategory', del: 'deleteExpenseCategory',
     colorFn: expenseCatColor,
     listId: 'expense-categories-list',
     noun: '消费记录',
@@ -3638,10 +3607,10 @@ function renderCategoryCards(side) {
     //「长按内置的货币类型，然后点其他地方不能取消编辑」就是这么来的。
     const tagOpts = cat.builtin
       ? { showKey: false }
-      : { showKey: false, removeFn: cfg.removeTag, renameFn: cfg.renameTag, renameSide: side };
+      : { showKey: false, removeSide: side, renameSide: side };
     const tagPills = cat.tags.map(t => tagPillHtml(cat, t, cfg.colorFn, tagOpts)).join(' ');
     // 「添加」按钮与回车共用同一调用表达式, 防两处接线各自漂移
-    const addTagCall = `${cfg.addTag}('${jsAttr(cat.id)}')`;
+    const addTagCall = `addTag('${jsAttr(side)}', '${jsAttr(cat.id)}')`;
     const gap = gapOf(cat.id);
     return `<div class="card">
       <div class="flex items-center justify-between mb-3">
@@ -3650,8 +3619,8 @@ function renderCategoryCards(side) {
           ${cat.builtin ? '<span class="t-micro px-2 py-0.5 rounded muted" style="background:var(--bg-2);border:1px solid var(--border);">内置</span>' : ''}
         </div>
         <div class="flex gap-2">
-          ${!cat.builtin ? `<button onclick="${cfg.edit}('${jsAttr(cat.id)}')" class="row-btn edit">编辑</button>
-          <button onclick="${cfg.del}('${jsAttr(cat.id)}')" class="row-btn danger">删除</button>` : ''}
+          ${!cat.builtin ? `<button onclick="openCategoryModal('${jsAttr(side)}', '${jsAttr(cat.id)}')" class="row-btn edit">编辑</button>
+          <button onclick="deleteCategory('${jsAttr(side)}', '${jsAttr(cat.id)}')" class="row-btn danger">删除</button>` : ''}
         </div>
       </div>
       <div class="flex flex-wrap gap-2 mb-3">${tagPills}</div>
@@ -3668,7 +3637,7 @@ function renderCategoryCards(side) {
   }).join('');
 }
 
-function openCategoryModalGeneric(side, editId) {
+function openCategoryModal(side, editId) {
   const m = CAT_SIDES[side].modal;
   const modal = document.getElementById(m.id);
   const title = document.getElementById(m.title);
@@ -3688,7 +3657,7 @@ function openCategoryModalGeneric(side, editId) {
   openModal(m.id);
 }
 
-function saveCategoryGeneric(side, e) {
+function saveCategory(side, e) {
   e.preventDefault();
   const cfg = CAT_SIDES[side];
   const m = cfg.modal;
@@ -3749,7 +3718,7 @@ function saveCategoryGeneric(side, e) {
   apply();
 }
 
-function deleteCategoryGeneric(side, id) {
+function deleteCategory(side, id) {
   const cfg = CAT_SIDES[side];
   const cat = cfg.cats().find(c => c.id === id);
   if (cat && cat.builtin) return;
@@ -3765,7 +3734,7 @@ function deleteCategoryGeneric(side, id) {
   });
 }
 
-function addTagGeneric(side, catId) {
+function addTag(side, catId) {
   const cfg = CAT_SIDES[side];
   const input = document.getElementById(cfg.newTagPrefix + catId);
   const val = input.value.trim();
@@ -3784,7 +3753,7 @@ function addTagGeneric(side, catId) {
   toast('标签已添加', 'success');
 }
 
-function removeTagGeneric(side, catId, tagName) {
+function removeTag(side, catId, tagName) {
   const cfg = CAT_SIDES[side];
   const cat = cfg.cats().find(c => c.id === catId);
   if (!cat) return;
@@ -3802,7 +3771,7 @@ function removeTagGeneric(side, catId, tagName) {
 // 标签改名（长按胶囊）：**迁移引用**而不是删除重建——旧名若走「已失效引用」清理，
 // 资产/消费上的归类会被静默清空（分布/收益随之失真）。本函数只管数据与重绘，
 // 输入框由 startTagRename 就地提供。
-function renameTagGeneric(side, catId, oldName, newName) {
+function renameTag(side, catId, oldName, newName) {
   const cfg = CAT_SIDES[side];
   const cat = cfg.cats().find(c => c.id === catId);
   if (!cat) return;
@@ -3929,9 +3898,9 @@ function startTagRename(pill, side, catId, oldName) {
   const finish = (submit) => {
     if (done) return;
     done = true;
-    if (submit) renameTagGeneric(side, catId, oldName, input.value.trim());
+    if (submit) renameTag(side, catId, oldName, input.value.trim());
     else renderCategoryCards(side);
-    // 编辑框必须有归宿：renameTagGeneric 的每条拒绝路径（分类已删 / 内置 / 重名 / 旧名过期）
+    // 编辑框必须有归宿：renameTag 的每条拒绝路径（分类已删 / 内置 / 重名 / 旧名过期）
     // 都只是 return，谁也没把胶囊放回去——输入框就孤零零留在卡片上，用户点别处也收不掉它。
     // 收尾放在 finish 里而不是各条守卫里：一处兜住，日后再加一条早退也不会重新漏。
     if (input.isConnected) renderCategoryCards(side);
@@ -5858,34 +5827,6 @@ function expenseCatColor(catId, tagName) {
   return catColorImpl(state.expenseCategories, catId, tagName);
 }
 
-function renderExpenseCategories() {
-  renderCategoryCards('expense');
-}
-
-function openExpenseCategoryModal(editId) {
-  openCategoryModalGeneric('expense', editId);
-}
-
-function saveExpenseCategory(e) {
-  saveCategoryGeneric('expense', e);
-}
-
-function editExpenseCategory(id) {
-  openExpenseCategoryModal(id);
-}
-
-function deleteExpenseCategory(id) {
-  deleteCategoryGeneric('expense', id);
-}
-
-function addExpenseTag(catId) {
-  addTagGeneric('expense', catId);
-}
-
-function removeExpenseTag(catId, tagName) {
-  removeTagGeneric('expense', catId, tagName);
-}
-
 // ========== 消费数据校验（缺标签：一键批量 / 逐条点选）==========
 // 打开时按分类捕获缺口记录 id；补齐后分组保留（✓ 徽章）以便逐条微调，重开时重新捕获。
 // 写标签一律走 logic.js setTag/backfillTag，此处不直接赋值。
@@ -6498,7 +6439,7 @@ function doLoadExpenseDemoData() {
 
   saveState();
   renderExpenses();
-  renderExpenseCategories();
+  renderCategoryCards('expense');
   toast('示例消费数据已导入（' + monthOffsets.length + '个月）', 'success');
 }
 

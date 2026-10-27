@@ -643,9 +643,9 @@ test.describe('版式一致性', () => {
 test.describe('可访问性：表单字段必须有真正的名字（不是 placeholder）', () => {
   const opens = [
     ['资产弹窗', (page) => page.evaluate(() => openAssetModal()), '#asset-modal'],
-    ['分类弹窗', (page) => page.evaluate(() => openCategoryModal()), '#category-modal'],
+    ['分类弹窗', (page) => page.evaluate(() => openCategoryModal('asset')), '#category-modal'],
     ['消费弹窗', (page) => page.evaluate(() => openExpenseModal()), '#expense-modal'],
-    ['消费分类弹窗', (page) => page.evaluate(() => openExpenseCategoryModal()), '#expense-category-modal'],
+    ['消费分类弹窗', (page) => page.evaluate(() => openCategoryModal('expense')), '#expense-category-modal'],
     ['读指标签弹窗', (page) => page.evaluate(() => openRunwayModal()), '#runway-modal'],
   ];
 
