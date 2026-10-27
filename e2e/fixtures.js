@@ -40,6 +40,9 @@ const EMPTY_STATE = {
   incomeSafetyFactor: 100,
   runwayTags: [], runwayExpectation: 0,
   backup: { autoFreq: 'off', lastBackup: null, lastAutoDownload: null },
+  // 既有用例断言的都是中文文案：语言是用户设置（默认英文），播种时显式选中文。
+  // 默认英文与切换行为由 i18n.spec.js 单独验证。
+  lang: 'zh',
 };
 
 /**
@@ -172,7 +175,7 @@ async function stubCdn(page, rates) {
  * 它验证的是种子又被写了一遍，而不是应用的存档/读档。这个假通过很难被发现，
  * 因为用例名和断言看起来都对。
  *
- * @param {object|null} state 存档内容；null 表示清空（全新用户）
+ * @param {object|null} state 存档内容；null 表示完全无存档（真正的全新用户，界面落到默认英文）
  */
 async function seed(page, state) {
   await page.addInitScript(
@@ -213,7 +216,8 @@ const test = base.extend({
   blankPage: async ({ page }, use) => {
     await disableMotion(page);
     await stubCdn(page);
-    await seed(page, null);
+    // 空存档 ≠ 无存档：只写语言字段，其余由 migrateState 兜底（与真实「全新用户」同一路径）
+    await seed(page, { lang: 'zh' });
     await page.goto(INDEX_URL);
     await waitReady(page);
     await use(page);

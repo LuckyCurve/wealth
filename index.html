@@ -1,11 +1,11 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='%23d9b25e'/><stop offset='1' stop-color='%238f6713'/></linearGradient></defs><path fill-rule='evenodd' d='M16 2a14 14 0 1 0 0 28 14 14 0 1 0 0-28zM10.5 10.5h11v11h-11z' fill='url(%23g)'/><path d='M10.5 10.5v3M10.5 10.5h3M21.5 10.5v3M21.5 10.5h-3M10.5 21.5v-3M10.5 21.5h3M21.5 21.5v-3M21.5 21.5h-3' stroke='%23211b10' stroke-width='1.8' stroke-linecap='round' fill='none'/></svg>">
-<title>财富管理</title>
-<meta name="description" content="本机保存的个人资产与消费账本：记录资产、月度快照、消费与趋势，数据不上传。">
+<title data-i18n="财富管理">财富管理</title>
+<meta name="description" content="本机保存的个人资产与消费账本：记录资产、月度快照、消费与趋势，数据不上传。" data-i18n-content="本机保存的个人资产与消费账本：记录资产、月度快照、消费与趋势，数据不上传。">
 <script>
   // 开屏入场的两态（见 CSS 里的「落纸」）：booting = 「骨架先说：我要入场了」。
   // 放在 <head> 同步执行是为了首帧就到「未落定」那一态（晚一帧会先看见内容再跳一下）。
@@ -1319,7 +1319,7 @@ tailwind.config = {
           <path d="M10.5 10.5v3M10.5 10.5h3M21.5 10.5v3M21.5 10.5h-3M10.5 21.5v-3M10.5 21.5h3M21.5 21.5v-3M21.5 21.5h-3" style="fill:none;stroke:var(--fg);stroke-width:1.8;stroke-linecap:round;"/>
         </svg>
         <div>
-          <h1 class="brand-title">财富管理</h1>
+          <h1 class="brand-title" data-i18n="财富管理">财富管理</h1>
           <span class="eyebrow">Private Ledger</span>
         </div>
       </div>
@@ -1327,14 +1327,14 @@ tailwind.config = {
         <!-- 次序有意：消费在左、资产在右。默认模式是消费，落在浏览起点的第一项；
              资产侧带长按门槛，不占顺手位（位置本身也在劝人少误触）。
              次序同时决定 Tab 焦点次序（Tab 键已交还浏览器，不接管）。 -->
-        <button id="mode-expenses" onclick="switchMode('expenses')" class="seg-btn active">消费</button>
+        <button id="mode-expenses" onclick="switchMode('expenses')" class="seg-btn active" data-i18n="消费">消费</button>
         <!-- 资产入口是长按门槛（成本只加在资产侧）: 按住满时长才送达, 短按只弹一句提示;
              键盘 / 读屏器等合成 click 不经过按住链路，由 modePressClick 直通确认框 -->
-        <button id="mode-assets" class="seg-btn mode-press" onpointerdown="startModePress(event)" onpointerleave="cancelModePress()" onclick="modePressClick(event)">资产</button>
+        <button id="mode-assets" class="seg-btn mode-press" onpointerdown="startModePress(event)" onpointerleave="cancelModePress()" onclick="modePressClick(event)" data-i18n="资产">资产</button>
       </div>
     </div>
     <div class="flex items-center gap-3">
-      <button onclick="showSettings()" class="btn-ghost">设置</button>
+      <button onclick="showSettings()" class="btn-ghost" data-i18n="设置">设置</button>
     </div>
   </div>
 </header>
@@ -1343,11 +1343,11 @@ tailwind.config = {
 <div id="tabs-assets" class="content-column" style="display:none;">
   <div class="tab-bar">
     <span class="tab-indicator" aria-hidden="true"></span>
-    <button class="tab-btn active" data-tab="assets" onclick="tabClick(this)">资产管理</button>
-    <button class="tab-btn" data-tab="categories" onclick="tabClick(this)">分类管理</button>
-    <button class="tab-btn" data-tab="chart" onclick="tabClick(this)">资产分布</button>
-    <button class="tab-btn" data-tab="history" onclick="tabClick(this)">历史净值</button>
-    <button class="tab-btn" data-tab="income" onclick="tabClick(this)">收益测算</button>
+    <button class="tab-btn active" data-tab="assets" onclick="tabClick(this)" data-i18n="资产管理">资产管理</button>
+    <button class="tab-btn" data-tab="categories" onclick="tabClick(this)" data-i18n="分类管理">分类管理</button>
+    <button class="tab-btn" data-tab="chart" onclick="tabClick(this)" data-i18n="资产分布">资产分布</button>
+    <button class="tab-btn" data-tab="history" onclick="tabClick(this)" data-i18n="历史净值">历史净值</button>
+    <button class="tab-btn" data-tab="income" onclick="tabClick(this)" data-i18n="收益测算">收益测算</button>
   </div>
 </div>
 
@@ -1355,10 +1355,10 @@ tailwind.config = {
 <div id="tabs-expenses" class="content-column">
   <div class="tab-bar">
     <span class="tab-indicator" aria-hidden="true"></span>
-    <button class="tab-btn active" data-tab="expenses" onclick="tabClick(this)">消费记录</button>
-    <button class="tab-btn" data-tab="expense-categories" onclick="tabClick(this)">分类管理</button>
-    <button class="tab-btn" data-tab="expense-chart" onclick="tabClick(this)">消费分布</button>
-    <button class="tab-btn" data-tab="expense-trend" onclick="tabClick(this)">消费趋势</button>
+    <button class="tab-btn active" data-tab="expenses" onclick="tabClick(this)" data-i18n="消费记录">消费记录</button>
+    <button class="tab-btn" data-tab="expense-categories" onclick="tabClick(this)" data-i18n="分类管理">分类管理</button>
+    <button class="tab-btn" data-tab="expense-chart" onclick="tabClick(this)" data-i18n="消费分布">消费分布</button>
+    <button class="tab-btn" data-tab="expense-trend" onclick="tabClick(this)" data-i18n="消费趋势">消费趋势</button>
   </div>
 </div>
 
@@ -1373,10 +1373,10 @@ tailwind.config = {
       <div class="masthead mb-6 card">
         <div class="flex items-start justify-between gap-4 flex-wrap">
           <div class="min-w-0">
-            <p class="masthead-eyebrow"><span class="live-dot"></span><span>净资产 · 截至 <span id="masthead-date">—</span></span></p>
+            <p class="masthead-eyebrow"><span class="live-dot"></span><span data-i18n="净资产 · 截至">净资产 · 截至</span> <span id="masthead-date">—</span></span></p>
             <p class="masthead-amount"><span class="currency-mark">¥</span><span class="whole" id="masthead-whole">0</span><span class="cents" id="masthead-cents">.00</span></p>
           </div>
-          <button onclick="openAssetModal()" class="btn-gold" style="align-self:center;">＋ 登记资产</button>
+          <button onclick="openAssetModal()" class="btn-gold" style="align-self:center;" data-i18n="＋ 登记资产">＋ 登记资产</button>
         </div>
         <div class="composition-rule" id="composition-rule" aria-hidden="true">
           <span class="seg-cny" style="flex-grow:1"></span><span class="seg-hkd" style="flex-grow:0"></span><span class="seg-usd" style="flex-grow:0"></span>
@@ -1391,24 +1391,24 @@ tailwind.config = {
            历史快照是历史事实（深拷贝了当时的资产），**不随补齐回填**——面板顶部有说明。 -->
       <div id="tagcheck-bar-assets" class="tagcheck-bar" style="display:none;">
         <span class="tagcheck-text"></span>
-        <button type="button" class="row-btn edit" onclick="openTagCheck('asset')">去校验</button>
+        <button type="button" class="row-btn edit" onclick="openTagCheck('asset')" data-i18n="去校验">去校验</button>
       </div>
 
       <div id="assets-empty" class="card empty-state" style="display:none;">
       <div class="empty-rule"></div>
-      <p class="empty-title">还没有资产记录</p>
-      <p class="empty-sub">点击「登记资产」或导入示例数据开始</p>
-      <div class="empty-action"><button onclick="loadDemoData()" class="btn-ghost">导入示例数据</button></div>
+      <p class="empty-title" data-i18n="还没有资产记录">还没有资产记录</p>
+      <p class="empty-sub" data-i18n="点击「登记资产」或导入示例数据开始">点击「登记资产」或导入示例数据开始</p>
+      <div class="empty-action"><button onclick="loadDemoData()" class="btn-ghost" data-i18n="导入示例数据">导入示例数据</button></div>
     </div>
 
     <div id="assets-list" class="card">
       <div class="asset-row grid-wide list-head">
         <div></div>
-        <div onclick="toggleSort('name')" role="button" tabindex="0" aria-sort="none" onkeydown="if(ui.activateKeyAction(event.key)){event.preventDefault();toggleSort('name');}" class="row-hit">名称<span class="sort-indicator" id="sort-name"></span></div>
-        <div class="num row-hit" onclick="toggleSort('amount')" role="button" tabindex="0" aria-sort="none" onkeydown="if(ui.activateKeyAction(event.key)){event.preventDefault();toggleSort('amount');}">金额<span class="sort-indicator" id="sort-amount"></span></div>
-        <div onclick="toggleSort('currency')" role="button" tabindex="0" aria-sort="none" onkeydown="if(ui.activateKeyAction(event.key)){event.preventDefault();toggleSort('currency');}" class="row-hit">货币<span class="sort-indicator" id="sort-currency"></span></div>
-        <div class="num row-hit" onclick="toggleSort('cny')" role="button" tabindex="0" aria-sort="none" onkeydown="if(ui.activateKeyAction(event.key)){event.preventDefault();toggleSort('cny');}">金额 (CNY)<span class="sort-indicator" id="sort-cny"></span></div>
-        <div class="num">预期年化</div><div>标签</div><div></div>
+        <div onclick="toggleSort('name')" role="button" tabindex="0" aria-sort="none" onkeydown="if(ui.activateKeyAction(event.key)){event.preventDefault();toggleSort('name');}" class="row-hit"><span data-i18n="名称">名称</span><span class="sort-indicator" id="sort-name"></span></div>
+        <div class="num row-hit" onclick="toggleSort('amount')" role="button" tabindex="0" aria-sort="none" onkeydown="if(ui.activateKeyAction(event.key)){event.preventDefault();toggleSort('amount');}"><span data-i18n="金额">金额</span><span class="sort-indicator" id="sort-amount"></span></div>
+        <div onclick="toggleSort('currency')" role="button" tabindex="0" aria-sort="none" onkeydown="if(ui.activateKeyAction(event.key)){event.preventDefault();toggleSort('currency');}" class="row-hit"><span data-i18n="货币">货币</span><span class="sort-indicator" id="sort-currency"></span></div>
+        <div class="num row-hit" onclick="toggleSort('cny')" role="button" tabindex="0" aria-sort="none" onkeydown="if(ui.activateKeyAction(event.key)){event.preventDefault();toggleSort('cny');}"><span data-i18n="金额 (CNY)">金额 (CNY)</span><span class="sort-indicator" id="sort-cny"></span></div>
+        <div class="num" data-i18n="预期年化">预期年化</div><div data-i18n="标签">标签</div><div></div>
       </div>
       <div id="assets-rows" ondragover="onAssetDragOver(event)" ondrop="onAssetDrop(event)"></div>
     </div>
@@ -1418,11 +1418,11 @@ tailwind.config = {
   <section id="tab-categories" style="display:none;">
     <div class="section-head mb-6">
       <div>
-        <span class="eyebrow">维度与标签</span>
-        <h2 class="font-display">分类管理</h2>
-        <p class="sub">管理资产的分类与标签</p>
+        <span class="eyebrow" data-i18n="维度与标签">维度与标签</span>
+        <h2 class="font-display" data-i18n="分类管理">分类管理</h2>
+        <p class="sub" data-i18n="管理资产的分类与标签">管理资产的分类与标签</p>
       </div>
-      <button onclick="openCategoryModal(this.dataset.side)" data-side="asset" class="btn-gold">＋ 新增分类</button>
+      <button onclick="openCategoryModal(this.dataset.side)" data-side="asset" class="btn-gold" data-i18n="＋ 新增分类">＋ 新增分类</button>
     </div>
     <div id="categories-list" class="space-y-4"></div>
   </section>
@@ -1431,24 +1431,24 @@ tailwind.config = {
   <section id="tab-chart" style="display:none;">
     <div class="section-head mb-6">
       <div>
-        <span class="eyebrow">结构视图</span>
-        <h2 class="font-display">资产分布</h2>
-        <p class="sub">按分类维度查看资产分布（已换算 CNY）</p>
+        <span class="eyebrow" data-i18n="结构视图">结构视图</span>
+        <h2 class="font-display" data-i18n="资产分布">资产分布</h2>
+        <p class="sub" data-i18n="按分类维度查看资产分布（已换算 CNY）">按分类维度查看资产分布（已换算 CNY）</p>
       </div>
-      <select id="chart-category-select" onchange="renderChart()" class="select-field" aria-label="资产分布分类维度">
+      <select id="chart-category-select" onchange="renderChart()" class="select-field" aria-label="资产分布分类维度" data-i18n-aria-label="资产分布分类维度">
       </select>
     </div>
     <div class="card">
       <p class="chart-total" id="chart-total"></p>
       <div class="chart-split">
         <div class="chart-canvas"><div id="sunburst-chart"></div></div>
-        <div><p class="chart-legend-head" id="chart-legend-head"><span class="meta-label muted">构成</span></p><div class="chart-legend" id="chart-legend"></div></div>
+        <div><p class="chart-legend-head" id="chart-legend-head"><span class="meta-label muted" data-i18n="构成">构成</span></p><div class="chart-legend" id="chart-legend"></div></div>
       </div>
       <div id="chart-empty" class="empty-state" style="display:none;">
         <div class="empty-rule"></div>
-        <p class="empty-title">还没有资产记录</p>
-        <p class="empty-sub">登记资产后，这里会按维度展示资产构成</p>
-        <div class="empty-action"><button onclick="switchTab('assets')" class="btn-ghost">去登记资产</button></div>
+        <p class="empty-title" data-i18n="还没有资产记录">还没有资产记录</p>
+        <p class="empty-sub" data-i18n="登记资产后，这里会按维度展示资产构成">登记资产后，这里会按维度展示资产构成</p>
+        <div class="empty-action"><button onclick="switchTab('assets')" class="btn-ghost" data-i18n="去登记资产">去登记资产</button></div>
       </div>
     </div>
   </section>
@@ -1457,28 +1457,28 @@ tailwind.config = {
   <section id="tab-history" style="display:none;">
     <div class="section-head mb-6">
       <div>
-        <span class="eyebrow">月度快照</span>
-        <h2 class="font-display">历史净值</h2>
-        <p class="sub">记录每月快照，看净值趋势</p>
+        <span class="eyebrow" data-i18n="月度快照">月度快照</span>
+        <h2 class="font-display" data-i18n="历史净值">历史净值</h2>
+        <p class="sub" data-i18n="记录每月快照，看净值趋势">记录每月快照，看净值趋势</p>
       </div>
       <div class="toolbar">
-        <select id="history-category-select" onchange="renderHistoryChart()" class="select-field" aria-label="历史净值分类维度"></select>
+        <select id="history-category-select" onchange="renderHistoryChart()" class="select-field" aria-label="历史净值分类维度" data-i18n-aria-label="历史净值分类维度"></select>
         <div class="seg-control">
-          <button id="hist-mode-value" onclick="setHistoryChartMode('value')" class="seg-btn active">金额</button>
-          <button id="hist-mode-percent" onclick="setHistoryChartMode('percent')" class="seg-btn">占比</button>
+          <button id="hist-mode-value" onclick="setHistoryChartMode('value')" class="seg-btn active" data-i18n="金额">金额</button>
+          <button id="hist-mode-percent" onclick="setHistoryChartMode('percent')" class="seg-btn" data-i18n="占比">占比</button>
         </div>
-        <button onclick="openCompareModal()" class="btn-ghost">对比快照</button>
+        <button onclick="openCompareModal()" class="btn-ghost" data-i18n="对比快照">对比快照</button>
         <div id="history-record-area"></div>
       </div>
     </div>
     <div class="card mb-6">
       <div id="history-chart" style="width:100%; height:420px;"></div>
-      <p class="t-micro mt-2 muted">点击柱中色块，可展开该月该标签的构成明细</p>
+      <p class="t-micro mt-2 muted" data-i18n="点击柱中色块，可展开该月该标签的构成明细">点击柱中色块，可展开该月该标签的构成明细</p>
       <div id="history-empty" class="empty-state" style="display:none;">
         <div class="empty-rule"></div>
-        <p class="empty-title">还没有月度快照</p>
-        <p class="empty-sub">每月点击「记录快照」留存一次净值；至少两个月才能显示趋势</p>
-        <div class="empty-action"><button onclick="takeSnapshot()" class="btn-ghost">记录快照</button></div>
+        <p class="empty-title" data-i18n="还没有月度快照">还没有月度快照</p>
+        <p class="empty-sub" data-i18n="每月点击「记录快照」留存一次净值；至少两个月才能显示趋势">每月点击「记录快照」留存一次净值；至少两个月才能显示趋势</p>
+        <div class="empty-action"><button onclick="takeSnapshot()" class="btn-ghost" data-i18n="记录快照">记录快照</button></div>
       </div>
     </div>
     <div id="snapshots-list"></div>
@@ -1488,59 +1488,59 @@ tailwind.config = {
   <section id="tab-income" style="display:none;">
     <div class="section-head mb-6">
       <div>
-        <span class="eyebrow">收益预估</span>
-        <h2 class="font-display">收益测算</h2>
-        <p class="sub">按资产金额与预期年利率测算收益</p>
+        <span class="eyebrow" data-i18n="收益预估">收益预估</span>
+        <h2 class="font-display" data-i18n="收益测算">收益测算</h2>
+        <p class="sub" data-i18n="按资产金额与预期年利率测算收益">按资产金额与预期年利率测算收益</p>
       </div>
     </div>
     <div class="flex items-center justify-between mb-4 gap-3 flex-wrap">
       <div id="income-mode-toggle" style="display:none;" class="seg-control">
-        <button id="income-mode-min" onclick="setIncomeMode('min')" class="seg-btn active">使用最低</button>
-        <button id="income-mode-max" onclick="setIncomeMode('max')" class="seg-btn">使用最高</button>
+        <button id="income-mode-min" onclick="setIncomeMode('min')" class="seg-btn active" data-i18n="使用最低">使用最低</button>
+        <button id="income-mode-max" onclick="setIncomeMode('max')" class="seg-btn" data-i18n="使用最高">使用最高</button>
       </div>
       <label class="safety-control" for="income-safety-input">
-        <span class="safety-label">安全边际</span>
-        <input type="range" id="income-safety-input" class="scale-input" min="1" max="100" step="1" value="100" aria-label="安全边际因子（百分比）" oninput="onIncomeSafetyInput()">
+        <span class="safety-label" data-i18n="安全边际">安全边际</span>
+        <input type="range" id="income-safety-input" class="scale-input" min="1" max="100" step="1" value="100" aria-label="安全边际因子（百分比）" data-i18n-aria-label="安全边际因子（百分比）" oninput="onIncomeSafetyInput()">
         <span class="scale-reading" id="income-safety-readout">100%</span>
       </label>
     </div>
     <div id="income-empty" class="card empty-state">
       <div class="empty-rule"></div>
-      <p class="empty-title">暂无收益测算数据</p>
-      <p class="empty-sub">在「资产管理」中登记资产并填写预期年利率，这里会显示收益测算。</p>
-      <div class="empty-action"><button onclick="switchTab('assets')" class="btn-ghost">去资产管理</button></div>
+      <p class="empty-title" data-i18n="暂无收益测算数据">暂无收益测算数据</p>
+      <p class="empty-sub" data-i18n="在「资产管理」中登记资产并填写预期年利率，这里会显示收益测算。">在「资产管理」中登记资产并填写预期年利率，这里会显示收益测算。</p>
+      <div class="empty-action"><button onclick="switchTab('assets')" class="btn-ghost" data-i18n="去资产管理">去资产管理</button></div>
     </div>
     <div id="income-summary" class="card mb-6" style="display:none;">
       <div class="grid grid-cols-2 text-center items-center" style="padding:4px 0;">
         <div>
-          <p class="meta-label mb-1 muted">总收益 · 月</p>
+          <p class="meta-label mb-1 muted" data-i18n="总收益 · 月">总收益 · 月</p>
           <p id="income-monthly" class="font-masthead tabular hero-figure ink-up">¥0</p>
         </div>
         <div style="border-left:1px solid var(--rule);">
-          <p class="meta-label mb-1 muted">现金收益 · 月</p>
+          <p class="meta-label mb-1 muted" data-i18n="现金收益 · 月">现金收益 · 月</p>
           <p id="income-cash-monthly" class="font-masthead tabular hero-figure ink-accent">¥0</p>
         </div>
       </div>
       <div class="flex flex-wrap justify-center gap-x-6 gap-y-1 t-micro mt-3 pt-3 muted" style="border-top:1px dashed var(--rule);">
-        <span>年 <span id="income-annual" class="tabular t-medium text-value">¥0</span></span>
-        <span>日 <span id="income-daily" class="tabular t-medium text-value">¥0</span></span>
-        <span>现金占比 <span id="income-cash-share" class="tabular t-medium ink-accent">—</span></span>
+        <span data-i18n="年">年</span> <span id="income-annual" class="tabular t-medium text-value">¥0</span></span>
+        <span data-i18n="日">日</span> <span id="income-daily" class="tabular t-medium text-value">¥0</span></span>
+        <span data-i18n="现金占比">现金占比</span> <span id="income-cash-share" class="tabular t-medium ink-accent">—</span></span>
       </div>
       <!-- 覆盖标尺: 未设预期消费时显示邀请, 已设则显示覆盖标尺（骨架静态存在, JS 只同步宽度与文案,
            保证安全边际滑块拖动时填充/菱形以过渡动画伸缩） -->
       <div id="cov-invite" class="t-micro text-center mt-3 pt-3 muted" style="display:none;border-top:1px dashed var(--rule);">
-        设定预期月消费，看看收益能否覆盖日常开销<button type="button" onclick="openExpectationModal()" class="btn-ghost btn-xs ml-2">设定</button>
+        <span data-i18n="设定预期月消费，看看收益能否覆盖日常开销">设定预期月消费，看看收益能否覆盖日常开销</span><button type="button" onclick="openExpectationModal()" class="btn-ghost btn-xs ml-2" data-i18n="设定">设定</button>
       </div>
       <div id="cov-section" class="cov-section" style="display:none;">
         <div class="cov-label-row">
           <!-- 分子口径内嵌在公式里: 切换即换算式主语 -->
           <div class="seg-control">
-            <button type="button" id="cov-mode-total" onclick="setCoverageMode('total')" class="seg-btn active">总收益</button>
-            <button type="button" id="cov-mode-cash" onclick="setCoverageMode('cash')" class="seg-btn">现金收益</button>
+            <button type="button" id="cov-mode-total" onclick="setCoverageMode('total')" class="seg-btn active" data-i18n="总收益">总收益</button>
+            <button type="button" id="cov-mode-cash" onclick="setCoverageMode('cash')" class="seg-btn" data-i18n="现金收益">现金收益</button>
           </div>
-          <p class="cov-label">÷ 预期月消费</p>
+          <p class="cov-label" data-i18n="÷ 预期月消费">÷ 预期月消费</p>
           <!-- 设定后的唯一再入口: 重开预期弹窗, 修改与清除均在弹窗内完成 -->
-          <button type="button" onclick="openExpectationModal()" class="btn-ghost btn-xs">修改</button>
+          <button type="button" onclick="openExpectationModal()" class="btn-ghost btn-xs" data-i18n="修改">修改</button>
         </div>
         <div class="cov-track">
           <div class="cov-fill" id="cov-fill"></div>
@@ -1561,18 +1561,18 @@ tailwind.config = {
     </div>
     <div id="income-chart-container" class="card mt-6" style="display:none;">
       <div class="flex items-center justify-between mb-4">
-        <h3 class="font-display t-body t-bold">收益分布</h3>
+        <h3 class="font-display t-body t-bold" data-i18n="收益分布">收益分布</h3>
         <div class="toolbar">
           <div class="seg-control">
-            <button id="income-chart-mode-cash" onclick="setIncomeChartMode('cash')" class="seg-btn active">现金收益</button>
-            <button id="income-chart-mode-total" onclick="setIncomeChartMode('total')" class="seg-btn">总收益</button>
+            <button id="income-chart-mode-cash" onclick="setIncomeChartMode('cash')" class="seg-btn active" data-i18n="现金收益">现金收益</button>
+            <button id="income-chart-mode-total" onclick="setIncomeChartMode('total')" class="seg-btn" data-i18n="总收益">总收益</button>
           </div>
-          <select id="income-chart-category-select" onchange="renderIncomeChart()" class="select-field" aria-label="收益分布分类维度"></select>
+          <select id="income-chart-category-select" onchange="renderIncomeChart()" class="select-field" aria-label="收益分布分类维度" data-i18n-aria-label="收益分布分类维度"></select>
         </div>
       </div>
       <div class="chart-split">
         <div class="chart-canvas chart-canvas-compact"><div id="income-chart"></div></div>
-        <div><p class="chart-legend-head" id="income-chart-legend-head"><span class="meta-label muted">构成</span></p><div class="chart-legend" id="income-chart-legend"></div></div>
+        <div><p class="chart-legend-head" id="income-chart-legend-head"><span class="meta-label muted" data-i18n="构成">构成</span></p><div class="chart-legend" id="income-chart-legend"></div></div>
       </div>
     </div>
     </section>
@@ -1585,43 +1585,43 @@ tailwind.config = {
     <section id="tab-expenses">
       <div class="section-head mb-6">
         <div>
-          <span class="eyebrow">月度消费</span>
-          <h2 class="font-display">消费记录</h2>
+          <span class="eyebrow" data-i18n="月度消费">月度消费</span>
+          <h2 class="font-display" data-i18n="消费记录">消费记录</h2>
           <p class="sub" id="expense-total-line"></p>
         </div>
         <div class="toolbar">
           <span class="search-wrap">
             <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><line x1="10.5" y1="10.5" x2="14" y2="14"/></svg>
-            <input type="text" id="expense-search" placeholder="搜索备注 / 标签 / 分类" class="t-body" autocomplete="off" oninput="setExpenseFilter({query:this.value})" onkeydown="if(event.key==='Escape')clearExpenseSearch()">
-            <button type="button" id="expense-search-clear" class="search-clear" onclick="clearExpenseSearch()" tabindex="-1" aria-label="清除搜索" style="display:none;">×</button>
+            <input type="text" id="expense-search" placeholder="搜索备注 / 标签 / 分类" data-i18n-placeholder="搜索备注 / 标签 / 分类" class="t-body" autocomplete="off" oninput="setExpenseFilter({query:this.value})" onkeydown="if(event.key==='Escape')clearExpenseSearch()">
+            <button type="button" id="expense-search-clear" class="search-clear" onclick="clearExpenseSearch()" tabindex="-1" aria-label="清除搜索" data-i18n-aria-label="清除搜索" style="display:none;">×</button>
           </span>
-          <select id="expense-month-filter" onchange="setExpenseFilter({month:this.value})" class="select-field" aria-label="消费月份筛选"></select>
-          <select id="expense-tag-filter" onchange="setExpenseFilter({tag:this.value})" class="select-field" aria-label="按标签筛选"></select>
-          <button onclick="openExpenseModal()" class="btn-gold">＋ 记录消费</button>
+          <select id="expense-month-filter" onchange="setExpenseFilter({month:this.value})" class="select-field" aria-label="消费月份筛选" data-i18n-aria-label="消费月份筛选"></select>
+          <select id="expense-tag-filter" onchange="setExpenseFilter({tag:this.value})" class="select-field" aria-label="按标签筛选" data-i18n-aria-label="按标签筛选"></select>
+          <button onclick="openExpenseModal()" class="btn-gold" data-i18n="＋ 记录消费">＋ 记录消费</button>
         </div>
       </div>
 
       <!-- 数据校验条（消费侧）：有分类未归类记录时才出现（renderTagCheckBar 唯一写入点） -->
       <div id="tagcheck-bar-expense" class="tagcheck-bar" style="display:none;">
         <span class="tagcheck-text"></span>
-        <button type="button" class="row-btn edit" onclick="openTagCheck('expense')">去校验</button>
+        <button type="button" class="row-btn edit" onclick="openTagCheck('expense')" data-i18n="去校验">去校验</button>
       </div>
 
       <div id="expenses-empty" class="card empty-state" style="display:none;">
         <div class="empty-rule"></div>
-        <p id="expenses-empty-title" class="empty-title">还没有消费记录</p>
-        <p id="expenses-empty-sub" class="empty-sub">点击「记录消费」或导入示例数据开始</p>
+        <p id="expenses-empty-title" class="empty-title" data-i18n="还没有消费记录">还没有消费记录</p>
+        <p id="expenses-empty-sub" class="empty-sub" data-i18n="点击「记录消费」或导入示例数据开始">点击「记录消费」或导入示例数据开始</p>
         <div class="empty-action">
-          <button id="expenses-empty-demo" onclick="loadExpenseDemoData()" class="btn-ghost">导入示例消费数据</button>
-          <button id="expenses-empty-clear" onclick="clearExpenseFilters()" class="btn-ghost" style="display:none;">清除筛选</button>
+          <button id="expenses-empty-demo" onclick="loadExpenseDemoData()" class="btn-ghost" data-i18n="导入示例消费数据">导入示例消费数据</button>
+          <button id="expenses-empty-clear" onclick="clearExpenseFilters()" class="btn-ghost" style="display:none;" data-i18n="清除筛选">清除筛选</button>
         </div>
       </div>
 
       <div id="expenses-list" class="card">
         <div class="asset-row list-head cols-expenses">
-          <div onclick="toggleExpenseSort('date')" role="button" tabindex="0" aria-sort="none" onkeydown="if(ui.activateKeyAction(event.key)){event.preventDefault();toggleExpenseSort('date');}" class="row-hit">日期<span class="sort-indicator" id="expense-sort-date"></span></div>
-          <div class="num row-hit" onclick="toggleExpenseSort('amount')" role="button" tabindex="0" aria-sort="none" onkeydown="if(ui.activateKeyAction(event.key)){event.preventDefault();toggleExpenseSort('amount');}">金额<span class="sort-indicator" id="expense-sort-amount"></span></div>
-          <div>备注</div><div>标签</div><div></div>
+          <div onclick="toggleExpenseSort('date')" role="button" tabindex="0" aria-sort="none" onkeydown="if(ui.activateKeyAction(event.key)){event.preventDefault();toggleExpenseSort('date');}" class="row-hit"><span data-i18n="日期">日期</span><span class="sort-indicator" id="expense-sort-date"></span></div>
+          <div class="num row-hit" onclick="toggleExpenseSort('amount')" role="button" tabindex="0" aria-sort="none" onkeydown="if(ui.activateKeyAction(event.key)){event.preventDefault();toggleExpenseSort('amount');}"><span data-i18n="金额">金额</span><span class="sort-indicator" id="expense-sort-amount"></span></div>
+          <div data-i18n="备注">备注</div><div data-i18n="标签">标签</div><div></div>
         </div>
         <div id="expenses-rows"></div>
       </div>
@@ -1631,11 +1631,11 @@ tailwind.config = {
     <section id="tab-expense-categories" style="display:none;">
       <div class="section-head mb-6">
         <div>
-          <span class="eyebrow">维度与标签</span>
-          <h2 class="font-display">消费分类管理</h2>
-          <p class="sub">管理消费的分类与标签</p>
+          <span class="eyebrow" data-i18n="维度与标签">维度与标签</span>
+          <h2 class="font-display" data-i18n="消费分类管理">消费分类管理</h2>
+          <p class="sub" data-i18n="管理消费的分类与标签">管理消费的分类与标签</p>
         </div>
-        <button onclick="openCategoryModal(this.dataset.side)" data-side="expense" class="btn-gold">＋ 新增分类</button>
+        <button onclick="openCategoryModal(this.dataset.side)" data-side="expense" class="btn-gold" data-i18n="＋ 新增分类">＋ 新增分类</button>
       </div>
       <div id="expense-categories-list" class="space-y-4"></div>
     </section>
@@ -1644,26 +1644,26 @@ tailwind.config = {
     <section id="tab-expense-chart" style="display:none;">
       <div class="section-head mb-6">
         <div>
-          <span class="eyebrow">结构视图</span>
-          <h2 class="font-display">消费分布</h2>
-          <p class="sub">按分类维度和月份查看消费分布</p>
+          <span class="eyebrow" data-i18n="结构视图">结构视图</span>
+          <h2 class="font-display" data-i18n="消费分布">消费分布</h2>
+          <p class="sub" data-i18n="按分类维度和月份查看消费分布">按分类维度和月份查看消费分布</p>
         </div>
         <div class="toolbar">
-          <select id="expense-chart-month-select" onchange="renderExpenseChart()" class="select-field" aria-label="消费分布月份"></select>
-          <select id="expense-chart-category-select" onchange="renderExpenseChart()" class="select-field" aria-label="消费分布分类维度"></select>
+          <select id="expense-chart-month-select" onchange="renderExpenseChart()" class="select-field" aria-label="消费分布月份" data-i18n-aria-label="消费分布月份"></select>
+          <select id="expense-chart-category-select" onchange="renderExpenseChart()" class="select-field" aria-label="消费分布分类维度" data-i18n-aria-label="消费分布分类维度"></select>
         </div>
       </div>
       <div class="card">
         <p class="chart-total" id="expense-chart-total"></p>
         <div class="chart-split">
           <div class="chart-canvas"><div id="expense-sunburst-chart"></div></div>
-          <div><p class="chart-legend-head" id="expense-chart-legend-head"><span class="meta-label muted">构成</span></p><div class="chart-legend" id="expense-chart-legend"></div></div>
+          <div><p class="chart-legend-head" id="expense-chart-legend-head"><span class="meta-label muted" data-i18n="构成">构成</span></p><div class="chart-legend" id="expense-chart-legend"></div></div>
         </div>
         <div id="expense-chart-empty" class="empty-state" style="display:none;">
           <div class="empty-rule"></div>
-          <p class="empty-title">还没有消费记录</p>
-          <p class="empty-sub">记录消费后，这里会展示分类占比</p>
-          <div class="empty-action"><button onclick="switchTab('expenses')" class="btn-ghost">去记录消费</button></div>
+          <p class="empty-title" data-i18n="还没有消费记录">还没有消费记录</p>
+          <p class="empty-sub" data-i18n="记录消费后，这里会展示分类占比">记录消费后，这里会展示分类占比</p>
+          <div class="empty-action"><button onclick="switchTab('expenses')" class="btn-ghost" data-i18n="去记录消费">去记录消费</button></div>
         </div>
       </div>
     </section>
@@ -1672,28 +1672,28 @@ tailwind.config = {
     <section id="tab-expense-trend" style="display:none;">
       <div class="section-head mb-6">
         <div>
-          <span class="eyebrow">趋势分析</span>
-          <h2 class="font-display">消费趋势</h2>
-          <p class="sub">按月查看消费趋势</p>
+          <span class="eyebrow" data-i18n="趋势分析">趋势分析</span>
+          <h2 class="font-display" data-i18n="消费趋势">消费趋势</h2>
+          <p class="sub" data-i18n="按月查看消费趋势">按月查看消费趋势</p>
         </div>
         <div class="toolbar">
-          <select id="expense-trend-category-select" onchange="renderExpenseTrendChart()" class="select-field" aria-label="消费趋势分类维度"></select>
+          <select id="expense-trend-category-select" onchange="renderExpenseTrendChart()" class="select-field" aria-label="消费趋势分类维度" data-i18n-aria-label="消费趋势分类维度"></select>
           <div class="seg-control">
-            <button id="expense-trend-mode-value" onclick="setExpenseTrendMode('value')" class="seg-btn active">金额</button>
-            <button id="expense-trend-mode-percent" onclick="setExpenseTrendMode('percent')" class="seg-btn">占比</button>
+            <button id="expense-trend-mode-value" onclick="setExpenseTrendMode('value')" class="seg-btn active" data-i18n="金额">金额</button>
+            <button id="expense-trend-mode-percent" onclick="setExpenseTrendMode('percent')" class="seg-btn" data-i18n="占比">占比</button>
           </div>
-          <button onclick="openExpenseCompareModal()" class="btn-ghost btn-sm">对比两月</button>
-          <button id="expense-expectation-btn" onclick="openExpectationModal()" class="btn-ghost btn-sm">预期消费</button>
+          <button onclick="openExpenseCompareModal()" class="btn-ghost btn-sm" data-i18n="对比两月">对比两月</button>
+          <button id="expense-expectation-btn" onclick="openExpectationModal()" class="btn-ghost btn-sm" data-i18n="预期消费">预期消费</button>
         </div>
       </div>
       <div class="card mb-6">
         <div id="expense-trend-chart" style="width:100%; height:420px;"></div>
-        <p class="t-micro mt-2 muted">点击柱中色块，可展开该月该标签的构成明细</p>
+        <p class="t-micro mt-2 muted" data-i18n="点击柱中色块，可展开该月该标签的构成明细">点击柱中色块，可展开该月该标签的构成明细</p>
         <div id="expense-trend-empty" class="empty-state" style="display:none;">
           <div class="empty-rule"></div>
-          <p class="empty-title">还没有消费记录</p>
-          <p class="empty-sub">记录消费后，这里会按月展示消费趋势</p>
-          <div class="empty-action"><button onclick="switchTab('expenses')" class="btn-ghost">去记录消费</button></div>
+          <p class="empty-title" data-i18n="还没有消费记录">还没有消费记录</p>
+          <p class="empty-sub" data-i18n="记录消费后，这里会按月展示消费趋势">记录消费后，这里会按月展示消费趋势</p>
+          <div class="empty-action"><button onclick="switchTab('expenses')" class="btn-ghost" data-i18n="去记录消费">去记录消费</button></div>
         </div>
       </div>
       <!-- 本月已花 ÷ 预期月消费: 与「所选标签读数卡」同依附「预期月消费」这条参考线, 先近（本月）后远（长期）。
@@ -1704,7 +1704,7 @@ tailwind.config = {
            公式直呈现, 骨架静态存在, JS 只同步文案;
            未设预期消费时整张卡不显示（入口即上方「预期消费」按钮） -->
       <div id="month-pace-card" class="card mb-6" style="display:none;">
-        <p class="cov-label text-center mb-3">本月已花 ÷ 预期月消费</p>
+        <p class="cov-label text-center mb-3" data-i18n="本月已花 ÷ 预期月消费">本月已花 ÷ 预期月消费</p>
         <p class="pace-hero">
           <span id="pace-num" class="tabular"></span>
           <span class="pace-hero-div">÷</span>
@@ -1725,16 +1725,16 @@ tailwind.config = {
            卡内没有入口无从填起, 故卡内自定值不放行） -->
       <div id="runway-card" class="card mb-6" style="display:none;">
         <p id="runway-guide" class="t-micro text-center muted" style="display:none;">
-          选几个标签、填月消费，看看这些钱能撑几个月<button type="button" onclick="openRunwayModal()" class="btn-ghost btn-xs ml-2">标签与月消费</button>
+          <span data-i18n="选几个标签、填月消费，看看这些钱能撑几个月">选几个标签、填月消费，看看这些钱能撑几个月</span><button type="button" onclick="openRunwayModal()" class="btn-ghost btn-xs ml-2" data-i18n="标签与月消费">标签与月消费</button>
         </p>
         <p class="cov-reading runway-line" id="runway-reading" style="display:none;">
           <span id="runway-tags-label"></span>
           <span id="runway-num" class="tabular readout-strong"></span>
-          <span>÷ <span id="runway-expense-name">预期月消费</span></span>
+          <span>÷ <span id="runway-expense-name" data-i18n="预期月消费">预期月消费</span></span>
           <span id="runway-expense" class="tabular"></span>
           <span>=</span>
           <span id="runway-months" class="tabular readout-strong ink-accent"></span>
-          <button type="button" onclick="openRunwayModal()" class="btn-ghost btn-xs">标签与月消费</button>
+          <button type="button" onclick="openRunwayModal()" class="btn-ghost btn-xs" data-i18n="标签与月消费">标签与月消费</button>
         </p>
       </div>
       <div id="expense-trend-list"></div>
@@ -1747,10 +1747,10 @@ tailwind.config = {
 <!-- Snapshot Detail Modal -->
 <div id="snapshot-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="snapshot-modal-title" style="display:none;">
   <div class="modal-content modal-xl">
-    <h3 class="font-display modal-title" id="snapshot-modal-title">快照详情</h3>
+    <h3 class="font-display modal-title" id="snapshot-modal-title" data-i18n="快照详情">快照详情</h3>
     <div id="snapshot-detail-content"></div>
     <div class="modal-footer">
-      <button type="button" onclick="closeModal('snapshot-modal')" class="btn-ghost">关闭</button>
+      <button type="button" onclick="closeModal('snapshot-modal')" class="btn-ghost" data-i18n="关闭">关闭</button>
     </div>
   </div>
 </div>
@@ -1758,27 +1758,27 @@ tailwind.config = {
 <!-- Snapshot Compare Modal -->
 <div id="compare-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="compare-modal-title" style="display:none;">
   <div class="modal-content modal-xl">
-    <h3 class="font-display modal-title" id="compare-modal-title">快照对比</h3>
+    <h3 class="font-display modal-title" id="compare-modal-title" data-i18n="快照对比">快照对比</h3>
     <div class="flex items-center gap-3 flex-wrap mb-6">
-      <label class="meta-label muted">起始月
+      <label class="meta-label muted"><span data-i18n="起始月">起始月</span>
         <select id="compare-base-select" onchange="renderCompareTable()" class="select-field ml-2"></select>
       </label>
       <span class="t-body muted">→</span>
-      <label class="meta-label muted">结束月
+      <label class="meta-label muted"><span data-i18n="结束月">结束月</span>
         <select id="compare-target-select" onchange="renderCompareTable()" class="select-field ml-2"></select>
       </label>
     </div>
     <div class="compare-hero-row">
       <div>
-        <span class="masthead-eyebrow">总净值变动</span>
+        <span class="masthead-eyebrow" data-i18n="总净值变动">总净值变动</span>
         <p id="compare-hero" class="font-masthead tabular hero-figure">—</p>
       </div>
       <p id="compare-context" class="t-micro text-right muted" style="padding-bottom:6px;"></p>
     </div>
-    <p class="t-micro mb-2 muted">金额按各快照当时汇率折算为 CNY</p>
+    <p class="t-micro mb-2 muted" data-i18n="金额按各快照当时汇率折算为 CNY">金额按各快照当时汇率折算为 CNY</p>
     <div id="compare-detail-content" style="overflow-x:auto;"></div>
     <div class="modal-footer">
-      <button type="button" onclick="closeModal('compare-modal')" class="btn-ghost">关闭</button>
+      <button type="button" onclick="closeModal('compare-modal')" class="btn-ghost" data-i18n="关闭">关闭</button>
     </div>
   </div>
 </div>
@@ -1786,30 +1786,30 @@ tailwind.config = {
 <!-- Expense Two-Month Compare Modal -->
 <div id="expense-compare-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="expense-compare-modal-title" style="display:none;">
   <div class="modal-content modal-xl">
-    <h3 class="font-display modal-title" id="expense-compare-modal-title">消费对比</h3>
+    <h3 class="font-display modal-title" id="expense-compare-modal-title" data-i18n="消费对比">消费对比</h3>
     <div class="flex items-center gap-3 flex-wrap mb-6">
-      <label class="meta-label muted">起始月
+      <label class="meta-label muted"><span data-i18n="起始月">起始月</span>
         <select id="exp-compare-base-select" onchange="renderExpenseCompareTable()" class="select-field ml-2"></select>
       </label>
       <span class="t-body muted">→</span>
-      <label class="meta-label muted">结束月
+      <label class="meta-label muted"><span data-i18n="结束月">结束月</span>
         <select id="exp-compare-target-select" onchange="renderExpenseCompareTable()" class="select-field ml-2"></select>
       </label>
-      <label class="meta-label muted">维度
+      <label class="meta-label muted"><span data-i18n="维度">维度</span>
         <select id="exp-compare-cat-select" onchange="renderExpenseCompareTable()" class="select-field ml-2"></select>
       </label>
     </div>
     <div class="compare-hero-row">
       <div>
-        <span class="masthead-eyebrow">总消费变动</span>
+        <span class="masthead-eyebrow" data-i18n="总消费变动">总消费变动</span>
         <p id="exp-compare-hero" class="font-masthead tabular hero-figure">—</p>
       </div>
       <p id="exp-compare-context" class="t-micro text-right muted" style="padding-bottom:6px;"></p>
     </div>
-    <p class="t-micro mb-2 muted">按所选维度逐标签拆分，金额单位为 CNY</p>
+    <p class="t-micro mb-2 muted" data-i18n="按所选维度逐标签拆分，金额单位为 CNY">按所选维度逐标签拆分，金额单位为 CNY</p>
     <div id="exp-compare-detail-content" style="overflow-x:auto;"></div>
     <div class="modal-footer">
-      <button type="button" onclick="closeModal('expense-compare-modal')" class="btn-ghost">关闭</button>
+      <button type="button" onclick="closeModal('expense-compare-modal')" class="btn-ghost" data-i18n="关闭">关闭</button>
     </div>
   </div>
 </div>
@@ -1817,12 +1817,12 @@ tailwind.config = {
 <!-- Snapshot Note Modal -->
 <div id="snapshot-note-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="snapshot-note-modal-title" style="display:none;">
   <div class="modal-content modal-sm">
-    <h3 class="font-display modal-title" id="snapshot-note-modal-title">记录快照</h3>
-    <p class="t-body mb-4 muted">将保存当前所有资产数据</p>
-    <input type="text" id="snapshot-note-input" class="w-full" placeholder="备注（可选）" autofocus onkeydown="if(event.key==='Enter')confirmSnapshot()">
+    <h3 class="font-display modal-title" id="snapshot-note-modal-title" data-i18n="记录快照">记录快照</h3>
+    <p class="t-body mb-4 muted" data-i18n="将保存当前所有资产数据">将保存当前所有资产数据</p>
+    <input type="text" id="snapshot-note-input" class="w-full" placeholder="备注（可选）" data-i18n-placeholder="备注（可选）" autofocus onkeydown="if(event.key==='Enter')confirmSnapshot()">
     <div class="modal-footer">
-      <button type="button" onclick="closeModal('snapshot-note-modal')" class="btn-ghost">取消</button>
-      <button type="button" onclick="confirmSnapshot()" class="btn-gold">确认快照</button>
+      <button type="button" onclick="closeModal('snapshot-note-modal')" class="btn-ghost" data-i18n="取消">取消</button>
+      <button type="button" onclick="confirmSnapshot()" class="btn-gold" data-i18n="确认快照">确认快照</button>
     </div>
   </div>
 </div>
@@ -1830,21 +1830,21 @@ tailwind.config = {
 <!-- Asset Modal -->
 <div id="asset-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="asset-modal-title" style="display:none;">
   <div class="modal-content">
-    <h3 class="font-display modal-title" id="asset-modal-title">登记资产</h3>
+    <h3 class="font-display modal-title" id="asset-modal-title" data-i18n="登记资产">登记资产</h3>
     <form id="asset-form" onsubmit="saveAsset(event)">
       <input type="hidden" id="asset-edit-id">
       <div class="space-y-4">
         <div>
-          <label class="field-label" for="asset-name">资产名称</label>
-          <input type="text" id="asset-name" required class="w-full" placeholder="如：招商银行活期">
+          <label class="field-label" for="asset-name" data-i18n="资产名称">资产名称</label>
+          <input type="text" id="asset-name" required class="w-full" placeholder="如：招商银行活期" data-i18n-placeholder="如：招商银行活期">
         </div>
         <div class="grid grid-cols-2 gap-4">
           <div>
-            <label class="field-label" for="asset-amount">金额</label>
+            <label class="field-label" for="asset-amount" data-i18n="金额">金额</label>
             <input type="text" id="asset-amount" required inputmode="decimal" class="w-full" placeholder="0.00" oninput="formatMoneyInput(this)" autocomplete="off">
           </div>
           <div>
-            <label class="field-label" for="asset-currency">货币</label>
+            <label class="field-label" for="asset-currency" data-i18n="货币">货币</label>
             <select id="asset-currency" class="w-full">
               <option value="CNY">CNY ¥</option>
               <option value="HKD">HKD $</option>
@@ -1853,33 +1853,33 @@ tailwind.config = {
           </div>
         </div>
         <div>
-          <label class="field-label" for="asset-rate-min">预期年化收益率 (%)</label>
+          <label class="field-label" for="asset-rate-min" data-i18n="预期年化收益率 (%)">预期年化收益率 (%)</label>
           <div class="flex items-center gap-2">
             <!-- step="any"：step="0.1" 会让 0.25% 这类两位小数利率命中原生 stepMismatch，
                  浏览器静默拦截 submit —— 用户点保存毫无反应也没有任何提示（演示数据的
                  0.25%/0.35% 即会触发）。步长在这里没有语义，交给 saveAsset 校验。 -->
-            <input type="number" id="asset-rate-min" min="0" step="any" class="w-full" placeholder="最低" value="0" aria-label="预期年化收益率下限 (%)">
+            <input type="number" id="asset-rate-min" min="0" step="any" class="w-full" placeholder="最低" data-i18n-placeholder="最低" value="0" aria-label="预期年化收益率下限 (%)" data-i18n-aria-label="预期年化收益率下限 (%)">
             <span class="muted">—</span>
-            <input type="number" id="asset-rate-max" min="0" step="any" class="w-full" placeholder="最高" value="0" aria-label="预期年化收益率上限 (%)">
+            <input type="number" id="asset-rate-max" min="0" step="any" class="w-full" placeholder="最高" data-i18n-placeholder="最高" value="0" aria-label="预期年化收益率上限 (%)" data-i18n-aria-label="预期年化收益率上限 (%)">
           </div>
         </div>
         <div>
           <div class="flex items-center justify-between mb-1.5">
-            <label class="field-label tight" for="asset-cash-ratio">现金比例 (%)</label>
+            <label class="field-label tight" for="asset-cash-ratio" data-i18n="现金比例 (%)">现金比例 (%)</label>
             <span class="scale-reading" id="asset-cash-ratio-readout">100%</span>
           </div>
           <div class="flex items-center gap-3">
-            <input type="range" id="asset-cash-ratio" class="scale-input flex-1" min="0" max="100" step="1" value="100" aria-label="现金比例（百分比）" oninput="onCashRatioInput()">
-            <button type="button" onclick="setCashRatioPreset(100)" class="btn-ghost btn-sm">全额现金</button>
-            <button type="button" onclick="setCashRatioPreset(0)" class="btn-ghost btn-sm">纯增值</button>
+            <input type="range" id="asset-cash-ratio" class="scale-input flex-1" min="0" max="100" step="1" value="100" aria-label="现金比例（百分比）" data-i18n-aria-label="现金比例（百分比）" oninput="onCashRatioInput()">
+            <button type="button" onclick="setCashRatioPreset(100)" class="btn-ghost btn-sm" data-i18n="全额现金">全额现金</button>
+            <button type="button" onclick="setCashRatioPreset(0)" class="btn-ghost btn-sm" data-i18n="纯增值">纯增值</button>
           </div>
-          <p class="t-micro mt-1.5 muted">预期收益中来自股息 / 利息 / 租金等现金流的比例。存款、债券拉满；股票按分红占比估。</p>
+          <p class="t-micro mt-1.5 muted" data-i18n="预期收益中来自股息 / 利息 / 租金等现金流的比例。存款、债券拉满；股票按分红占比估。">预期收益中来自股息 / 利息 / 租金等现金流的比例。存款、债券拉满；股票按分红占比估。</p>
         </div>
         <div id="asset-tags-section" class="space-y-3"></div>
       </div>
       <div class="modal-footer">
-        <button type="button" onclick="closeModal('asset-modal')" class="btn-ghost">取消</button>
-        <button type="submit" class="btn-gold">保存</button>
+        <button type="button" onclick="closeModal('asset-modal')" class="btn-ghost" data-i18n="取消">取消</button>
+        <button type="submit" class="btn-gold" data-i18n="保存">保存</button>
       </div>
     </form>
   </div>
@@ -1888,22 +1888,22 @@ tailwind.config = {
 <!-- Category Modal -->
 <div id="category-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="category-modal-title" style="display:none;">
   <div class="modal-content">
-    <h3 class="font-display modal-title" id="category-modal-title">新增分类</h3>
+    <h3 class="font-display modal-title" id="category-modal-title" data-i18n="新增分类">新增分类</h3>
     <form id="category-form" data-side="asset" onsubmit="saveCategory(this.dataset.side, event)">
       <input type="hidden" id="cat-edit-id">
       <div class="space-y-4">
         <div>
-          <label class="field-label" for="cat-name">分类名称</label>
-          <input type="text" id="cat-name" required class="w-full" placeholder="如：资产类型">
+          <label class="field-label" for="cat-name" data-i18n="分类名称">分类名称</label>
+          <input type="text" id="cat-name" required class="w-full" placeholder="如：资产类型" data-i18n-placeholder="如：资产类型">
         </div>
         <div>
-          <label class="field-label" for="cat-tags">标签（逗号分隔）</label>
-          <input type="text" id="cat-tags" required class="w-full" placeholder="如：固定资产, 股票, 债券">
+          <label class="field-label" for="cat-tags" data-i18n="标签（逗号分隔）">标签（逗号分隔）</label>
+          <input type="text" id="cat-tags" required class="w-full" placeholder="如：固定资产, 股票, 债券" data-i18n-placeholder="如：固定资产, 股票, 债券">
         </div>
       </div>
       <div class="modal-footer">
-        <button type="button" onclick="closeModal('category-modal')" class="btn-ghost">取消</button>
-        <button type="submit" class="btn-gold">保存</button>
+        <button type="button" onclick="closeModal('category-modal')" class="btn-ghost" data-i18n="取消">取消</button>
+        <button type="submit" class="btn-gold" data-i18n="保存">保存</button>
       </div>
     </form>
   </div>
@@ -1912,30 +1912,30 @@ tailwind.config = {
 <!-- Import/Export Modal -->
 <div id="io-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="io-modal-title" style="display:none;">
   <div class="modal-content">
-    <h3 class="font-display modal-title" id="io-modal-title">备份与导入</h3>
+    <h3 class="font-display modal-title" id="io-modal-title" data-i18n="备份与导入">备份与导入</h3>
     <div class="space-y-5">
       <div>
-        <p class="t-body mb-3 muted">导出当前所有数据为 JSON 文件</p>
-        <button onclick="exportData()" class="btn-gold">导出数据</button>
+        <p class="t-body mb-3 muted" data-i18n="导出当前所有数据为 JSON 文件">导出当前所有数据为 JSON 文件</p>
+        <button onclick="exportData()" class="btn-gold" data-i18n="导出数据">导出数据</button>
         <span id="backup-last-text" class="t-micro ml-3 muted"></span>
       </div>
       <hr>
       <div>
-        <p class="t-body mb-3 muted">从 JSON 文件导入数据（将覆盖当前数据）</p>
+        <p class="t-body mb-3 muted" data-i18n="从 JSON 文件导入数据（将覆盖当前数据）">从 JSON 文件导入数据（将覆盖当前数据）</p>
         <!-- 键盘可达的做法：让 label **包住** file input。
              原先 label[for] 的 tabIndex 是 -1（label 不是控件），而 input 又是 display:none
              ——两头都进不了 Tab 序，于是键盘用户整块够不到「导入数据」（实测 Shift+Tab 直接跳过）。
              包住之后只有**一个** Tab 停靠点（input），浏览器原生负责 Enter/Space 打开选择框，
              不必自己写转发 click 的脚本；焦点环走 :focus-within 画在 label 上。 -->
         <label class="btn-gold file-label">
-          选择文件
+          <span data-i18n="选择文件">选择文件</span>
           <input type="file" id="import-file" class="sr-only" accept=".json" onchange="importData(event)">
         </label>
         <span id="import-file-name" class="t-micro ml-3 muted"></span>
       </div>
     </div>
     <div class="modal-footer">
-      <button type="button" onclick="closeModal('io-modal')" class="btn-ghost">关闭</button>
+      <button type="button" onclick="closeModal('io-modal')" class="btn-ghost" data-i18n="关闭">关闭</button>
     </div>
   </div>
 </div>
@@ -1943,11 +1943,11 @@ tailwind.config = {
 <!-- Confirm Modal -->
 <div id="confirm-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="confirm-title" style="display:none;">
   <div class="modal-content modal-sm">
-    <h3 class="font-display modal-title" id="confirm-title">确认操作</h3>
+    <h3 class="font-display modal-title" id="confirm-title" data-i18n="确认操作">确认操作</h3>
     <p id="confirm-msg" class="t-body muted"></p>
     <div class="modal-footer">
-      <button type="button" onclick="confirmCancel()" class="btn-ghost">取消</button>
-      <button type="button" id="confirm-ok-btn" class="btn-danger">确认</button>
+      <button type="button" onclick="confirmCancel()" class="btn-ghost" data-i18n="取消">取消</button>
+      <button type="button" id="confirm-ok-btn" class="btn-danger" data-i18n="确认">确认</button>
     </div>
   </div>
 </div>
@@ -1955,27 +1955,27 @@ tailwind.config = {
 <!-- Expense Modal -->
 <div id="expense-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="expense-modal-title" style="display:none;">
   <div class="modal-content">
-    <h3 class="font-display modal-title" id="expense-modal-title">记录消费</h3>
+    <h3 class="font-display modal-title" id="expense-modal-title" data-i18n="记录消费">记录消费</h3>
     <form id="expense-form" onsubmit="saveExpense(event)">
       <input type="hidden" id="expense-edit-id">
       <div class="space-y-4">
         <div>
-          <label class="field-label" for="expense-date">日期</label>
+          <label class="field-label" for="expense-date" data-i18n="日期">日期</label>
           <input type="date" id="expense-date" required class="w-full">
         </div>
         <div>
-          <label class="field-label" for="expense-amount">金额 (CNY)</label>
+          <label class="field-label" for="expense-amount" data-i18n="金额 (CNY)">金额 (CNY)</label>
           <input type="text" id="expense-amount" required inputmode="decimal" class="w-full" placeholder="0.00" oninput="formatMoneyInput(this)" autocomplete="off">
         </div>
         <div>
-          <label class="field-label" for="expense-note">备注</label>
-          <input type="text" id="expense-note" class="w-full" placeholder="可选备注">
+          <label class="field-label" for="expense-note" data-i18n="备注">备注</label>
+          <input type="text" id="expense-note" class="w-full" placeholder="可选备注" data-i18n-placeholder="可选备注">
         </div>
         <div id="expense-tags-section" class="space-y-3"></div>
       </div>
       <div class="modal-footer">
-        <button type="button" onclick="closeModal('expense-modal')" class="btn-ghost">取消</button>
-        <button type="submit" class="btn-gold">保存</button>
+        <button type="button" onclick="closeModal('expense-modal')" class="btn-ghost" data-i18n="取消">取消</button>
+        <button type="submit" class="btn-gold" data-i18n="保存">保存</button>
       </div>
     </form>
   </div>
@@ -1984,22 +1984,22 @@ tailwind.config = {
 <!-- Expense Category Modal -->
 <div id="expense-category-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="expense-category-modal-title" style="display:none;">
   <div class="modal-content">
-    <h3 class="font-display modal-title" id="expense-category-modal-title">新增消费分类</h3>
+    <h3 class="font-display modal-title" id="expense-category-modal-title" data-i18n="新增消费分类">新增消费分类</h3>
     <form id="expense-category-form" data-side="expense" onsubmit="saveCategory(this.dataset.side, event)">
       <input type="hidden" id="expense-cat-edit-id">
       <div class="space-y-4">
         <div>
-          <label class="field-label" for="expense-cat-name">分类名称</label>
-          <input type="text" id="expense-cat-name" required class="w-full" placeholder="如：支付方式">
+          <label class="field-label" for="expense-cat-name" data-i18n="分类名称">分类名称</label>
+          <input type="text" id="expense-cat-name" required class="w-full" placeholder="如：支付方式" data-i18n-placeholder="如：支付方式">
         </div>
         <div>
-          <label class="field-label" for="expense-cat-tags">标签（逗号分隔）</label>
-          <input type="text" id="expense-cat-tags" required class="w-full" placeholder="如：微信, 支付宝, 现金">
+          <label class="field-label" for="expense-cat-tags" data-i18n="标签（逗号分隔）">标签（逗号分隔）</label>
+          <input type="text" id="expense-cat-tags" required class="w-full" placeholder="如：微信, 支付宝, 现金" data-i18n-placeholder="如：微信, 支付宝, 现金">
         </div>
       </div>
       <div class="modal-footer">
-        <button type="button" onclick="closeModal('expense-category-modal')" class="btn-ghost">取消</button>
-        <button type="submit" class="btn-gold">保存</button>
+        <button type="button" onclick="closeModal('expense-category-modal')" class="btn-ghost" data-i18n="取消">取消</button>
+        <button type="submit" class="btn-gold" data-i18n="保存">保存</button>
       </div>
     </form>
   </div>
@@ -2008,12 +2008,12 @@ tailwind.config = {
 <!-- 数据校验 Modal：一键批量 / 逐条点选补齐缺的标签（资产/消费共用一套，按侧别取集合） -->
 <div id="tagcheck-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="tagcheck-modal-title" style="display:none;">
   <div class="modal-content modal-lg">
-    <h3 class="font-display modal-title" id="tagcheck-modal-title">数据校验</h3>
-    <p id="tagcheck-hint" class="t-body mb-5 muted">下面这些记录在某个分类下还没有标签。组内顶部可一键补齐，也可以在每条记录上逐个点选，点一下即保存。</p>
+    <h3 class="font-display modal-title" id="tagcheck-modal-title" data-i18n="数据校验">数据校验</h3>
+    <p id="tagcheck-hint" class="t-body mb-5 muted" data-i18n="下面这些记录在某个分类下还没有标签。组内顶部可一键补齐，也可以在每条记录上逐个点选，点一下即保存。">下面这些记录在某个分类下还没有标签。组内顶部可一键补齐，也可以在每条记录上逐个点选，点一下即保存。</p>
     <div id="tagcheck-groups" class="space-y-5" onclick="onTagCheckPick(event)"></div>
-    <p id="tagcheck-empty" class="t-body muted" style="display:none;">全部记录都已归类。</p>
+    <p id="tagcheck-empty" class="t-body muted" style="display:none;" data-i18n="全部记录都已归类。">全部记录都已归类。</p>
     <div class="modal-footer">
-      <button type="button" onclick="closeModal('tagcheck-modal')" class="btn-gold">完成</button>
+      <button type="button" onclick="closeModal('tagcheck-modal')" class="btn-gold" data-i18n="完成">完成</button>
     </div>
   </div>
 </div>
@@ -2021,13 +2021,13 @@ tailwind.config = {
 <!-- Expectation (预期消费参考线) Modal -->
 <div id="expectation-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="expectation-modal-title" style="display:none;">
   <div class="modal-content modal-sm">
-    <h3 class="font-display modal-title" id="expectation-modal-title">预期消费</h3>
-    <p class="t-body mb-4 muted">在消费趋势图中显示为水平参考线，收起部分类别后可对比每月合计</p>
-    <input type="text" id="expectation-input" inputmode="decimal" class="w-full" placeholder="预期月消费 (CNY)" oninput="formatMoneyInput(this)" autocomplete="off" onkeydown="if(event.key==='Enter')saveExpectation()">
+    <h3 class="font-display modal-title" id="expectation-modal-title" data-i18n="预期消费">预期消费</h3>
+    <p class="t-body mb-4 muted" data-i18n="在消费趋势图中显示为水平参考线，收起部分类别后可对比每月合计">在消费趋势图中显示为水平参考线，收起部分类别后可对比每月合计</p>
+    <input type="text" id="expectation-input" inputmode="decimal" class="w-full" placeholder="预期月消费 (CNY)" data-i18n-placeholder="预期月消费 (CNY)" oninput="formatMoneyInput(this)" autocomplete="off" onkeydown="if(event.key==='Enter')saveExpectation()">
     <div class="modal-footer">
-      <button type="button" onclick="clearExpectation()" class="btn-danger btn-sm">清除</button>
-      <button type="button" onclick="closeModal('expectation-modal')" class="btn-ghost">取消</button>
-      <button type="button" onclick="saveExpectation()" class="btn-gold">保存</button>
+      <button type="button" onclick="clearExpectation()" class="btn-danger btn-sm" data-i18n="清除">清除</button>
+      <button type="button" onclick="closeModal('expectation-modal')" class="btn-ghost" data-i18n="取消">取消</button>
+      <button type="button" onclick="saveExpectation()" class="btn-gold" data-i18n="保存">保存</button>
     </div>
   </div>
 </div>
@@ -2035,21 +2035,21 @@ tailwind.config = {
 <!-- Runway Modal（读数卡编辑：标签多选 + 月消费自定，取消不落库） -->
 <div id="runway-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="runway-modal-title" style="display:none;">
   <div class="modal-content modal-md">
-    <h3 class="font-display modal-title" id="runway-modal-title">标签与月消费<span class="tip">
-      <button type="button" class="tip-mark" aria-describedby="runway-tip" aria-label="标签如何参与计算">?</button>
-      <span class="tip-bubble" id="runway-tip" role="tooltip">同一分类内多选为「或」，不同分类之间为「且」；某个分类不选则不参与过滤。</span>
+    <h3 class="font-display modal-title" id="runway-modal-title"><span data-i18n="标签与月消费">标签与月消费</span><span class="tip">
+      <button type="button" class="tip-mark" aria-describedby="runway-tip" aria-label="标签如何参与计算" data-i18n-aria-label="标签如何参与计算">?</button>
+      <span class="tip-bubble" id="runway-tip" role="tooltip" data-i18n="同一分类内多选为「或」，不同分类之间为「且」；某个分类不选则不参与过滤。">同一分类内多选为「或」，不同分类之间为「且」；某个分类不选则不参与过滤。</span>
     </span></h3>
     <div id="runway-tag-groups" class="space-y-3" style="max-height:44vh;overflow-y:auto;"></div>
     <!-- 月消费: 默认带出全局「预期月消费」, 改成自定值只影响这张读数卡（不回填全局）; 清空即回默认 -->
-    <label class="field-label mt-4" for="runway-expectation">月消费 (CNY)</label>
+    <label class="field-label mt-4" for="runway-expectation" data-i18n="月消费 (CNY)">月消费 (CNY)</label>
     <div class="flex items-center gap-2">
-      <input type="text" id="runway-expectation" inputmode="decimal" class="w-full" placeholder="月消费 (CNY)" oninput="formatMoneyInput(this); renderRunwayPreview();" onkeydown="if(event.key==='Enter' && !event.isComposing)saveRunwayTags()" autocomplete="off">
-      <button type="button" onclick="useDefaultRunwayExpectation()" class="btn-ghost btn-sm">默认</button>
+      <input type="text" id="runway-expectation" inputmode="decimal" class="w-full" placeholder="月消费 (CNY)" data-i18n-placeholder="月消费 (CNY)" oninput="formatMoneyInput(this); renderRunwayPreview();" onkeydown="if(event.key==='Enter' && !event.isComposing)saveRunwayTags()" autocomplete="off">
+      <button type="button" onclick="useDefaultRunwayExpectation()" class="btn-ghost btn-sm" data-i18n="默认">默认</button>
     </div>
     <p id="runway-preview" class="t-body text-center mt-4 muted" style="border-top:1px dashed var(--rule);padding-top:12px;"></p>
     <div class="modal-footer">
-      <button type="button" onclick="closeModal('runway-modal')" class="btn-ghost">取消</button>
-      <button type="button" onclick="saveRunwayTags()" class="btn-gold">保存</button>
+      <button type="button" onclick="closeModal('runway-modal')" class="btn-ghost" data-i18n="取消">取消</button>
+      <button type="button" onclick="saveRunwayTags()" class="btn-gold" data-i18n="保存">保存</button>
     </div>
   </div>
 </div>
@@ -2057,13 +2057,13 @@ tailwind.config = {
 <!-- Net Worth Target Modal -->
 <div id="target-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="target-modal-title" style="display:none;">
   <div class="modal-content modal-sm">
-    <h3 class="font-display modal-title" id="target-modal-title">目标净资产</h3>
-    <p class="t-body mb-4 muted">设置后资产页显示达成进度</p>
-    <input type="text" id="target-input" inputmode="decimal" class="w-full" placeholder="目标净资产 (CNY)" oninput="formatMoneyInput(this)" autocomplete="off" onkeydown="if(event.key==='Enter')saveTarget()">
+    <h3 class="font-display modal-title" id="target-modal-title" data-i18n="目标净资产">目标净资产</h3>
+    <p class="t-body mb-4 muted" data-i18n="设置后资产页显示达成进度">设置后资产页显示达成进度</p>
+    <input type="text" id="target-input" inputmode="decimal" class="w-full" placeholder="目标净资产 (CNY)" data-i18n-placeholder="目标净资产 (CNY)" oninput="formatMoneyInput(this)" autocomplete="off" onkeydown="if(event.key==='Enter')saveTarget()">
     <div class="modal-footer">
-      <button type="button" onclick="clearTarget()" class="btn-danger btn-sm">清除</button>
-      <button type="button" onclick="closeModal('target-modal')" class="btn-ghost">取消</button>
-      <button type="button" onclick="saveTarget()" class="btn-gold">保存</button>
+      <button type="button" onclick="clearTarget()" class="btn-danger btn-sm" data-i18n="清除">清除</button>
+      <button type="button" onclick="closeModal('target-modal')" class="btn-ghost" data-i18n="取消">取消</button>
+      <button type="button" onclick="saveTarget()" class="btn-gold" data-i18n="保存">保存</button>
     </div>
   </div>
 </div>
@@ -2071,47 +2071,58 @@ tailwind.config = {
 <!-- Settings Modal (设置 · 账本凡例: 外观 + 自动备份) -->
 <div id="settings-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="settings-modal-title" style="display:none;">
   <div class="modal-content modal-md">
-    <h3 class="font-display modal-title" id="settings-modal-title">设置</h3>
+    <h3 class="font-display modal-title" id="settings-modal-title" data-i18n="设置">设置</h3>
     <div>
       <div class="setting-row">
         <div class="setting-info">
-          <p class="setting-label">外观</p>
-          <p class="setting-desc">切换日间纸页与夜间墨底，立即生效并记住选择</p>
+          <p class="setting-label" data-i18n="语言">语言</p>
+          <p class="setting-desc" data-i18n="界面文字与图表的语言。分类、标签与备注是你自己的账本内容，不会被改名。">界面文字与图表的语言。分类、标签与备注是你自己的账本内容，不会被改名。</p>
         </div>
-        <div class="seg-control" role="group" aria-label="外观主题">
-          <button id="theme-seg-light" onclick="setTheme(false)" class="seg-btn" aria-pressed="false">☀ 日间</button>
-          <button id="theme-seg-dark" onclick="setTheme(true)" class="seg-btn" aria-pressed="false">☾ 夜间</button>
+        <div class="seg-control" role="group" aria-label="界面语言" data-i18n-aria-label="界面语言">
+          <button id="lang-seg-en" onclick="setLang('en')" class="seg-btn" aria-pressed="false" data-i18n="English">English</button>
+          <button id="lang-seg-zh" onclick="setLang('zh')" class="seg-btn" aria-pressed="false" data-i18n="中文">中文</button>
         </div>
       </div>
       <hr>
       <div class="setting-row">
         <div class="setting-info">
-          <p class="setting-label">自动备份</p>
-          <p class="setting-desc">打开页面几秒后会弹一次确认，确认后弹出文件窗口保存一份带日期的备份，日积月累即是版本历史。建议把保存位置设为网盘同步文件夹（OneDrive / iCloud 等），电脑损坏后也能找回。</p>
+          <p class="setting-label" data-i18n="外观">外观</p>
+          <p class="setting-desc" data-i18n="切换日间纸页与夜间墨底，立即生效并记住选择">切换日间纸页与夜间墨底，立即生效并记住选择</p>
+        </div>
+        <div class="seg-control" role="group" aria-label="外观主题" data-i18n-aria-label="外观主题">
+          <button id="theme-seg-light" onclick="setTheme(false)" class="seg-btn" aria-pressed="false" data-i18n="☀ 日间">☀ 日间</button>
+          <button id="theme-seg-dark" onclick="setTheme(true)" class="seg-btn" aria-pressed="false" data-i18n="☾ 夜间">☾ 夜间</button>
+        </div>
+      </div>
+      <hr>
+      <div class="setting-row">
+        <div class="setting-info">
+          <p class="setting-label" data-i18n="自动备份">自动备份</p>
+          <p class="setting-desc" data-i18n="打开页面几秒后会弹一次确认，确认后弹出文件窗口保存一份带日期的备份，日积月累即是版本历史。建议把保存位置设为网盘同步文件夹（OneDrive / iCloud 等），电脑损坏后也能找回。">打开页面几秒后会弹一次确认，确认后弹出文件窗口保存一份带日期的备份，日积月累即是版本历史。建议把保存位置设为网盘同步文件夹（OneDrive / iCloud 等），电脑损坏后也能找回。</p>
           <p id="settings-backup-note" class="setting-note"></p>
         </div>
-        <div class="seg-control" role="group" aria-label="自动备份频率">
-          <button id="backup-freq-daily" onclick="setBackupFreq('daily')" class="seg-btn" aria-pressed="false">每天</button>
-          <button id="backup-freq-weekly" onclick="setBackupFreq('weekly')" class="seg-btn" aria-pressed="false">每周</button>
-          <button id="backup-freq-off" onclick="setBackupFreq('off')" class="seg-btn" aria-pressed="false">关闭</button>
+        <div class="seg-control" role="group" aria-label="自动备份频率" data-i18n-aria-label="自动备份频率">
+          <button id="backup-freq-daily" onclick="setBackupFreq('daily')" class="seg-btn" aria-pressed="false" data-i18n="每天">每天</button>
+          <button id="backup-freq-weekly" onclick="setBackupFreq('weekly')" class="seg-btn" aria-pressed="false" data-i18n="每周">每周</button>
+          <button id="backup-freq-off" onclick="setBackupFreq('off')" class="seg-btn" aria-pressed="false" data-i18n="关闭">关闭</button>
         </div>
       </div>
       <hr>
       <div class="setting-row">
         <div class="setting-info">
-          <p class="setting-label">备份文件夹</p>
-          <p class="setting-desc">选择后，备份时弹出的文件窗口默认就打开这个目录（自动与手动一致）；未选择时窗口打开上次用过的目录。仅 Chrome / Edge 支持指定目录。</p>
+          <p class="setting-label" data-i18n="备份文件夹">备份文件夹</p>
+          <p class="setting-desc" data-i18n="选择后，备份时弹出的文件窗口默认就打开这个目录（自动与手动一致）；未选择时窗口打开上次用过的目录。仅 Chrome / Edge 支持指定目录。">选择后，备份时弹出的文件窗口默认就打开这个目录（自动与手动一致）；未选择时窗口打开上次用过的目录。仅 Chrome / Edge 支持指定目录。</p>
           <p id="settings-backup-dir-note" class="setting-note"></p>
         </div>
         <div class="setting-actions">
-          <button type="button" id="backup-dir-choose" onclick="chooseBackupDir()" class="btn-ghost btn-sm">选择文件夹</button>
-          <button type="button" id="backup-dir-clear" onclick="clearBackupDir()" class="btn-danger btn-sm" hidden>清除</button>
+          <button type="button" id="backup-dir-choose" onclick="chooseBackupDir()" class="btn-ghost btn-sm" data-i18n="选择文件夹">选择文件夹</button>
+          <button type="button" id="backup-dir-clear" onclick="clearBackupDir()" class="btn-danger btn-sm" hidden data-i18n="清除">清除</button>
         </div>
       </div>
     </div>
     <div class="modal-footer between">
-      <button type="button" onclick="closeModal('settings-modal');showImportExport();" class="btn-ghost">备份与导入…</button>
-      <button type="button" onclick="closeModal('settings-modal')" class="btn-ghost">关闭</button>
+      <button type="button" onclick="closeModal('settings-modal');showImportExport();" class="btn-ghost" data-i18n="备份与导入…">备份与导入…</button>
+      <button type="button" onclick="closeModal('settings-modal')" class="btn-ghost" data-i18n="关闭">关闭</button>
     </div>
   </div>
 </div>
@@ -2134,6 +2145,8 @@ function freshAppState() {
     rates: { CNY: 1, HKD: 1, USD: 1, fetchedAt: null },
     expenseExpectation: 0, netWorthTarget: 0, incomeSafetyFactor: 100,
     runwayTags: [], runwayExpectation: 0,
+    // 界面语言（用户设置，随存档落盘）：默认英文
+    lang: 'en',
     backup: { autoFreq: 'daily', lastBackup: null },
   };
 }
@@ -2186,6 +2199,10 @@ function observeChartSize(chart) {
 // ========== INIT ===========
   document.addEventListener('DOMContentLoaded', () => {
     loadState();
+    // 语言先落地：静态文案（data-i18n）在首帧渲染前就要换成当前语言，
+    // 否则英文用户会先看见一闪而过的中文
+    applyI18nDom();
+    syncLangSeg();
     // 捕获本次启动的汇率拉取 promise，交给 maybeAutoBackup 复用同一笔请求、
     // 等汇率更新完毕后再导出，避免备份拿到过期汇率（见 maybeAutoBackup）
     const ratePromise = fetchRates();
@@ -2198,7 +2215,7 @@ function observeChartSize(chart) {
     // 初始化 Flatpickr 日期选择器（消费表单）
     if (typeof flatpickr !== 'undefined') {
       flatpickr('#expense-date', {
-        locale: 'zh',
+        locale: i18n.normalizeLang(state.lang) === 'zh' && flatpickr.l10ns && flatpickr.l10ns.zh ? flatpickr.l10ns.zh : 'default',
         dateFormat: 'Y-m-d',
         defaultDate: date.getLocalDateStr(),
         disableMobile: true,
@@ -2281,14 +2298,14 @@ async function fetchRates() {
     // 形状校验与「取倒数」口径在 logic.js backup.ratesFromApi（可单测）：脏响应返回 null，
     // 走下面的 catch 回退，不得把 NaN / Infinity 写进 state 并落盘。
     const next = backup.ratesFromApi(data && data.cny);
-    if (!next) throw new Error('汇率响应缺少有效币种');
+    if (!next) throw new Error(i18n.t('汇率响应缺少有效币种'));
     state.rates = next;
     saveState();
     renderAssets();
     // 资产分布/收益测算等使用当前汇率换算的图表需要同步重绘（历史净值用快照时点汇率不受影响, 消费均为 CNY）
     refreshVisibleCharts();
     // 与其他操作提示统一走右下角便条；info=系统中性知会（金墨边注），不打断当前操作
-    toast('汇率已更新', 'info');
+    toast(i18n.t('汇率已更新'), 'info');
   } catch(e) {
     // use saved rates if available（文案与类型由 logic.js 纯函数决策）
     const n = backup.rateFallbackNotice(!!state.rates.fetchedAt);
@@ -2555,10 +2572,10 @@ document.addEventListener('pointercancel', cancelModePress);
 function enterAssets() {
   if (!assetsEntryOpen()) return;
   showConfirm(
-    '资产价格短期波动大，反复看容易被涨跌牵着走。现在确实要看？',
+    i18n.t('资产价格短期波动大，反复看容易被涨跌牵着走。现在确实要看？'),
     () => switchMode('assets'),
-    '进入资产页',
-    { okLabel: '查看资产', tone: 'gold' });
+    i18n.t('进入资产页'),
+    { okLabel: i18n.t('查看资产'), tone: 'gold' });
 }
 
 // ========== 台灯掠光（跟随指针的纸面光）==========
@@ -2662,19 +2679,19 @@ function renderAssets() {
         return tagVal ? tagPillHtml(cat, tagVal, catColor) : '';
       }).join(' ');
       const rateText = rateLabelText(a);
-      const rateLabel = rateText || '<span class="muted hint-xs">未设置</span>';
+      const rateLabel = rateText || '<span class="muted hint-xs">' + i18n.t('未设置') + '</span>';
       const cashTag = rateText
-        ? `<span class="ink-accent hint-xs"> · 现金 ${income.cashRatioPct(a)}%</span>`
+        ? `<span class="ink-accent hint-xs">${i18n.t(' · 现金 ')}${income.cashRatioPct(a)}%</span>`
         : '';
       const cnyVal = money.toCNY(a.amount, a.currency);
+      // 把手可聚焦：拖拽是指针手势，键盘用户靠 ↑/↓ 完成同一件事（moveAsset 与 drop 走同一套收尾）。
       return `<div class="asset-row grid-wide" data-id="${text.esc(a.id)}">
-        <!-- 把手可聚焦：拖拽是指针手势，键盘用户靠 ↑/↓ 完成同一件事（moveAsset 与 drop 走同一套收尾）。 -->
-        <div class="drag-handle" role="button" tabindex="0" aria-label="调整排序，按上移或下移"
-          title="拖动排序（键盘：聚焦后按 ↑/↓）" draggable="true"
+        <div class="drag-handle" role="button" tabindex="0" aria-label="${i18n.t('调整排序，按上移或下移')}"
+          title="${i18n.t('拖动排序（键盘：聚焦后按 ↑/↓）')}" draggable="true"
           ondragstart="onAssetDragStart(event)" ondragend="onAssetDragEnd(event)"
           onkeydown="if(event.key==='ArrowUp'){event.preventDefault();moveAsset('${text.jsAttr(a.id)}',-1);}else if(event.key==='ArrowDown'){event.preventDefault();moveAsset('${text.jsAttr(a.id)}',1);}">⠿</div>
         <div class="t-medium t-body">${text.esc(a.name)}</div>
-        <div class="t-body tabular num amount-cell" data-id="${text.esc(a.id)}" role="button" tabindex="0" title="点击快速更新金额" onclick="startInlineEdit('${text.jsAttr(a.id)}')" onkeydown="if(event.key==='Enter')startInlineEdit('${text.jsAttr(a.id)}')">
+        <div class="t-body tabular num amount-cell" data-id="${text.esc(a.id)}" role="button" tabindex="0" title="${i18n.t('点击快速更新金额')}" onclick="startInlineEdit('${text.jsAttr(a.id)}')" onkeydown="if(event.key==='Enter')startInlineEdit('${text.jsAttr(a.id)}')">
           <svg class="edit-pencil" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 3l1 1-9 9-2.5.5.5-2.5L13 3z"/><path d="M10.7 5.3l1 1"/></svg>
           <span>${money.money2(a.amount)}</span>
         </div>
@@ -2683,8 +2700,8 @@ function renderAssets() {
         <div class="t-body tabular num">${rateLabel}${cashTag}</div>
         <div class="flex flex-wrap gap-1">${tagHtml}</div>
         <div class="flex gap-2 justify-end">
-          <button onclick="editAsset('${text.jsAttr(a.id)}')" class="row-btn edit">编辑</button>
-          <button onclick="deleteAsset('${text.jsAttr(a.id)}')" class="row-btn danger">删除</button>
+          <button onclick="editAsset('${text.jsAttr(a.id)}')" class="row-btn edit">${i18n.t('编辑')}</button>
+          <button onclick="deleteAsset('${text.jsAttr(a.id)}')" class="row-btn danger">${i18n.t('删除')}</button>
         </div>
       </div>`;
     }).join('');
@@ -2764,16 +2781,16 @@ function renderMasthead(total) {
     const achieved = total >= target;
     const fillColor = achieved ? 'var(--verdigris)' : (pct >= 90 ? 'var(--accent)' : 'var(--accent-soft)');
     const gap = achieved
-      ? '<span class="mo-badge up">目标已达成</span>'
-      : `<span class="tabular ink-accent">还差 ${money.formatCNY(target - total)}</span>`;
+      ? '<span class="mo-badge up">' + i18n.t('目标已达成') + '</span>'
+      : `<span class="tabular ink-accent">${i18n.t('还差 ')}${money.formatCNY(target - total)}</span>`;
     targetEl.innerHTML = `
       <div class="target-panel">
         <div class="flex items-center justify-between t-micro mb-1.5 muted">
-          <span>目标净资产 · <span class="tabular text-value">${pct.toFixed(0)}%</span></span>
+          <span>${i18n.t('目标净资产 · ')}<span class="tabular text-value">${pct.toFixed(0)}%</span></span>
           <span class="flex items-center gap-2">
             <span class="tabular text-value">${money.formatCNY(total)} / ${money.formatCNY(target)}</span>
             ${gap}
-            <button onclick="openTargetModal()" class="btn-ghost btn-xs">修改</button>
+            <button onclick="openTargetModal()" class="btn-ghost btn-xs">${i18n.t('修改')}</button>
           </span>
         </div>
         <div class="target-progress"><div class="target-progress-fill" style="width:${pct}%;background:${fillColor};"></div></div>
@@ -2783,8 +2800,8 @@ function renderMasthead(total) {
   } else {
     targetEl.style.display = '';
     targetEl.innerHTML = `<div class="target-panel target-panel-empty">
-      <span class="t-micro muted">目标净资产</span>
-      <button onclick="openTargetModal()" class="btn-ghost btn-xs">设定目标</button>
+      <span class="t-micro muted">${i18n.t('目标净资产')}</span>
+      <button onclick="openTargetModal()" class="btn-ghost btn-xs">${i18n.t('设定目标')}</button>
     </div>`;
   }
 
@@ -2793,15 +2810,15 @@ function renderMasthead(total) {
   const count = state.assets.length;
   const hasRate = income.hasAnyRatedAsset(state.assets); // 纯函数在 logic.js（与收益 Tab 共用同一判定）
   const expectation = state.expenseExpectation || 0;
-  let subText = `<span>${count} 项资产</span>`;
+  let subText = `<span>${i18n.t('{p1} 项资产', { p1: count })}</span>`;
   if (hasRate) {
     // 两口径合计单一来源（logic.js income.sumAssetIncomes, 与收益摘要/覆盖标尺共用）
     const { monthly, cashMonthly } = income.sumAssetIncomes(state.assets);
     if (expectation > 0) {
-      subText += ` · <span class="muted">预期月消费 <span class="tabular t-medium text-value">${money.formatCNY(expectation)}</span></span>`;
+      subText += ` · <span class="muted">${i18n.t('预期月消费 ')}<span class="tabular t-medium text-value">${money.formatCNY(expectation)}</span></span>`;
     }
-    subText += ` · <span>预估月收益 <span class="tabular t-medium ink-up">${money.formatCNY(monthly)}</span></span>`;
-    subText += ` · <span>现金收益 <span class="tabular t-medium ink-accent">${money.formatCNY(cashMonthly)}</span></span>`;
+    subText += ` · <span>${i18n.t('预估月收益 ')}<span class="tabular t-medium ink-up">${money.formatCNY(monthly)}</span></span>`;
+    subText += ` · <span>${i18n.t('现金收益 ')}<span class="tabular t-medium ink-accent">${money.formatCNY(cashMonthly)}</span></span>`;
   }
   subEl.innerHTML = subText;
 }
@@ -2813,20 +2830,20 @@ function openTargetModal() {
 }
 function saveTarget() {
   const v = money.parseMoneyInput(document.getElementById('target-input').value);
-  if (!v || v <= 0) { toast('请输入有效的目标金额', 'error'); return; }
+  if (!v || v <= 0) { toast(i18n.t('请输入有效的目标金额'), 'error'); return; }
   const hadTarget = (state.netWorthTarget || 0) > 0;
   state.netWorthTarget = v;
   saveState();
   closeModal('target-modal');
   renderAssets(); // 刷新 masthead 进度
-  toast(hadTarget ? '目标已更新' : '目标已设置', 'success');
+  toast(hadTarget ? i18n.t('目标已更新') : i18n.t('目标已设置'), 'success');
 }
 function clearTarget() {
   state.netWorthTarget = 0;
   saveState();
   closeModal('target-modal');
   renderAssets();
-  toast('目标已清除', 'success');
+  toast(i18n.t('目标已清除'), 'success');
 }
 
 function renderCategories() {
@@ -2914,7 +2931,7 @@ function startInlineEdit(id) {
   if (row) row.classList.add('editing');
   // 编辑态 title 改为键位教学（非编辑态 hover 提示「点击快速更新金额」）; dataset 备份退出时恢复
   cell.dataset.title = cell.title;
-  cell.title = 'Enter 保存 · 小键盘 Enter/Tab 下一行 · Esc 取消';
+  cell.title = i18n.t('Enter 保存 · 小键盘 Enter/Tab 下一行 · Esc 取消');
   cell.innerHTML = `<input type="text" class="inline-edit-input" value="${money.moneyStr(a.amount)}" inputmode="decimal" autocomplete="off" oninput="formatMoneyInput(this)" onkeydown="onInlineEditKey(event,'${text.jsAttr(id)}')" onblur="commitInlineEdit()">`;
   const inp = cell.querySelector('input');
   if (inp) { inp.focus(); inp.select(); }
@@ -2937,7 +2954,7 @@ function commitInlineEdit(doRender) {
   if (!inp) { cell.innerHTML = money.money2(a.amount); return true; } // input 已销毁（重绘前收尾）, 直接恢复
   const val = money.parseMoneyInput(inp.value);
   if (isNaN(val) || val < 0) {
-    toast('金额无效，已恢复原值', 'error');
+    toast(i18n.t('金额无效，已恢复原值'), 'error');
     cell.innerHTML = money.money2(a.amount);
     return false;
   }
@@ -3004,7 +3021,7 @@ function openAssetModal(editId) {
   document.getElementById('asset-edit-id').value = editId || '';
 
   if (editId) {
-    title.textContent = '编辑资产';
+    title.textContent = i18n.t('编辑资产');
     const a = state.assets.find(x => x.id === editId);
     if (a) {
       document.getElementById('asset-name').value = a.name;
@@ -3015,7 +3032,7 @@ function openAssetModal(editId) {
       document.getElementById('asset-cash-ratio').value = a.cashRatio ?? 100;
     }
   } else {
-    title.textContent = '登记资产';
+    title.textContent = i18n.t('登记资产');
   }
 
   // render tag selectors (skip currency - auto-synced from the currency dropdown)
@@ -3036,7 +3053,7 @@ function saveAsset(e) {
   const editId = document.getElementById('asset-edit-id').value;
   const name = document.getElementById('asset-name').value.trim();
   const amount = money.parseMoneyInput(document.getElementById('asset-amount').value);
-  if (isNaN(amount) || amount < 0) { toast('请输入有效的金额', 'error'); return; }
+  if (isNaN(amount) || amount < 0) { toast(i18n.t('请输入有效的金额'), 'error'); return; }
   const currency = document.getElementById('asset-currency').value;
 
   // 利率: 只有输入框真正为空才用另一值补齐; 0 是合法的利率下限, 不能当空值吞掉
@@ -3051,7 +3068,7 @@ function saveAsset(e) {
   if (isNaN(finalMax)) finalMax = 0;
 
   if (finalMin > finalMax) {
-    toast('最低利率不能高于最高利率', 'error');
+    toast(i18n.t('最低利率不能高于最高利率'), 'error');
     return;
   }
 
@@ -3068,7 +3085,7 @@ function saveAsset(e) {
   Object.assign(tags, picked.tags);
 
   if (!picked.complete) {
-    toast('请为每个分类选择标签', 'error');
+    toast(i18n.t('请为每个分类选择标签'), 'error');
     return;
   }
 
@@ -3086,7 +3103,7 @@ function saveAsset(e) {
   saveState();
   renderAssets();
   closeModal('asset-modal');
-  toast(editId ? '资产已更新' : '资产已登记', 'success');
+  toast(editId ? i18n.t('资产已更新') : i18n.t('资产已登记'), 'success');
 }
 
 function editAsset(id) {
@@ -3106,11 +3123,11 @@ function onCashRatioInput() {
 }
 
 function deleteAsset(id) {
-  showConfirm('确认删除该资产？', () => {
+  showConfirm(i18n.t('确认删除该资产？'), () => {
     state.assets = state.assets.filter(a => a.id !== id);
     saveState();
     renderAssets();
-    toast('已删除', 'success');
+    toast(i18n.t('已删除'), 'success');
   });
 }
 
@@ -3142,7 +3159,7 @@ function ensureEChartsReady(el) {
     });
   }
   return echartsLoading.then(() => true, () => {
-    toast('图表组件加载失败', 'error');
+    toast(i18n.t('图表组件加载失败'), 'error');
     return false;
   });
 }
@@ -3238,8 +3255,8 @@ function renderSunburstLegend(elId, data, total, chartObj) {
   const head = document.getElementById(elId + '-head');
   if (head) {
     head.innerHTML = atTop
-      ? '<span class="meta-label muted">构成</span>'
-      : `<button type="button" class="legend-back" data-back="1">‹ 全部分类</button>` +
+      ? '<span class="meta-label muted">' + i18n.t('构成') + '</span>'
+      : `<button type="button" class="legend-back" data-back="1">${i18n.t('‹ 全部分类')}</button>` +
         `<span class="legend-scope">${text.esc(selected)}</span>`;
   }
   // 悬停联动用事件委派挂在容器上（行数随分类变，逐行挂监听会随重绘越积越多）
@@ -3585,9 +3602,9 @@ function tagPillHtml(cat, tagVal, colorFn, opts) {
   // 可聚焦 + Enter 直达改名：长按是**手势**，不是权限——键盘与读屏器不该被挡在门外
   // （与「进资产页」的长按门槛同一条原则）。
   const ren = opts.renameSide
-    ? ` data-rename="${text.jsAttr(opts.renameSide || '')}" data-cat="${text.jsAttr(cat.id)}" data-tag="${text.jsAttr(tagVal)}" tabindex="0" role="button" title="长按可改名" aria-label="标签 ${text.jsAttr(tagVal)}，长按或按回车改名" onkeydown="if(event.key==='Enter')renameTagFromKey(event)"`
+    ? ` data-rename="${text.jsAttr(opts.renameSide || '')}" data-cat="${text.jsAttr(cat.id)}" data-tag="${text.jsAttr(tagVal)}" tabindex="0" role="button" title="${i18n.t('长按可改名')}" aria-label="${i18n.t('标签 {p1}，长按或按回车改名', { p1: tagVal })}" onkeydown="if(event.key==='Enter')renameTagFromKey(event)"`
     : '';
-  const del = opts.removeSide ? ` <button class="pill-del" onclick="removeTag('${text.jsAttr(opts.removeSide)}', '${text.jsAttr(cat.id)}','${text.jsAttr(tagVal)}')" aria-label="移除标签">✕</button>` : '';
+  const del = opts.removeSide ? ` <button class="pill-del" onclick="removeTag('${text.jsAttr(opts.removeSide)}', '${text.jsAttr(cat.id)}','${text.jsAttr(tagVal)}')" aria-label="${i18n.t('移除标签')}">✕</button>` : '';
   return `<span class="tag-pill"${ren} style="background:${c.bg};color:${c.fg};border-left-color:${c.border};">${key}${val}${del}</span>`;
 }
 
@@ -3608,15 +3625,17 @@ const CAT_SIDES = {
     newTagPrefix: 'new-tag-',
     colorFn: catColor,
     listId: 'categories-list',
-    noun: '资产',
-    savedUpdated: '分类已更新', savedCreated: '分类已创建',
+    // 配置对象在脚本加载时求值：文案一律存成**取值函数**，调用时才取词。
+    // 直接写 i18n.t(...) 会冻结成加载那一刻的语言（默认英文下切中文，这些文案仍是英文）。
+    noun: () => i18n.t('资产'),
+    savedUpdated: () => i18n.t('分类已更新'), savedCreated: () => i18n.t('分类已创建'),
     // 数据校验：两侧都接线。新增分类后老资产会缺该分类标签（分布/收益少算），列表上看不出来；
     // 历史快照是历史事实（快照深拷贝了当时的资产），**不随补齐回填**，面板顶部说明这一点。
     tagCheck: true,
     tagCheckBar: 'tagcheck-bar-assets',
-    tagCheckHint: '下面这些资产在某个分类下还没有标签（新增分类后老资产会缺）。组内顶部可一键补齐，也可以在每条资产上逐个点选，点一下即保存。历史快照按当时数据保留，不随补齐更新。',
+    tagCheckHint: () => i18n.t('下面这些资产在某个分类下还没有标签（新增分类后老资产会缺）。组内顶部可一键补齐，也可以在每条资产上逐个点选，点一下即保存。历史快照按当时数据保留，不随补齐更新。'),
     tagCheckMeta: assetTagCheckMeta,
-    modal: { id: 'category-modal', title: 'category-modal-title', form: 'category-form', editId: 'cat-edit-id', name: 'cat-name', tags: 'cat-tags', editTitle: '编辑分类', newTitle: '新增分类' },
+    modal: { id: 'category-modal', title: 'category-modal-title', form: 'category-form', editId: 'cat-edit-id', name: 'cat-name', tags: 'cat-tags', editTitle: () => i18n.t('编辑分类'), newTitle: () => i18n.t('新增分类') },
   },
   expense: {
     cats: () => state.expenseCategories,
@@ -3625,14 +3644,14 @@ const CAT_SIDES = {
     newTagPrefix: 'expense-new-tag-',
     colorFn: expenseCatColor,
     listId: 'expense-categories-list',
-    noun: '消费记录',
-    savedUpdated: '消费分类已更新', savedCreated: '消费分类已创建',
+    noun: () => i18n.t('消费记录'),
+    savedUpdated: () => i18n.t('消费分类已更新'), savedCreated: () => i18n.t('消费分类已创建'),
     // 消费侧接数据校验：卡片提示条 + 新建分类后自动打开面板
     tagCheck: true,
     tagCheckBar: 'tagcheck-bar-expense',
-    tagCheckHint: '下面这些记录在某个分类下还没有标签。组内顶部可一键补齐，也可以在每条记录上逐个点选，点一下即保存。',
+    tagCheckHint: () => i18n.t('下面这些记录在某个分类下还没有标签。组内顶部可一键补齐，也可以在每条记录上逐个点选，点一下即保存。'),
     tagCheckMeta: expenseTagCheckMeta,
-    modal: { id: 'expense-category-modal', title: 'expense-category-modal-title', form: 'expense-category-form', editId: 'expense-cat-edit-id', name: 'expense-cat-name', tags: 'expense-cat-tags', editTitle: '编辑消费分类', newTitle: '新增消费分类' },
+    modal: { id: 'expense-category-modal', title: 'expense-category-modal-title', form: 'expense-category-form', editId: 'expense-cat-edit-id', name: 'expense-cat-name', tags: 'expense-cat-tags', editTitle: () => i18n.t('编辑消费分类'), newTitle: () => i18n.t('新增消费分类') },
   },
 };
 
@@ -3670,22 +3689,22 @@ function renderCategoryCards(side) {
       <div class="flex items-center justify-between mb-3">
         <div class="flex items-center gap-2">
           <h3 class="card-title">${text.esc(cat.name)}</h3>
-          ${cat.builtin ? '<span class="t-micro px-2 py-0.5 rounded muted" style="background:var(--bg-2);border:1px solid var(--border);">内置</span>' : ''}
+          ${cat.builtin ? '<span class="t-micro px-2 py-0.5 rounded muted" style="background:var(--bg-2);border:1px solid var(--border);">' + i18n.t('内置') + '</span>' : ''}
         </div>
         <div class="flex gap-2">
-          ${!cat.builtin ? `<button onclick="openCategoryModal('${text.jsAttr(side)}', '${text.jsAttr(cat.id)}')" class="row-btn edit">编辑</button>
-          <button onclick="deleteCategory('${text.jsAttr(side)}', '${text.jsAttr(cat.id)}')" class="row-btn danger">删除</button>` : ''}
+          ${!cat.builtin ? `<button onclick="openCategoryModal('${text.jsAttr(side)}', '${text.jsAttr(cat.id)}')" class="row-btn edit">${i18n.t('编辑')}</button>
+          <button onclick="deleteCategory('${text.jsAttr(side)}', '${text.jsAttr(cat.id)}')" class="row-btn danger">${i18n.t('删除')}</button>` : ''}
         </div>
       </div>
       <div class="flex flex-wrap gap-2 mb-3">${tagPills}</div>
       ${cat.builtin ? '' : `
       <div class="new-tag-row">
-        <input type="text" id="${text.esc(cfg.newTagPrefix + cat.id)}" placeholder="新增标签（回车添加）" class="t-body" autocomplete="off" onkeydown="if(event.key==='Enter'&&!event.isComposing){event.preventDefault();${addTagCall};}">
-        <button onclick="${addTagCall}" class="btn-ghost btn-sm">添加</button>
+        <input type="text" id="${text.esc(cfg.newTagPrefix + cat.id)}" placeholder="${i18n.t('新增标签（回车添加）')}" class="t-body" autocomplete="off" onkeydown="if(event.key==='Enter'&&!event.isComposing){event.preventDefault();${addTagCall};}">
+        <button onclick="${addTagCall}" class="btn-ghost btn-sm">${i18n.t('添加')}</button>
       </div>`}
       ${gap ? `<div class="tagcheck-strip">
-        <span class="t-micro"><b class="ink-accent">${gap.items.length}</b> 条记录未归到本分类</span>
-        <button type="button" class="row-btn edit" onclick="openTagCheck('${text.jsAttr(side)}', '${text.jsAttr(cat.id)}')">去校验</button>
+        <span class="t-micro"><b class="ink-accent">${gap.items.length}</b> ${i18n.t('条记录未归到本分类')}</span>
+        <button type="button" class="row-btn edit" onclick="openTagCheck('${text.jsAttr(side)}', '${text.jsAttr(cat.id)}')">${i18n.t('去校验')}</button>
       </div>` : ''}
     </div>`;
   }).join('');
@@ -3699,14 +3718,14 @@ function openCategoryModal(side, editId) {
   form.reset();
   document.getElementById(m.editId).value = editId || '';
   if (editId) {
-    title.textContent = m.editTitle;
+    title.textContent = m.editTitle();
     const c = CAT_SIDES[side].cats().find(x => x.id === editId);
     if (c) {
       document.getElementById(m.name).value = c.name;
       document.getElementById(m.tags).value = c.tags.join(', ');
     }
   } else {
-    title.textContent = m.newTitle;
+    title.textContent = m.newTitle();
   }
   openModal(m.id);
 }
@@ -3721,7 +3740,7 @@ function saveCategory(side, e) {
   const tags = tagsStr.split(/[,，]/).map(s => s.trim()).filter(Boolean);
 
   if (tags.length === 0) {
-    toast('至少需要一个标签', 'error');
+    toast(i18n.t('至少需要一个标签'), 'error');
     return;
   }
 
@@ -3750,7 +3769,7 @@ function saveCategory(side, e) {
     renderCategoryCards(side);
     cfg.renderItems();
     closeModal(m.id);
-    toast(editId ? cfg.savedUpdated : cfg.savedCreated, 'success');
+    toast(editId ? cfg.savedUpdated() : cfg.savedCreated(), 'success');
     // 新建分类后立刻补历史数据（资产/消费两侧都接数据校验）
     if (createdId && cfg.tagCheck) {
       const gap = expense.missingTagGroups(cfg.items(), cfg.cats()).find(g => g.catId === createdId);
@@ -3762,10 +3781,10 @@ function saveCategory(side, e) {
   const refs = expense.countTagRefs(cfg.items(), editId, removed);
   if (refs > 0) {
     showConfirm(
-      `「${removed.join('、')}」已不在标签列表中，保存后将清空 ${refs} 条记录上的归类。` +
-      '只想改名的话，长按那枚标签即可（会保留归类）。',
+      i18n.t('「{p1}」已不在标签列表中，保存后将清空 {p2} 条记录上的归类。', { p1: removed.join('、'), p2: refs }) +
+      i18n.t('只想改名的话，长按那枚标签即可（会保留归类）。'),
       apply,
-      '移除标签'
+      i18n.t('移除标签')
     );
     return;
   }
@@ -3776,7 +3795,7 @@ function deleteCategory(side, id) {
   const cfg = CAT_SIDES[side];
   const cat = cfg.cats().find(c => c.id === id);
   if (cat && cat.builtin) return;
-  showConfirm(`确认删除分类「${cat.name}」？该分类下${cfg.noun}的标签关联也会被移除。`, () => {
+  showConfirm(i18n.t('确认删除分类「{p1}」？该分类下{p2}的标签关联也会被移除。', { p1: cat.name, p2: cfg.noun() }), () => {
     const newCats = cfg.cats().filter(c => c.id !== id);
     if (side === 'asset') state.categories = newCats; else state.expenseCategories = newCats;
     cfg.items().forEach(it => { delete it.tags[id]; });
@@ -3784,7 +3803,7 @@ function deleteCategory(side, id) {
     saveState();
     renderCategoryCards(side);
     cfg.renderItems();
-    toast('分类已删除', 'success');
+    toast(i18n.t('分类已删除'), 'success');
   });
 }
 
@@ -3795,8 +3814,8 @@ function addTag(side, catId) {
   if (!val) return;
   const cat = cfg.cats().find(c => c.id === catId);
   if (!cat) return;
-  if (cat.builtin) { toast('内置分类不可修改', 'error'); return; }
-  if (cat.tags.includes(val)) { toast('标签已存在', 'error'); return; }
+  if (cat.builtin) { toast(i18n.t('内置分类不可修改'), 'error'); return; }
+  if (cat.tags.includes(val)) { toast(i18n.t('标签已存在'), 'error'); return; }
   cat.tags.push(val);
   saveState();
   renderCategoryCards(side);
@@ -3804,22 +3823,22 @@ function addTag(side, catId) {
   // 列表已整体重绘, 旧 input 已脱离文档；把焦点交回同分类的新输入框, 便于回车连续添加
   const next = document.getElementById(cfg.newTagPrefix + catId);
   if (next) next.focus();
-  toast('标签已添加', 'success');
+  toast(i18n.t('标签已添加'), 'success');
 }
 
 function removeTag(side, catId, tagName) {
   const cfg = CAT_SIDES[side];
   const cat = cfg.cats().find(c => c.id === catId);
   if (!cat) return;
-  if (cat.builtin) { toast('内置分类不可修改', 'error'); return; }
-  if (cat.tags.length <= 1) { toast('至少保留一个标签', 'error'); return; }
+  if (cat.builtin) { toast(i18n.t('内置分类不可修改'), 'error'); return; }
+  if (cat.tags.length <= 1) { toast(i18n.t('至少保留一个标签'), 'error'); return; }
   cat.tags = cat.tags.filter(t => t !== tagName);
   cfg.items().forEach(it => { if (it.tags[catId] === tagName) delete it.tags[catId]; });
   if (side === 'asset') state.runwayTags = income.pruneRunwayTags(state.runwayTags, state.categories);
   saveState();
   renderCategoryCards(side);
   cfg.renderItems();
-  toast('标签已移除', 'success');
+  toast(i18n.t('标签已移除'), 'success');
 }
 
 // 标签改名（长按胶囊）：**迁移引用**而不是删除重建——旧名若走「已失效引用」清理，
@@ -3829,10 +3848,10 @@ function renameTag(side, catId, oldName, newName) {
   const cfg = CAT_SIDES[side];
   const cat = cfg.cats().find(c => c.id === catId);
   if (!cat) return;
-  if (cat.builtin) { toast('内置分类不可修改', 'error'); return; }
+  if (cat.builtin) { toast(i18n.t('内置分类不可修改'), 'error'); return; }
   // 空名 / 同名 / 重名都不改数据，重绘即把输入框还原成原来的胶囊
   if (!newName || newName === oldName) { renderCategoryCards(side); return; }
-  if (cat.tags.includes(newName)) { toast('标签已存在', 'error'); renderCategoryCards(side); return; }
+  if (cat.tags.includes(newName)) { toast(i18n.t('标签已存在'), 'error'); renderCategoryCards(side); return; }
   // 旧名已不在列表里（卡片是上一次渲染的快照）：不改数据，重绘即还原
   const at = cat.tags.indexOf(oldName);
   if (at < 0) { renderCategoryCards(side); return; }
@@ -3843,7 +3862,7 @@ function renameTag(side, catId, oldName, newName) {
   saveState();
   renderCategoryCards(side);
   cfg.renderItems();
-  toast('标签已重命名', 'success');
+  toast(i18n.t('标签已重命名'), 'success');
 }
 
 // ===== 长按胶囊改标签名 =====
@@ -3946,7 +3965,7 @@ function startTagRename(pill, side, catId, oldName) {
   input.className = 'tag-rename-input';
   input.value = oldName;
   input.autocomplete = 'off';
-  input.setAttribute('aria-label', '标签名称');
+  input.setAttribute('aria-label', i18n.t('标签名称'));
   pill.replaceWith(input);
   let done = false; // Esc 取消会因重绘移除输入框而触发 blur，标记防二次提交
   const finish = (submit) => {
@@ -4057,7 +4076,7 @@ function fillMonthSelect(selId, months) {
   const sel = document.getElementById(selId);
   if (!sel) return sel;
   const current = sel.value;
-  setSelectOptions(sel, '<option value="">全部时间</option>' +
+  setSelectOptions(sel, '<option value="">' + i18n.t('全部时间') + '</option>' +
     months.map(m => `<option value="${m}">${date.monthLabel(m)}</option>`).join(''));
   if (current && sel.querySelector(`option[value="${current}"]`)) sel.value = current;
   return sel;
@@ -4153,7 +4172,7 @@ function confirmSnapshot(overwrite) {
 
   if (existing && !overwrite) {
     closeModal('snapshot-note-modal');
-    toast('本月已有记录，无需重复记录', 'error');
+    toast(i18n.t('本月已有记录，无需重复记录'), 'error');
     return;
   }
 
@@ -4170,10 +4189,10 @@ function confirmSnapshot(overwrite) {
   if (existing && overwrite) {
     const idx = state.snapshots.findIndex(s => s.month === month);
     state.snapshots[idx] = snap;
-    toast('本月数据已覆盖更新', 'success');
+    toast(i18n.t('本月数据已覆盖更新'), 'success');
   } else {
     state.snapshots.push(snap);
-    toast('快照已记录', 'success');
+    toast(i18n.t('快照已记录'), 'success');
   }
 
   saveState();
@@ -4193,20 +4212,20 @@ function renderHistoryHeader() {
     area.innerHTML = `
       <div class="flex items-center gap-2">
         <span class="t-body muted">
-          ${date.monthLabel(month)} 已记录 ✓
+          ${date.monthLabel(month)}${i18n.t(' 已记录 ✓')}
         </span>
-        <button onclick="promptOverwrite()" class="btn-ghost btn-xs">覆盖更新</button>
+        <button onclick="promptOverwrite()" class="btn-ghost btn-xs">${i18n.t('覆盖更新')}</button>
       </div>
     `;
   } else {
-    area.innerHTML = `<button onclick="takeSnapshot()" class="btn-gold">记录本月数据</button>`;
+    area.innerHTML = `<button onclick="takeSnapshot()" class="btn-gold">${i18n.t('记录本月数据')}</button>`;
   }
 }
 
 function promptOverwrite() {
   const existing = snapshot.findMonthSnapshot(date.getCurrentMonth());
   if (!existing) return;
-  showConfirm('本月已有记录，确定覆盖更新为当前数据？', () => {
+  showConfirm(i18n.t('本月已有记录，确定覆盖更新为当前数据？'), () => {
     document.getElementById('snapshot-note-input').value = existing.note;
     confirmSnapshot(true);
     renderHistoryHeader();
@@ -4214,12 +4233,12 @@ function promptOverwrite() {
 }
 
 function deleteSnapshot(month) {
-  showConfirm('确认删除该月快照？', () => {
+  showConfirm(i18n.t('确认删除该月快照？'), () => {
     state.snapshots = state.snapshots.filter(s => s.month !== month);
     saveState();
     renderHistoryTab();
     afterTabPaint('history', renderHistoryChart);
-    toast('快照已删除', 'success');
+    toast(i18n.t('快照已删除'), 'success');
   });
 }
 
@@ -4253,8 +4272,8 @@ function compareTableHtml(rows, opts) {
     { html: opts.firstLabel },
     { html: opts.periods[0], cls: 'num' },
     { html: opts.periods[1], cls: 'num' },
-    { html: '变动', cls: 'num' },
-    { html: '变动 %', cls: 'num' },
+    { html: i18n.t('变动'), cls: 'num' },
+    { html: i18n.t('变动 %'), cls: 'num' },
   ];
   const body = rows.map(r => {
     const sign = r.d >= 0 ? '+' : '';
@@ -4278,12 +4297,12 @@ function viewSnapshot(month) {
   const snap = state.snapshots.find(s => s.month === month);
   if (!snap) return;
   openDetail({
-    title: '快照详情',
-    summary: `${date.monthLabel(snap.month)}${snap.note ? ' — ' + text.esc(snap.note) : ''} | 总净值: <strong>${money.formatCNY(snap.totalCNY)}</strong>`,
+    title: i18n.t('快照详情'),
+    summary: `${date.monthLabel(snap.month)}${snap.note ? ' — ' + text.esc(snap.note) : ''} | ${i18n.t('总净值: ')}<strong>${money.formatCNY(snap.totalCNY)}</strong>`,
     cols: 'cols-snapshot',
     head: [
-      { html: '名称' }, { html: '金额', cls: 'num' }, { html: '货币' },
-      { html: '预期年化', cls: 'num' }, { html: '标签' },
+      { html: i18n.t('名称') }, { html: i18n.t('金额'), cls: 'num' }, { html: i18n.t('货币') },
+      { html: i18n.t('预期年化'), cls: 'num' }, { html: i18n.t('标签') },
     ],
     rows: (snap.assets || []).map(a => {
       const tagHtml = Object.entries(a.tags || {}).map(([catId, val]) => {
@@ -4294,11 +4313,11 @@ function viewSnapshot(month) {
         { cls: 't-medium t-body', html: text.esc(a.name) },
         { cls: 't-body num', html: money.money2(a.amount) },
         { cls: 't-body muted', html: a.currency },
-        { cls: 't-body num', html: rateLabelText(a) || '<span class="muted hint-xs">未设置</span>' },
+        { cls: 't-body num', html: rateLabelText(a) || '<span class="muted hint-xs">' + i18n.t('未设置') + '</span>' },
         { cls: 'flex flex-wrap gap-1', html: tagHtml },
       ];
     }),
-    empty: '该快照没有资产记录',
+    empty: i18n.t('该快照没有资产记录'),
   });
 }
 
@@ -4318,12 +4337,12 @@ function viewHistorySegment(month, catId, tag) {
   if (items.length === 0) return;
   const segTotal = items.reduce((s, a) => s + a.cny, 0);
   openDetail({
-    title: date.monthLabel(month) + ' · ' + tag + '构成',
-    summary: `${text.esc(cat.name)} › ${text.esc(tag)} | ${items.length} 项资产 | 合计 <strong>${money.formatCNY(segTotal)}</strong>`,
+    title: date.monthLabel(month) + ' · ' + tag + i18n.t('构成'),
+    summary: `${text.esc(cat.name)} › ${text.esc(tag)} | ${i18n.t('{p1} 项资产 | 合计 ', { p1: items.length })}<strong>${money.formatCNY(segTotal)}</strong>`,
     cols: 'cols-segment',
     head: [
-      { html: '名称' }, { html: '金额', cls: 'num' }, { html: '货币' },
-      { html: '折算 CNY', cls: 'num' }, { html: '占比', cls: 'num' },
+      { html: i18n.t('名称') }, { html: i18n.t('金额'), cls: 'num' }, { html: i18n.t('货币') },
+      { html: i18n.t('折算 CNY'), cls: 'num' }, { html: i18n.t('占比'), cls: 'num' },
     ],
     rows: items.map(a => ([
       { cls: 't-medium t-body', html: text.esc(a.name) },
@@ -4332,7 +4351,7 @@ function viewHistorySegment(month, catId, tag) {
       { cls: 't-body num', html: money.formatCNY(a.cny) },
       { cls: 't-body num muted', html: `${money.pctStr(a.cny, segTotal)}%` },
     ])),
-    empty: '该标签下没有资产',
+    empty: i18n.t('该标签下没有资产'),
   });
 }
 
@@ -4340,7 +4359,7 @@ function viewHistorySegment(month, catId, tag) {
 // 对比基准默认口径在 logic.js snapshot.defaultCompareBaseMonth：默认与最新月构成「最近两个月」对比。
 function openCompareModal() {
   const sorted = [...state.snapshots].sort((a, b) => a.month.localeCompare(b.month));
-  if (sorted.length < 2) { toast('至少需要两个月的快照才能对比', 'error'); return; }
+  if (sorted.length < 2) { toast(i18n.t('至少需要两个月的快照才能对比'), 'error'); return; }
   const baseSel = document.getElementById('compare-base-select');
   const targetSel = document.getElementById('compare-target-select');
   const months = sorted.map(s => s.month);
@@ -4385,23 +4404,23 @@ function renderCompareTable() {
   });
 
   if (rows.length === 0) {
-    container.innerHTML = '<p class="text-center py-8 t-body muted">两个月份均无资产记录</p>';
+    container.innerHTML = '<p class="text-center py-8 t-body muted">' + i18n.t('两个月份均无资产记录') + '</p>';
     return;
   }
 
   container.innerHTML = compareTableHtml(rows, {
-    firstLabel: '资产',
-    periods: ['期初', '期末'],
+    firstLabel: i18n.t('资产'),
+    periods: [i18n.t('期初'), i18n.t('期末')],
     color: v => compareColor(v, true),
     firstCellHtml: r => text.esc(r.name) + `<span class="t-micro muted">${r.cur}</span>`
-      + (r.status === 'new' ? '<span class="mo-badge up">新增</span>'
-        : r.status === 'gone' ? '<span class="mo-badge down">移除</span>' : ''),
+      + (r.status === 'new' ? '<span class="mo-badge up">' + i18n.t('新增') + '</span>'
+        : r.status === 'gone' ? '<span class="mo-badge down">' + i18n.t('移除') + '</span>' : ''),
   });
 }
 
 function loadDemoData() {
   if (state.assets.length > 0 || state.snapshots.length > 0) {
-    showConfirm('导入示例数据将覆盖当前所有数据，确认继续？', () => doLoadDemoData());
+    showConfirm(i18n.t('导入示例数据将覆盖当前所有数据，确认继续？'), () => doLoadDemoData());
     return;
   }
   doLoadDemoData();
@@ -4411,17 +4430,17 @@ function doLoadDemoData() {
     state.rates = { CNY: 1, HKD: 0.92, USD: 7.24, fetchedAt: new Date().toISOString() };
   }
   const currencyCat = state.categories.find(c => c.id === 'currency');
-  const catAsset = { id: genId(), name: '资产类型', builtin: false, tags: ['活期现金', '定期存款', '权益基金', '债券基金', '银行理财'] };
-  const catRisk = { id: genId(), name: '风险等级', builtin: false, tags: ['低风险', '中风险', '高风险'] };
+  const catAsset = { id: genId(), name: i18n.t('资产类型'), builtin: false, tags: [i18n.t('活期现金'), i18n.t('定期存款'), i18n.t('权益基金'), i18n.t('债券基金'), i18n.t('银行理财')] };
+  const catRisk = { id: genId(), name: i18n.t('风险等级'), builtin: false, tags: [i18n.t('低风险'), i18n.t('中风险'), i18n.t('高风险')] };
   state.categories = [currencyCat, catAsset, catRisk];
   const defs = [
-    { name: '招商银行活期', base: 50000, cur: 'CNY', type: '活期现金', risk: '低风险', rMin: 0.25, rMax: 0.35, cash: 100 },
-    { name: '工商银行定期', base: 200000, cur: 'CNY', type: '定期存款', risk: '低风险', rMin: 1.8, rMax: 2.2, cash: 100 },
-    { name: '沪深300指数', base: 80000, cur: 'CNY', type: '权益基金', risk: '高风险', rMin: 5, rMax: 8, cash: 20 },
-    { name: '标普500ETF', base: 10000, cur: 'USD', type: '权益基金', risk: '高风险', rMin: 0, rMax: 0, cash: 0 },
-    { name: '纯债基金A', base: 100000, cur: 'CNY', type: '债券基金', risk: '中风险', rMin: 3, rMax: 4.5, cash: 100 },
-    { name: '招行理财', base: 150000, cur: 'CNY', type: '银行理财', risk: '中风险', rMin: 2.5, rMax: 3.5, cash: 100 },
-    { name: '汇丰香港储蓄', base: 50000, cur: 'HKD', type: '活期现金', risk: '低风险', rMin: 0.1, rMax: 0.2, cash: 100 },
+    { name: i18n.t('招商银行活期'), base: 50000, cur: 'CNY', type: i18n.t('活期现金'), risk: i18n.t('低风险'), rMin: 0.25, rMax: 0.35, cash: 100 },
+    { name: i18n.t('工商银行定期'), base: 200000, cur: 'CNY', type: i18n.t('定期存款'), risk: i18n.t('低风险'), rMin: 1.8, rMax: 2.2, cash: 100 },
+    { name: i18n.t('沪深300指数'), base: 80000, cur: 'CNY', type: i18n.t('权益基金'), risk: i18n.t('高风险'), rMin: 5, rMax: 8, cash: 20 },
+    { name: i18n.t('标普500ETF'), base: 10000, cur: 'USD', type: i18n.t('权益基金'), risk: i18n.t('高风险'), rMin: 0, rMax: 0, cash: 0 },
+    { name: i18n.t('纯债基金A'), base: 100000, cur: 'CNY', type: i18n.t('债券基金'), risk: i18n.t('中风险'), rMin: 3, rMax: 4.5, cash: 100 },
+    { name: i18n.t('招行理财'), base: 150000, cur: 'CNY', type: i18n.t('银行理财'), risk: i18n.t('中风险'), rMin: 2.5, rMax: 3.5, cash: 100 },
+    { name: i18n.t('汇丰香港储蓄'), base: 50000, cur: 'HKD', type: i18n.t('活期现金'), risk: i18n.t('低风险'), rMin: 0.1, rMax: 0.2, cash: 100 },
   ];
   state.assets = defs.map(d => ({
     id: genId(), name: d.name, amount: d.base, currency: d.cur,
@@ -4435,7 +4454,7 @@ function doLoadDemoData() {
   for (let i = 5; i >= 0; i--) {
     months.push(date.getLocalMonthStr(new Date(now.getFullYear(), now.getMonth() - i, 1)));
   }
-  const notes = ['初始配置', '小幅加仓', '市场波动', '补仓操作', '分红再投', '季度调整'];
+  const notes = [i18n.t('初始配置'), i18n.t('小幅加仓'), i18n.t('市场波动'), i18n.t('补仓操作'), i18n.t('分红再投'), i18n.t('季度调整')];
   const monthlyChanges = [
     [0, 0, 0, 0, 0, 0, 0],
     [3000, 0, 5000, 0, 0, 0, 0],
@@ -4449,9 +4468,9 @@ function doLoadDemoData() {
       let amount = d.base;
       for (let j = 0; j <= mi; j++) amount += monthlyChanges[j][ai];
       const marketJitter = [0, 0.02, -0.06, 0.03, 0.01, 0.04];
-      if (d.type === '权益基金') amount = Math.round(amount * (1 + marketJitter[mi]));
-      if (d.type === '债券基金') amount = Math.round(amount * (1 + marketJitter[mi] * 0.3));
-      if (d.name === '招行理财') amount = Math.round(amount * (1 + marketJitter[mi] * 0.2));
+      if (d.type === i18n.t('权益基金')) amount = Math.round(amount * (1 + marketJitter[mi]));
+      if (d.type === i18n.t('债券基金')) amount = Math.round(amount * (1 + marketJitter[mi] * 0.3));
+      if (d.name === i18n.t('招行理财')) amount = Math.round(amount * (1 + marketJitter[mi] * 0.2));
       return {
         id: assetIds[ai], name: d.name, amount, currency: d.cur,
         tags: { currency: d.cur, [catAsset.id]: d.type, [catRisk.id]: d.risk },
@@ -4465,7 +4484,7 @@ function doLoadDemoData() {
   state.assets = JSON.parse(JSON.stringify(latest.assets));
   saveState();
   renderAll();
-  toast('示例数据已导入（6个月快照）', 'success');
+  toast(i18n.t('示例数据已导入（6个月快照）'), 'success');
 }
 
 function setHistoryChartMode(mode) {
@@ -4566,15 +4585,15 @@ async function renderHistoryChart() {
 // curr/prev 为数值，prev=null 表示无上月（首月），prev=0 表示新增；
 // goodWhenUp=true 时「上涨=好=绿」（资产净值），false 时「上涨=坏=红」（消费支出）
 function momCompareHtml(curr, prev, goodWhenUp) {
-  if (prev == null) return { badge: '<span class="mo-badge first">首月</span>', diffLine: '' };
-  if (prev === 0) return { badge: '<span class="mo-badge up">新增</span>', diffLine: '' };
+  if (prev == null) return { badge: '<span class="mo-badge first">' + i18n.t('首月') + '</span>', diffLine: '' };
+  if (prev === 0) return { badge: '<span class="mo-badge up">' + i18n.t('新增') + '</span>', diffLine: '' };
   const m = expense.expenseMoM(curr, prev);
   const sign = m.up ? '+' : '';
   const good = goodWhenUp ? m.up : !m.up;
   const badgeClass = good ? 'up' : 'down';
   const diffColor = good ? 'var(--verdigris)' : 'var(--down)';
-  const badge = '<span class="mo-badge ' + badgeClass + '" title="较上月 ' + sign + money.formatCNY(m.diff) + '（' + sign + m.pct.toFixed(1) + '%）">' + (m.up ? '▲' : '▼') + ' ' + sign + m.pct.toFixed(1) + '%</span>';
-  const diffLine = '<span style="color:' + diffColor + ';">较上月 ' + sign + money.formatCNY(m.diff) + '</span>';
+  const badge = '<span class="mo-badge ' + badgeClass + '" title="' + i18n.t('较上月 ') + sign + money.formatCNY(m.diff) + '（' + sign + m.pct.toFixed(1) + '%）">' + (m.up ? '▲' : '▼') + ' ' + sign + m.pct.toFixed(1) + '%</span>';
+  const diffLine = '<span style="color:' + diffColor + ';">' + i18n.t('较上月 ') + sign + money.formatCNY(m.diff) + '</span>';
   return { badge: badge, diffLine: diffLine };
 }
 
@@ -4600,9 +4619,9 @@ function renderHistoryTab() {
           <span class="t-medium t-body">${date.monthLabel(s.month)}</span>
           ${badge}
         </div>
-        <div class="t-micro mt-0.5 muted">${text.esc(s.note) || '无备注'} · ${money.formatCNY(s.totalCNY)} · ${(s.assets || []).length} 项资产${diffLine ? ' · ' + diffLine : ''}</div>
+        <div class="t-micro mt-0.5 muted">${text.esc(s.note) || i18n.t('无备注')} · ${money.formatCNY(s.totalCNY)} · ${i18n.t('{p1} 项资产', { p1: (s.assets || []).length })}${diffLine ? ' · ' + diffLine : ''}</div>
       </div>
-      <button onclick="deleteSnapshot('${text.jsAttr(s.month)}')" class="row-btn danger">删除</button>
+      <button onclick="deleteSnapshot('${text.jsAttr(s.month)}')" class="row-btn danger">${i18n.t('删除')}</button>
     </div>`;
   }).join('');
 }
@@ -4659,7 +4678,7 @@ function renderCoverageMeter() {
   const reading = document.getElementById('cov-reading');
   // 指引分支仅现金口径有意义; 总收益口径下有息资产必使分子 > 0
   if (coverageMode === 'cash' && cashMonthly <= 0) {
-    reading.textContent = '当前组合没有现金流收益——调高资产的现金比例后，这里开始计量';
+    reading.textContent = i18n.t('当前组合没有现金流收益——调高资产的现金比例后，这里开始计量');
     return;
   }
   // 差额与打平判定同源（logic.js income.incomeGap, 覆盖标尺为盈余/缺口唯一渲染出口, 报头已不再重复渲染）
@@ -4676,10 +4695,10 @@ function renderCoverageMeter() {
   }
   dropDetachedBubbles(); // 先扔掉上一帧挂在 body 上的气泡（见函数注释）
   reading.innerHTML =
-    `<span>覆盖 <span class="tabular readout-strong" style="color:${ok ? 'var(--verdigris)' : 'var(--fg)'};opacity:${ok ? '1' : '0.85'};">${pct.toFixed(1)}%</span></span>` +
-    ` · <span>${g.word} <span class="tabular readout-strong" style="color:${diffColor};">¥${g.amt.toLocaleString('zh-CN')}</span>/月</span>` +
+    `<span>${i18n.t('覆盖 ')}<span class="tabular readout-strong" style="color:${ok ? 'var(--verdigris)' : 'var(--fg)'};opacity:${ok ? '1' : '0.85'};">${pct.toFixed(1)}%</span></span>` +
+    ` · <span>${g.word} <span class="tabular readout-strong" style="color:${diffColor};">¥${g.amt.toLocaleString('zh-CN')}</span>${i18n.t('/月')}</span>` +
     shortfallTip +
-    (ok ? ` <span class="mo-badge up" title="${coverageMode === 'total' ? '总收益' : '现金收益'}已完全覆盖预期月消费">已覆盖</span>` : '');
+    (ok ? ` <span class="mo-badge up" title="${i18n.t(coverageMode === 'total' ? '总收益' : '现金收益')}${i18n.t('已完全覆盖预期月消费')}">${i18n.t('已覆盖')}</span>` : '');
 }
 
 // 缺口「还需本金」气泡文案（Tips 唯一拼装处）: 算式与口径在 logic.js, 这里只做展示。
@@ -4687,10 +4706,10 @@ function renderCoverageMeter() {
 function shortfallTipHtml(need, rate) {
   if (need === null) return '';
   const body = need === Infinity
-    ? '当前资产的实际年化不高，加本金也补不上这个缺口——先调高预期年利率或降低月消费。'
-    : `按当前实际年化 ${rate.toFixed(2)}% 线性外推，还需本金 <span class="tabular readout-strong">${money.formatCNY(need)}</span> 才能覆盖。`;
+    ? i18n.t('当前资产的实际年化不高，加本金也补不上这个缺口——先调高预期年利率或降低月消费。')
+    : `${i18n.t('按当前实际年化 {p1}% 线性外推，还需本金 ', { p1: rate.toFixed(2) })}<span class="tabular readout-strong">${money.formatCNY(need)}</span>${i18n.t(' 才能覆盖。')}`;
   return `<span class="tip">` +
-    `<button type="button" class="tip-mark" aria-describedby="cov-shortfall-tip" aria-label="还需多少本金才能覆盖">?</button>` +
+    `<button type="button" class="tip-mark" aria-describedby="cov-shortfall-tip" aria-label="${i18n.t('还需多少本金才能覆盖')}">?</button>` +
     `<span class="tip-bubble" id="cov-shortfall-tip" role="tooltip">${body}</span></span>`;
 }
 
@@ -4732,7 +4751,7 @@ function renderRunwayRow() {
   document.getElementById('runway-num').textContent = money.formatCNY(liquid);
   // 分母名要标出「自定」: 自定值只作用于本卡, 不换名会与旁边的覆盖标尺（仍是全局预期）看着像同一个数
   document.getElementById('runway-expense-name').textContent =
-    income.runwayExpectationIsCustom(state.runwayExpectation) ? '月消费（自定）' : '预期月消费';
+    income.runwayExpectationIsCustom(state.runwayExpectation) ? i18n.t('月消费（自定）') : i18n.t('预期月消费');
   document.getElementById('runway-expense').textContent = money.formatCNY(expectation);
   document.getElementById('runway-months').textContent = income.runwayMonthsText(income.runwayMonths(liquid, expectation));
 }
@@ -4801,7 +4820,7 @@ function renderRunwayTagGroups() {
   // 内置货币分类照样列出: 币种本身就是合法的筛法（只看 HKD 能撑多久）, 且与其它分类是「且」关系
   const cats = state.categories.filter(c => c && Array.isArray(c.tags));
   if (cats.length === 0) {
-    box.innerHTML = '<p class="t-body muted">先去「分类管理」建一个资产分类和标签。</p>';
+    box.innerHTML = '<p class="t-body muted">' + i18n.t('先去「分类管理」建一个资产分类和标签。') + '</p>';
     return;
   }
   box.innerHTML = cats.map(cat => {
@@ -4835,10 +4854,10 @@ function renderRunwayPreview() {
   const input = document.getElementById('runway-expectation').value;
   const expectation = income.runwayExpectationOf(income.normalizeRunwayExpectationInput(input, state.expenseExpectation), state.expenseExpectation);
   const liquid = income.runwayLiquidCNY(state.assets, _runwayDraft);
-  if (liquid == null) { el.textContent = '勾选标签后这里显示结果'; return; }
+  if (liquid == null) { el.textContent = i18n.t('勾选标签后这里显示结果'); return; }
   const months = income.runwayMonths(liquid, expectation);
-  if (months == null) { el.textContent = '先设定预期月消费，再回来看结果'; return; }
-  el.textContent = `${money.formatCNY(liquid)} ÷ 月消费 ${money.formatCNY(expectation)} = ${income.runwayMonthsText(months)}`;
+  if (months == null) { el.textContent = i18n.t('先设定预期月消费，再回来看结果'); return; }
+  el.textContent = i18n.t('{p1} ÷ 月消费 {p2} = {p3}', { p1: money.formatCNY(liquid), p2: money.formatCNY(expectation), p3: income.runwayMonthsText(months) });
 }
 
 function saveRunwayTags() {
@@ -4849,7 +4868,7 @@ function saveRunwayTags() {
   saveState();
   closeModal('runway-modal');
   renderRunwayRow();
-  toast(state.runwayExpectation > 0 ? '已更新标签与月消费' : '已更新标签', 'success');
+  toast(state.runwayExpectation > 0 ? i18n.t('已更新标签与月消费') : i18n.t('已更新标签'), 'success');
 }
 
 function renderIncomeTab() {
@@ -4916,8 +4935,8 @@ function renderIncomeTab() {
   const safetyPct = state.incomeSafetyFactor || 100;
   const discounted = safetyPct < 100;
   document.getElementById('income-summary-footer').textContent =
-    `加权平均利率 ${avgRate}% · 平均现金收益率 ${avgCashRate}% · 总资产 ${money.formatCNY(totalCNY)}` +
-    (discounted ? ` · 已按 ${safetyPct}% 安全边际折算` : '');
+    i18n.t('加权平均利率 {p1}% · 平均现金收益率 {p2}% · 总资产 {p3}', { p1: avgRate, p2: avgCashRate, p3: money.formatCNY(totalCNY) }) +
+    (discounted ? i18n.t(' · 已按 {p1}% 安全边际折算', { p1: safetyPct }) : '');
 
   // 覆盖标尺（覆盖率/差额口径在 logic.js income.coveragePct/income.incomeGap）
   renderCoverageMeter();
@@ -4929,13 +4948,13 @@ function renderIncomeTab() {
   const rows = document.getElementById('income-rows');
   rows.innerHTML = [
     '<div class="asset-row list-head cols-income">',
-    `  <div>名称</div><div class="num">金额 (CNY)</div><div class="num">年利率</div><div class="num">现金比例</div><div class="num">年收益${discounted ? '*' : ''}</div><div class="num">月收益${discounted ? '*' : ''}</div><div class="num">现金/月${discounted ? '*' : ''}</div>`,
+    `  <div>${i18n.t('名称')}</div><div class="num">${i18n.t('金额 (CNY)')}</div><div class="num">${i18n.t('年利率')}</div><div class="num">${i18n.t('现金比例')}</div><div class="num">${i18n.t('年收益')}${discounted ? '*' : ''}</div><div class="num">${i18n.t('月收益')}${discounted ? '*' : ''}</div><div class="num">${i18n.t('现金/月')}${discounted ? '*' : ''}</div>`,
     '</div>',
     ...sorted.map(a => {
       const inc = income.calcAssetIncome(a);
       const hasRate = income.getAssetRate(a) > 0;
       const rowClass = 'asset-row cols-income' + (hasRate ? '' : ' is-unrated');
-      const rateLabel = rateLabelText(a, 1) || '<span class="muted">未设置</span>';
+      const rateLabel = rateLabelText(a, 1) || '<span class="muted">' + i18n.t('未设置') + '</span>';
       const cashPct = income.cashRatioPct(a);
       return `<div class="${rowClass}">
         <div class="t-medium t-body">${text.esc(a.name)}</div>
@@ -4952,7 +4971,7 @@ function renderIncomeTab() {
   // 安全边际折算表注（账页星注）
   const noteEl = document.getElementById('income-table-note');
   noteEl.style.display = discounted ? '' : 'none';
-  noteEl.textContent = discounted ? `* 已按 ${safetyPct}% 安全边际折算` : '';
+  noteEl.textContent = discounted ? i18n.t('* 已按 {p1}% 安全边际折算', { p1: safetyPct }) : '';
 
   // --- Chart ---
   fillCategorySelect('income-chart-category-select', state.categories);
@@ -4995,7 +5014,7 @@ async function renderIncomeChart() {
     }
   });
 
-  const modeLabel = incomeChartMode === 'cash' ? '月现金收益' : '月总收益';
+  const modeLabel = incomeChartMode === 'cash' ? i18n.t('月现金收益') : i18n.t('月总收益');
   const totalIncome = rateAssets.reduce((s, a) => {
     const inc = income.calcAssetIncome(a);
     return s + (incomeChartMode === 'cash' ? inc.cashMonthly : inc.monthly);
@@ -5022,11 +5041,11 @@ async function renderIncomeChart() {
       const a = state.assets.find(x => x.id === assetId);
       if (a) {
         const inc = income.calcAssetIncome(a);
-        const rateRange = rateLabelText(a, 1) || '未设置';
-        return `<b>${text.esc(a.name)}</b><br/>月现金收益 ${money.formatCNY(inc.cashMonthly)} · 月总收益 ${money.formatCNY(inc.monthly)}<br/><span style="color:${th.muted}">利率 ${rateRange} · 现金 ${income.cashRatioPct(a)}% · 占比 ${money.pctStr(p.value, view.total)}%</span>`;
+        const rateRange = rateLabelText(a, 1) || i18n.t('未设置');
+        return `<b>${text.esc(a.name)}</b><br/>${i18n.t('月现金收益 ')}${money.formatCNY(inc.cashMonthly)} · ${i18n.t('月总收益 ')}${money.formatCNY(inc.monthly)}<br/><span style="color:${th.muted}">${i18n.t('利率 ')}${rateRange} · ${i18n.t('现金 ')}${income.cashRatioPct(a)}% · ${i18n.t('占比 ')}${money.pctStr(p.value, view.total)}%</span>`;
       }
     }
-    return sunburstTooltipContent(p, th, view.total, { prefix: modeLabel, pctLabel: '占比 ' });
+    return sunburstTooltipContent(p, th, view.total, { prefix: modeLabel, pctLabel: i18n.t('占比 ') });
   });
   if (!(await chartApply({
     slot: chartSlot(() => incomeChart, v => incomeChart = v),
@@ -5108,6 +5127,61 @@ function toggleSort(field) {
   renderAssets();
 }
 
+// ========== LANGUAGE (界面语言，唯一入口：设置弹窗「语言」) ==========
+// 两条路径共用同一个词条表（logic.js i18n.I18N_EN）：
+//   ① 静态文案：data-i18n / data-i18n-<attr>（applyI18nDom 按当前语言写回 DOM）
+//   ② 动态文案：模板里 i18n.t(…)（渲染时取词）
+// 源文案就是键——缺词条时回落中文，所以「漏译」在英文界面里表现为中英混排；
+// test/ui-wiring.test.js 的覆盖率用例逐条把守，不靠人眼巡检。
+const I18N_ATTRS = ['aria-label', 'placeholder', 'title', 'content'];
+
+function applyI18nDom() {
+  document.documentElement.lang = i18n.langTag(state.lang);
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const next = i18n.t(el.getAttribute('data-i18n'));
+    if (el.textContent !== next) el.textContent = next;
+  });
+  I18N_ATTRS.forEach(attr => {
+    document.querySelectorAll('[data-i18n-' + attr + ']').forEach(el => {
+      el.setAttribute(attr, i18n.t(el.getAttribute('data-i18n-' + attr)));
+    });
+  });
+}
+
+// 设置弹窗内的语言 seg 回显（与主题 seg 同一套写法）
+function syncLangSeg() {
+  const lang = i18n.normalizeLang(state.lang);
+  ['en', 'zh'].forEach(l => {
+    const btn = document.getElementById('lang-seg-' + l);
+    if (!btn) return;
+    btn.classList.toggle('active', l === lang);
+    btn.setAttribute('aria-pressed', String(l === lang));
+  });
+}
+
+// 日期选择器的 locale 跟着语言走（zh 需要 CDN 的 l10n/zh.js，未就绪时用默认英文）
+function syncFlatpickrLocale() {
+  const el = document.getElementById('expense-date');
+  const fp = el && el._flatpickr;
+  if (!fp || typeof flatpickr === 'undefined') return;
+  const zh = flatpickr.l10ns && flatpickr.l10ns.zh;
+  fp.set('locale', i18n.normalizeLang(state.lang) === 'zh' && zh ? zh : 'default');
+}
+
+// 语言切换与主题同一套「先落盘、后重绘」路径。
+// 用户数据（分类名/标签/备注）不翻译：它们不是界面文案，换语言不该改写账本内容。
+function setLang(lang) {
+  const next = i18n.normalizeLang(lang);
+  if (next === i18n.normalizeLang(state.lang)) return;
+  state.lang = next;
+  saveState();
+  applyI18nDom();
+  syncLangSeg();
+  syncFlatpickrLocale();
+  renderAll();
+  refreshVisibleCharts();
+}
+
 // ========== THEME (日间/夜间，入口唯一：设置弹窗「外观」) ==========
 // 切换主题（设置弹窗「外观」seg 唯一入口）：目标与当前一致时不动、不重绘。
 // 落地：DOM class + localStorage['dark-mode']（首次访问的初始主题由 <head> 内联脚本处理，不走这里）；
@@ -5134,9 +5208,10 @@ function setTheme(dark) {
   refreshVisibleCharts();
 }
 
-// 设置弹窗入口：打开前回显主题 seg 与备份控件
+// 设置弹窗入口：打开前回显主题 seg、语言 seg 与备份控件
 function showSettings() {
   syncThemeSeg();
+  syncLangSeg();
   syncBackupControls();
   openModal('settings-modal');
 }
@@ -5235,7 +5310,7 @@ function chooseBackupDir() { chooseBackupDirAsync(); }
 
 async function chooseBackupDirAsync() {
   if (!canPickBackupDir()) {
-    toast('当前浏览器不支持选择文件夹，备份将下载到「下载」文件夹', 'info');
+    toast(i18n.t('当前浏览器不支持选择文件夹，备份将下载到「下载」文件夹'), 'info');
     return;
   }
   if (dirPickInFlight) return;
@@ -5249,10 +5324,10 @@ async function chooseBackupDirAsync() {
     backupDirHandle = handle;
     try { await idbSetBackupDir(handle); } catch (e) { /* 本次会话仍可用，刷新后需重选 */ }
     syncBackupControls();
-    toast(`已选择备份文件夹「${handle.name || '备份文件夹'}」`, 'success');
+    toast(i18n.t('已选择备份文件夹「{p1}」', { p1: handle.name || i18n.t('备份文件夹') }), 'success');
   } catch (e) {
     if (e && e.name === 'AbortError') return; // 用户取消，不打扰
-    toast('选择文件夹失败', 'error');
+    toast(i18n.t('选择文件夹失败'), 'error');
   } finally { dirPickInFlight = false; }
 }
 
@@ -5264,7 +5339,7 @@ async function clearBackupDirAsync() {
   backupDirHandle = null;
   try { await idbClearBackupDir(); } catch (e) { /* IDB 不可用：内存已清 */ }
   syncBackupControls();
-  toast('已清除备份文件夹', 'success');
+  toast(i18n.t('已清除备份文件夹'), 'success');
 }
 
 // ===== 落盘 =====
@@ -5346,7 +5421,7 @@ async function maybeAutoBackup(ratePromise) {
         const plan = backup.backupWritePlan({ supportsPicker: canSaveBackupFile() });
         if (plan.target === 'file') saveBackupToFile(t, 'auto');
         else exportViaDownload(t);
-      }, prompt.title, { okLabel: '备份', tone: 'gold' });
+      }, prompt.title, { okLabel: i18n.t('备份'), tone: 'gold' });
     } catch (e) { /* 忽略 */ }
   }, 4000);
 }
@@ -5356,7 +5431,7 @@ async function maybeAutoBackup(ratePromise) {
 function checkBackupStale() {
   const staleDays = backup.backupStaleDays(state, date.getLocalDateStr());
   if (staleDays != null) {
-    setTimeout(() => toast(`距上次备份已 ${staleDays} 天，记得导出一份`, 'error'), 1500);
+    setTimeout(() => toast(i18n.t('距上次备份已 {p1} 天，记得导出一份', { p1: staleDays }), 'error'), 1500);
   }
 }
 
@@ -5387,7 +5462,7 @@ function setBackupFreq(v) {
   state.backup.autoFreq = backup.normalizeBackupFreq(v); // 白名单归一与 migrate.migrateState 同源（logic.js）
   saveState();
   syncBackupControls(); // 两处弹窗控件同源刷新
-  toast(state.backup.autoFreq === 'off' ? '已关闭自动备份' : `自动备份：${state.backup.autoFreq === 'daily' ? '每天' : '每周'}`, 'success');
+  toast(state.backup.autoFreq === 'off' ? i18n.t('已关闭自动备份') : i18n.t('自动备份：{p1}', { p1: i18n.t(state.backup.autoFreq === 'daily' ? '每天' : '每周') }), 'success');
 }
 
 function exportData() {
@@ -5428,12 +5503,12 @@ function importData(e) {
         saveState();
         renderAll();
         closeModal('io-modal');
-        toast('数据已导入', 'success');
+        toast(i18n.t('数据已导入'), 'success');
       } else {
-        toast('文件格式不正确', 'error');
+        toast(i18n.t('文件格式不正确'), 'error');
       }
     } catch(err) {
-      toast('解析文件失败', 'error');
+      toast(i18n.t('解析文件失败'), 'error');
     }
   };
   reader.readAsText(file);
@@ -5531,11 +5606,11 @@ let _confirmCallback = null;
 function showConfirm(msg, onOk, title, opts) {
   opts = opts || {};
   document.getElementById('confirm-msg').textContent = msg;
-  document.getElementById('confirm-title').textContent = title || '确认操作';
+  document.getElementById('confirm-title').textContent = title || i18n.t('确认操作');
   // 按钮文案与色调每次都重置：确认框全站共用，上一个调用留下的「查看资产/金色」
   // 绝不能粘到下一个（删除这类真危险动作）确认上
   const ok = document.getElementById('confirm-ok-btn');
-  ok.textContent = opts.okLabel || '确认';
+  ok.textContent = opts.okLabel || i18n.t('确认');
   ok.className = opts.tone === 'gold' ? 'btn-gold' : 'btn-danger';
   openModal('confirm-modal');
   _confirmCallback = onOk;
@@ -5701,11 +5776,11 @@ function populateExpenseTagFilter() {
   const sel = document.getElementById('expense-tag-filter');
   if (!sel) return;
   const groups = expense.expenseTagFilterGroups(state.expenseCategories);
-  let opts = '<option value="">全部标签</option>';
+  let opts = '<option value="">' + i18n.t('全部标签') + '</option>';
   for (const g of groups) {
     const tagOpts = g.tags.length
       ? g.tags.map(t => `<option value="${text.esc(expense.tagFilterValue(g.id, t))}">${text.esc(t)}</option>`).join('')
-      : '<option value="" disabled>（暂无标签）</option>';
+      : '<option value="" disabled>' + i18n.t('（暂无标签）') + '</option>';
     opts += `<optgroup label="${text.esc(g.name)}">${tagOpts}</optgroup>`;
   }
   setSelectOptions(sel, opts);
@@ -5752,21 +5827,21 @@ function renderExpenses() {
     const subEl = document.getElementById('expenses-empty-sub');
     const demoBtn = document.getElementById('expenses-empty-demo');
     if (view.emptyKind === 'no-data') {
-      titleEl.textContent = '还没有消费记录';
+      titleEl.textContent = i18n.t('还没有消费记录');
       subEl.style.display = '';
-      subEl.textContent = '点击「记录消费」或导入示例数据开始';
+      subEl.textContent = i18n.t('点击「记录消费」或导入示例数据开始');
       demoBtn.style.display = '';
     } else {
       // 按生效维度拼接提示：搜索 > 标签 > 月份
       const filterParts = [];
-      if (view.active.query) filterParts.push(`匹配「${view.active.query}」`);
+      if (view.active.query) filterParts.push(i18n.t('匹配「{p1}」', { p1: view.active.query }));
       if (view.active.tag) filterParts.push(view.active.tag);
       if (view.active.month) filterParts.push(date.monthLabel(view.active.month));
       titleEl.textContent = filterParts.length
-        ? `${filterParts.join(' · ')}暂无消费记录`
-        : '暂无消费记录';
+        ? i18n.t('{p1}暂无消费记录', { p1: filterParts.join(' · ') })
+        : i18n.t('暂无消费记录');
       subEl.style.display = view.active.query ? '' : 'none';
-      subEl.textContent = '换个关键词试试，或清除筛选';
+      subEl.textContent = i18n.t('换个关键词试试，或清除筛选');
       demoBtn.style.display = 'none';
     }
     document.getElementById('expenses-empty-clear').style.display = view.hasFilter ? '' : 'none';
@@ -5794,9 +5869,9 @@ function renderExpenses() {
         <div class="t-body muted">${e.note ? text.highlightMatch(e.note, q) : '—'}</div>
         <div class="flex flex-wrap gap-1">${tagHtml}</div>
         <div class="flex gap-2 justify-end">
-          <button onclick="editExpense('${text.jsAttr(e.id)}')" class="row-btn edit">编辑</button>
-          <button onclick="duplicateExpense('${text.jsAttr(e.id)}')" class="row-btn copy">复制</button>
-          <button onclick="deleteExpense('${text.jsAttr(e.id)}')" class="row-btn danger">删除</button>
+          <button onclick="editExpense('${text.jsAttr(e.id)}')" class="row-btn edit">${i18n.t('编辑')}</button>
+          <button onclick="duplicateExpense('${text.jsAttr(e.id)}')" class="row-btn copy">${i18n.t('复制')}</button>
+          <button onclick="deleteExpense('${text.jsAttr(e.id)}')" class="row-btn danger">${i18n.t('删除')}</button>
         </div>
       </div>`;
     }).join('');
@@ -5807,10 +5882,10 @@ function renderExpenses() {
   const parts = [];
   if (view.active.month) parts.push(date.monthLabel(view.active.month));
   if (view.active.tag) parts.push(view.active.tag);
-  if (q) parts.push('匹配');
-  const totalLabel = parts.length ? parts.join(' ') : '合计';
+  if (q) parts.push(i18n.t('匹配'));
+  const totalLabel = parts.length ? parts.join(' ') : i18n.t('合计');
   document.getElementById('expense-total-line').innerHTML =
-    `${totalLabel} · <span class="tabular t-medium ink-accent">${money.formatCNY(total)}</span> · ${filtered.length} 笔`;
+    `${totalLabel} · <span class="tabular t-medium ink-accent">${money.formatCNY(total)}</span> · ${i18n.t('{p1} 笔', { p1: filtered.length })}`;
 
   // 数据校验条跟随记录/分类变化（全局口径，不随列表筛选缩小）
   renderTagCheckBar('expense');
@@ -5830,11 +5905,11 @@ function openExpenseModal(editId, prefillId) {
     : (prefillId ? state.expenses.find(x => x.id === prefillId) : null);
 
   if (editId) {
-    title.textContent = '编辑消费';
+    title.textContent = i18n.t('编辑消费');
   } else if (prefillId) {
-    title.textContent = '复制消费';
+    title.textContent = i18n.t('复制消费');
   } else {
-    title.textContent = '记录消费';
+    title.textContent = i18n.t('记录消费');
   }
 
   if (source) {
@@ -5858,14 +5933,14 @@ function saveExpense(e) {
   const amount = money.parseMoneyInput(document.getElementById('expense-amount').value);
   const note = document.getElementById('expense-note').value.trim();
 
-  if (!dateStr) { toast('请选择日期', 'error'); return; }
-  if (!amount || amount <= 0) { toast('金额必须大于 0', 'error'); return; }
+  if (!dateStr) { toast(i18n.t('请选择日期'), 'error'); return; }
+  if (!amount || amount <= 0) { toast(i18n.t('金额必须大于 0'), 'error'); return; }
 
   const picked = collectPickedTags(state.expenseCategories, 'expense-tag-');
   const tags = picked.tags;
 
   if (!picked.complete) {
-    toast('请为每个分类选择标签', 'error');
+    toast(i18n.t('请为每个分类选择标签'), 'error');
     return;
   }
 
@@ -5879,7 +5954,7 @@ function saveExpense(e) {
   saveState();
   renderExpenses();
   closeModal('expense-modal');
-  toast(editId ? '消费已更新' : '消费已记录', 'success');
+  toast(editId ? i18n.t('消费已更新') : i18n.t('消费已记录'), 'success');
 }
 
 function editExpense(id) {
@@ -5892,11 +5967,11 @@ function duplicateExpense(id) {
 }
 
 function deleteExpense(id) {
-  showConfirm('确认删除该消费记录？', () => {
+  showConfirm(i18n.t('确认删除该消费记录？'), () => {
     state.expenses = state.expenses.filter(e => e.id !== id);
     saveState();
     renderExpenses();
-    toast('已删除', 'success');
+    toast(i18n.t('已删除'), 'success');
   });
 }
 
@@ -5929,12 +6004,12 @@ let tagCheckSide = 'expense';
 // 两函数保持同一套 class（.tagcheck-meta 是 flex 基准对齐容器，.tagcheck-note 负责截断）
 function expenseTagCheckMeta(e) {
   return `<span class="t-micro muted">${text.esc((e.date || '').slice(5))}</span>`
-    + `<span class="t-body tagcheck-note">${e.note ? text.esc(e.note) : '<span class="muted">（无备注）</span>'}</span>`
+    + `<span class="t-body tagcheck-note">${e.note ? text.esc(e.note) : '<span class="muted">' + i18n.t('（无备注）') + '</span>'}</span>`
     + `<span class="t-body tabular">${money.money2(e.amount)}</span>`;
 }
 
 function assetTagCheckMeta(a) {
-  return `<span class="t-body tagcheck-note">${text.esc(a.name || '（未命名）')}</span>`
+  return `<span class="t-body tagcheck-note">${text.esc(a.name || i18n.t('（未命名）'))}</span>`
     + `<span class="t-body tabular">${money.money2(a.amount)} ${text.esc(a.currency || 'CNY')}</span>`;
 }
 
@@ -5948,7 +6023,7 @@ function renderTagCheckBar(side) {
   const total = groups.reduce((s, g) => s + g.items.length, 0);
   bar.style.display = '';
   bar.querySelector('.tagcheck-text').innerHTML =
-    `<b class="ink-accent">${total}</b> 条记录分类不完整 · 缺 ${groups.map(g => `「${text.esc(g.name)}」`).join('')}`;
+    `<b class="ink-accent">${total}</b>${i18n.t(' 条记录分类不完整 · 缺 ')}${groups.map(g => `「${text.esc(g.name)}」`).join('')}`;
 }
 
 // 分组卡片：头部计数/✓徽章 + 一键补齐 chips + 逐条记录行（均复用 tagPickerHtml）
@@ -5962,8 +6037,8 @@ function tagCheckGroupHtml(g) {
   const vals = [...new Set(items.map(e => (e.tags && e.tags[g.catId]) || ''))];
   const batchSel = vals.length === 1 && vals[0] ? vals[0] : '';
   const head = left.length
-    ? `<span class="t-micro muted"><b>${left.length}</b> / ${items.length} 条待归类</span>`
-    : `<span class="mo-badge up">✓ 已补齐 ${items.length} 条</span>`;
+    ? `<span class="t-micro muted"><b>${left.length}</b> / ${items.length}${i18n.t(' 条待归类')}</span>`
+    : `<span class="mo-badge up">${i18n.t('✓ 已补齐 {p1} 条', { p1: items.length })}</span>`;
   const rows = items.map(e => `<div class="tagcheck-row" data-eid="${text.esc(e.id)}">
       <div class="tagcheck-meta">${cfg.tagCheckMeta(e)}</div>
       <div>${tagPickerHtml([cat], () => (e.tags && e.tags[g.catId]) || '', `tagcheck-r-${e.id}-`, cfg.colorFn, { hideLabel: true })}</div>
@@ -5975,10 +6050,10 @@ function tagCheckGroupHtml(g) {
         <h4 class="card-title-sm">${text.esc(cat.name)}</h4>
         ${head}
       </div>
-      ${left.length ? '<span class="t-micro muted">点标签即生效</span>' : ''}
+      ${left.length ? '<span class="t-micro muted">' + i18n.t('点标签即生效') + '</span>' : ''}
     </div>
     <div class="tagcheck-batch flex items-center gap-2 flex-wrap mb-1">
-      <span class="t-micro muted">一键补齐：</span>
+      <span class="t-micro muted">${i18n.t('一键补齐：')}</span>
       ${tagPickerHtml([cat], () => batchSel, `tagcheck-b-${g.catId}-`, cfg.colorFn, { hideLabel: true })}
     </div>
     <div>${rows}</div>
@@ -6011,7 +6086,7 @@ function openTagCheck(side, catId) {
     .filter(g => !catId || g.catId === catId)
     .map(g => ({ catId: g.catId, ids: g.items.map(i => i.id) }));
   // 顶部说明按侧别换（资产侧必须说清历史快照不随补，否则会以为历史图表也会跟着变）
-  document.getElementById('tagcheck-hint').textContent = cfg.tagCheckHint;
+  document.getElementById('tagcheck-hint').textContent = cfg.tagCheckHint();
   renderTagCheckPanel();
   openModal('tagcheck-modal');
 }
@@ -6052,7 +6127,7 @@ function onTagCheckPick(e) {
   saveState();
   cfg.renderItems();      // 列表 pill 与校验条同步（两侧各自重绘自己的列表）
   renderTagCheckGroup(catId);
-  toast(n > 1 ? `已为 ${n} 条记录打上「${val}」` : `已归入「${val}」`, 'success');
+  toast(n > 1 ? i18n.t('已为 {p1} 条记录打上「{p2}」', { p1: n, p2: val }) : i18n.t('已归入「{p1}」', { p1: val }), 'success');
 }
 
 // ========== EXPENSE CHART ==========
@@ -6153,7 +6228,7 @@ function openExpectationModal() {
 }
 function saveExpectation() {
   const v = money.parseMoneyInput(document.getElementById('expectation-input').value);
-  if (!v || v <= 0) { toast('请输入有效的预期消费金额', 'error'); return; }
+  if (!v || v <= 0) { toast(i18n.t('请输入有效的预期消费金额'), 'error'); return; }
   const hadValue = (state.expenseExpectation || 0) > 0;
   state.expenseExpectation = v;
   saveState();
@@ -6164,7 +6239,7 @@ function saveExpectation() {
   // 收益 Tab 可见时才同步刷新覆盖标尺（必须带可见性守卫: renderIncomeTab 尾部会 renderIncomeChart,
   // 对从未显示过的容器 echarts.init 会缓存 0×0 实例, 之后进 Tab 图表空白; 与 refreshVisibleCharts 同惯例)
   if (document.getElementById('tab-income').style.display !== 'none') renderIncomeTab();
-  toast(hadValue ? '预期消费已更新' : '预期消费已设置', 'success');
+  toast(hadValue ? i18n.t('预期消费已更新') : i18n.t('预期消费已设置'), 'success');
 }
 function clearExpectation() {
   state.expenseExpectation = 0;
@@ -6174,7 +6249,7 @@ function clearExpectation() {
   if (document.getElementById('tab-expense-trend').style.display !== 'none') renderExpenseTrendChart();
   renderAssets();
   if (document.getElementById('tab-income').style.display !== 'none') renderIncomeTab();
-  toast('已清除预期消费', 'success');
+  toast(i18n.t('已清除预期消费'), 'success');
 }
 
 async function renderExpenseTrendChart() {
@@ -6186,8 +6261,8 @@ async function renderExpenseTrendChart() {
   if (expBtn) {
     const exp = state.expenseExpectation || 0;
     expBtn.textContent = exp > 0
-      ? '预期 ¥' + exp.toLocaleString('zh-CN', { maximumFractionDigits: 0 })
-      : '设定预期';
+      ? i18n.t('预期 ¥') + exp.toLocaleString('zh-CN', { maximumFractionDigits: 0 })
+      : i18n.t('设定预期');
     expBtn.style.color = exp > 0 ? 'var(--accent-ink)' : '';
   }
 
@@ -6276,7 +6351,7 @@ async function renderExpenseTrendChart() {
       symbol: ['none', 'none'],
       lineStyle: { color: th.accent, type: 'dashed', width: 1.5 },
       label: {
-        formatter: '预期 ' + money.formatCNY(expectation) + '/月',
+        formatter: i18n.t('预期 ') + money.formatCNY(expectation) + i18n.t('/月'),
         position: 'insideEndTop',
         color: th.fg,
         fontSize: 11,
@@ -6358,7 +6433,7 @@ function renderExpenseTrendList() {
           <span class="t-medium t-body">${date.monthLabel(month)}</span>
           ${badge}
         </div>
-        <div class="t-micro mt-0.5 muted">${money.formatCNY(total)} · ${count} 条消费记录${diffLine ? ' · ' + diffLine : ''}</div>
+        <div class="t-micro mt-0.5 muted">${money.formatCNY(total)} · ${i18n.t('{p1} 条消费记录', { p1: count })}${diffLine ? ' · ' + diffLine : ''}</div>
       </div>
     </div>`;
   }).join('');
@@ -6367,7 +6442,7 @@ function renderExpenseTrendList() {
 // 消费两月对比弹窗：选起始月/结束月 + 维度（消费分类），按所选维度逐标签拆分两月消费并 diff
 function openExpenseCompareModal() {
   const months = expense.monthlyExpenseTotals(state.expenses);
-  if (months.length < 2) { toast('至少需要两个月的消费记录才能对比', 'error'); return; }
+  if (months.length < 2) { toast(i18n.t('至少需要两个月的消费记录才能对比'), 'error'); return; }
   const monthStrs = months.map(m => m.month);
   const baseSel = document.getElementById('exp-compare-base-select');
   const targetSel = document.getElementById('exp-compare-target-select');
@@ -6409,13 +6484,13 @@ function renderExpenseCompareTable() {
   });
 
   if (rows.length === 0) {
-    container.innerHTML = '<p class="text-center py-8 t-body muted">该维度下暂无标签</p>';
+    container.innerHTML = '<p class="text-center py-8 t-body muted">' + i18n.t('该维度下暂无标签') + '</p>';
     return;
   }
 
   container.innerHTML = compareTableHtml(rows, {
-    firstLabel: '分类标签',
-    periods: ['期初月', '期末月'],
+    firstLabel: i18n.t('分类标签'),
+    periods: [i18n.t('期初月'), i18n.t('期末月')],
     color: v => compareColor(v, false),
     firstCellHtml: r => tagPillHtml(cat, r.tag, expenseCatColor, { showKey: false }),
   });
@@ -6426,10 +6501,10 @@ function viewExpenseMonth(month) {
   if (expenses.length === 0) return;
   const total = expenses.reduce((s, e) => s + e.amount, 0);
   openDetail({
-    title: '月度消费明细',
-    summary: `${date.monthLabel(month)} | 总消费: <strong>${money.formatCNY(total)}</strong> · ${expenses.length} 笔记录`,
+    title: i18n.t('月度消费明细'),
+    summary: `${date.monthLabel(month)} | ${i18n.t('总消费: ')}<strong>${money.formatCNY(total)}</strong> · ${i18n.t('{p1} 笔记录', { p1: expenses.length })}`,
     cols: 'cols-expense-month',
-    head: [{ html: '日期' }, { html: '金额', cls: 'num' }, { html: '备注' }, { html: '标签' }],
+    head: [{ html: i18n.t('日期') }, { html: i18n.t('金额'), cls: 'num' }, { html: i18n.t('备注') }, { html: i18n.t('标签') }],
     rows: expenses.map(e => ([
       { cls: 't-body', html: text.esc(e.date) },
       { cls: 't-body num', html: money.money2(e.amount) },
@@ -6442,7 +6517,7 @@ function viewExpenseMonth(month) {
         }).join(' '),
       },
     ])),
-    empty: '该月没有消费记录',
+    empty: i18n.t('该月没有消费记录'),
   });
 }
 // 某分类某标签在某月的消费记录构成（消费趋势图点击色块下钻）
@@ -6455,51 +6530,51 @@ function viewExpenseSegment(month, catId, tag) {
   if (items.length === 0) return;
   const segTotal = items.reduce((s, e) => s + e.amount, 0);
   openDetail({
-    title: date.monthLabel(month) + ' · ' + tag + '构成',
-    summary: `${text.esc(cat.name)} › ${text.esc(tag)} | ${items.length} 笔记录 | 合计 <strong>${money.formatCNY(segTotal)}</strong>`,
+    title: date.monthLabel(month) + ' · ' + tag + i18n.t('构成'),
+    summary: `${text.esc(cat.name)} › ${text.esc(tag)} | ${i18n.t('{p1} 笔记录 | 合计 ', { p1: items.length })}<strong>${money.formatCNY(segTotal)}</strong>`,
     cols: 'cols-expense-segment',
-    head: [{ html: '日期' }, { html: '金额', cls: 'num' }, { html: '占比', cls: 'num' }, { html: '备注' }],
+    head: [{ html: i18n.t('日期') }, { html: i18n.t('金额'), cls: 'num' }, { html: i18n.t('占比'), cls: 'num' }, { html: i18n.t('备注') }],
     rows: items.map(e => ([
       { cls: 't-body', html: text.esc(e.date) },
       { cls: 't-body num', html: money.money2(e.amount) },
       { cls: 't-body num muted', html: `${money.pctStr(e.amount, segTotal)}%` },
       { cls: 't-body muted', html: e.note ? text.esc(e.note) : '—' },
     ])),
-    empty: '该标签下没有消费记录',
+    empty: i18n.t('该标签下没有消费记录'),
   });
 }
 function loadExpenseDemoData() {
   if (state.expenses.length > 0) {
-    showConfirm('导入示例数据将覆盖当前所有消费数据，确认继续？', () => doLoadExpenseDemoData());
+    showConfirm(i18n.t('导入示例数据将覆盖当前所有消费数据，确认继续？'), () => doLoadExpenseDemoData());
     return;
   }
   doLoadExpenseDemoData();
 }
 function doLoadExpenseDemoData() {
   if (!state.expenseCategories.find(c => c.id === 'expense-type')) {
-    state.expenseCategories.unshift({ id: 'expense-type', name: '消费类别', builtin: false, tags: ['餐饮', '交通', '购物', '住房', '娱乐', '医疗', '教育', '其他'] });
+    state.expenseCategories.unshift({ id: 'expense-type', name: i18n.t('消费类别'), builtin: false, tags: [i18n.t('餐饮'), i18n.t('交通'), i18n.t('购物'), i18n.t('住房'), i18n.t('娱乐'), i18n.t('医疗'), i18n.t('教育'), i18n.t('其他')] });
   }
-  const catPay = { id: genId(), name: '支付方式', builtin: false, tags: ['微信', '支付宝', '现金', '银行卡'] };
-  const catFreq = { id: genId(), name: '消费频率', builtin: false, tags: ['日常', '偶尔', '一次性'] };
+  const catPay = { id: genId(), name: i18n.t('支付方式'), builtin: false, tags: [i18n.t('微信'), i18n.t('支付宝'), i18n.t('现金'), i18n.t('银行卡')] };
+  const catFreq = { id: genId(), name: i18n.t('消费频率'), builtin: false, tags: [i18n.t('日常'), i18n.t('偶尔'), i18n.t('一次性')] };
   const expenseTypeCat = state.expenseCategories.find(c => c.id === 'expense-type');
   state.expenseCategories = [expenseTypeCat, catPay, catFreq];
 
   const now = new Date();
   const monthOffsets = [5, 4, 3, 2, 1, 0];
   const seed = [
-    { note: '午餐外卖', amt: 35, type: '餐饮', pay: '微信', freq: '日常' },
-    { note: '地铁通勤', amt: 12, type: '交通', pay: '支付宝', freq: '日常' },
-    { note: '超市采购', amt: 156, type: '购物', pay: '微信', freq: '偶尔' },
-    { note: '房租', amt: 3500, type: '住房', pay: '银行卡', freq: '一次性' },
-    { note: '电影票', amt: 78, type: '娱乐', pay: '支付宝', freq: '偶尔' },
-    { note: '药房买药', amt: 45, type: '医疗', pay: '现金', freq: '偶尔' },
-    { note: '网课订阅', amt: 299, type: '教育', pay: '微信', freq: '一次性' },
-    { note: '咖啡', amt: 28, type: '餐饮', pay: '微信', freq: '日常' },
-    { note: '打车', amt: 42, type: '交通', pay: '支付宝', freq: '日常' },
-    { note: '衣服', amt: 238, type: '购物', pay: '银行卡', freq: '偶尔' },
-    { note: '水电费', amt: 186, type: '住房', pay: '微信', freq: '一次性' },
-    { note: '游戏充值', amt: 68, type: '娱乐', pay: '支付宝', freq: '偶尔' },
-    { note: '理发', amt: 58, type: '其他', pay: '现金', freq: '偶尔' },
+    { note: i18n.t('午餐外卖'), amt: 35, type: i18n.t('餐饮'), pay: i18n.t('微信'), freq: i18n.t('日常') },
+    { note: i18n.t('地铁通勤'), amt: 12, type: i18n.t('交通'), pay: i18n.t('支付宝'), freq: i18n.t('日常') },
+    { note: i18n.t('超市采购'), amt: 156, type: i18n.t('购物'), pay: i18n.t('微信'), freq: i18n.t('偶尔') },
+    { note: i18n.t('房租'), amt: 3500, type: i18n.t('住房'), pay: i18n.t('银行卡'), freq: i18n.t('一次性') },
+    { note: i18n.t('电影票'), amt: 78, type: i18n.t('娱乐'), pay: i18n.t('支付宝'), freq: i18n.t('偶尔') },
+    { note: i18n.t('药房买药'), amt: 45, type: i18n.t('医疗'), pay: i18n.t('现金'), freq: i18n.t('偶尔') },
+    { note: i18n.t('网课订阅'), amt: 299, type: i18n.t('教育'), pay: i18n.t('微信'), freq: i18n.t('一次性') },
+    { note: i18n.t('咖啡'), amt: 28, type: i18n.t('餐饮'), pay: i18n.t('微信'), freq: i18n.t('日常') },
+    { note: i18n.t('打车'), amt: 42, type: i18n.t('交通'), pay: i18n.t('支付宝'), freq: i18n.t('日常') },
+    { note: i18n.t('衣服'), amt: 238, type: i18n.t('购物'), pay: i18n.t('银行卡'), freq: i18n.t('偶尔') },
+    { note: i18n.t('水电费'), amt: 186, type: i18n.t('住房'), pay: i18n.t('微信'), freq: i18n.t('一次性') },
+    { note: i18n.t('游戏充值'), amt: 68, type: i18n.t('娱乐'), pay: i18n.t('支付宝'), freq: i18n.t('偶尔') },
+    { note: i18n.t('理发'), amt: 58, type: i18n.t('其他'), pay: i18n.t('现金'), freq: i18n.t('偶尔') },
   ];
 
   const jitter = [0, 0.05, -0.1, 0.03, 0.08, -0.02];
@@ -6516,7 +6591,7 @@ function doLoadExpenseDemoData() {
     seed.forEach((s, si) => {
       const day = Math.min(1 + (si * 3 + mi * 5) % 28, daysInMonth);
       const dayStr = String(day).padStart(2, '0');
-      if (s.type === '住房' || s.type === '一次性' || si % 3 === mi % 3) {
+      if (s.type === i18n.t('住房') || s.type === i18n.t('一次性') || si % 3 === mi % 3) {
         state.expenses.push({
           id: genId(),
           date: `${monthStr}-${dayStr}`,
@@ -6531,7 +6606,7 @@ function doLoadExpenseDemoData() {
   saveState();
   renderExpenses();
   renderCategoryCards('expense');
-  toast('示例消费数据已导入（' + monthOffsets.length + '个月）', 'success');
+  toast(i18n.t('示例消费数据已导入（') + monthOffsets.length + i18n.t('个月）'), 'success');
 }
 
 </script>

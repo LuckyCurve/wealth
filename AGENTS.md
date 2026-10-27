@@ -8,7 +8,7 @@
 index.html            # 全部 HTML/CSS/JS
 logic.js              # 与 DOM 无关的纯函数（UMD：浏览器挂全局 / Node require）；按域分组，页面经域名调用（text.esc）
 test/                 # node --test（logic / ui-wiring 契约 / e2e-server / size-budget）
-e2e/                  # Playwright 端到端（app / theme / consistency / glass-material / chart-resize / entrance + fixtures.js + server.js）
+e2e/                  # Playwright 端到端（app / i18n / theme / consistency / glass-material / chart-resize / entrance + fixtures.js + server.js）
 playwright.config.js
 package.json          # 仅 devDependency: @playwright/test（无构建步骤）
 .github/workflows/    # CI：三平台 node --test + Linux Playwright E2E
@@ -66,6 +66,7 @@ interface AppState {
   incomeSafetyFactor: number;    // 安全边际因子 (%)，默认 100，钳制 1~100
   runwayTags: { catId: string; tag: string }[];  // 读数卡所选标签，空 = 未选
   runwayExpectation: number;     // 读数卡自定月消费 (CNY)，0=用全局 expenseExpectation，不回填全局
+  lang: 'en' | 'zh';             // 界面语言（用户设置），默认 en；分类/标签/备注是账本内容，不随它翻译
   backup: {
     autoFreq: 'daily' | 'weekly' | 'off';
     lastBackup: string | null;      // 只在**确认写入成功**后更新；也是「今天要不要再问」的唯一依据
@@ -141,8 +142,18 @@ interface Expense {
 - `test/ui-wiring.test.js` — 对 `index.html` 的文本契约断言，把守「单一来源 / 旧入口不回潮 / 关键接线」；完整清单见文件内 `describe` 标题。其中一条用 `new Function` 对整段内联脚本**做真解析**：单文件 SPA 没有构建步骤，一个顶层声明重名就会让整段脚本死在解析期（症状是「页面在、但没数字」，且 renderAll 之后的接线全部不存在）。
 - `test/size-budget.test.js` — 体积预算，见下节。
 - `test/e2e-hygiene.test.js` — E2E 用例卫生（禁用固定睡眠），把守下节那条铁律。
-- 依赖全局 `state` / `incomeMode` 的函数，测试中经 `globalThis` 注入。
+- 依赖全局 `state` / `incomeMode` 的函数，测试中经 `globalThis` 注入（`freshState()` 固定 `lang: 'zh'`：既有断言写的是中文文案）。
 - 改动纯逻辑时同步更新 `logic.js` 与单测。
+
+### 多语言
+
+界面文案只有两条通道：静态文案挂 `data-i18n` / `data-i18n-<attr>`，动态模板调 `i18n.t('中文原文')`。
+英文词条表在 `logic.js`（`i18n.I18N_EN`），键就是中文原文；语言是 `state.lang`，默认英文，随存档走。
+为什么这么选见 [docs/adr/0002](docs/adr/0002-interface-language-source-keys.md)，踩过的坑见 [LESSONS.md](LESSONS.md#多语言界面语言)。
+
+- 词条键必须与英文表同改；`ui-wiring` 的「多语言」用例把守三条：静态文本/属性都挂了标记、脚本里没有游离中文字面量、用到的键都有英文词条（且表里没有死词条）。
+- 配置对象里只存取值函数（`() => i18n.t('…')`），不要直接写 `i18n.t(...)`——模块级对象会把加载时的语言冻住。
+- 账本内容（分类名/标签/备注）不翻译；内置分类名只在**创建那一刻**取当前语言。
 
 ## 体积预算
 
@@ -166,6 +177,7 @@ interface Expense {
 - **先关动效再断言数字**：masthead 净资产是计数动画，等它收敛会让每个数字断言吃满超时。`fixtures` 里统一 `emulateMedia({ reducedMotion: 'reduce' })`。
 - **E2E 里禁止 `waitForTimeout` 睡眠**：`switchTab` 的 display 翻转、`setTheme` 的 classList 翻转都是同步的，用可见断言即可到位；固定等待会让主题巡检这类全 Tab 遍历的用例凭空多吃数秒（曾占全套时长的 1/3）。确需等待异步渲染时用 `expect.poll`。`test/e2e-hygiene.test.js` 扫 `e2e/*.spec.js` 把守这一条。
 - **进资产的入口只有 `fixtures.gotoAssets()` 一处**：它走键盘通道（合成 click）直达确认框，既不必等满按住时长，也顺带护住「不用鼠标的人不被挡在门外」这条路径；长按手势本身由 `app.spec.js` 的专测用真实鼠标覆盖。已在资产模式时为幂等（不再走门）。
+- **语言默认英文，播种要显式选中文**：既有用例的断言写的都是中文文案，`fixtures` 的 `EMPTY_STATE`/`blankPage` 已固定 `lang: 'zh'`；默认英文与切换本身由 `e2e/i18n.spec.js` 覆盖（含一次「英文界面无中文残留」的全 Tab + 弹窗巡检）。
 - **读内存态 vs 读存档**：`migrateState()` 只修内存态、不回写 localStorage。验证「已落盘」读 localStorage，验证「迁移/兜底已生效」读 `state`。
 - **seed 只在首次导航生效**：`addInitScript` 对每次导航（含 reload）都会重跑，若无条件覆盖，reload 会把存档洗回种子值 —— 持久化用例会「永远绿」（假通过）。标记用 sessionStorage（同一标签页跨 reload 存活、每个用例独立）。
 - **OPFS 句柄不能跨 reload 读回**：目录写入用例用 `navigator.storage.getDirectory()` 造真实可写句柄，但 headless Chromium 从 IndexedDB 反序列化该句柄会让渲染进程崩溃（真实选择器句柄不受影响）。因此只断言记录已写入（`getAllKeys`），不在 reload 后使用它。

@@ -150,6 +150,8 @@ test.describe('模式与 Tab 导航', () => {
     const ctx = await browser.newContext({ hasTouch: true, viewport: { width: 420, height: 800 }, isMobile: true });
     const touch = await ctx.newPage();
     await stubCdn(touch);
+    // 这条用例断言的是中文提示文案：显式选中文（语言默认英文，见 i18n.spec.js）
+    await seed(touch, { lang: 'zh' });
     // 探针：window.tailwind 只有 stubCdn 的空壳脚本才会定义（真 CDN 会挂完整实现）。
     // 它存在 = 这个上下文确实走了替身路由——这就是「不再真连外网」的证据。
     // 图表库现在按需加载，且空账本不画图，故不拿 __echartsCalls 当探针。

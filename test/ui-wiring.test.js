@@ -114,7 +114,7 @@ describe('UI 接线契约：统一提示便条（右下角单一出口）', () =
   test('fetchRates 的成功/失败都走 toast；失败文案由 logic.js 纯函数决策', () => {
     const logic = fs.readFileSync(path.join(__dirname, '..', 'logic.js'), 'utf8');
     const src = fnSource('fetchRates');
-    assert.match(src, /toast\('汇率已更新', 'info'\)/, '成功为系统中性知会（金墨 info）');
+    assert.match(src, /toast\(i18n\.t\('汇率已更新'\), 'info'\)/, '成功为系统中性知会（金墨 info）');
     assert.match(src, /(?:[A-Za-z_$][A-Za-z0-9_$]*\.)?rateFallbackNotice\(!!state\.rates\.fetchedAt\)/);
     assert.doesNotMatch(src, /使用缓存汇率|汇率获取失败/, '失败文案不应在内联脚本里硬编码重复');
     assert.match(logic, /function (?:[A-Za-z_$][A-Za-z0-9_$]*\.)?rateFallbackNotice\(/, '决策纯函数应在 logic.js');
@@ -358,7 +358,7 @@ describe('UI 接线契约：logic.js 导出清单与筛选同步时序', () => {
     const domains = Object.keys(api);
     assert.deepStrictEqual(
       domains.slice().sort(),
-      ['backup', 'chartData', 'color', 'date', 'expense', 'income', 'migrate', 'money', 'snapshot', 'text', 'ui'],
+      ['backup', 'chartData', 'color', 'date', 'expense', 'i18n', 'income', 'migrate', 'money', 'snapshot', 'text', 'ui'],
       '域清单：新增域要在这里显式登记（防编辑残留悄悄多一个袋子）'
     );
     const seen = new Map();
@@ -438,8 +438,8 @@ describe('UI 接线契约：明细弹窗与表格骨架（唯一主人）', () =
       assert.doesNotMatch(stripComments(fnSource(fn)), /<div/, `${fn} 不再自己写表格标记`);
     }
     // 两个侧别的措辞不同（期初/期末 vs 期初月/期末月），作为参数传入，骨架里不写死
-    assert.match(fnSource('renderCompareTable'), /periods: \['期初', '期末'\]/, '资产侧措辞');
-    assert.match(fnSource('renderExpenseCompareTable'), /periods: \['期初月', '期末月'\]/, '消费侧措辞');
+    assert.match(fnSource('renderCompareTable'), /periods: \[i18n\.t\('期初'\), i18n\.t\('期末'\)\]/, '资产侧措辞');
+    assert.match(fnSource('renderExpenseCompareTable'), /periods: \[i18n\.t\('期初月'\), i18n\.t\('期末月'\)\]/, '消费侧措辞');
     assert.strictEqual(count(/变动 %/g), 2, '注释一处 + 骨架一处');
   });
 });
@@ -777,7 +777,7 @@ describe('UI 接线契约：Flatpickr 日期选择器', () => {
     assert.match(html, /flatpickr\('#expense-date'/, '应初始化 #expense-date');
     const initBlock = html.match(/flatpickr\('#expense-date'[\s\S]*?\}\);/);
     assert.ok(initBlock, '初始化块存在');
-    assert.match(initBlock[0], /locale: 'zh'/, '中文 locale');
+    assert.match(initBlock[0], /locale: i18n\.normalizeLang\(state\.lang\)/, 'locale 跟当前界面语言走（zh 需要 l10n 就绪才切）');
     assert.match(initBlock[0], /disableMobile: true/, '移动端禁用原生日历，统一桌面样式');
   });
 
@@ -952,7 +952,7 @@ describe('UI 接线契约：分类管理回车添加标签', () => {
   test('「添加」按钮与回车共用 addTagCall 单一调用表达式，两处接线不各自漂移', () => {
     assert.strictEqual(count(/const addTagCall = /g), 1, '调用表达式只定义一次');
     assert.strictEqual(count(/\$\{addTagCall\}/g), 2, '输入框回车与「添加」按钮各引用一次');
-    assert.match(html, /<button onclick="\$\{addTagCall\}"[^>]*>添加<\/button>/, '按钮仍保留（鼠标路径）');
+    assert.match(html, /<button onclick="\$\{addTagCall\}"[^>]*>\$\{i18n\.t\('添加'\)\}<\/button>/, '按钮仍保留（鼠标路径）');
   });
 
   test('addTag 重绘后把焦点交回同分类新输入框，不再写已脱离文档的旧 input', () => {
@@ -1028,7 +1028,7 @@ describe('UI 接线契约：标签改名（迁移引用，不是清空）', () =
     assert.match(src, /saveState\(\)/);
     assert.match(src, /renderCategoryCards\(side\)/, '分类卡片重绘（胶囊回到新名）');
     assert.match(src, /cfg\.renderItems\(\)/, '列表上的 pill 同步');
-    assert.ok(src.indexOf('saveState()') < src.indexOf("toast('标签已重命名'"), '先落盘再提示');
+    assert.ok(src.indexOf('saveState()') < src.indexOf("toast(i18n.t('标签已重命名')"), '先落盘再提示');
   });
 
   test('就地重命名输入框：IME 组字守卫、Esc 取消、提交前防重入（blur 不再二次提交）', () => {
@@ -1090,7 +1090,7 @@ describe('UI 接线契约：标签改名（迁移引用，不是清空）', () =
     assert.strictEqual(count(/removeSide: side/g), 1, '入口只在这一处按 builtin 收口');
     assert.match(src, /tagPillHtml\(cat, t, cfg\.colorFn, tagOpts\)/, '两侧共用同一份 opts（不各写一遍）');
     // 守卫照旧：只读是「不给入口」，不是把守卫当挡箭牌
-    assert.strictEqual(count(/toast\('内置分类不可修改'/g), 3, '改名/删除/保存分类三处守卫不漏');
+    assert.strictEqual(count(/toast\(i18n\.t\('内置分类不可修改'\)/g), 3, '改名/删除/保存分类三处守卫不漏');
   });
 
   test('编辑框必须有归宿：拒绝路径只 return，收尾由 finish 兜住', () => {
@@ -1189,7 +1189,7 @@ describe('UI 接线契约：数据校验（缺标签一键/逐条补齐，资产
     assert.match(assetCfg, /tagCheck: true,/, '资产侧接线');
     assert.match(expenseCfg, /tagCheck: true,/, '消费侧接线');
     assert.strictEqual(count(/tagCheckHint: /g), 2, '面板顶部提示两侧各一条');
-    assert.match(assetCfg, /tagCheckHint: '[^']*快照[^']*'/, '资产侧需说明「历史快照不随补」');
+    assert.match(assetCfg, /tagCheckHint: [^,]*快照[^,]*/, '资产侧需说明「历史快照不随补」');
     assert.doesNotMatch(expenseCfg, /快照/, '消费侧没有快照概念，不照抄说明');
     assert.match(fnSource('openTagCheck'), /tagcheck-hint/, '提示文案由 openTagCheck 按侧别写入（不造两套弹窗）');
     assert.match(fnSource('tagCheckGroupHtml'), /(?:[A-Za-z_$][A-Za-z0-9_$]*\.)?isUntaggedItem\(/, '组内待归类计数与 logic.js 同口径');
@@ -1655,7 +1655,7 @@ describe('UI 接线契约：资产页只能靠长按送达（提高日常查看�
 
   test('确认框的按钮文案/色调每次重置（金调不得粘到下一个删除确认上）', () => {
     const src = fnSource('showConfirm');
-    assert.match(src, /ok\.textContent = opts\.okLabel \|\| '确认'/, '文案默认回「确认」');
+    assert.match(src, /ok\.textContent = opts\.okLabel \|\| i18n\.t\('确认'\)/, '文案默认回「确认」');
     assert.match(src, /ok\.className = opts\.tone === 'gold' \? 'btn-gold' : 'btn-danger'/, '色调默认回危险色');
   });
 });
@@ -1716,7 +1716,7 @@ describe('UI 接线契约：所选标签的钱 ÷ 预期月消费（消费趋势
     // 行尾无关: 断言只截到卡片的闭合 div（工作区可能 CRLF，写死 \n 会脆）
     const section = html.match(/id="runway-card"[\s\S]*?<\/div>/);
     assert.ok(section, '读数卡存在');
-    assert.match(section[0], /÷ <span id="runway-expense-name">预期月消费<\/span>/,
+    assert.match(section[0], /÷ <span id="runway-expense-name"[^>]*>预期月消费<\/span>/,
       '除法与分母名称在静态骨架中可见（公式直呈现）；分母名单独成槽，自定时换成「月消费（自定）」');
     assert.match(section[0], /id="runway-num"/);
     assert.match(section[0], /id="runway-expense"/);
@@ -1790,7 +1790,8 @@ describe('UI 接线契约：所选标签的钱 ÷ 预期月消费（消费趋势
   });
 
   test('标签语义放 ? 悬停提示（正文不写说明），hover 与键盘 focus 都能看到', () => {
-    assert.strictEqual(count(/同一分类内多选为「或」/g), 1, '语义只出现一次——在提示气泡里');
+    // 文案现在既在 data-i18n 键里又在可见文本里，故数「可见的那一处」（>文本<）
+    assert.strictEqual(count(/>同一分类内多选为「或」[^<]*</g), 1, '语义只出现一次——在提示气泡里');
     const tip = html.match(/<span class="tip">[\s\S]*?<\/span>\s*<\/h3>/);
     assert.ok(tip, '标题旁有 ? 提示结构');
     assert.match(tip[0], /class="tip-mark"[^>]*aria-describedby="runway-tip"/, '? 图标关联气泡（可访问性）');
@@ -1891,7 +1892,7 @@ describe('UI 接线契约：读数卡的自定月消费（只对本卡生效）'
     assert.match(modal(), /<label[^>]*for="runway-expectation"/, '标签关联输入框（点标签可聚焦）');
     assert.match(modal(), /onkeydown="if\(event\.key==='Enter' && !event\.isComposing\)saveRunwayTags\(\)"/,
       '回车即保存（与预期消费/目标净资产弹窗同惯例），带 IME 守卫防组字中误提交');
-    assert.match(html, /<h3 class="font-display modal-title" id="runway-modal-title">标签与月消费/, '标题已改名');
+    assert.match(html, /<h3 class="font-display modal-title" id="runway-modal-title"><span data-i18n="标签与月消费">标签与月消费<\/span>/, '标题已改名');
     assert.doesNotMatch(html, />选择标签</, '标题/按钮不得仍叫「选择标签」（现在也编辑月消费）');
   });
 
@@ -2374,7 +2375,7 @@ describe('UI 接线契约：文字色角色的单一来源', () => {
 
 describe('UI 接线契约：同排标签的对齐', () => {
   test('与右侧读数同排的字段标签不带下间距（否则居中排布时上移半个间距）', () => {
-    assert.match(html, /<label class="field-label tight" for="asset-cash-ratio">/,
+    assert.match(html, /<label class="field-label tight" for="asset-cash-ratio"[^>]*>/,
       '现金比例标签与读数同排，下间距应由父行承担');
     assert.match(html, /\n  \.field-label\.tight \{ margin-bottom: 0; \}/);
   });
@@ -3178,5 +3179,198 @@ describe('UI 接线契约：下拉弹层跟主题（base-select）', () => {
     const fn = fnSource('switchTab');
     assert.match(fn, /freezeSelectWidths\(/, '切 Tab 后必须重量');
     assert.match(html, /document\.fonts\.ready\.then\(\(\) => \{ freezeSelectWidths\(\)/, '字体就绪后必须重量（回退字体量出的宽会偏）');
+  });
+});
+
+/*
+ * 多语言契约：界面文案的两条通道都必须走词条表。
+ * --------------------------------------------------------------------------
+ * 单文件 SPA 没法在编译期发现「漏译」：裸中文留在模板里，英文界面上就只是一句中英混排，
+ * 不影响功能、也不报错，只有用户看得见。这里把三种漏法都变成红灯：
+ *   ① 静态文案没挂 data-i18n；② 脚本里游离的中文字面量；③ 用到的键没有英文词条。
+ */
+describe('UI 接线契约：多语言（默认英文，设置里切中文）', () => {
+  const logicSrc = fs.readFileSync(path.join(__dirname, '..', 'logic.js'), 'utf8');
+  const L = require('../logic.js');
+  const CJK = /[\u4e00-\u9fff]/;
+  const scriptStart = html.indexOf('<script src="logic.js"></script>');
+  const inline = html.slice(html.indexOf('<script>', scriptStart) + '<script>'.length, html.lastIndexOf('</script>'));
+  const bodySrc = html.slice(html.indexOf('<body'), scriptStart);
+
+  // 去掉 JS 注释（字符串里的 // 不算注释：按引号状态机走，避免把 URL 当注释截断）
+  const stripJsComments = (src) => {
+    let out = '';
+    let i = 0;
+    let mode = null;
+    while (i < src.length) {
+      const c = src[i];
+      const nx = src[i + 1] || '';
+      if (!mode) {
+        if (c === '/' && nx === '/') {
+          const j = src.indexOf('\n', i);
+          i = j < 0 ? src.length : j;
+          continue;
+        }
+        if (c === '/' && nx === '*') {
+          const j = src.indexOf('*/', i);
+          i = j < 0 ? src.length : j + 2;
+          continue;
+        }
+        if (c === '"' || c === "'" || c === '`') mode = c;
+        out += c;
+        i += 1;
+        continue;
+      }
+      if (c === '\\') {
+        out += src.slice(i, i + 2);
+        i += 2;
+        continue;
+      }
+      if (c === mode) mode = null;
+      out += c;
+      i += 1;
+    }
+    return out;
+  };
+
+  // 跳过一次配平的调用（i18n.t(...)），字符串里的括号不参与配平
+  const skipCall = (src, i) => {
+    let depth = 1;
+    while (i < src.length && depth > 0) {
+      const c = src[i];
+      if (c === '\\') {
+        i += 2;
+        continue;
+      }
+      if (c === '"' || c === "'" || c === '`') {
+        const q = c;
+        i += 1;
+        while (i < src.length) {
+          if (src[i] === '\\') {
+            i += 2;
+            continue;
+          }
+          if (src[i] === q) {
+            i += 1;
+            break;
+          }
+          i += 1;
+        }
+        continue;
+      }
+      if (c === '(') depth += 1;
+      else if (c === ')') depth -= 1;
+      i += 1;
+    }
+    return i;
+  };
+
+  // 把 i18n.t(...) 换成占位，剩下的中文字面量即为漏网之鱼
+  const withoutCalls = (src) => {
+    const clean = stripJsComments(src);
+    let out = '';
+    let last = 0;
+    let idx = clean.indexOf('i18n.t(');
+    while (idx >= 0) {
+      out += clean.slice(last, idx) + "'__t__'";
+      last = skipCall(clean, idx + 'i18n.t('.length);
+      idx = clean.indexOf('i18n.t(', last);
+    }
+    return out + clean.slice(last);
+  };
+
+  test('默认语言是英文，且是用户设置（随存档落盘）', () => {
+    assert.strictEqual(L.i18n.I18N_DEFAULT, 'en');
+    assert.match(fnSource('freshAppState'), /lang: 'en'/, '新存档默认英文');
+    assert.match(fnSource('loadState'), /migrate\.migrateState\(\)/, '缺失语言由迁移兜底（旧存档也落到英文）');
+    assert.match(fnSource('setLang'), /state\.lang = next/, '当前语言写在 state 上（唯一所有者）');
+    assert.match(fnSource('setLang'), /saveState\(\)/, '切换后落盘');
+  });
+
+  test('语言切换入口唯一在设置弹窗：英文/中文各接线一次，且切换后整页重绘', () => {
+    assert.strictEqual(count(/onclick="setLang\('en'\)"/g), 1);
+    assert.strictEqual(count(/onclick="setLang\('zh'\)"/g), 1);
+    assert.strictEqual(count(/id="settings-modal"[\s\S]{0,3000}?setLang\('zh'\)/g), 1, '语言切换在设置弹窗内');
+    const set = fnSource('setLang');
+    assert.match(set, /applyI18nDom\(\)/, '静态文案必须重刷');
+    assert.match(set, /renderAll\(\)/, '动态文案靠重绘换语言');
+    assert.match(
+      html,
+      /function applyI18nDom\([\s\S]*?document\.documentElement\.lang = i18n\.langTag\(state\.lang\)/,
+      'html lang 与静态文案同一出口写'
+    );
+    assert.match(fnSource('showSettings'), /syncLangSeg\(\)/, '打开设置时回显当前语言');
+  });
+
+  test('静态文案：body 里每一段中文都挂在 data-i18n 上（否则英文界面留中文）', () => {
+    const leftovers = [];
+    const re = />([^<>]+)</g;
+    let m;
+    while ((m = re.exec(bodySrc))) {
+      const text = m[1].trim();
+      if (!CJK.test(text)) continue;
+      const tag = bodySrc.slice(bodySrc.lastIndexOf('<', m.index), m.index + 1);
+      if (!/data-i18n=/.test(tag)) leftovers.push(text);
+    }
+    assert.deepStrictEqual(leftovers, [], '未挂 data-i18n 的中文文本节点：' + leftovers.join(' | '));
+  });
+
+  test('静态属性（aria-label / placeholder / title）中文必须挂 data-i18n-<attr>', () => {
+    const leftovers = [];
+    for (const line of bodySrc.split('\n')) {
+      for (const attr of ['aria-label', 'placeholder', 'title']) {
+        const m = line.match(new RegExp(attr + '="([^"]*)"'));
+        if (m && CJK.test(m[1]) && !line.includes('data-i18n-' + attr)) leftovers.push(attr + '=' + m[1]);
+      }
+    }
+    assert.deepStrictEqual(leftovers, [], '未挂 data-i18n-<attr> 的中文属性：' + leftovers.join(' | '));
+    assert.match(html, /const I18N_ATTRS = \['aria-label', 'placeholder', 'title', 'content'\]/, '属性通道覆盖这四类');
+  });
+
+  test('动态文案：内联脚本里没有游离的中文字面量（全部经 i18n.t）', () => {
+    const leftovers = [];
+    const re = /'([^'\\\n]*(?:\\.[^'\\\n]*)*)'|"([^"\\\n]*(?:\\.[^"\\\n]*)*)"|`([^`]*)`/g;
+    let m;
+    while ((m = re.exec(withoutCalls(inline)))) {
+      if (CJK.test(m[0])) leftovers.push(m[0].slice(0, 60));
+    }
+    assert.deepStrictEqual(leftovers, [], '未走 i18n.t 的中文字面量：' + leftovers.join(' | '));
+  });
+
+  test('覆盖率：页面与 logic.js 用到的每个键都有英文词条', () => {
+    const keys = new Set();
+    for (const m of html.matchAll(/data-i18n(?:-[\w-]+)?="([^"]+)"/g)) keys.add(m[1]);
+    for (const m of html.matchAll(/i18n\.t\(\s*'((?:[^'\\]|\\.)*)'/g)) keys.add(m[1].replace(/\\'/g, "'"));
+    for (const m of stripJsComments(logicSrc).matchAll(/(?<![\w.])t\(\s*'((?:[^'\\]|\\.)*)'/g)) {
+      keys.add(m[1].replace(/\\'/g, "'"));
+    }
+    const missing = [...keys].filter((k) => !(k in L.i18n.I18N_EN));
+    assert.deepStrictEqual(missing, [], '缺英文词条（英文界面会回落中文）：' + missing.join(' | '));
+  });
+
+  test('英文表里没有死词条（动态键白名单显式登记）', () => {
+    const used = new Set();
+    for (const m of html.matchAll(/data-i18n(?:-[\w-]+)?="([^"]+)"/g)) used.add(m[1]);
+    for (const m of html.matchAll(/i18n\.t\(\s*'((?:[^'\\]|\\.)*)'/g)) used.add(m[1].replace(/\\'/g, "'"));
+    for (const m of stripJsComments(logicSrc).matchAll(/(?<![\w.])t\(\s*'((?:[^'\\]|\\.)*)'/g)) {
+      used.add(m[1].replace(/\\'/g, "'"));
+    }
+    // 这些键由三元表达式按当前状态选，静态扫描看不到；改动它们要同步这份清单
+    const DYNAMIC = ['总收益', '现金收益', '每天', '每周', '升序', '降序'];
+    const dead = Object.keys(L.i18n.I18N_EN).filter((k) => !used.has(k) && !DYNAMIC.includes(k));
+    assert.deepStrictEqual(dead, [], '没人用的词条会悄悄腐烂：' + dead.join(' | '));
+  });
+
+  test('占位符两边一致：键里的 {pN} 不得在翻译时丢掉或改名', () => {
+    const placeholders = (s) => new Set([...String(s).matchAll(/\{(\w+)\}/g)].map((m) => m[1]));
+    const bad = [];
+    for (const [key, val] of Object.entries(L.i18n.I18N_EN)) {
+      const want = placeholders(key);
+      for (const s of Array.isArray(val) ? val : [val]) {
+        const got = placeholders(s);
+        if ([...want].some((p) => !got.has(p)) || [...got].some((p) => !want.has(p))) bad.push(key + ' → ' + s);
+      }
+    }
+    assert.deepStrictEqual(bad, [], '占位符不一致：' + bad.join(' | '));
   });
 });

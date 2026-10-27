@@ -16,9 +16,11 @@ const fs = require('fs');
 const path = require('path');
 const ROOT = path.join(__dirname, '..');
 
-// index.html 当前 360,970 字节（2026-10-25），留约 5% 的余量。
-// 抬高必须与内容增长同一个 commit，并在提交正文写明原因。
-const INDEX_BUDGET = 380_000;
+// index.html 当前 382,615 字节（2026-10-27，多语言落地后）。
+// 2026-10-27 从 380,000 抬到 390,000：多语言给每个静态文案节点加了 data-i18n 标记
+// （属性本身约 4KB），文案与英文词条已全部下沉 logic.js（那里没有预算，因为它是可单测的纯逻辑）。
+// 视图层没有可合并的重复结构：再抬之前先确认真的无处可沉。
+const INDEX_BUDGET = 390_000;
 
 function bytes(name) {
   return fs.statSync(path.join(ROOT, name)).size;

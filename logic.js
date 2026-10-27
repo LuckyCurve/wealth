@@ -20,6 +20,39 @@
     }
   }
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
+  // ========== 多语言（i18n）==========
+  // 词条键就是中文原文：源文案即键，英文表只管翻译。缺词条时回落中文（不抛错、不显示键名），
+  // 覆盖率由 test/ui-wiring.test.js 逐条把守——漏译会让页面中英混排，这比缺功能更难被用户说清。
+  // 语言是**用户设置**（state.lang，落盘随存档走）；默认英文。
+  const I18N_LANGS = ['en', 'zh'];
+  const I18N_DEFAULT = 'en';
+
+  function normalizeLang(v) {
+    return v === 'zh' ? 'zh' : 'en';
+  }
+
+  // <html lang> / 日期控件用的 BCP-47 标签（语言代码 ≠ 地区代码，两者别混用）
+  function langTag(lang) {
+    return normalizeLang(lang) === 'zh' ? 'zh-CN' : 'en';
+  }
+
+  // 取词条并插值。vars 里的 {name} 占位符按名替换；值为数组时选单/复数
+  // （英文才有单复数，中文词条永远是字符串）。
+  // 单复数的计数只认 vars.n（推荐）或 vars.p1（绝大多数计数句的第一个占位符就是数量），
+  // 其它占位符（金额、标签名）不参与判定——拿金额当计数会选出错误的复数。
+  function t(key, vars) {
+    const lang = normalizeLang(typeof state !== 'undefined' && state ? state.lang : I18N_DEFAULT);
+    const table = typeof I18N_EN !== 'undefined' ? I18N_EN : {};
+    const raw = lang === 'zh' ? key : (Object.prototype.hasOwnProperty.call(table, key) ? table[key] : key);
+    let str = raw;
+    if (Array.isArray(raw)) {
+      const count = vars && (vars.n != null ? Number(vars.n) : Number(vars.p1));
+      str = count === 1 ? raw[0] : raw[1];
+    }
+    if (!vars) return str;
+    return String(str).replace(/\{(\w+)\}/g, (m, k) => (vars[k] == null ? m : String(vars[k])));
+  }
+
   // ========== 货币换算 ==========
   function toCNY(amount, currency) {
     return amount * (state.rates[currency] || 1);
@@ -70,7 +103,16 @@
   function monthLabel(month) {
     // 手动拆解避免 new Date('YYYY-MM-01') 按 UTC 解析, 西半球时区（UTC-11/-12）会错月/年
     const [y, m] = String(month || '').split('-');
-    return y && m ? y + '年' + parseInt(m, 10) + '月' : String(month || '');
+    if (!y || !m) return String(month || '');
+    const mi = parseInt(m, 10);
+    if (normalizeLang(state.lang) === 'zh') return t('{y}年{m}月', { y: y, m: mi });
+    // 英文用月份短名（2026-2 → Feb 2026）：12 个月名不进词条表，交给 Intl 打理
+    try {
+      return new Intl.DateTimeFormat('en', { month: 'short', year: 'numeric', timeZone: 'UTC' })
+        .format(new Date(Date.UTC(Number(y), mi - 1, 1)));
+    } catch (e) {
+      return y + '-' + String(mi).padStart(2, '0');
+    }
   }
 
   // ========== 排序状态机（纯）==========
@@ -123,7 +165,7 @@
   function sortAriaLabel(label, by, dir, field) {
     if (!by || by !== field) return '';
     if (dir !== 'asc' && dir !== 'desc') return ''; // 脏值不误报方向
-    return label + '，已按' + (dir === 'desc' ? '降序' : '升序') + '排列';
+    return t('{label}，已按{dir}排列', { label: label, dir: t(dir === 'desc' ? '降序' : '升序') });
   }
 
   // ===== 进入资产页的长按门槛 =====
@@ -174,7 +216,7 @@
   // 短击提示文案：时长由常量派生，页面不再写一遍。默认取阈值，参数留给单测验两种小数形态
   function modePressHint(ms) {
     const sec = (ms === undefined ? MODE_PRESS_MS : ms) / 1000;
-    return '长按 ' + (Number.isInteger(sec) ? sec : sec.toFixed(1)) + ' 秒进入资产页';
+    return t('长按 {sec} 秒进入资产页', { sec: Number.isInteger(sec) ? sec : sec.toFixed(1) });
   }
 
   // ===== 翻页的方向（Tab / 模式切换的入场方向）=====
@@ -563,7 +605,7 @@
     const gap = (isFinite(a) ? a : 0) - e;
     return {
       ok: gap >= 0,
-      word: gap >= 0 ? '盈余' : '缺口',
+      word: gap >= 0 ? t('盈余') : t('缺口'),
       amt: Math.round(Math.abs(gap)),
       pct: Math.abs(gap) / e * 100,
     };
@@ -703,12 +745,12 @@
   function runwayMonthsText(months) {
     const m = Number(months);
     if (months == null || !isFinite(m)) return '';
-    if (m < 1) return '不足 1 个月';
+    if (m < 1) return t('不足 1 个月');
     const whole = Math.floor(m);
-    if (whole < 12) return whole + ' 个月';
+    if (whole < 12) return t('{n} 个月', { n: whole });
     const years = Math.floor(whole / 12);
     const rem = whole - years * 12;
-    return rem === 0 ? `${years} 年` : `${years} 年 ${rem} 个月`;
+    return rem === 0 ? t('{y} 年', { y: years }) : t('{y} 年 {m} 个月', { y: years, m: rem });
   }
 
   // ========== 本月预算消耗（趋势页进度读数卡）==========
@@ -767,19 +809,21 @@
     if (reading.over) {
       const excess = Number(reading.excess);
       return isFinite(excess) && excess > 0
-        ? '已超预算 ' + formatCNY(excess) + ' · 本月额度已用完'
+        ? t('已超预算 {p1} · 本月额度已用完', { p1: formatCNY(excess) })
         : '';
     }
     if (remaining <= 0) return '';
     const daysLeft = Number(reading.daysLeft);
     const dailyLeft = Number(reading.dailyLeft);
     if (!isFinite(daysLeft) || daysLeft < 1 || !isFinite(dailyLeft) || dailyLeft < 0) return '';
-    return '预算剩 ' + formatCNY(remaining) + ' · 余 ' + daysLeft + ' 天 · 日均 ' + formatCNY(dailyLeft);
+    return t('预算剩 {p1} · 余 {p2} 天 · 日均 {p3}', { p1: formatCNY(remaining), p2: daysLeft, p3: formatCNY(dailyLeft) });
   }
 
   // ========== 数据迁移 / 兜底（依赖全局 state，原地修改）==========
   // loadState（本地加载）与 importData（JSON 导入）共用，保证旧版数据导入后行为一致
   function migrateState() {
+    // 语言设置先归一：后面的内置分类名要靠它取词（且 en 缺省时不能靠 t 的副作用）
+    state.lang = normalizeLang(state.lang);
     if (!Array.isArray(state.snapshots)) state.snapshots = [];
     // migrate old snapshot format (with 'id') to new monthly format
     if (state.snapshots.length > 0 && state.snapshots.some(s => s && s.date && !s.month)) {
@@ -817,7 +861,8 @@
     if (!Array.isArray(state.assets)) state.assets = [];
     // ensure currency category exists
     if (!state.categories.find(c => c.id === 'currency')) {
-      state.categories.unshift({ id: 'currency', name: '货币类型', builtin: true, tags: ['CNY', 'HKD', 'USD'] });
+      // 名称只在**创建那一刻**取当前语言：分类名是用户数据，之后不随语言切换改写
+      state.categories.unshift({ id: 'currency', name: t('货币类型'), builtin: true, tags: ['CNY', 'HKD', 'USD'] });
     }
     // ensure rates object（导入数据可能缺失或损坏）
     if (!state.rates || typeof state.rates !== 'object' || state.rates.CNY == null) {
@@ -1252,8 +1297,10 @@
   // 备份状态文案：「上次备份 X（今天）」/「尚未备份过」。
   // 「备份与导入」弹窗与设置弹窗共用，避免两处文案漂移；参数显式传入保持纯净可测
   function backupNoteText(lastBackup, today) {
-    if (!lastBackup) return '尚未备份过';
-    return `上次备份 ${lastBackup}${lastBackup === today ? '（今天）' : ''}`;
+    if (!lastBackup) return t('尚未备份过');
+    return lastBackup === today
+      ? t('上次备份 {p1}（今天）', { p1: lastBackup })
+      : t('上次备份 {p1}', { p1: lastBackup });
   }
 
   // 方案 A 决策：今天是否该弹一次自动备份确认框。
@@ -1320,9 +1367,9 @@
   // 目录名缺省时不留空括号。手动导出由按钮本身承担确认，不需要这一层。
   function backupPromptText(mode, fileName, folderName) {
     const name = fileName || '';
-    const where = folderName ? ` → 「${folderName}」` : '';
-    const head = mode === 'auto' ? '今日自动备份' : '导出备份';
-    return { msg: `${head}：${name}${where}`, title: mode === 'auto' ? '自动备份' : '导出备份' };
+    const where = folderName ? t(' → 「{p1}」', { p1: folderName }) : '';
+    const head = mode === 'auto' ? t('今日自动备份') : t('导出备份');
+    return { msg: t('{head}：{name}{where}', { head: head, name: name, where: where }), title: mode === 'auto' ? t('自动备份') : t('导出备份') };
   }
 
   // 写入结果 → 便条与状态口径（单一来源）。只有 written 算「已备份」；
@@ -1332,34 +1379,34 @@
     o = o || {};
     const auto = o.mode === 'auto';
     if (o.status === 'error') {
-      return { msg: '导出失败，请重试', type: 'error', recordBackup: false };
+      return { msg: t('导出失败，请重试'), type: 'error', recordBackup: false };
     }
     if (o.status === 'cancelled') {
-      return { msg: '已取消备份', type: 'info', recordBackup: false };
+      return { msg: t('已取消备份'), type: 'info', recordBackup: false };
     }
     if (o.status === 'downloaded' || o.target === 'download') {
-      return { msg: '已开始下载，请在下载栏确认', type: 'info', recordBackup: false };
+      return { msg: t('已开始下载，请在下载栏确认'), type: 'info', recordBackup: false };
     }
     if (auto) {
       return {
-        msg: '已自动备份' + (o.folderName ? `到「${o.folderName}」` : ''),
+        msg: t('已自动备份') + (o.folderName ? t('到「{p1}」', { p1: o.folderName }) : ''),
         type: 'success', recordBackup: true,
       };
     }
-    return { msg: '数据已导出', type: 'success', recordBackup: true };
+    return { msg: t('数据已导出'), type: 'success', recordBackup: true };
   }
 
   // 设置里「备份文件夹」边注：它现在是**文件窗口的起点目录**，不再是「直接写入」的开关
   function backupDirNoteText(hasDir, name, supported) {
     if (!hasDir) {
       return supported
-        ? '未选择，文件窗口默认打开上次的目录'
-        : '当前浏览器不支持选择文件夹，备份将下载到「下载」文件夹';
+        ? t('未选择，文件窗口默认打开上次的目录')
+        : t('当前浏览器不支持选择文件夹，备份将下载到「下载」文件夹');
     }
-    const n = name || '备份文件夹';
+    const n = name || t('备份文件夹');
     return supported
-      ? `已选择「${n}」，文件窗口默认打开这里`
-      : `已选择「${n}」，但当前浏览器不支持指定目录，文件窗口从默认位置打开`;
+      ? t('已选择「{p1}」，文件窗口默认打开这里', { p1: n })
+      : t('已选择「{p1}」，但当前浏览器不支持指定目录，文件窗口从默认位置打开', { p1: n });
   }
 
   // ========== 汇率刷新提示决策 ==========
@@ -1368,8 +1415,8 @@
   // 分支决策抽在此保持纯净可测
   function rateFallbackNotice(hasCache) {
     return hasCache
-      ? { msg: '使用缓存汇率', type: 'info' }
-      : { msg: '汇率获取失败', type: 'error' };
+      ? { msg: t('使用缓存汇率'), type: 'info' }
+      : { msg: t('汇率获取失败'), type: 'error' };
   }
 
   // 汇率响应的**形状校验**：API 给的是「1 CNY = X 外币」，页面要取倒数写成「1 外币 = X CNY」。
@@ -1480,6 +1527,452 @@
     }, 0);
   }
 
+  // ========== 多语言词条（en）==========
+  // 键 = 中文原文（页面里的 data-i18n / i18n.t 参数）。值 = 英文；需要单复数的写成
+  // [单数, 复数]（由 vars.n 选择），插值占位符用 {name}。
+  // 修改中文键必须同步这里，否则 en 下回落中文（ui-wiring 的覆盖率用例会红）。
+  const I18N_EN = {
+    '财富管理': 'Wealth Management',
+    '本机保存的个人资产与消费账本：记录资产、月度快照、消费与趋势，数据不上传。': 'A private ledger for assets and spending, kept on this device. Nothing is uploaded.',
+    '消费': 'Expenses',
+    '资产': 'Assets',
+    '设置': 'Settings',
+    '资产管理': 'Assets',
+    '分类管理': 'Categories',
+    '资产分布': 'Distribution',
+    '历史净值': 'History',
+    '收益测算': 'Income',
+    '消费记录': 'Expenses',
+    '消费分布': 'Distribution',
+    '消费趋势': 'Trends',
+    '月度消费': 'Monthly spending',
+    '结构视图': 'Structure',
+    '趋势分析': 'Trend',
+    '收益预估': 'Estimate',
+    '净资产 · 截至': 'Net worth · as of',
+    '＋ 登记资产': '＋ Add asset',
+    '登记资产': 'Add asset',
+    '去校验': 'Review',
+    '还没有资产记录': 'No assets yet',
+    '点击「登记资产」或导入示例数据开始': 'Tap “Add asset” or import sample data to start',
+    '导入示例数据': 'Import sample data',
+    '名称': 'Name',
+    '金额': 'Amount',
+    '货币': 'Currency',
+    '金额 (CNY)': 'Amount (CNY)',
+    '预期年化': 'Expected rate',
+    '标签': 'Tags',
+    '维度与标签': 'Dimensions & tags',
+    '管理资产的分类与标签': 'Manage asset categories and tags',
+    '＋ 新增分类': '＋ New category',
+    '按分类维度查看资产分布（已换算 CNY）': 'Asset mix by category, converted to CNY',
+    '资产分布分类维度': 'Distribution category',
+    '构成': 'Composition',
+    '登记资产后，这里会按维度展示资产构成': 'Add assets and their composition appears here',
+    '去登记资产': 'Add assets',
+    '月度快照': 'Monthly snapshots',
+    '记录每月快照，看净值趋势': 'Save a snapshot each month to see the trend',
+    '历史净值分类维度': 'History category',
+    '占比': 'Share',
+    '对比快照': 'Compare snapshots',
+    '点击柱中色块，可展开该月该标签的构成明细': 'Click a segment to expand that month’s breakdown',
+    '还没有月度快照': 'No snapshots yet',
+    '每月点击「记录快照」留存一次净值；至少两个月才能显示趋势': 'Take a snapshot every month; two or more months show a trend',
+    '记录快照': 'Take snapshot',
+    '按资产金额与预期年利率测算收益': 'Estimated from balances and expected annual rates',
+    '使用最低': 'Use low',
+    '使用最高': 'Use high',
+    '安全边际': 'Safety margin',
+    '安全边际因子（百分比）': 'Safety margin factor (percent)',
+    '暂无收益测算数据': 'No income data yet',
+    '在「资产管理」中登记资产并填写预期年利率，这里会显示收益测算。': 'Add assets with expected annual rates under Assets and the estimate appears here.',
+    '去资产管理': 'Go to assets',
+    '总收益 · 月': 'Total income · month',
+    '现金收益 · 月': 'Cash income · month',
+    '年': 'Year',
+    '日': 'Day',
+    '现金占比': 'Cash share',
+    '设定预期月消费，看看收益能否覆盖日常开销': 'Set expected monthly spend to see whether income covers it',
+    '设定': 'Set',
+    '总收益': 'Total income',
+    '现金收益': 'Cash income',
+    '÷ 预期月消费': '÷ Expected monthly spend',
+    '修改': 'Edit',
+    '收益分布': 'Income mix',
+    '收益分布分类维度': 'Income mix category',
+    '搜索备注 / 标签 / 分类': 'Search notes / tags',
+    '清除搜索': 'Clear search',
+    '消费月份筛选': 'Filter by month',
+    '按标签筛选': 'Filter by tag',
+    '＋ 记录消费': '＋ Add expense',
+    '记录消费': 'Add expense',
+    '还没有消费记录': 'No expenses yet',
+    '点击「记录消费」或导入示例数据开始': 'Tap “Add expense” or import sample data to start',
+    '导入示例消费数据': 'Import sample expenses',
+    '清除筛选': 'Clear filters',
+    '日期': 'Date',
+    '备注': 'Note',
+    '消费分类管理': 'Expense categories',
+    '管理消费的分类与标签': 'Manage expense categories and tags',
+    '按分类维度和月份查看消费分布': 'Spending mix by category and month',
+    '消费分布月份': 'Distribution month',
+    '消费分布分类维度': 'Distribution category',
+    '记录消费后，这里会展示分类占比': 'Add expenses and their category share appears here',
+    '去记录消费': 'Add expenses',
+    '按月查看消费趋势': 'Monthly spending trend',
+    '消费趋势分类维度': 'Trend category',
+    '对比两月': 'Compare months',
+    '预期消费': 'Expected spend',
+    '记录消费后，这里会按月展示消费趋势': 'Add expenses and the monthly trend appears here',
+    '本月已花 ÷ 预期月消费': 'Spent this month ÷ expected monthly spend',
+    '选几个标签、填月消费，看看这些钱能撑几个月': 'Pick tags and a monthly spend to see how long the money lasts',
+    '标签与月消费': 'Tags & monthly spend',
+    '预期月消费': 'Expected monthly spend',
+    '快照详情': 'Snapshot details',
+    '关闭': 'Close',
+    '快照对比': 'Compare snapshots',
+    '起始月': 'From',
+    '结束月': 'To',
+    '总净值变动': 'Net worth change',
+    '金额按各快照当时汇率折算为 CNY': 'Amounts converted to CNY at each snapshot’s rate',
+    '消费对比': 'Compare spending',
+    '维度': 'Dimension',
+    '总消费变动': 'Spending change',
+    '按所选维度逐标签拆分，金额单位为 CNY': 'Split by tag in the chosen dimension; amounts in CNY',
+    '将保存当前所有资产数据': 'Saves a copy of all current assets',
+    '备注（可选）': 'Note (optional)',
+    '取消': 'Cancel',
+    '确认快照': 'Save snapshot',
+    '资产名称': 'Asset name',
+    '如：招商银行活期': 'e.g. Bank savings',
+    '预期年化收益率 (%)': 'Expected annual rate (%)',
+    '最低': 'Low',
+    '预期年化收益率下限 (%)': 'Expected annual rate, low (%)',
+    '最高': 'High',
+    '预期年化收益率上限 (%)': 'Expected annual rate, high (%)',
+    '现金比例 (%)': 'Cash share (%)',
+    '现金比例（百分比）': 'Cash share (percent)',
+    '全额现金': 'All cash',
+    '纯增值': 'All growth',
+    '预期收益中来自股息 / 利息 / 租金等现金流的比例。存款、债券拉满；股票按分红占比估。': 'Share of expected income paid as cash: dividends, interest, rent. Savings and bonds are 100%; for shares estimate the dividend yield.',
+    '保存': 'Save',
+    '新增分类': 'New category',
+    '分类名称': 'Category name',
+    '如：资产类型': 'e.g. Asset type',
+    '标签（逗号分隔）': 'Tags (comma separated)',
+    '如：固定资产, 股票, 债券': 'e.g. Property, Shares, Bonds',
+    '备份与导入': 'Backup & import',
+    '导出当前所有数据为 JSON 文件': 'Export everything as a JSON file',
+    '导出数据': 'Export',
+    '从 JSON 文件导入数据（将覆盖当前数据）': 'Import a JSON file (replaces current data)',
+    '选择文件': 'Choose file',
+    '确认操作': 'Confirm',
+    '确认': 'Confirm',
+    '可选备注': 'Optional note',
+    '新增消费分类': 'New expense category',
+    '如：支付方式': 'e.g. Payment method',
+    '如：微信, 支付宝, 现金': 'e.g. Card, Cash, Transfer',
+    '数据校验': 'Data check',
+    '下面这些记录在某个分类下还没有标签。组内顶部可一键补齐，也可以在每条记录上逐个点选，点一下即保存。': 'These records are missing a tag in one category. Fill the whole group at once, or pick a tag on each record; every pick saves immediately.',
+    '全部记录都已归类。': 'Everything is tagged.',
+    '完成': 'Done',
+    '在消费趋势图中显示为水平参考线，收起部分类别后可对比每月合计': 'Drawn as a reference line in the trend chart; collapse categories to compare monthly totals',
+    '预期月消费 (CNY)': 'Expected monthly spend (CNY)',
+    '清除': 'Clear',
+    '标签如何参与计算': 'How tags combine',
+    '同一分类内多选为「或」，不同分类之间为「且」；某个分类不选则不参与过滤。': 'Tags within one category are OR; across categories they are AND. Leave a category empty to ignore it.',
+    '月消费 (CNY)': 'Monthly spend (CNY)',
+    '默认': 'Default',
+    '目标净资产': 'Net worth target',
+    '设置后资产页显示达成进度': 'Shows progress on the assets page',
+    '目标净资产 (CNY)': 'Net worth target (CNY)',
+    '语言': 'Language',
+    '界面文字与图表的语言。分类、标签与备注是你自己的账本内容，不会被改名。': 'Language for the interface and charts. Category, tag and note text is your own ledger content and is never renamed.',
+    '界面语言': 'Interface language',
+    'English': 'English',
+    '中文': '中文',
+    '外观': 'Appearance',
+    '切换日间纸页与夜间墨底，立即生效并记住选择': 'Switch between paper by day and ink by night; applies at once and is remembered',
+    '外观主题': 'Theme',
+    '☀ 日间': '☀ Light',
+    '☾ 夜间': '☾ Dark',
+    '自动备份': 'Auto backup',
+    '打开页面几秒后会弹一次确认，确认后弹出文件窗口保存一份带日期的备份，日积月累即是版本历史。建议把保存位置设为网盘同步文件夹（OneDrive / iCloud 等），电脑损坏后也能找回。': 'A few seconds after the page opens you are asked once. Confirming opens a save dialog for a dated backup; collected over time that becomes your version history. Point it at a synced folder (OneDrive, iCloud) so a broken computer does not lose it.',
+    '自动备份频率': 'Auto backup frequency',
+    '每天': 'Daily',
+    '每周': 'Weekly',
+    '备份文件夹': 'Backup folder',
+    '选择后，备份时弹出的文件窗口默认就打开这个目录（自动与手动一致）；未选择时窗口打开上次用过的目录。仅 Chrome / Edge 支持指定目录。': 'Once chosen, the save dialog opens in this folder for both automatic and manual backups. Otherwise it opens wherever you saved last. Only Chrome / Edge can target a folder.',
+    '选择文件夹': 'Choose folder',
+    '备份与导入…': 'Backup & import…',
+    '汇率响应缺少有效币种': 'The rate response had no usable currency',
+    '汇率已更新': 'Rates updated',
+    '资产价格短期波动大，反复看容易被涨跌牵着走。现在确实要看？': 'Asset prices swing a lot, and watching them often lets the swings pull at you. Look now anyway?',
+    '进入资产页': 'Enter assets',
+    '查看资产': 'View assets',
+    '未设置': 'Not set',
+    ' · 现金 ': ' · Cash ',
+    '调整排序，按上移或下移': 'Reorder: press up or down',
+    '拖动排序（键盘：聚焦后按 ↑/↓）': 'Drag to reorder (keyboard: focus, then ↑/↓)',
+    '点击快速更新金额': 'Click to update the amount',
+    '编辑': 'Edit',
+    '删除': 'Delete',
+    '目标已达成': 'Target reached',
+    '还差 ': 'Short by ',
+    '目标净资产 · ': 'Net worth target · ',
+    '设定目标': 'Set target',
+    '{p1} 项资产': [ '{p1} asset', '{p1} assets' ],
+    '预期月消费 ': 'Expected monthly spend ',
+    '预估月收益 ': 'Est. monthly income ',
+    '现金收益 ': 'Cash income ',
+    '请输入有效的目标金额': 'Enter a valid target amount',
+    '目标已更新': 'Target updated',
+    '目标已设置': 'Target set',
+    '目标已清除': 'Target cleared',
+    'Enter 保存 · 小键盘 Enter/Tab 下一行 · Esc 取消': 'Enter saves · Numpad Enter/Tab moves down · Esc cancels',
+    '金额无效，已恢复原值': 'Invalid amount; previous value restored',
+    '编辑资产': 'Edit asset',
+    '请输入有效的金额': 'Enter a valid amount',
+    '最低利率不能高于最高利率': 'Low rate cannot exceed high rate',
+    '请为每个分类选择标签': 'Pick a tag for every category',
+    '资产已更新': 'Asset updated',
+    '资产已登记': 'Asset added',
+    '确认删除该资产？': 'Delete this asset?',
+    '已删除': 'Deleted',
+    '图表组件加载失败': 'The chart library failed to load',
+    '‹ 全部分类': '‹ All categories',
+    '长按可改名': 'Press and hold to rename',
+    '标签 {p1}，长按或按回车改名': 'Tag {p1}: press and hold, or Enter, to rename',
+    '移除标签': 'Remove tag',
+    '分类已更新': 'Category updated',
+    '分类已创建': 'Category created',
+    '下面这些资产在某个分类下还没有标签（新增分类后老资产会缺）。组内顶部可一键补齐，也可以在每条资产上逐个点选，点一下即保存。历史快照按当时数据保留，不随补齐更新。': 'These assets are missing a tag in one category (assets created earlier lack tags added later). Fill the whole group at once, or pick a tag on each asset; every pick saves immediately. Snapshots keep the data they were taken with.',
+    '编辑分类': 'Edit category',
+    '消费分类已更新': 'Expense category updated',
+    '消费分类已创建': 'Expense category created',
+    '编辑消费分类': 'Edit expense category',
+    '内置': 'Built-in',
+    '新增标签（回车添加）': 'New tag (Enter to add)',
+    '添加': 'Add',
+    '条记录未归到本分类': 'records missing this category',
+    '至少需要一个标签': 'At least one tag is required',
+    '「{p1}」已不在标签列表中，保存后将清空 {p2} 条记录上的归类。': '“{p1}” is no longer in the tag list; saving clears it from {p2} records.',
+    '只想改名的话，长按那枚标签即可（会保留归类）。': 'To rename only, press and hold that tag; records keep their tag.',
+    '确认删除分类「{p1}」？该分类下{p2}的标签关联也会被移除。': 'Delete category “{p1}”? Its {p2} tag assignments are removed too.',
+    '分类已删除': 'Category deleted',
+    '内置分类不可修改': 'Built-in categories cannot be edited',
+    '标签已存在': 'Tag already exists',
+    '标签已添加': 'Tag added',
+    '至少保留一个标签': 'Keep at least one tag',
+    '标签已移除': 'Tag removed',
+    '标签已重命名': 'Tag renamed',
+    '标签名称': 'Tag name',
+    '全部时间': 'All time',
+    '本月已有记录，无需重复记录': 'This month is already recorded',
+    '本月数据已覆盖更新': 'This month’s snapshot was replaced',
+    '快照已记录': 'Snapshot saved',
+    ' 已记录 ✓': ' recorded ✓',
+    '覆盖更新': 'Replace',
+    '记录本月数据': 'Record this month',
+    '本月已有记录，确定覆盖更新为当前数据？': 'This month is already recorded. Replace it with the current data?',
+    '确认删除该月快照？': 'Delete this month’s snapshot?',
+    '快照已删除': 'Snapshot deleted',
+    '变动': 'Change',
+    '变动 %': 'Change %',
+    '总净值: ': 'Total: ',
+    '该快照没有资产记录': 'This snapshot has no assets',
+    '{p1} 项资产 | 合计 ': [ '{p1} asset | Total ', '{p1} assets | Total ' ],
+    '折算 CNY': 'in CNY',
+    '该标签下没有资产': 'No assets with this tag',
+    '至少需要两个月的快照才能对比': 'Comparing needs at least two months of snapshots',
+    '两个月份均无资产记录': 'No assets in either month',
+    '期初': 'Opening',
+    '期末': 'Closing',
+    '新增': 'Added',
+    '移除': 'Removed',
+    '首月': 'First month',
+    '较上月 ': 'vs last month ',
+    '无备注': 'No note',
+    '导入示例数据将覆盖当前所有数据，确认继续？': 'Loading sample data replaces everything. Continue?',
+    '资产类型': 'Asset type',
+    '活期现金': 'Cash',
+    '定期存款': 'Term deposit',
+    '权益基金': 'Equity fund',
+    '债券基金': 'Bond fund',
+    '银行理财': 'Bank product',
+    '风险等级': 'Risk level',
+    '低风险': 'Low risk',
+    '中风险': 'Medium risk',
+    '高风险': 'High risk',
+    '招商银行活期': 'CMB savings',
+    '工商银行定期': 'ICBC term deposit',
+    '沪深300指数': 'CSI 300 index',
+    '标普500ETF': 'S&P 500 ETF',
+    '纯债基金A': 'Pure bond fund A',
+    '招行理财': 'CMB product',
+    '汇丰香港储蓄': 'HSBC HK savings',
+    '初始配置': 'Initial setup',
+    '小幅加仓': 'Added a little',
+    '市场波动': 'Market swing',
+    '补仓操作': 'Topped up',
+    '分红再投': 'Dividends reinvested',
+    '季度调整': 'Quarterly rebalance',
+    '示例数据已导入（6个月快照）': 'Sample data loaded (6 months of snapshots)',
+    '当前组合没有现金流收益——调高资产的现金比例后，这里开始计量': 'No cash income yet. Raise an asset’s cash share and it starts counting here.',
+    '覆盖 ': 'Covers ',
+    '/月': '/mo',
+    '已完全覆盖预期月消费': ' fully covers expected monthly spend',
+    '已覆盖': 'Covered',
+    '当前资产的实际年化不高，加本金也补不上这个缺口——先调高预期年利率或降低月消费。': 'The actual annual return is too low for more principal to close this gap. Raise expected rates or lower monthly spend.',
+    '按当前实际年化 {p1}% 线性外推，还需本金 ': 'At the current {p1}% actual return you need another ',
+    ' 才能覆盖。': ' to cover it.',
+    '还需多少本金才能覆盖': 'How much principal is needed to cover it',
+    '月消费（自定）': 'Monthly spend (custom)',
+    '先去「分类管理」建一个资产分类和标签。': 'Create an asset category and tags under Categories first.',
+    '勾选标签后这里显示结果': 'Pick tags and the result appears here',
+    '先设定预期月消费，再回来看结果': 'Set expected monthly spend first, then come back',
+    '{p1} ÷ 月消费 {p2} = {p3}': '{p1} ÷ monthly spend {p2} = {p3}',
+    '已更新标签与月消费': 'Tags and monthly spend updated',
+    '已更新标签': 'Tags updated',
+    '加权平均利率 {p1}% · 平均现金收益率 {p2}% · 总资产 {p3}': 'Weighted avg. rate {p1}% · avg. cash yield {p2}% · total assets {p3}',
+    ' · 已按 {p1}% 安全边际折算': ' · discounted by {p1}% safety margin',
+    '年利率': 'Rate',
+    '现金比例': 'Cash',
+    '年收益': 'Income/yr',
+    '月收益': 'Income/mo',
+    '现金/月': 'Cash/mo',
+    '* 已按 {p1}% 安全边际折算': '* discounted by {p1}% safety margin',
+    '月现金收益': 'Monthly cash income',
+    '月总收益': 'Monthly total income',
+    '月现金收益 ': 'Cash/mo ',
+    '月总收益 ': 'Total/mo ',
+    '利率 ': 'Rate ',
+    '现金 ': 'Cash ',
+    '占比 ': 'Share ',
+    '当前浏览器不支持选择文件夹，备份将下载到「下载」文件夹': 'This browser cannot choose folders; backups download to your Downloads folder',
+    '已选择备份文件夹「{p1}」': 'Backup folder set to “{p1}”',
+    '选择文件夹失败': 'Could not choose a folder',
+    '已清除备份文件夹': 'Backup folder cleared',
+    '备份': 'Backup',
+    '距上次备份已 {p1} 天，记得导出一份': 'Last backup was {p1} days ago; export a copy',
+    '已关闭自动备份': 'Auto backup is off',
+    '自动备份：{p1}': 'Auto backup: {p1}',
+    '数据已导入': 'Data imported',
+    '文件格式不正确': 'Wrong file format',
+    '解析文件失败': 'Could not parse the file',
+    '全部标签': 'All tags',
+    '（暂无标签）': '(no tags yet)',
+    '匹配「{p1}」': 'matching “{p1}”',
+    '{p1}暂无消费记录': 'No expenses {p1}',
+    '暂无消费记录': 'No expenses',
+    '换个关键词试试，或清除筛选': 'Try another keyword, or clear the filters',
+    '复制': 'Duplicate',
+    '匹配': 'Matching',
+    '合计': 'Total',
+    '{p1} 笔': [ '{p1} entry', '{p1} entries' ],
+    '编辑消费': 'Edit expense',
+    '复制消费': 'Duplicate expense',
+    '请选择日期': 'Pick a date',
+    '金额必须大于 0': 'Amount must be greater than 0',
+    '消费已更新': 'Expense updated',
+    '消费已记录': 'Expense added',
+    '确认删除该消费记录？': 'Delete this expense?',
+    '（无备注）': '(no note)',
+    '（未命名）': '(untitled)',
+    ' 条记录分类不完整 · 缺 ': ' records are missing tags · missing ',
+    ' 条待归类': ' to tag',
+    '✓ 已补齐 {p1} 条': '✓ Tagged {p1}',
+    '点标签即生效': 'A click applies at once',
+    '一键补齐：': 'Fill all:',
+    '已为 {p1} 条记录打上「{p2}」': 'Tagged {p1} records “{p2}”',
+    '已归入「{p1}」': 'Filed under “{p1}”',
+    '请输入有效的预期消费金额': 'Enter a valid expected monthly amount',
+    '预期消费已更新': 'Expected spend updated',
+    '预期消费已设置': 'Expected spend set',
+    '已清除预期消费': 'Expected spend cleared',
+    '预期 ¥': 'Expected ¥',
+    '设定预期': 'Set expected',
+    '预期 ': 'Expected ',
+    '{p1} 条消费记录': [ '{p1} expense', '{p1} expenses' ],
+    '至少需要两个月的消费记录才能对比': 'Comparing needs at least two months of expenses',
+    '该维度下暂无标签': 'No tags in this dimension',
+    '分类标签': 'Tag',
+    '期初月': 'Opening month',
+    '期末月': 'Closing month',
+    '月度消费明细': 'Monthly expenses',
+    '总消费: ': 'Total: ',
+    '{p1} 笔记录': [ '{p1} entry', '{p1} entries' ],
+    '该月没有消费记录': 'No expenses this month',
+    '{p1} 笔记录 | 合计 ': [ '{p1} entry | Total ', '{p1} entries | Total ' ],
+    '该标签下没有消费记录': 'No expenses with this tag',
+    '导入示例数据将覆盖当前所有消费数据，确认继续？': 'Loading sample data replaces all current expenses. Continue?',
+    '消费类别': 'Expense category',
+    '餐饮': 'Dining',
+    '交通': 'Transport',
+    '购物': 'Shopping',
+    '住房': 'Housing',
+    '娱乐': 'Entertainment',
+    '医疗': 'Health',
+    '教育': 'Education',
+    '其他': 'Other',
+    '支付方式': 'Payment method',
+    '微信': 'WeChat',
+    '支付宝': 'Alipay',
+    '现金': 'Cash',
+    '银行卡': 'Card',
+    '消费频率': 'Frequency',
+    '日常': 'Routine',
+    '偶尔': 'Occasional',
+    '一次性': 'One-off',
+    '午餐外卖': 'Takeout lunch',
+    '地铁通勤': 'Metro commute',
+    '超市采购': 'Groceries',
+    '房租': 'Rent',
+    '电影票': 'Movie tickets',
+    '药房买药': 'Pharmacy',
+    '网课订阅': 'Online course',
+    '咖啡': 'Coffee',
+    '打车': 'Taxi',
+    '衣服': 'Clothes',
+    '水电费': 'Utilities',
+    '游戏充值': 'Game top-up',
+    '理发': 'Haircut',
+    '示例消费数据已导入（': 'Sample expenses loaded (',
+    '个月）': ' months)',
+    '{y}年{m}月': '{y}-{m}',
+    '{label}，已按{dir}排列': '{label}, sorted {dir}',
+    '升序': 'ascending',
+    '降序': 'descending',
+    '长按 {sec} 秒进入资产页': 'Press and hold for {sec}s to open assets',
+    '盈余': 'Surplus',
+    '缺口': 'Shortfall',
+    '不足 1 个月': 'Less than a month',
+    '{n} 个月': [ '{n} month', '{n} months' ],
+    '{y} 年': [ '{y} year', '{y} years' ],
+    '{y} 年 {m} 个月': '{y} yr {m} mo',
+    '已超预算 {p1} · 本月额度已用完': 'Over budget by {p1} · nothing left this month',
+    '预算剩 {p1} · 余 {p2} 天 · 日均 {p3}': '{p1} left · {p2} days to go · {p3}/day',
+    '货币类型': 'Currency',
+    '尚未备份过': 'No backup yet',
+    '上次备份 {p1}（今天）': 'Last backup {p1} (today)',
+    '上次备份 {p1}': 'Last backup {p1}',
+    ' → 「{p1}」': ' → “{p1}”',
+    '今日自动备份': 'Today’s auto backup',
+    '导出备份': 'Export backup',
+    '{head}：{name}{where}': '{head}: {name}{where}',
+    '导出失败，请重试': 'Export failed; try again',
+    '已取消备份': 'Backup cancelled',
+    '已开始下载，请在下载栏确认': 'Download started; check your downloads',
+    '已自动备份': 'Auto-backed up',
+    '到「{p1}」': ' to “{p1}”',
+    '数据已导出': 'Data exported',
+    '未选择，文件窗口默认打开上次的目录': 'Not chosen; the save dialog opens where you saved last',
+    '已选择「{p1}」，文件窗口默认打开这里': '“{p1}” chosen; the save dialog opens here',
+    '已选择「{p1}」，但当前浏览器不支持指定目录，文件窗口从默认位置打开': '“{p1}” chosen, but this browser cannot target folders; the save dialog opens at the default location',
+    '使用缓存汇率': 'Using cached rates',
+    '汇率获取失败': 'Exchange rates unavailable',
+  };
+
   // 页面不直接调用、但被单测逐条断言的内部件（保留在域里：单测就是它们的使用者，
   // 删掉导出等于删掉那些断言的接缝）：date.addMonths / date.daysBetweenStr /
   // text.escRegExp / color.hexToHsl / color.hslToHex / color.CHART_INK / color.shadeAt /
@@ -1490,6 +1983,14 @@
   // 按域分组：接口按「这个函数管哪件事」划分，不再平铺成一袋名字。
   // 页面与单测都经域名访问（如 text.esc），新增函数先想清楚属于哪个域。
   return {
+    i18n: {
+      t,
+      normalizeLang,
+      langTag,
+      I18N_LANGS,
+      I18N_DEFAULT,
+      I18N_EN,
+    },
     money: {
       toCNY,
       formatCNY,

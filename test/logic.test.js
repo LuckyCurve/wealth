@@ -21,6 +21,9 @@ function freshState(overrides = {}) {
     expenseExpectation: 0,
     netWorthTarget: 0,
     incomeSafetyFactor: 100,
+    // 既有断言写的都是中文界面文案：i18n 以中文原文为键，语言固定 zh 时 t() 原样返回。
+    // 英文表的行为由专门的「多语言词条」用例覆盖，不让这里跟着英文表漂。
+    lang: 'zh',
   }, overrides);
 }
 
@@ -2664,5 +2667,160 @@ describe('下拉框固有宽度的钉住判据（opt-in base-select 的补偿）
   test('脏值不抛（null/undefined 混在选项里）', () => {
     assert.strictEqual(L.ui.shouldPinSelectWidth([null, undefined]), false);
     assert.strictEqual(L.ui.shouldPinSelectWidth([null, '2026年2月']), true);
+  });
+});
+
+// ========== 多语言 ==========
+describe('多语言词条 t / normalizeLang / langTag', () => {
+  test('语言值只认 zh / en，其余一律回落默认（英文）', () => {
+    assert.strictEqual(L.i18n.I18N_DEFAULT, 'en');
+    assert.deepStrictEqual(L.i18n.I18N_LANGS, ['en', 'zh']);
+    assert.strictEqual(L.i18n.normalizeLang('zh'), 'zh');
+    assert.strictEqual(L.i18n.normalizeLang('en'), 'en');
+    for (const v of [undefined, null, '', 'zh-CN', 'ZH', 'fr', 0, {}]) {
+      assert.strictEqual(L.i18n.normalizeLang(v), 'en', `脏值 ${String(v)} 应回落英文`);
+    }
+  });
+
+  test('<html lang> 用地区标签：zh → zh-CN，其余 en', () => {
+    assert.strictEqual(L.i18n.langTag('zh'), 'zh-CN');
+    assert.strictEqual(L.i18n.langTag('en'), 'en');
+    assert.strictEqual(L.i18n.langTag(undefined), 'en');
+  });
+
+  test('中文下词条键原样返回（源文案即键），英文下取英文表', () => {
+    globalThis.state = freshState({ lang: 'zh' });
+    assert.strictEqual(L.i18n.t('资产'), '资产');
+    globalThis.state = freshState({ lang: 'en' });
+    assert.strictEqual(L.i18n.t('资产'), 'Assets');
+  });
+
+  test('缺词条回落中文原文，不显示键名也不抛错', () => {
+    globalThis.state = freshState({ lang: 'en' });
+    assert.strictEqual(L.i18n.t('这个词条故意不存在'), '这个词条故意不存在');
+  });
+
+  test('插值：{name} 按名替换，未提供的占位符原样保留', () => {
+    globalThis.state = freshState({ lang: 'zh' });
+    assert.strictEqual(L.i18n.t('已删除「{p1}」', { p1: '招行' }), '已删除「招行」');
+    assert.strictEqual(L.i18n.t('已删除「{p1}」', {}), '已删除「{p1}」');
+    // 值里的 $& $1 之类不得被当成替换模式（String.replace 回调形态）
+    assert.strictEqual(L.i18n.t('已删除「{p1}」', { p1: '$&$1' }), '已删除「$&$1」');
+  });
+
+  test('单复数：值为数组时按 n=1 取单数', () => {
+    globalThis.state = freshState({ lang: 'zh' });
+    // 中文词条是字符串，不参与单复数
+    assert.strictEqual(L.i18n.t('资产'), '资产');
+    const table = L.i18n.I18N_EN;
+    table['__probe__'] = ['{n} asset', '{n} assets'];
+    try {
+      globalThis.state = freshState({ lang: 'en' });
+      assert.strictEqual(L.i18n.t('__probe__', { n: 1 }), '1 asset');
+      assert.strictEqual(L.i18n.t('__probe__', { n: 3 }), '3 assets');
+      assert.strictEqual(L.i18n.t('__probe__', { n: 0 }), '0 assets');
+    } finally {
+      delete table['__probe__'];
+    }
+  });
+
+  test('无 state 时按默认语言（英文）取词，不抛 ReferenceError', () => {
+    const saved = globalThis.state;
+    delete globalThis.state;
+    try {
+      assert.strictEqual(L.i18n.t('资产'), 'Assets');
+    } finally {
+      globalThis.state = saved;
+    }
+  });
+});
+
+describe('migrateState：语言设置的归一', () => {
+  test('缺失语言 → 默认英文', () => {
+    globalThis.state = freshState({ categories: [], lang: undefined });
+    L.migrate.migrateState();
+    assert.strictEqual(state.lang, 'en');
+  });
+
+  test('保留 zh；脏值归英文', () => {
+    globalThis.state = freshState({ lang: 'zh', categories: [{ id: 'currency', name: '货币类型', builtin: true, tags: ['CNY'] }] });
+    L.migrate.migrateState();
+    assert.strictEqual(state.lang, 'zh');
+
+    globalThis.state = freshState({ lang: 'klingon', categories: [{ id: 'currency', name: '货币类型', builtin: true, tags: ['CNY'] }] });
+    L.migrate.migrateState();
+    assert.strictEqual(state.lang, 'en');
+  });
+
+  test('内置货币分类的名称跟随当前语言，已有的分类名不被改写（那是用户数据）', () => {
+    globalThis.state = freshState({ lang: 'en', categories: [] });
+    L.migrate.migrateState();
+    assert.strictEqual(state.categories[0].id, 'currency');
+    assert.strictEqual(state.categories[0].name, 'Currency');
+
+    globalThis.state = freshState({ lang: 'zh', categories: [] });
+    L.migrate.migrateState();
+    assert.strictEqual(state.categories[0].name, '货币类型');
+
+    // 已存在：即使语言变了，分类名也保持原样
+    globalThis.state = freshState({ lang: 'en', categories: [{ id: 'currency', name: '货币类型', builtin: true, tags: ['CNY'] }] });
+    L.migrate.migrateState();
+    assert.strictEqual(state.categories[0].name, '货币类型');
+  });
+});
+
+describe('月份标签跟随界面语言（英文用 Intl 短月名）', () => {
+  test('中文：{y}年{m}月（原有行为不变）', () => {
+    globalThis.state = freshState({ lang: 'zh' });
+    assert.strictEqual(L.date.monthLabel('2024-01'), '2024年1月');
+    assert.strictEqual(L.date.monthLabel('2024-12'), '2024年12月');
+  });
+
+  test('英文：Mon YYYY（12 个月名不进词条表）', () => {
+    globalThis.state = freshState({ lang: 'en' });
+    assert.strictEqual(L.date.monthLabel('2026-02'), 'Feb 2026');
+    assert.strictEqual(L.date.monthLabel('2024-12'), 'Dec 2024');
+    assert.strictEqual(L.date.monthLabel('2024-01'), 'Jan 2024');
+  });
+
+  test('脏值不抛、不做时区位移（UTC 解析，西半球也不跨月）', () => {
+    globalThis.state = freshState({ lang: 'en' });
+    assert.strictEqual(L.date.monthLabel(''), '');
+    assert.strictEqual(L.date.monthLabel(null), '');
+    assert.strictEqual(L.date.monthLabel('2024'), '2024');
+    // 1 月 1 日若按本地时区解析，UTC-11 会退到上一年的 12 月
+    assert.strictEqual(L.date.monthLabel('2024-01'), 'Jan 2024');
+  });
+});
+
+describe('单复数：计数取自 vars.n 或 vars.p1，不拿金额当计数', () => {
+  test('{p1} 项资产：1 与 3 分别取单/复数', () => {
+    globalThis.state = freshState({ lang: 'en' });
+    assert.strictEqual(L.i18n.t('{p1} 项资产', { p1: 1 }), '1 asset');
+    assert.strictEqual(L.i18n.t('{p1} 项资产', { p1: 3 }), '3 assets');
+  });
+
+  test('计数句的首个占位符是数量时，p1 驱动单复数（不必额外传 n）', () => {
+    globalThis.state = freshState({ lang: 'en' });
+    assert.strictEqual(L.i18n.t('{p1} 笔记录', { p1: 1 }), '1 entry');
+    assert.strictEqual(L.i18n.t('{p1} 笔记录 | 合计 ', { p1: 2 }), '2 entries | Total ');
+  });
+
+  test('显式 n 优先（数量不是第一个占位符时）', () => {
+    globalThis.state = freshState({ lang: 'en' });
+    const table = L.i18n.I18N_EN;
+    table['__plural_probe__'] = ['one {p1}', 'many {p1}'];
+    try {
+      assert.strictEqual(L.i18n.t('__plural_probe__', { p1: 5, n: 1 }), 'one 5');
+      assert.strictEqual(L.i18n.t('__plural_probe__', { p1: 1, n: 2 }), 'many 1');
+    } finally {
+      delete table['__plural_probe__'];
+    }
+  });
+
+  test('中文词条不参与单复数（永远是字符串）', () => {
+    globalThis.state = freshState({ lang: 'zh' });
+    assert.strictEqual(L.i18n.t('{p1} 项资产', { p1: 1 }), '1 项资产');
+    assert.strictEqual(L.i18n.t('{p1} 项资产', { p1: 5 }), '5 项资产');
   });
 });
