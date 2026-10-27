@@ -3121,6 +3121,33 @@ function ensureEChartsReady(el) {
     return false;
   });
 }
+// ========== 图表宿主：五张图共用同一段生命周期 ==========
+// 调用点只交「实例槽 / 容器 / 首次接线 / option」，以下四条约束由宿主统一守住：
+//   ① 图表库按需加载（默认页不画图，首屏不下载）；
+//   ② 容器不可见（0×0）既不加载也不 init——拿 0 去 init 才是把图做废的那一步；
+//   ③ init 后立刻登记尺寸观察（漏一张是静默的：图还在，只是画在旧尺寸上）；
+//   ④ 换数据前先清强调态（setOption 重建的扇区会继承上一帧的 blur(0.2)，表现为几块一直灰着）。
+// 监听器只在 init 分支里注册一次：每帧注册会累积，点一下触发 N 次下钻。
+// slot = chartSlot(get, set)：各图仍持有自己的模块级实例变量，宿主不维护全局表。
+function chartSlot(get, set) {
+  return { get: get, set: set };
+}
+
+async function chartApply(spec) {
+  let chart = spec.slot.get();
+  if (!chart) {
+    if (!(await ensureEChartsReady(spec.el))) return null;
+    if (spec.slot.get()) return spec.slot.get(); // 并发调用已经建好并画过
+    chart = echarts.init(spec.el);
+    observeChartSize(chart);
+    spec.slot.set(chart);
+    if (spec.wire) spec.wire(chart);
+  }
+  chart.dispatchAction({ type: 'downplay' });
+  chart.setOption(spec.option, true);
+  return chart;
+}
+
 
 // 图表/空态显隐切换：show=true 显示图表、隐藏空态；反之显示空态
 function showChartOrEmpty(chartEl, emptyEl, show) {
@@ -4041,20 +4068,13 @@ async function renderChart() {
   const view = sunburstDrillView(data, totalCNY, sunburstLegendSel['chart-legend']);
   renderChartTotal(totalEl, view.total);
 
-  if (!chart) {
-    if (!(await ensureEChartsReady(chartEl))) return;
-    if (chart) return; // 并发调用已经建好实例
-    chart = echarts.init(chartEl);
-    observeChartSize(chart);
-    wireSunburstDrill(chart, 'chart-legend');
-  }
-
   const th = chartTheme();
-  // 换数据前先清掉强调态：setOption 重建扇区后，旧的 blur(0.2) 会粘在新扇区上，
-  // 于是下钻/返回后有几个扇区一直是灰的（真实 ECharts 5 实测，清掉即恢复）。
-  // 与「只允许一盏灯」同理：扇区亮度只该由悬停决定，不得残留上一帧的强调态。
-  chart.dispatchAction({ type: 'downplay' });
-  chart.setOption(buildSunburstOption(view.data, p => sunburstTooltipContent(p, th, view.total)), true);
+  if (!(await chartApply({
+    slot: chartSlot(() => chart, v => chart = v),
+    el: chartEl,
+    wire: c => wireSunburstDrill(c, 'chart-legend'),
+    option: buildSunburstOption(view.data, p => sunburstTooltipContent(p, th, view.total)),
+  }))) return;
   // 重绘回调登记的是**整个渲染函数**：下钻既换清单也换图，只重绘清单会让图留在上一层
   sunburstRerender['chart-legend'] = renderChart;
   renderSunburstLegend('chart-legend', view.data, view.total, chart);
@@ -4450,18 +4470,7 @@ async function renderHistoryChart() {
     };
   });
 
-  if (!historyChart) {
-    if (!(await ensureEChartsReady(chartEl))) return;
-    if (historyChart) return; // 并发调用已经建好实例
-    historyChart = echarts.init(chartEl);
-    observeChartSize(historyChart);
-    // 图例选中态记忆：用户点击图例隐藏/显示系列时保存，重绘后回灌（切模式/切主题不丢）
-    historyChart.on('legendselectchanged', p => { histLegendSel = p.selected; });
-    // 点击色块下钻：展开该月该标签的资产构成明细
-    wireStackedBarDrill(historyChart, () => histDrillMeta, viewHistorySegment);
-  }
-
-  historyChart.setOption({
+  const option = {
     // 回灌前清理失效项（局部副本，不回写存储）
     ...barChartBase(th, dates, historyChartMode, sortedTags, pruneLegendSelected(histLegendSel, sortedTags)),
     tooltip: {
@@ -4479,7 +4488,18 @@ async function renderHistoryChart() {
       }
     },
     series
-  }, true);
+  };
+  if (!(await chartApply({
+    slot: chartSlot(() => historyChart, v => historyChart = v),
+    el: chartEl,
+    wire: c => {
+      // 图例选中态记忆：用户点击图例隐藏/显示系列时保存，重绘后回灌（切模式/切主题不丢）
+      c.on('legendselectchanged', p => { histLegendSel = p.selected; });
+      // 点击色块下钻：展开该月该标签的资产构成明细
+      wireStackedBarDrill(c, () => histDrillMeta, viewHistorySegment);
+    },
+    option: option,
+  }))) return;
 }
 
 // 月度环比徽章 / 对比行（资产快照与消费趋势共用，单一来源）：
@@ -4915,14 +4935,6 @@ async function renderIncomeChart() {
     }
   });
 
-  if (!incomeChart) {
-    if (!(await ensureEChartsReady(el))) return;
-    if (incomeChart) return; // 并发调用已经建好实例
-    incomeChart = echarts.init(el);
-    observeChartSize(incomeChart);
-    wireSunburstDrill(incomeChart, 'income-chart-legend');
-  }
-
   const modeLabel = incomeChartMode === 'cash' ? '月现金收益' : '月总收益';
   const totalIncome = rateAssets.reduce((s, a) => {
     const inc = calcAssetIncome(a);
@@ -4943,9 +4955,7 @@ async function renderIncomeChart() {
   const th = chartTheme();
   // 图与清单同源：下钻后分母换成该分类合计（与卡片总数、tooltip、清单三处同口径）
   const view = sunburstDrillView(data, totalIncome, sunburstLegendSel['income-chart-legend']);
-  // 换数据前先清掉强调态（同 renderChart：否则 blur 会粘到新扇区上）
-  incomeChart.dispatchAction({ type: 'downplay' });
-  incomeChart.setOption(buildSunburstOption(view.data, function(p) {
+  const option = buildSunburstOption(view.data, function(p) {
     // ECharts 不会把 data 上的自定义字段展开到 params 顶层, 必须从 p.data 取
     const assetId = p.data && p.data._assetId;
     if (assetId) {
@@ -4957,7 +4967,13 @@ async function renderIncomeChart() {
       }
     }
     return sunburstTooltipContent(p, th, view.total, { prefix: modeLabel, pctLabel: '占比 ' });
-  }), true);
+  });
+  if (!(await chartApply({
+    slot: chartSlot(() => incomeChart, v => incomeChart = v),
+    el: el,
+    wire: c => wireSunburstDrill(c, 'income-chart-legend'),
+    option: option,
+  }))) return;
   // 重绘回调登记的是**整个渲染函数**：下钻既换清单也换图，只重绘清单会让图留在上一层
   sunburstRerender['income-chart-legend'] = renderIncomeChart;
   renderSunburstLegend('income-chart-legend', view.data, view.total, incomeChart);
@@ -6072,18 +6088,13 @@ async function renderExpenseChart() {
   const view = sunburstDrillView(data, total, sunburstLegendSel['expense-chart-legend']);
   renderChartTotal(totalEl, view.total);
 
-  if (!expenseChart) {
-    if (!(await ensureEChartsReady(chartEl))) return;
-    if (expenseChart) return; // 并发调用已经建好实例
-    expenseChart = echarts.init(chartEl);
-    observeChartSize(expenseChart);
-    wireSunburstDrill(expenseChart, 'expense-chart-legend');
-  }
-
   const th = chartTheme();
-  // 换数据前先清掉强调态（同 renderChart：否则 blur 会粘到新扇区上）
-  expenseChart.dispatchAction({ type: 'downplay' });
-  expenseChart.setOption(buildSunburstOption(view.data, p => sunburstTooltipContent(p, th, view.total)), true);
+  if (!(await chartApply({
+    slot: chartSlot(() => expenseChart, v => expenseChart = v),
+    el: chartEl,
+    wire: c => wireSunburstDrill(c, 'expense-chart-legend'),
+    option: buildSunburstOption(view.data, p => sunburstTooltipContent(p, th, view.total)),
+  }))) return;
   // 重绘回调登记的是**整个渲染函数**：下钻既换清单也换图，只重绘清单会让图留在上一层
   sunburstRerender['expense-chart-legend'] = renderExpenseChart;
   renderSunburstLegend('expense-chart-legend', view.data, view.total, expenseChart);
@@ -6250,18 +6261,7 @@ async function renderExpenseTrendChart() {
 
   const series = tagSeries.concat(totalSeries);
 
-  if (!expenseTrendChart) {
-    if (!(await ensureEChartsReady(chartEl))) return;
-    if (expenseTrendChart) return; // 并发调用已经建好实例
-    expenseTrendChart = echarts.init(chartEl);
-    observeChartSize(expenseTrendChart);
-    // 图例选中态记忆：用户点击图例隐藏/显示系列时保存，重绘后回灌（切模式/切主题不丢）
-    expenseTrendChart.on('legendselectchanged', p => { trendLegendSel = p.selected; });
-    // 点击色块下钻：展开该月该标签的消费记录构成明细
-    wireStackedBarDrill(expenseTrendChart, () => trendDrillMeta, viewExpenseSegment);
-  }
-
-  expenseTrendChart.setOption({
+  const option = {
     // 回灌前清理失效项（局部副本，不回写存储）
     ...barChartBase(th, dates, expenseTrendMode, sortedTags, pruneLegendSelected(trendLegendSel, sortedTags)),
     tooltip: {
@@ -6294,7 +6294,18 @@ async function renderExpenseTrendChart() {
       }
     },
     series
-  }, true);
+  };
+  if (!(await chartApply({
+    slot: chartSlot(() => expenseTrendChart, v => expenseTrendChart = v),
+    el: chartEl,
+    wire: c => {
+      // 图例选中态记忆：用户点击图例隐藏/显示系列时保存，重绘后回灌（切模式/切主题不丢）
+      c.on('legendselectchanged', p => { trendLegendSel = p.selected; });
+      // 点击色块下钻：展开该月该标签的消费记录构成明细
+      wireStackedBarDrill(c, () => trendDrillMeta, viewExpenseSegment);
+    },
+    option: option,
+  }))) return;
   renderExpenseTrendList();
 }
 

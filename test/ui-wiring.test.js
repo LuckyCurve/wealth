@@ -2786,12 +2786,15 @@ describe('UI 接线契约：开屏（落纸入场）', () => {
  * （用户报的「全屏再缩小后图不对」就是这么来的），漏登记一张不会有任何报错。
  */
 describe('UI 接线契约：图表尺寸同步', () => {
-  test('每个 echarts.init 都紧跟一次 observeChartSize（新增第六张图不能漏登记）', () => {
+  test('图表实例只在宿主里创建一次，且紧跟尺寸登记（新增第六张图不用再登记）', () => {
     const inits = (html.match(/echarts\.init\(/g) || []).length;
-    // 数「紧跟」而不是数全局出现次数：observeChartSize 自己的定义也算一次出现
-    const paired = (html.match(/echarts\.init\([^)]*\);\s*observeChartSize\(/g) || []).length;
-    assert.ok(inits >= 5, `本应用现有 5 个图表面（实得 ${inits}）`);
-    assert.strictEqual(paired, inits, `init ${inits} 处、紧跟登记 ${paired} 处：每张图都要盯住容器`);
+    assert.strictEqual(inits, 1, `init 只应在 chartApply 里出现（实得 ${inits}）`);
+    assert.match(
+      html,
+      /chart = echarts\.init\(spec\.el\);\s*\n\s*observeChartSize\(chart\);\s*\n\s*spec\.slot\.set\(chart\);/,
+      'init 后立刻登记尺寸观察，再交给调用方的实例槽'
+    );
+    assert.strictEqual(count(/observeChartSize\(/g), 2, '定义一处 + 宿主调用一处');
   });
 
   test('尺寸只以容器的可见尺寸为准（隐藏时不 resize，那才是把图做废的那一步）', () => {
@@ -2914,24 +2917,25 @@ describe('UI 接线契约：旭日图选中分类后清单联动', () => {
 
   test('下钻接线只在 init 时注册一次（每帧 on(click) 会累积监听器）', () => {
     // 监听器累积的实际症状：点一下触发 N 次下钻，N 为偶数时 toggle 回原位 =「点了没反应」。
-    // 与堆叠柱下钻同惯例：wire 在 if (!chart) 分支里。
+    // 接线现在作为 wire 回调交给宿主，宿主只在 init 分支里调一次。
+    assert.match(fnSource('chartApply'), /if \(spec\.wire\) spec\.wire\(chart\);/, '宿主在 init 分支里接线');
     for (const [fn, id] of [['renderChart', 'chart-legend'], ['renderIncomeChart', 'income-chart-legend'], ['renderExpenseChart', 'expense-chart-legend']]) {
       const src = fnSource(fn);
-      const initBlock = src.slice(src.indexOf('echarts.init'), src.indexOf('}', src.indexOf('echarts.init')));
-      assert.ok(initBlock.includes(`wireSunburstDrill(`), `${fn}: 接线放在 init 分支内（只注册一次）`);
+      assert.match(src, /wire: c => wireSunburstDrill\(c, '[^']+'\)/, `${fn}: 接线只作为 wire 回调交一次`);
       assert.strictEqual(count(new RegExp(`wireSunburstDrill\\([^)]*'${id}'\\)`, 'g')), 1, `${id}: 接线只出现一次`);
     }
   });
 
   test('setOption 前先清掉强调态（否则 blur 会粘在新扇区上）', () => {
     // 真实 ECharts 5 实测：下钻/返回后，setOption 重建的扇区会继承上一帧的 blur(0.2)，
-    // 表现为几个扇区一直是灰的。三张旭日图都必须在 setOption 前 downplay。
-    for (const fn of ['renderChart', 'renderIncomeChart', 'renderExpenseChart']) {
-      const src = stripComments(fnSource(fn));
-      const downplay = src.indexOf("dispatchAction({ type: 'downplay' })");
-      const setOption = src.indexOf('setOption(');
-      assert.ok(downplay >= 0, `${fn}: 重绘前应清强调态`);
-      assert.ok(downplay < setOption, `${fn}: downplay 必须在 setOption 之前（否则清的是旧扇区）`);
+    // 表现为几个扇区一直是灰的。这条现在由宿主统一守，调用点不得自己重绘。
+    const src = fnSource('chartApply');
+    const downplay = src.indexOf("dispatchAction({ type: 'downplay' })");
+    const setOption = src.indexOf('setOption(');
+    assert.ok(downplay >= 0, 'host: 重绘前应清强调态');
+    assert.ok(downplay < setOption, 'host: downplay 必须在 setOption 之前（否则清的是旧扇区）');
+    for (const fn of ['renderChart', 'renderIncomeChart', 'renderExpenseChart', 'renderHistoryChart', 'renderExpenseTrendChart']) {
+      assert.doesNotMatch(stripComments(fnSource(fn)), /dispatchAction|setOption/, `${fn}: 不得自己重绘`);
     }
   });
 });
