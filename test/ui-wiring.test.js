@@ -372,12 +372,26 @@ describe('UI 接线契约：logic.js 导出清单与筛选同步时序', () => {
     assert.doesNotMatch(stripComments(fnSource('fillCategorySelect')), /sel\.innerHTML =/, '不得绕过守卫直接写 innerHTML');
   });
 
-  test('renderExpenses 先重建月份下拉再读筛选值（防「下拉=全部时间 / 空态=旧月份」脱节）', () => {
-    const src = fnSource('renderExpenses');
-    const build = src.indexOf('populateExpenseMonthFilter()');
-    const read = src.indexOf('expenseMonthFilter = monthSel.value');
-    assert.ok(build >= 0 && read >= 0, '两步都存在');
-    assert.ok(build < read, 'populateExpenseMonthFilter 必须先于 expenseMonthFilter 同步：删除选中月最后一条记录后选项消失、下拉回落全部时间，若先读后建变量会持有已从 DOM 消失的旧月份');
+  test('筛选状态只有一个所有者：页面不留镜像变量，也不从控件读回', () => {
+    // 旧实现把筛选值镜像成四个模块级变量，并在 renderExpenses 里按「先重建下拉、再读值」的
+    // 次序同步——那个次序写过反一次（下拉=全部时间 / 空态=该月无记录）。现在状态由 logic.js
+    // 的纯函数持有：控件只写、渲染只读，失效值在归一阶段丢弃。
+    const src = stripComments(html);
+    for (const v of ['expenseMonthFilter', 'expenseSearch', 'expenseTagCatFilter', 'expenseTagFilter']) {
+      assert.doesNotMatch(src, new RegExp(`\\b${v}\\b`), `镜像变量 ${v} 不得回潮`);
+    }
+    const render = stripComments(fnSource('renderExpenses'));
+    assert.match(render, /normalizeExpenseFilters\(/, '失效筛选值必须由纯函数归一（不靠重建与读取的先后）');
+    assert.match(render, /expenseListView\(/, '结果、生效维度与空态要从同一份视图派生');
+    assert.doesNotMatch(render, /\.value\b/, 'renderExpenses 不得从控件读筛选值（控件只写）');
+  });
+
+  test('筛选控件只写：事件一律走 setExpenseFilter 单一写入端', () => {
+    const h = (id) => `id="${id}"[^>]*on`;
+    assert.match(html, new RegExp(h('expense-month-filter') + `change="setExpenseFilter\\(\\{\\s*month\\s*:\\s*this\\.value\\s*\\}\\)"`), '月份下拉走 setExpenseFilter');
+    assert.match(html, new RegExp(h('expense-tag-filter') + `change="setExpenseFilter\\(\\{\\s*tag\\s*:\\s*this\\.value\\s*\\}\\)"`), '标签下拉走 setExpenseFilter');
+    assert.match(html, new RegExp(h('expense-search') + `input="setExpenseFilter\\(\\{\\s*query\\s*:\\s*this\\.value\\s*\\}\\)"`), '搜索框走 setExpenseFilter');
+    assert.strictEqual(count(/on(change|input)="renderExpenses\(\)"/g), 0, '控件不得直接调 renderExpenses 自己读值');
   });
 });
 
@@ -744,12 +758,6 @@ describe('UI 接线契约：消费标签筛选（单下拉分组，类别作不�
     assert.strictEqual(count(/id="expense-tag-cat-filter"/g), 0, '旧「分类下拉」应移除');
     assert.strictEqual(count(/onExpenseTagCatChange/g), 0, '级联切换处理函数应移除');
     assert.strictEqual(count(/populateExpenseTagCatFilter/g), 0, '分类下拉填充函数应移除');
-    assert.match(html, /id="expense-tag-filter"[^>]*onchange="renderExpenses\(\)"/, '下拉 onchange 接 renderExpenses');
-  });
-
-  test('筛选状态变量仍在（分类+标签由选中值解析而来）', () => {
-    assert.match(html, /let expenseTagCatFilter = '';/, '分类筛选变量存在');
-    assert.match(html, /let expenseTagFilter = '';/, '标签筛选变量存在');
   });
 
   test('populateExpenseTagFilter 用 optgroup 按分类分组，类别不可选、标签才是选项', () => {
@@ -762,70 +770,81 @@ describe('UI 接线契约：消费标签筛选（单下拉分组，类别作不�
     assert.match(src, /（暂无标签）/, '空分类给 disabled 占位项，保住分组可见');
   });
 
-  test('选中值编码/解码下沉 logic.js，内联脚本不自拼口径', () => {
-    assert.match(html, /parseTagFilter\(/, '同步时用 parseTagFilter 解码');
-    assert.match(html, /tagFilterValue\(/, '生成选项时用 tagFilterValue 编码');
-    assert.doesNotMatch(html, /function tagFilterValue/, '编码不得在 index.html 重定义');
-    assert.doesNotMatch(html, /function parseTagFilter/, '解码不得在 index.html 重定义');
-    assert.doesNotMatch(html, /function expenseTagFilterGroups/, '分组结构不得在 index.html 重定义');
-    assert.doesNotMatch(html, /function hasTagFilterOption/, '有效性判定不得在 index.html 重定义');
+  test('编码在页面、解码与有效性判定在 logic.js（页面不自拼口径）', () => {
+    assert.match(html, /tagFilterValue\(g\.id, t\)/, '生成选项时用 tagFilterValue 编码');
+    for (const fn of ['tagFilterValue', 'parseTagFilter', 'expenseTagFilterGroups', 'hasTagFilterOption']) {
+      assert.doesNotMatch(html, new RegExp(`function ${fn}`), `${fn} 不得在 index.html 重定义`);
+    }
+    assert.doesNotMatch(html, /parseTagFilter\(/, '解码只在 logic.js：页面拿到的已是解码后的「分类 / 标签」');
+    assert.doesNotMatch(html, /hasTagFilterOption\(/, '有效性判定只在 logic.js（归一阶段）');
   });
 
-  test('选中值有效则保留，分类被删/标签改名后回落「全部标签」', () => {
-    const src = fnSource('populateExpenseTagFilter');
-    assert.match(src, /hasTagFilterOption\(groups, current\)/, '有效性判定走 logic.js 纯函数');
-    assert.match(src, /sel\.value = ''/, '无效选中值回落为空（全部标签）');
+  test('筛选状态只有一个所有者：setExpenseFilter 写入，syncExpenseControls 回写', () => {
+    const decl = html.match(/let expenseFilters = \{[^}]*\}/);
+    assert.ok(decl, '状态只有一处声明');
+    assert.match(decl[0], /month/, '含月份');
+    assert.match(decl[0], /tag/, '含标签');
+    assert.match(decl[0], /query/, '含关键词');
+
+    assert.match(
+      fnSource('setExpenseFilter'),
+      /expenseFilters = Object\.assign\(\{\}, expenseFilters, patch\)/,
+      '写入端合并 patch（不改原对象，便于单测断言纯性）'
+    );
+    const sync = fnSource('syncExpenseControls');
+    for (const id of ['expense-month-filter', 'expense-tag-filter', 'expense-search']) {
+      assert.match(sync, new RegExp(`set\\('${id}'`), `${id} 必须由回写点写入`);
+    }
+    assert.match(sync, /el\.value !== v/, '值相同时不写：搜索框每次按键都重跑渲染，写回会顶飞光标');
   });
 
-  test('syncExpenseTagFilter 是标签筛选状态的唯一同步口', () => {
-    assert.match(html, /function syncExpenseTagFilter\(/, '同步函数存在');
-    const src = fnSource('syncExpenseTagFilter');
-    assert.match(src, /parseTagFilter\(/, '从选中值解码');
-    assert.match(src, /expenseTagCatFilter = /, '写回分类状态');
-    assert.match(src, /expenseTagFilter = /, '写回标签状态');
-    assert.strictEqual(count(/syncExpenseTagFilter\(/g), 2, '定义一处 + renderExpenses 调用一处');
-    // 除声明外，状态变量只允许在同步口内被赋值（防止绕过同步口直读 DOM 写状态）
-    assert.strictEqual(count(/expenseTagCatFilter = /g), 2, '分类状态只在声明与同步口内赋值');
-    assert.strictEqual(count(/expenseTagFilter = /g), 2, '标签状态只在声明与同步口内赋值');
-  });
-
-  test('renderExpenses 先重建标签下拉再同步状态（防脱节）', () => {
+  test('renderExpenses 三步：归一 → 重建选项 → 回写控件（全程不读控件）', () => {
     const src = fnSource('renderExpenses');
-    const build = src.indexOf('populateExpenseTagFilter()');
-    const sync = src.indexOf('syncExpenseTagFilter()');
-    assert.ok(build >= 0 && sync >= 0, '两步都存在');
-    assert.ok(build < sync, '重建必须先于状态同步');
-    assert.strictEqual(src.indexOf('tagCatSel'), -1, '旧的分类下拉直读不再存在');
+    const norm = src.indexOf('normalizeExpenseFilters(');
+    const build = src.indexOf('populateExpenseMonthFilter()');
+    const sync = src.indexOf('syncExpenseControls()');
+    assert.ok(norm >= 0 && build >= 0 && sync >= 0, '三步都存在');
+    assert.ok(norm < build, '先归一：删记录 / 删分类后失效的筛选值必须在使用前丢掉');
+    assert.ok(build < sync, '先重建选项再回写选中值（否则写进的是旧选项集）');
   });
 
-  test('renderExpenses 包含标签筛选逻辑：分类+标签同时选中才过滤', () => {
+  test('筛选判据不在页面：三段叠加与空态全部来自 expenseListView', () => {
     const src = fnSource('renderExpenses');
-    assert.match(src, /expenseTagCatFilter && expenseTagFilter/, '标签筛选要求分类和标签同时选中');
-    assert.match(src, /e\.tags\[expenseTagCatFilter\] === expenseTagFilter/, '精确匹配标签值');
+    assert.match(src, /expenseListView\(state\.expenses, expenseFilters, state\.expenseCategories\)/, '结果与空态同源');
+    assert.match(src, /const filtered = view\.rows;/, '页面只消费行数据');
+    assert.doesNotMatch(src, /state\.expenses\.filter\(/, '页面不再自己拼筛选链');
+    assert.match(src, /view\.emptyKind/, '空态判据来自 view');
+    assert.match(src, /view\.hasFilter/, '「清除筛选」显隐来自 view');
+    assert.match(src, /view\.active\.tag/, '生效维度来自 view');
+    assert.match(src, /view\.active\.month/, '生效维度来自 view');
   });
 
-  test('clearExpenseFilters 把标签下拉归「全部标签」再重绘（状态由 renderExpenses 同步）', () => {
-    const src = fnSource('clearExpenseFilters');
-    assert.match(src, /expense-tag-filter/, '重置标签下拉 DOM 值');
-    assert.match(src, /tagSel\.value = ''/, '选中值归空');
-    assert.match(src, /renderExpenses\(\)/, '触发重绘：重建下拉并重新同步状态');
+  test('两个清空入口都走同一写入端，不再直接改控件', () => {
+    assert.match(fnSource('clearExpenseFilters'), /setExpenseFilter\(\{ month: '', tag: '', query: '' \}\)/, '三项一起归零');
+    assert.match(fnSource('clearExpenseSearch'), /setExpenseFilter\(\{ query: '' \}\)/, '只清搜索词');
+    assert.match(fnSource('clearExpenseSearch'), /\.focus\(\)/, '清完把焦点交回输入框');
+    for (const fn of ['clearExpenseFilters', 'clearExpenseSearch']) {
+      assert.doesNotMatch(stripComments(fnSource(fn)), /\.value\s*=/, `${fn} 不得直接改控件值`);
+    }
   });
 
-  test('空态提示区分标签筛选：有筛选时拼接筛选维度文案', () => {
+  test('空态提示按生效维度拼接：搜索 > 标签 > 月份', () => {
     const src = fnSource('renderExpenses');
-    // 空态分支应检查标签筛选
-    assert.match(src, /expenseTagCatFilter && expenseTagFilter/, '空态 hasFilter 包含标签筛选条件');
-    assert.match(src, /filterParts/, '空态文案用 filterParts 数组拼接');
-    assert.match(src, /expenseTagFilter/, '空态文案包含标签筛选值');
+    const at = src.indexOf('const filterParts = []');
+    assert.ok(at >= 0, '空态文案用 filterParts 数组拼接');
+    const seg = src.slice(at, src.indexOf('titleEl.textContent = filterParts.length'));
+    const q = seg.indexOf('view.active.query');
+    const tag = seg.indexOf('view.active.tag');
+    const month = seg.indexOf('view.active.month');
+    assert.ok(q >= 0 && tag >= 0 && month >= 0, '三个维度都进文案');
+    assert.ok(q < tag && tag < month, '文案顺序：搜索 > 标签 > 月份');
   });
 
-  test('合计行标签包含筛选维度：月份+标签+搜索任意组合', () => {
+  test('合计行标签包含筛选维度：月份 + 标签 + 搜索任意组合', () => {
     const src = fnSource('renderExpenses');
-    assert.match(src, /tagLabel/, '合计行引用标签筛选值');
+    assert.match(src, /if \(view\.active\.month\) parts\.push/, '合计含月份维度');
+    assert.match(src, /if \(view\.active\.tag\) parts\.push/, '合计含标签维度');
     assert.match(src, /parts\.length/, '合计文案用 parts 数组拼接');
-    // 合计行应包含所有三种筛选维度
-    assert.match(src, /monthLabel\(expenseMonthFilter\)/, '合计包含月份维度');
-    assert.match(src, /expenseTagFilter/, '合计包含标签维度');
   });
 
   test('标签筛选下拉与月份下拉、搜索框同级排列在筛选栏内', () => {
@@ -841,23 +860,6 @@ describe('UI 接线契约：消费标签筛选（单下拉分组，类别作不�
 
   test('populateExpenseTagFilter 仅在 renderExpenses 中调用（单一来源）', () => {
     assert.strictEqual(count(/populateExpenseTagFilter\(/g), 2, '定义一处 + renderExpenses 调用一处');
-  });
-
-  test('标签筛选仅在分类和标签同时选中时生效（AND 逻辑）', () => {
-    const src = fnSource('renderExpenses');
-    // 筛选条件必须同时检查 catFilter 和 tagFilter
-    assert.match(src, /expenseTagCatFilter && expenseTagFilter/, '筛选条件为 AND 逻辑');
-    assert.doesNotMatch(src, /expenseTagCatFilter \|\| expenseTagFilter/, '不应是 OR 逻辑');
-  });
-
-  test('renderExpenses 筛选顺序：月份 → 标签 → 搜索（逐层缩小）', () => {
-    const src = fnSource('renderExpenses');
-    const monthIdx = src.indexOf('expenseMonthFilter)');
-    const tagIdx = src.indexOf('expenseTagCatFilter && expenseTagFilter)');
-    const searchIdx = src.indexOf('if (q)');
-    assert.ok(monthIdx >= 0 && tagIdx >= 0 && searchIdx >= 0, '三步筛选都存在');
-    assert.ok(monthIdx < tagIdx, '月份筛选在标签筛选之前');
-    assert.ok(tagIdx < searchIdx, '标签筛选在搜索匹配之前');
   });
 });
 
@@ -1450,7 +1452,10 @@ describe('UI 接线契约：内联事件属性必须是合法 JS（单测看不�
     const bad = [];
     for (const [, attr, raw] of html.matchAll(/\son([a-z]+)="([^"]*)"/g)) {
       // ${...} 占位由生成时求值，换成 '0'；字符串字面量先剥干净，免把参数名当标识符。
-      const body = raw.replace(/\$\{[^}]*\}/g, '0').replace(/'[^']*'/g, "''").replace(/"[^"]*"/g, '""');
+      // 对象字面量的**键**不是引用（`{query:this.value}` 里的 query 是键），只留值那一侧——
+      // 否则「给函数传 patch 对象」这种合法写法会被误报成「名字不存在」。
+      const body = raw.replace(/\$\{[^}]*\}/g, '0').replace(/'[^']*'/g, "''").replace(/"[^"]*"/g, '""')
+        .replace(/([{,]\s*)([A-Za-z_$][\w$]*)\s*:/g, '$1');
       // 只取「前面不是 . 或标识符字符」的裸标识符（属性访问/字符串里的不查）
       for (const m of body.matchAll(/(^|[^\w$.'"])([A-Za-z_$][\w$]*)/g)) {
         const name = m[2];

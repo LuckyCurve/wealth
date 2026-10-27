@@ -1286,6 +1286,103 @@ describe('消费标签筛选下拉（类别作不可选分组头）tagFilterValu
   });
 });
 
+describe('消费筛选三段叠加与空态判据（状态由纯函数持有，页面不读控件）', () => {
+  const cats = [
+    { id: 'c1', name: '餐饮', tags: ['早餐', '外卖'] },
+    { id: 'c2', name: '交通', tags: ['地铁'] },
+  ];
+  const F = (o) => Object.assign({ month: '', tag: '', query: '' }, o);
+  const items = [
+    { id: '1', date: '2026-10-01', amount: 100, note: '房租', tags: { c1: '外卖' } },
+    { id: '2', date: '2026-10-15', amount: 20, note: '咖啡', tags: { c1: '早餐' } },
+    { id: '3', date: '2026-09-03', amount: 8, note: 'COFFEE', tags: { c2: '地铁' } },
+  ];
+  const ids = (rows) => rows.map(r => r.id);
+
+  test('无筛选返回全部记录，顺序不变', () => {
+    assert.deepStrictEqual(ids(L.applyExpenseFilters(items, F(), cats)), ['1', '2', '3']);
+    assert.deepStrictEqual(ids(L.applyExpenseFilters(null, F(), cats)), []);
+  });
+
+  test('月份 / 标签 / 关键词互相叠加（互不覆盖）', () => {
+    assert.deepStrictEqual(ids(L.applyExpenseFilters(items, F({ month: '2026-10' }), cats)), ['1', '2']);
+    assert.deepStrictEqual(
+      ids(L.applyExpenseFilters(items, F({ month: '2026-10', tag: L.tagFilterValue('c1', '早餐') }), cats)),
+      ['2']
+    );
+    assert.deepStrictEqual(
+      ids(L.applyExpenseFilters(items, F({ month: '2026-10', tag: L.tagFilterValue('c1', '早餐'), query: '咖啡' }), cats)),
+      ['2']
+    );
+    assert.deepStrictEqual(
+      ids(L.applyExpenseFilters(items, F({ month: '2026-09', tag: L.tagFilterValue('c1', '早餐') }), cats)),
+      [],
+      '三段同时生效才返回：9 月没有「早餐」'
+    );
+  });
+
+  test('关键词匹配备注、日期、分类名、标签值，不区分大小写', () => {
+    assert.deepStrictEqual(ids(L.applyExpenseFilters(items, F({ query: 'coffee' }), cats)), ['3']);
+    assert.deepStrictEqual(ids(L.applyExpenseFilters(items, F({ query: '2026-09' }), cats)), ['3']);
+    assert.deepStrictEqual(ids(L.applyExpenseFilters(items, F({ query: '餐饮' }), cats)), ['1', '2']);
+    assert.deepStrictEqual(ids(L.applyExpenseFilters(items, F({ query: '地铁' }), cats)), ['3']);
+    assert.deepStrictEqual(ids(L.applyExpenseFilters(items, F({ query: '  ' }), cats)), ['1', '2', '3'], '纯空白不算筛选');
+  });
+
+  test('标签按「分类 + 标签」判定，同名标签不同分类不串', () => {
+    const cats2 = [{ id: 'a', name: 'A', tags: ['t'] }, { id: 'b', name: 'B', tags: ['t'] }];
+    const rows = [
+      { id: 'x', date: '2026-10-01', amount: 1, tags: { a: 't' } },
+      { id: 'y', date: '2026-10-02', amount: 1, tags: { b: 't' } },
+    ];
+    assert.deepStrictEqual(ids(L.applyExpenseFilters(rows, F({ tag: L.tagFilterValue('b', 't') }), cats2)), ['y']);
+  });
+
+  test('归一：失效的月份与标签被丢弃，不依赖「先重建选项再读取」的次序', () => {
+    const stale = F({ month: '2026-08', tag: L.tagFilterValue('c1', '午餐'), query: '咖啡' });
+    const out = L.normalizeExpenseFilters(stale, items, cats);
+    assert.strictEqual(out.month, '', '该月已无记录 → 月份筛选归零');
+    assert.strictEqual(out.tag, '', '标签已改名/移出 → 标签筛选归零');
+    assert.strictEqual(out.query, '咖啡', '关键词不受影响');
+    assert.deepStrictEqual(
+      ids(L.applyExpenseFilters(items, stale, cats)),
+      [],
+      '未归一后果：筛选按失效月份丢掉全部记录，而下拉已回落「全部时间」——归一的职责正是消掉这个组合'
+    );
+
+    const valid = F({ month: '2026-10', tag: L.tagFilterValue('c1', '早餐') });
+    assert.deepStrictEqual(L.normalizeExpenseFilters(valid, items, cats), valid, '有效值原样保留');
+  });
+
+  test('归一与筛选都不改入参（纯函数）', () => {
+    const filters = F({ month: '2026-08', tag: 'bad' });
+    const snapshot = JSON.stringify(filters);
+    L.normalizeExpenseFilters(filters, items, cats);
+    L.applyExpenseFilters(items, filters, cats);
+    assert.strictEqual(JSON.stringify(filters), snapshot);
+  });
+
+  test('视图：结果 / 空态判据 / 生效维度都来自同一份输入', () => {
+    const all = L.expenseListView(items, F(), cats);
+    assert.deepStrictEqual(ids(all.rows), ['1', '2', '3']);
+    assert.strictEqual(all.emptyKind, null);
+    assert.strictEqual(all.hasFilter, false);
+
+    const noMatch = L.expenseListView(items, F({ month: '2026-10', tag: L.tagFilterValue('c1', '早餐'), query: '房租' }), cats);
+    assert.deepStrictEqual(noMatch.rows, []);
+    assert.strictEqual(noMatch.emptyKind, 'no-match');
+    assert.strictEqual(noMatch.hasFilter, true);
+    assert.deepStrictEqual(noMatch.active, { month: '2026-10', tag: '早餐', query: '房租' }, 'active 给的是解码后的标签，页面不再自己 parse');
+
+    const noData = L.expenseListView([], F({ query: '咖啡' }), cats);
+    assert.strictEqual(noData.emptyKind, 'no-data', '无数据优先于「筛不出」');
+
+    const staleMonth = L.expenseListView(items, F({ month: '2026-08' }), cats);
+    assert.strictEqual(staleMonth.emptyKind, null, '失效月份已被归一，等于没筛选');
+    assert.strictEqual(staleMonth.hasFilter, false);
+  });
+});
+
 describe("hasAnyRatedAsset / cashRatioPct（从 index.html 下沉，「设了利率才显示」判定与现金比例展示单一来源）", () => {
   test('hasAnyRatedAsset：任一资产 Min/Max > 0 即真', () => {
     assert.strictEqual(L.hasAnyRatedAsset([

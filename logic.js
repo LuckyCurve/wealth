@@ -349,6 +349,61 @@
     return (groups || []).some(g => g.id === p.catId && ((g || {}).tags || []).indexOf(p.tag) >= 0);
   }
 
+  // ========== 消费筛选（三段叠加 + 空态判据，唯一所有者）==========
+  // 页面不再持有镜像变量，也不从控件读回：控件只写、渲染只读这一份状态。
+  // 失效值（月份已无记录 / 标签已改名或移出）在归一阶段丢弃，因此不存在
+  // 「先重建下拉、再读值」的次序依赖——那个次序在旧实现里真实写反过一次，
+  // 表现为「下拉=全部时间 / 空态=该月无记录」的自相矛盾中间态。
+  function normalizeExpenseFilters(filters, expenses, categories) {
+    const f = filters || {};
+    const months = expenseMonths(expenses);
+    const groups = expenseTagFilterGroups(categories);
+    return {
+      month: f.month && months.indexOf(f.month) >= 0 ? f.month : '',
+      tag: f.tag && hasTagFilterOption(groups, f.tag) ? f.tag : '',
+      query: f.query == null ? '' : String(f.query),
+    };
+  }
+
+  // 关键词命中口径：备注 / 日期 / 分类名 / 标签值（调用方传已小写化的 q）
+  function matchesExpenseQuery(item, q, categories) {
+    if ((item.note || '').toLowerCase().indexOf(q) >= 0) return true;
+    if ((item.date || '').indexOf(q) >= 0) return true;
+    return (categories || []).some(cat => {
+      const tv = item.tags && item.tags[cat.id];
+      return tv ? cat.name.toLowerCase().indexOf(q) >= 0 || String(tv).toLowerCase().indexOf(q) >= 0 : false;
+    });
+  }
+
+  // 三段互相独立、可叠加；顺序保持入参原序（排序由调用方决定）
+  function applyExpenseFilters(expenses, filters, categories) {
+    const f = filters || {};
+    const q = String(f.query == null ? '' : f.query).trim().toLowerCase();
+    const parsed = f.tag ? parseTagFilter(f.tag) : null;
+    return (expenses || []).filter(e => {
+      if (f.month && (e.date || '').slice(0, 7) !== f.month) return false;
+      if (parsed && (!e.tags || e.tags[parsed.catId] !== parsed.tag)) return false;
+      if (q && !matchesExpenseQuery(e, q, categories)) return false;
+      return true;
+    });
+  }
+
+  // 列表视图：结果、生效维度、空态判据都从同一份（已归一的）输入派生
+  // emptyKind: null=有结果 / 'no-data'=一条记录都没有 / 'no-match'=有数据但筛不出
+  function expenseListView(expenses, filters, categories) {
+    const normalized = normalizeExpenseFilters(filters, expenses, categories);
+    const rows = applyExpenseFilters(expenses, normalized, categories);
+    const parsed = normalized.tag ? parseTagFilter(normalized.tag) : null;
+    const query = normalized.query.trim();
+    const active = { month: normalized.month, tag: parsed ? parsed.tag : '', query: query };
+    return {
+      rows: rows,
+      active: active,
+      hasFilter: !!(active.month || active.tag || query),
+      emptyKind: rows.length ? null : ((expenses || []).length ? 'no-match' : 'no-data'),
+    };
+  }
+
   // ========== 消费数据校验（缺标签补齐）==========
   // 「未归类」三态：key 缺失 / 空值 / 指向已删除标签的陈旧引用——三种都进不了分组统计
   function isUntaggedItem(item, catId, validTags) {
@@ -1423,6 +1478,7 @@
     lampEnabled, lampPos, tipBubblePos, TIP_GAP, TIP_EDGE,
     paneEnterShift,
     tagFilterValue, parseTagFilter, expenseTagFilterGroups, hasTagFilterOption,
+    normalizeExpenseFilters, applyExpenseFilters, expenseListView,
     isUntaggedItem, missingTagGroups, setTag, backfillTag,
     migrateTagRefs, migrateRunwayTagRefs, countTagRefs,
     monthExpenseTotal, daysInMonthOf, monthBudgetReading, monthBudgetNote,
