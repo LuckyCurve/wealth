@@ -76,6 +76,14 @@
     - **主题覆盖别用 `background` 简写**：`.dark input,.dark select { background: var(--bg-2) }` 会把自绘箭头的 `background-image` 一并重置成 `none`，暗色下箭头凭空消失，而亮色用例全绿。凡是元素自带 `background-image`，覆盖时只写 `background-color`。
     - **控件等高要靠 `line-height`**：`select` 的默认行高是 `normal`、`input` 是数值，同一套 padding 下差 1px（39 vs 38），并排时底边对不齐。
     - 判据在 `consistency.spec.js`：遍历所有 `select` 断言非原生外观且有自绘箭头（**亮/暗两套都查**）、所有 `number` 输入无 spinner、所有控件聚焦前后圆角不变。
+    - **弹层（picker）跟主题要 opt-in `appearance: base-select`，而且前提比想象的多**（用户原话：「下拉框的配色都是纯白色的，和主题一点不符合」——闭合态早已是 `--card`，纯白只可能来自浏览器画的弹层）：
+      ① **先写 `appearance: none` 基线，再在 `@supports (appearance: base-select)` 里覆盖**，顺序不可颠倒。Chromium 的 UA 弹层 `appearance` 计算值就是 `none`——只写 `base-select` 不给基线时，Firefox/Safari 撞上「同特异性后写者胜」的 `none`，上色规则**写了、不报错、就是不生效**。
+      ② **只 opt-in `::picker(select)` 不生效**：实测计算样式全对（底色/描边/圆角都读到了），画面一动不动。控件与弹层必须一起 opt-in。
+      ③ **opt-in 之后 select 不再按最长选项取宽**：实测同一个下拉换选中项宽度在 160/186/214 之间跳（原生恒定 231），表格上方的筛选条会跟着左右抖。`field-sizing: content` / `min-width: max-content` / `width: max-content` 三种「按内容定宽」写法**实测全部无效**，唯一稳的是量一次固有宽度钉在 `--sel-w` 上（`freezeSelectWidth`）。
+      ④ **量本必须剥成原生外观**（`[data-measuring]` 排除 base-select）：量本一旦继承 `base-select`，量到的是「被钉过的宽度」（实测返回 160 而不是 231）——这是「冻结了还是跳」的根因。
+      ⑤ **弹层里的 `option:hover` 会误伤选中项**：弹层一打开，选中项同时命中 `:hover`，于是整块金一开始就亮着（实测 `bg #d9b25e`）。选中态（只加粗）与悬停态（铺 `--accent-soft`）必须分开写。
+      ⑥ UA 会多画一枚 `::picker-icon` 箭头，显式隐掉，统一用自绘 `--chevron`（它是 `--chevron` 变量的唯一消费者，换成 `::picker-icon` 会把「`background` 简写吃掉 `background-image`」那条踩坑记录作废）。
+    - 判据在 `consistency.spec.js`：弹层底色/描边/圆角**从页面自身的 CSS 变量求值**再比对（不写死 `rgb(255,255,255)`）、`::picker-icon` 必须 `display:none`、逐个换选项断言宽度恒定且不截断。弹层在 top-layer 里，`getComputedStyle(el,'::picker(select)')` 读得到颜色但**读不到布局**（返回 `width:fit-content`、`top:0`）——所以判据只能查色与形，不碰尺寸。
   - **展示档必须逐级递减且互不坍缩**：主读数 > 弹窗标题 > 区块标题 > 卡片标题 > 卡片小标题。各角色用**各自的** token——曾把主读数与弹窗标题并到同一个 token，主读数被从 32px 压到 22px 而无人发现（同类一致性巡检只保证同一类内部统一，挡不住跨角色坍缩），故 `consistency.spec.js` 另有一条层级断言。
   - **文字对比度达 AA**：不再用 `opacity` 压淡承载信息的文字（分类名、pill 内 ✕ 都是真信息/真控件；实测 opacity .55 时对比掉到 1.6–2.1:1）。层级靠字重与颜色区分。
   - **`e2e/consistency.spec.js` 会自动巡检**：在真实浏览器里量同类元素的计算样式（集合大小须为 1）、「表头 vs 数据行列宽是否相等」与「窄表相邻单元格的文本间隙」——单测看不到「写对了 class 但 CSS 被覆盖 / 漏挂 class」，这里补上。另有一条**全站文字对比度 ≥ AA** 巡检（含亮/暗两套）与一条**展示档层级递减**断言；已知「有意淡出」的元素（未设利率的收益行、日期选择器的非本月日期）在巡检里显式豁免。
@@ -89,8 +97,9 @@
   - **pill 配色的 AA 由单测逐点钉住**：`CATEGORY_COLORS` 与 `pillColors()` 都在 logic.js，`test/logic.test.js` 遍历「每个基色 × 每个插值点 × 亮/暗」断言 ≥4.5:1。这条不变量曾在线下翻车——亮色分支按色相公式重算底/字，t=1 时底色被压深而字没跟着加深，实测 2.4:1，而调色板定义在 index.html 里，单测根本够不着。**插值必须锚定基色**（底色只往浅走、字色只往深走），否则整条色带会跌出 AA。
   - **`e2e/theme.spec.js` 会自动巡检**：扫全部元素的计算色，凡不在「主题允许集」里的都报出来。允许集在页面内从主题自身求值（当前模式的 CSS 变量 ∪ pill 调色板 ∪ 图表调色板），所以加变量/改分类色不需要改测试。
   - 越界分两类，**判据不同**：①**写死色值**——直接违反本条约定，现状快照在 `KNOWN_HARDCODED`（只减不增，修一处删一行）；②**浏览器 UA 默认色**——症状是「漏设样式」（如只给 `color` 的 `<button>` 会吃到灰底黑边），同样算缺陷但不进清单。
-  - 两套模式的 CSS 变量必须一一对应，漏定义一个会在暗色下回落成亮色值或透明。
+  - **金底上的墨色只此一枚 `--on-accent`**：`.btn-gold` / `.seg-btn.active` / 弹层悬停项原先各自硬写 `#211b10`，亮暗同值却分三处写。金是同一个金，压在上面的墨也就只能是同一枚——分三处只会漂，且每处都是 theme 巡检的潜在越界项。
   - **原生控件的明暗由页面的 `color-scheme` 决定**，不写 `light dark` 跟随系统：主题是应用内自己切的，两者不一致时（系统暗 + 页面亮）原生下拉弹层会反色成一张白/黑面板。
+    - **但 `color-scheme` 只能让它亮/暗，改不了它是「系统面板」**：纸色、描边、圆角、选中蓝一样都拿不到。要它真跟主题（暖色纸面）得 opt-in `appearance: base-select`，见上一条的六点前提。
   - **卡片材质 = 液态玻璃**（`--glass-*`）：半透明染色 + `backdrop-filter: blur() saturate()` + 受光边/背光边/两角柔光/内描边 + 三层外阴影深度。硬约束：
     ① **底必须透光过半**——透光材质得**背后有东西可透**，故另有一层静止的桌面光（`body::after`，只为卡片提供可透的明暗）；纯色底无论怎么调都还是白板。
     ② **不得给 `.card` 写 `background-image`**：渐变底会让 AA 巡检对卡片内每一行字**静默跳过**（页头曾这么漏检）——所有光泽只能走 `box-shadow`。

@@ -14,6 +14,8 @@ package.json          # 仅 devDependency: @playwright/test（无构建步骤）
 .github/workflows/    # CI：三平台 node --test + Linux Playwright E2E
 AGENTS.md             # 路标：结构、命令、怎么提交
 LESSONS.md            # 踩过的坑与原因（改哪块读哪节）
+GLOSSARY.md           # 领域术语（下拉控件 / 下拉弹层 / 巡检）
+docs/adr/             # 不可逆且反直觉的决定（下拉弹层为什么用 base-select）
 docs/code-standards.md # 评审清单
 docs/agents/          # 工程技能的仓库约定（票存哪 / triage 标签 / 领域文档）
 .gitignore            # 忽略 .superpowers/ .pi/ .scratch/ node_modules/ 与测试产物

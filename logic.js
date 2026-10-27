@@ -1398,6 +1398,24 @@
     return type === 'error' ? 'assertive' : 'polite';
   }
 
+  // ========== 下拉框的固有宽度（opt-in base-select 之后的补偿）==========
+  // `appearance: base-select` 让 select 由页面接管绘制，代价是它**不再按最长选项取宽**：
+  // 实测同一个下拉换选中项会在 160 / 186 / 214 之间跳（原生恒定 231），表格上方的
+  // 筛选条于是每选一次就左右抖一下。
+  //
+  // 试过且**全部无效**（都是「按内容定宽」该生效的写法，实测宽度照样跳）：
+  //   field-sizing: content / min-width: max-content / width: max-content。
+  // 唯一稳的办法：把固有宽度量一次、钉在 `--sel-w` 上。这里只放「要不要钉」的判据（可单测），
+  // 量宽与写变量归 DOM 侧（见 index.html 的 freezeSelectWidths）。
+  //
+  // 不该钉的两种：
+  //   - 选项全空：空下拉在等着被填充，钉住它就再也回不到内容宽；
+  //   - 选项全空串：「全部时间 / 全部标签」这类占位项本身就是空的，按它钉宽等于按空串钉。
+  // 多一个「全部××」与长选项并存的常见情形下必须钉——否则弹层与控件都会缩到占位项那么窄。
+  function shouldPinSelectWidth(labels) {
+    return (labels || []).some((t) => String(t == null ? '' : t).trim() !== '');
+  }
+
   // ========== 拖拽排序的键盘替代 ==========
   // 拖拽把手原先只有 draggable——指针专属手势，键盘用户完全无法调整资产顺序。
   // 这里只做「数组里怎么挪」这一半（可单测）；键位判定与 DOM 副作用在 index.html。
@@ -1608,6 +1626,7 @@
       pressDecision,
       lampEnabled,
       lampPos,
+      shouldPinSelectWidth,
       tipBubblePos,
       TIP_GAP,
       TIP_EDGE,

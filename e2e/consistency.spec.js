@@ -122,12 +122,16 @@ test.describe('版式一致性', () => {
 
     const bad = await page.evaluate(() => {
       const out = [];
-      // ① select 必须是自绘外观
+      // ① select 必须是页面接管的外观：要么关掉原生外观（appearance:none + 自绘箭头），
+      //    要么 opt-in base-select（弹层跟主题走，箭头仍自绘、::picker-icon 隐掉）。
+      //    两种都算「页面接管」；判据不是写死某个值，否则换实现就得改测试。
       for (const el of document.querySelectorAll('select')) {
         const r = el.getBoundingClientRect();
         if (!r.width) continue;
         const cs = getComputedStyle(el);
-        if (cs.appearance !== 'none') out.push(`select#${el.id} 仍是原生外观（箭头由浏览器画）`);
+        if (cs.appearance !== 'none' && cs.appearance !== 'base-select') {
+          out.push(`select#${el.id} 仍是原生外观（${cs.appearance}，箭头由浏览器画）`);
+        }
         if (cs.backgroundImage === 'none') out.push(`select#${el.id} 没有自绘箭头`);
       }
       // ② number 输入不能带 UA spinner
@@ -166,6 +170,95 @@ test.describe('版式一致性', () => {
     await page.keyboard.press('Escape');
     await expect(page.locator('html')).toHaveClass(/dark/);
     expect(await arrowOf(), '暗色下有 select 没有自绘箭头（多半是被 background 简写吃掉了）').toEqual([]);
+  });
+
+  test('下拉弹层跟主题走（弹层不是浏览器画的白面板）', async ({ appPage: page }) => {
+    // 用户原话：「我看一下现在下拉框的配色，都是纯白色的，和主题一点不符合」。
+    // 闭合态早就是 var(--card)，纯白只可能来自**弹层**——那张选项列表由浏览器/系统绘制。
+    // 判据从页面自身求值：弹层的底色/描边/圆角必须等于当前主题的变量值，
+    // 而不是写死 rgb(255,255,255)。
+    // 弹层在 top-layer 里，getComputedStyle 读得到颜色但读不到布局
+    // （返回 width:fit-content、top:0），故这里只查色与形，不碰尺寸。
+    await visitAllTabs(page);
+
+    const pickerOf = () =>
+      page.evaluate(() => {
+        const css = getComputedStyle(document.documentElement);
+        const want = (v) => {
+          const probe = document.createElement('span');
+          document.body.appendChild(probe);
+          probe.style.color = v;
+          const c = getComputedStyle(probe).color;
+          probe.remove();
+          return c;
+        };
+        const out = [];
+        const els = [...document.querySelectorAll('select')].filter((el) => el.getBoundingClientRect().width);
+        if (!els.length) return ['没有任何可见 select（判据空跑，等于没检）'];
+        for (const el of els) {
+          const pk = getComputedStyle(el, '::picker(select)');
+          if (pk.appearance !== 'base-select') {
+            out.push(`select#${el.id} 的弹层仍是系统绘制（appearance=${pk.appearance}）`);
+            continue;
+          }
+          const bg = pk.backgroundColor;
+          const wantBg = want(css.getPropertyValue('--card').trim());
+          if (bg !== wantBg) out.push(`select#${el.id} 弹层底色 ${bg} ≠ --card ${wantBg}`);
+          const bd = pk.borderTopColor;
+          const wantBd = want(css.getPropertyValue('--border').trim());
+          if (bd !== wantBd) out.push(`select#${el.id} 弹层描边 ${bd} ≠ --border ${wantBd}`);
+          if (pk.borderTopWidth === '0px') out.push(`select#${el.id} 弹层没有描边（会糊在纸面上）`);
+          if (parseFloat(pk.borderTopLeftRadius) < 4) out.push(`select#${el.id} 弹层圆角 ${pk.borderTopLeftRadius} 太方`);
+          // UA 会画第二枚箭头，页面已用自绘 --chevron——两枚并存就看得出「重复的箭头」
+          if (getComputedStyle(el, '::picker-icon').display !== 'none') {
+            out.push(`select#${el.id} 多了一枚 UA 箭头（::picker-icon 未隐）`);
+          }
+        }
+        return out;
+      });
+
+    const light = await pickerOf();
+    expect(light, `亮色下下拉弹层没跟主题：\n  ${light.join('\n  ')}`).toEqual([]);
+
+    await page.getByRole('button', { name: '设置' }).click();
+    await page.locator('#theme-seg-dark').click();
+    await page.keyboard.press('Escape');
+    await expect(page.locator('html')).toHaveClass(/dark/);
+    const dark = await pickerOf();
+    expect(dark, `暗色下下拉弹层没跟主题：\n  ${dark.join('\n  ')}`).toEqual([]);
+  });
+
+  test('闭合态宽度不随选中项跳动（base-select 的补偿）', async ({ appPage: page }) => {
+    // opt-in base-select 之后 select 不再按最长选项取宽，实测同一个下拉换选中项宽度
+    // 在 160/186/214 之间跳（原生恒定 231）——表格上方的筛选条会跟着左右抖。
+    // field-sizing / min-width:max-content / width:max-content 三种写法实测全无效，
+    // 唯一稳的是把固有宽度量一次钉在 --sel-w 上。判据：逐个换选项，宽度必须恒定。
+    //
+    // **判据必须用长度跨过 min-width 的选项**：`.select-field` 有 min-width:160px，
+    // 种子数据里的标签（「微信」「餐饮」）全都短于它，宽度恒为 160px——用它检这条，
+    // 把钉宽整段删掉测试也照样绿（实测假绿过）。这里先往存档里塞三个长度相差很大的标签。
+    await page.evaluate(() => {
+      const tags = ['微信', '通勤交通与打车费报销单据', '水电燃气物业缴费账单追记一笔'];
+      state.expenseCategories = [{ id: 'ec-long', name: '长度对照', builtin: false, tags }];
+      state.expenses.forEach((e, i) => { e.tags = { 'ec-long': tags[i % tags.length] }; });
+      renderAll();
+    });
+    await visitAllTabs(page);
+
+    const sel = page.locator('#expense-tag-filter');
+    const widths = [];
+    const n = await sel.locator('option').count();
+    expect(n, '消费标签下拉要有多个选项才有得检').toBeGreaterThan(2);
+    for (let i = 0; i < n; i++) {
+      await sel.selectOption({ index: i });
+      widths.push(await sel.evaluate((el) => Math.round(el.getBoundingClientRect().width)));
+    }
+    expect(new Set(widths).size, `标签下拉换选中项时宽度在跳：${widths.join(' / ')}`).toBe(1);
+    // 也不能窄到把当前选项截断（最长的那个选中后也要放得下）
+    const clipped = await sel.evaluate((el) => el.scrollWidth > el.clientWidth + 1);
+    expect(clipped, '钉住的宽度把选中项截断了').toBe(false);
+    // 且不能只钉在 min-width 上（160px）——那样长标签会被截断，这条用例就白写了
+    expect(widths[0], `宽度停在 min-width（${widths[0]}px）：钉宽没生效，长标签会被截断`).toBeGreaterThan(160);
   });
 
   test('同一行的表单控件等高（select 不得比 input 矮）', async ({ appPage: page }) => {

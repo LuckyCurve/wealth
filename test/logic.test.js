@@ -2638,3 +2638,31 @@ describe('Tab/模式切换入场的方向判定（翻页的方向感）', () => 
     assert.strictEqual(L.ui.paneEnterShift(999, 5), -1);
   });
 });
+
+describe('下拉框固有宽度的钉住判据（opt-in base-select 的补偿）', () => {
+  // 背景：`appearance: base-select` 让 select 不再按最长选项取宽，实测换选中项宽度在
+  // 160 / 186 / 214 之间跳（原生恒定 231）。唯一稳的办法是量一次固有宽钉在 --sel-w 上。
+  // 这里只守「该不该钉」的判据，量宽与写变量归 DOM 侧。
+  test('有实质选项才钉（空下拉要留白等填充）', () => {
+    assert.strictEqual(L.ui.shouldPinSelectWidth(['全部时间', '2026年2月', '2026年1月']), true);
+    assert.strictEqual(L.ui.shouldPinSelectWidth(['货币类型']), true);
+  });
+
+  test('全空 / 全空串 / 无选项都不钉', () => {
+    assert.strictEqual(L.ui.shouldPinSelectWidth([]), false);
+    assert.strictEqual(L.ui.shouldPinSelectWidth(null), false);
+    assert.strictEqual(L.ui.shouldPinSelectWidth(undefined), false);
+    assert.strictEqual(L.ui.shouldPinSelectWidth(['', '']), false);
+    assert.strictEqual(L.ui.shouldPinSelectWidth(['   ', '\n']), false, '纯空白也不算实质内容');
+  });
+
+  test('占位项与实质选项并存时必须钉（否则缩到占位项那么窄）', () => {
+    // 消费月份/标签下拉的第一项就是「全部时间 / 全部标签」
+    assert.strictEqual(L.ui.shouldPinSelectWidth(['全部标签', '', '通勤交通与打车费报销单据']), true);
+  });
+
+  test('脏值不抛（null/undefined 混在选项里）', () => {
+    assert.strictEqual(L.ui.shouldPinSelectWidth([null, undefined]), false);
+    assert.strictEqual(L.ui.shouldPinSelectWidth([null, '2026年2月']), true);
+  });
+});

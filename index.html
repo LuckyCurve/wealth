@@ -63,6 +63,9 @@ tailwind.config = {
     --accent: #b4841a;
     --accent-ink: #7f5c0e;
     --accent-soft: #d9b25e;
+    /* 金底上的墨色（.btn-gold / .seg-btn.active / 弹层悬停项共用这一枚）。
+       亮暗同值：金是同一个金，压在它上面的墨也就只能是同一枚——分两套只会漂。 */
+    --on-accent: #211b10;
     --verdigris: #446a5b;
     --down: #a84943;
     --usd: #86733f;
@@ -137,6 +140,7 @@ tailwind.config = {
     --accent: #d9b25e;
     --accent-ink: #d9b25e;
     --accent-soft: #e6c982;
+    --on-accent: #211b10;
     --verdigris: #7ba995;
     --down: #d98a86;
     --usd: #9a8758;
@@ -339,7 +343,7 @@ tailwind.config = {
   }
   .btn-gold {
     background: linear-gradient(180deg, #d9b25e, #b4841a);
-    color: #211b10; border: 1px solid #8f6713; border-radius: 6px; padding: 8px 20px;
+    color: var(--on-accent); border: 1px solid #8f6713; border-radius: 6px; padding: 8px 20px;
     font-weight: var(--fw-strong); cursor: pointer; transition: filter .15s, box-shadow .15s, transform .05s;
     font-family: var(--font-body); font-size: var(--fs-body); letter-spacing: 0.01em;
     /* 压印金属感: 顶部受光 + 底部内阴影, 取代模板式外发光 */
@@ -434,6 +438,50 @@ tailwind.config = {
     background-repeat: no-repeat;
     background-position: right 10px center;
     background-size: 12px 12px;
+    /* 固有宽度（由 freezeSelectWidths 量一次写进 --sel-w）。缺省 auto = 不干预。
+       为什么需要它：下面的 base-select 让 select 不再按最长选项取宽，实测换选中项宽度
+       在 160/186/214 之间跳（原生恒定 231），筛选条会跟着左右抖。 */
+    width: var(--sel-w, auto);
+  }
+  /* ===== 下拉弹层（picker）跟主题走 =====
+     用户原话：「我看一下现在下拉框的配色，都是纯白色的，和主题一点不符合」。
+     闭合态早就是 var(--card)，纯白只可能来自**弹层**——那张选项列表由浏览器/系统绘制，
+     页面拿不到它的底色，只能 opt-in `appearance: base-select` 由页面接管（Chrome 135+）。
+
+     **先声明 none、再在 @supports 里覆盖**，顺序不可颠倒：Chromium 的 UA 弹层
+     appearance 计算值就是 `none`，若只写 base-select 而不给基线，Firefox/Safari 会撞上
+     「同特异性后写者胜」的 `none`，上色规则白写（写了、也不报错、就是不生效）。
+     反过来先 none 再 @supports 判定，两条路都落对。
+
+     代价（改这块前必须知道）：
+       ① 闭合态不再按最长选项取宽——见上面 --sel-w 的补偿；
+       ② UA 的 ::picker-icon 会多出一枚箭头，显式隐掉，统一用自绘 --chevron；
+       ③ 弹层里的 option 才开始接受 :hover 底色（原生弹层不吃），三态见下。
+     只 opt-in 弹层、不 opt-in 控件是不生效的：实测计算样式全对、画面不变。 */
+  @supports (appearance: base-select) {
+    /* [data-measuring] 是 freezeSelectWidth 建的量本：它必须留在原生外观下，
+       否则量到的是「被钉过的宽度」（实测返回 160 而不是 231）——这正是“冻结了还是跳”的根因。 */
+    body select:not([data-measuring]),
+    body select:not([data-measuring])::picker(select) { appearance: base-select; }
+    body select::picker-icon { display: none; }
+    /* 弹层本身的材质：纸色卡面 + 一根描边的边，不另设一套颜色 */
+    body select::picker(select) {
+      background: var(--card); color: var(--fg);
+      border: 1px solid var(--border); border-radius: 8px; padding: 4px;
+      margin-top: 4px; box-shadow: 0 10px 28px var(--shadow);
+    }
+    /* 三态：默认透明（露弹层的纸色）→ 悬停/键盘聚焦铺金 → 选中只加粗。
+       选中必须单独写，不能依赖“悬停高亮”：弹层一打开，选中项就同时命中 :hover，
+       于是整个弹层里那块金一开始就亮着（实测 bg #d9b25e）。
+       左内边距 28px 是给 UA 的勾选标记（::checkmark）留位，否则勾会贴着文字。 */
+    body select option {
+      background: transparent; color: var(--fg);
+      padding: 6px 10px 6px 28px; border-radius: 4px;
+    }
+    body select optgroup { color: var(--muted); background: transparent; }
+    body select option:hover,
+    body select option:focus { background: var(--accent-soft); color: var(--on-accent); }
+    body select option:checked { font-weight: var(--fw-strong); }
   }
   /* 数字输入：去掉 UA 的上下箭头。它是浏览器画的灰块，只在 hover/聚焦时出现，
      与纸面主题无关，还会把右侧内边距挤掉——这里的数字由键盘输入，不需要步进器。 */
@@ -907,7 +955,7 @@ tailwind.config = {
   .seg-control { display: inline-flex; padding: 3px; border-radius: 8px; background: var(--bg-2); border: 1px solid var(--border); gap: 2px; }
   .seg-btn { border: none; background: transparent; color: var(--muted); font-size: var(--fs-micro); font-family: var(--font-body); padding: 5px 18px; border-radius: 6px; cursor: pointer; transition: background 0.15s, color 0.15s; }
   .seg-btn:hover { color: var(--fg); }
-  .seg-btn.active { background: linear-gradient(180deg, #d9b25e, #b4841a); color: #211b10; font-weight: var(--fw-strong); box-shadow: inset 0 1px 0 rgba(255,255,255,0.25), 0 1px 2px var(--shadow); }
+  .seg-btn.active { background: linear-gradient(180deg, #d9b25e, #b4841a); color: var(--on-accent); font-weight: var(--fw-strong); box-shadow: inset 0 1px 0 rgba(255,255,255,0.25), 0 1px 2px var(--shadow); }
   /* ===== 进入资产页的长按门槛：按住时金色墨线沿底边自左向右浸满按钮 =====
      填充宽度 = --mode-press × 100%（JS 每帧只同步这个变量，百分比换算只此一处）。
      刻意不做 CSS transition：它跟随手指的按住时长，不是装饰动效——reduced-motion 下也保留，
@@ -2142,6 +2190,9 @@ function observeChartSize(chart) {
     // 等汇率更新完毕后再导出，避免备份拿到过期汇率（见 maybeAutoBackup）
     const ratePromise = fetchRates();
     renderAll();
+    // 钉住下拉框的固有宽度（opt-in base-select 之后 select 不再按最长选项取宽）。
+    // 字体就绪后再量一次：量宽吃真实字形度量，回退字体下量出的值会偏，宁可多量一遍。
+    freezeSelectWidths();
     // 指示条初始对位（首屏 active tab）——不只靠 switchTab，直接刷新也会进这里
     moveTabIndicator('#tabs-expenses', 'expenses');
     // 初始化 Flatpickr 日期选择器（消费表单）
@@ -2168,7 +2219,7 @@ function observeChartSize(chart) {
     // 一次 rAF：让浏览器先把「未落定」那一帧画出来，否则两态在同一帧里翻转＝没有过渡。
     requestAnimationFrame(() => document.documentElement.classList.add('ready'));
     if (document.fonts && document.fonts.ready) {
-      document.fonts.ready.then(() => refreshVisibleCharts());
+      document.fonts.ready.then(() => { freezeSelectWidths(); refreshVisibleCharts(); });
     }
     // 备份守护：先进新鲜度提醒（方案 C），再按需触发当日自动备份（方案 A）；
     // 自动备份在 maybeAutoBackup 内部延迟数秒，避开首屏渲染高峰
@@ -2378,6 +2429,9 @@ function switchTab(tab, shift) {
   ['assets', 'categories', 'chart', 'history', 'income',
     'expenses', 'expense-categories', 'expense-chart', 'expense-trend']
     .forEach(id => { document.getElementById('tab-' + id).style.display = tab === id ? '' : 'none'; });
+  // 刚显示的 Tab 里的下拉框才有布局，现在才量得到固有宽度（隐藏时 clientWidth 为 0）。
+  // 不能只靠 setSelectOptions 里的那一次：它“内容没变就不碰 DOM”，隐藏时填过的下拉不会重走。
+  freezeSelectWidths();
   clearChartForEnter(tab); // 与 display 翻转同帧，下一帧才画，看不到清空的那一瞬
   if (tab === 'chart') {
     fillCategorySelect('chart-category-select', state.categories);
@@ -3961,6 +4015,43 @@ function setSelectOptions(sel, html) {
   if (sel.dataset.optionsHtml === html) return;
   sel.innerHTML = html;
   sel.dataset.optionsHtml = html;
+  // 选项变了，原先钉住的固有宽度就过期了：重新量（见 freezeSelectWidths）
+  freezeSelectWidth(sel);
+}
+
+// 钉住下拉框的固有宽度。
+// --------------------------------------------------------------------------
+// `appearance: base-select` 让 select 由页面接管绘制，代价是它不再按最长选项取宽：
+// 实测同一个下拉换选中项宽度在 160/186/214 之间跳（原生恒定 231），筛选条跟着左右抖。
+// field-sizing: content / min-width: max-content / width: max-content 三种「按内容定宽」
+// 写法实测全部无效，只能量一次钉在 --sel-w 上（CSS 侧见 body select 的 width 声明）。
+//
+// **量本必须带 data-measuring**：量本一旦继承到 `appearance: base-select`，量到的就是
+// 被钉过的宽度（实测返回 160 而不是 231）——这就是“冻结了还是跳”的根因。
+// 拿不到布局（display:none 的 Tab 里的下拉，clientWidth 为 0）就跳过，
+// 等它进 Tab 时 setSelectOptions 会再走一遍。
+function freezeSelectWidth(sel) {
+  if (!sel || !sel.options) return;
+  const labels = [...sel.options].map((o) => o.textContent);
+  if (!ui.shouldPinSelectWidth(labels)) {
+    sel.style.removeProperty('--sel-w');
+    return;
+  }
+  if (!sel.offsetParent && !sel.getClientRects().length) return;
+  const probe = sel.cloneNode(true);
+  probe.removeAttribute('id');
+  probe.setAttribute('data-measuring', '');
+  probe.setAttribute('aria-hidden', 'true');
+  probe.style.cssText = 'position:absolute; left:-9999px; top:0; visibility:hidden; pointer-events:none';
+  document.body.appendChild(probe);
+  const w = probe.getBoundingClientRect().width;
+  probe.remove();
+  if (w > 0) sel.style.setProperty('--sel-w', w + 'px');
+}
+
+// 一次量完全部下拉：字体就绪后跑一次（量宽依赖真实字形度量，用回退字体量出的宽会偏）
+function freezeSelectWidths() {
+  document.querySelectorAll('body select').forEach(freezeSelectWidth);
 }
 function fillMonthSelect(selId, months) {
   const sel = document.getElementById(selId);

@@ -3111,3 +3111,72 @@ describe('UI 接线契约：长按满时长自动弹窗', () => {
     assert.doesNotMatch(tick, /classList\.add\('armed'\)/, 'armed 停帧态不再需要（满了就弹）');
   });
 });
+
+/*
+ * 下拉弹层（picker）跟主题走。
+ * --------------------------------------------------------------------------
+ * 回归背景：用户「我看一下现在下拉框的配色，都是纯白色的，和主题一点不符合」——
+ * 闭合态早已是 var(--card)，纯白只可能来自浏览器画的弹层。弹层是系统绘制的，
+ * 页面改不了它的底色，只能 opt-in `appearance: base-select` 由页面接管。
+ *
+ * 这里守三件事，每一件都对应一次实测踩坑：
+ *   ① 必须**显式声明** `appearance: none` 作为回落基线。Chromium 的 UA `::picker(select)`
+ *      appearance 计算值就是 `none`——若只写 base-select 而没写基线，不支持 base-select 的
+ *      浏览器（Firefox/Safari）会撞上「同特异性后写者胜」的 `none`，弹层上色规则白写。
+ *      只有先 `none` 再 `@supports (appearance: base-select)` 才两头都对。
+ *   ② 弹层配色只能走主题变量。写死 #fff 就是这次要修的东西本身。
+ *   ③ 闭合态宽度必须钉住（见 logic.js 的 selectIntrinsicWidth）：opt-in 之后 select 不再
+ *      按最长选项取宽，实测 231px 的下拉会随选中项在 160/186/214 之间跳。
+ */
+describe('UI 接线契约：下拉弹层跟主题（base-select）', () => {
+  test('先声明 appearance:none 基线，再在 @supports 里 opt-in（顺序不可颠倒）', () => {
+    const none = html.indexOf('appearance: none;');
+    const optIn = html.indexOf('@supports (appearance: base-select)');
+    assert.ok(none > 0, '必须显式声明 appearance:none 作为不支持 base-select 的回落基线');
+    assert.ok(optIn > 0, '必须有 @supports (appearance: base-select) 的能力判定');
+    assert.ok(none < optIn, '基线必须在前：Chromium 的 UA 弹层 appearance 就是 none，后写会把上色规则挤掉');
+    const block = html.slice(optIn, html.indexOf('\n  }', html.indexOf('body select::picker(select)', optIn)));
+    assert.match(block, /body select::picker\(select\)/, '弹层本身要 opt-in（只 opt-in 控件不生效，实测画面不变）');
+    assert.match(block, /::picker-icon\s*\{\s*display:\s*none/, '隐掉 UA 的第二枚箭头，统一用自绘 --chevron');
+  });
+
+  test('弹层与选项的配色只走主题变量（写死 #fff 就是这次要修的东西）', () => {
+    const start = html.indexOf('@supports (appearance: base-select)');
+    assert.ok(start > 0, '@supports 块存在');
+    const block = html.slice(start, html.indexOf('body input:focus', start));
+    assert.ok(block.length > 200, '提取到的块不能是空的（空块会让下面的断言全部假绿）');
+    for (const prop of ['background', 'color', 'border']) {
+      const re = new RegExp(String.raw`body select::picker\(select\) \{[^}]*${prop}:\s*([^;]+);`);
+      const m = block.match(re);
+      assert.ok(m, `弹层必须显式给 ${prop}`);
+      assert.match(m[1], /var\(--/, `弹层 ${prop} 必须走主题变量，实测值：${m[1]}`);
+    }
+    assert.doesNotMatch(block, /#fff\b|#ffffff|white/i, '弹层块内不得出现写死的白色');
+  });
+
+  test('弹层里的 option 必须显式配色（UA 默认是黑字透明底，暗色下会看不见）', () => {
+    assert.match(html, /body select option \{[^}]*color:\s*var\(--fg\)/, 'option 字色必须显式给（暗色下 UA 黑字读不出）');
+    assert.match(html, /body select option \{[\s\S]*?padding:[^;]*28px/, '左内边距要给 UA 勾选标记留位置');
+    assert.match(html, /body select option:hover[\s\S]{0,80}var\(--accent-soft\)/, '悬停态走 accent-soft');
+  });
+
+  test('闭合态宽度由固有宽度测量钉住（不得在页面里另写一套判据）', () => {
+    const logic = fs.readFileSync(path.join(__dirname, '..', 'logic.js'), 'utf8');
+    // 定义在前、出现在 ui 导出块里——只改一处的半吊子（定义了没导出）在浏览器里直接 TypeError
+    assert.match(logic, /function shouldPinSelectWidth\(/, 'logic.js 定义 shouldPinSelectWidth');
+    assert.match(logic, /\n      shouldPinSelectWidth,/, 'logic.js 在 ui 域导出 shouldPinSelectWidth');
+    assert.match(fnSource('freezeSelectWidth'), /ui\.shouldPinSelectWidth\(/, '页面调用 logic.js 的判据（不重写一份）');
+    assert.match(html, /--sel-w/, '宽度经 CSS 变量落回样式（单一来源）');
+    // opt-in 之后 select 不再按最长选项取宽；只有把它钉住才不会随选中项跳动
+    assert.match(html, /body select \{[^}]*width:\s*var\(--sel-w/, 'select 的 width 必须引用 --sel-w');
+    // 量本必须剥成原生外观：继承到 base-select 就会量到「被钉过的宽度」（实测 160 而非 231）
+    assert.match(fnSource('freezeSelectWidth'), /data-measuring/, '量本必须带 data-measuring');
+    assert.match(html, /select:not\(\[data-measuring\]\)/, 'CSS 要给量本排除 base-select');
+  });
+
+  test('切 Tab 时重新量一次（隐藏 Tab 里的下拉当时 clientWidth 为 0）', () => {
+    const fn = fnSource('switchTab');
+    assert.match(fn, /freezeSelectWidths\(/, '切 Tab 后必须重量');
+    assert.match(html, /document\.fonts\.ready\.then\(\(\) => \{ freezeSelectWidths\(\)/, '字体就绪后必须重量（回退字体量出的宽会偏）');
+  });
+});
