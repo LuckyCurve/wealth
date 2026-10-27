@@ -1,5 +1,6 @@
 .superpowers/
 .pi/
+.scratch/
 
 # 依赖与测试产物
 node_modules/

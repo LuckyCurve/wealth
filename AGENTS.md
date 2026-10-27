@@ -15,8 +15,21 @@ package.json          # 仅 devDependency: @playwright/test（无构建步骤）
 AGENTS.md             # 路标：结构、命令、怎么提交
 LESSONS.md            # 踩过的坑与原因（改哪块读哪节）
 docs/code-standards.md # 评审清单
-.gitignore            # 忽略 .superpowers/ .pi/ node_modules/ 与测试产物
+docs/agents/          # 工程技能的仓库约定（票存哪 / triage 标签 / 领域文档）
+.gitignore            # 忽略 .superpowers/ .pi/ .scratch/ node_modules/ 与测试产物
 ```
+
+## Agent skills
+
+### Issue tracker
+本地 markdown：`.scratch/<feature>/`（`spec.md` + `issues/NN-slug.md`），不进 git，票做完即删。
+见 [docs/agents/issue-tracker.md](docs/agents/issue-tracker.md)。
+
+### Triage labels
+默认五个角色名，落成票文件顶部的 `Status:` 行。见 [docs/agents/triage-labels.md](docs/agents/triage-labels.md)。
+
+### Domain docs
+单上下文：`GLOSSARY.md` + `docs/adr/`，懒创建。见 [docs/agents/domain.md](docs/agents/domain.md)。
 
 ## 开工前
 
