@@ -256,6 +256,13 @@ tailwind.config = {
   [onclick]:not(button) { user-select: none; -webkit-user-select: none; }
   * { box-sizing: border-box; }
   html { -webkit-text-size-adjust: 100%; }
+  /* 滚动条槽位**永远**预留：锁定背景滚动时经典滚动条会消失，内容整块右移几像素
+     （最容易被当成「弹窗一开页面跳一下」）。用 gutter 而不是「锁定时加 padding」——
+     后者要量滚动条宽度、还要在解锁时原样撤回，两处对不上就又跳一次。 */
+  html { scrollbar-gutter: stable; }
+  /* 弹窗开着时背景不可滚（真正的锁在 JS：按「还有几层开着」派生，见 syncScrollLock）。
+     这里只声明锁住时的形态，条件类名由那一处写。 */
+  html.modal-open, html.modal-open body { overflow: hidden; }
   body { background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: var(--fs-body); font-weight: var(--fw-medium); font-feature-settings: 'tnum' 1; }
   /* ===== 纸纹与桌光：这个产品的隐喻是「一张摊在桌面上、被灯照着的账页」=====
      三层各司其职：
@@ -634,11 +641,18 @@ tailwind.config = {
     position: fixed; inset: 0; background: var(--scrim);
     backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); z-index: 100; display: flex;
     align-items: center; justify-content: center;
+    /* 遮罩自己不是滚动容器：滚轮/触摸到这里不得链到背后的账页。
+       配合 html.modal-open 的 overflow:hidden 双保险——纯 overflow:hidden 在
+       部分浏览器的触屏拖拽下仍会让 body 跟着动（滚到头的链式滚动）。 */
+    overscroll-behavior: contain;
     animation: fadeIn 0.2s ease;
   }
   .modal-content {
     background: var(--card); border-radius: 10px; padding: 32px;
     max-width: 560px; width: 90%; max-height: 85vh; overflow-y: auto;
+    /* 弹窗正文是**自己的**滚动上下文，滚到头的滚轮/触摸不得冒泡给页面（否则在弹窗里
+       滚到底，背后的账页会接着滚——这正是「背景冻住」最容易被漏掉的一条路径） */
+    overscroll-behavior: contain;
     box-shadow: 0 20px 60px rgba(0,0,0,0.15); animation: slideUp 0.25s ease;
     border: 1px solid var(--border);
   }
@@ -2601,6 +2615,7 @@ function syncLamp() {
     reducedMotion: _reduceMotion,
     coarsePointer: _coarsePointer,
     hidden: document.hidden,
+    modalOpen: openModalStack().length > 0,
   }) && _lampLast !== null;
   layer.classList.toggle('on', on);
 }
@@ -3469,6 +3484,37 @@ function topModal() {
   return open[open.length - 1] || null;
 }
 
+// 「这一层属于当前界面，不该被冻结」——弹窗打开时唯一需要保持可交互的东西。
+// 判据是**它在文档流里的位置**而不是一张元素清单：这张表漏一个，症状就是「弹窗里点不动
+// 某个控件」（实测：flatpickr 的日历由库自己挂到 body 下，被一起 inert 掉，日期选不了）。
+//   · 开着的弹窗：它当前就是界面本身；
+//   · 挂在 body 下、自己定位的临时层（fixed/absolute）：便条、日期日历、被搬家的 ? 气泡——
+//     这些都是「当前弹窗的延伸」，不属于背后那张账页；
+//   · 其余（header、Tab 栏、main、灯层）凡在常规文档流里的，一律冻结。
+function isActiveLayer(el) {
+  if (el.classList && el.classList.contains('modal-overlay')) return el.style.display !== 'none';
+  const pos = getComputedStyle(el).position;
+  return pos === 'fixed' || pos === 'absolute';
+}
+
+// 背景冻结（滚动 + 交互）：**从「还有几层开着」派生**，不是开的时候 set、关的时候再 set 回去。
+// 为什么不能成对 set/unset：弹窗会叠（确认框压在分类弹窗上），关掉上层时下层还开着——
+// 成对的写法在这一步就把锁解了，背后的账页在「一个弹窗还开着」的状态下重新可滚。
+// 同步点只有两个（openModal / closeModal），判断只有一处。
+function syncScrollLock() {
+  const open = openModalStack();
+  document.documentElement.classList.toggle('modal-open', open.length > 0);
+  // 背景整块 inert：`aria-modal="true"` 是对读屏器的承诺（背后的内容不可达），
+  // 而遮罩只挡指针、焦点陷阱只挡 Tab——读屏器的虚拟光标与焦点仍然进得去，承诺就成了半句。
+  // inert 是声明式的：一条规则覆盖指针/焦点/无障碍树三个入口，不必给每个背景元素各写一遍。
+  // 每次全量重算（不增量维护），因为「哪些还在开着」本身就是唯一真相。
+  [...document.body.children].forEach(el => {
+    el.inert = open.length > 0 && !isActiveLayer(el);
+  });
+  // 灯也一起收：背景既已磨砂，光在底下逐帧重算只是白烧一层全屏渐变（判定在 logic.js lampEnabled）
+  syncLamp();
+}
+
 function openModal(id) {
   const modal = document.getElementById(id);
   // 打开前先记下当前焦点（就是那个触发按钮），关闭时还回去。
@@ -3478,6 +3524,7 @@ function openModal(id) {
   // 挪到 body 末尾 = 叠在最上层（见 openModalStack 的注释）
   document.body.appendChild(modal);
   modal.style.display = '';
+  syncScrollLock();
   // 焦点必须搬进弹窗：留在背后的话读屏器还在读背景内容，aria-modal 就是句空话。
   // 优先落在第一个表单控件上——弹窗多半是「填个表」（焦点直接放到可输入处最省一步）；
   // 没有表单控件时退到第一个可聚焦元素（如设置弹窗的分段按钮）。
@@ -5591,6 +5638,7 @@ function closeModal(id) {
   const modal = document.getElementById(id);
   const wasOpen = modal.style.display !== 'none';
   modal.style.display = 'none';
+  syncScrollLock(); // 先按「还剩几层」重算，再还焦点（焦点可能落在背后页面上，那时已解冻）
   // 把焦点还给打开它的那个元素。不回还的话焦点掉到 body，用户下一次 Tab 从页头重新开始——
   // 「改完一条记录继续改下一条」这种连续操作会变得极难。
   // **只有真的关掉了一层才出栈**：栈与「开着的弹窗」是一一对应的，对一个本来就关着的弹窗

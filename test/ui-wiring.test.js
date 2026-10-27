@@ -3374,3 +3374,51 @@ describe('UI 接线契约：多语言（默认英文，设置里切中文）', (
     assert.deepStrictEqual(bad, [], '占位符不一致：' + bad.join(' | '));
   });
 });
+
+/*
+ * 背景冻结（弹窗打开时）：三条通道都得断，且只有一处说了算。
+ * --------------------------------------------------------------------------
+ * 用户原话：「我把鼠标放在背景下依然可以滚动外面已经模糊的背景，这个不应该」。
+ * 遮罩的 blur 已经在视觉上说「停下来了」，交互上却还活着——这是**承诺与实现不一致**，
+ * 单测看不出滚动，但能守住「锁只有一处派生」「叠层不会提前解锁」「冻结不误伤延伸层」。
+ */
+describe('UI 接线契约：弹窗打开时背景冻结', () => {
+  test('滚动锁从「还有几层开着」派生，唯一同步点是 openModal / closeModal', () => {
+    const sync = fnSource('syncScrollLock');
+    assert.match(sync, /openModalStack\(\)/, '锁的状态只能从开着的弹窗集合算（不得另养计数器）');
+    assert.match(sync, /classList\.toggle\('modal-open'/, '锁的形态走条件类（CSS 一处声明）');
+    assert.strictEqual(count(/syncScrollLock\(\)/g), 3, '定义 1 处 + openModal / closeModal 各一处');
+    assert.match(fnSource('openModal'), /syncScrollLock\(\)/, '打开即同步');
+    assert.match(fnSource('closeModal'), /syncScrollLock\(\)/, '关闭即同步');
+    // 成对 set/unset 在这里是错的：叠层时关上层不能解锁（E2E 有专测）
+    assert.doesNotMatch(stripComments(html), /document\.(body|documentElement)\.style\.overflow/, '不得在页面里直接改 overflow（那样成对维护必漏）');
+  });
+
+  test('CSS：锁住的形态与滚动条槽位都在样式表里（不靠 JS 量宽度补 padding）', () => {
+    assert.match(html, /html\.modal-open, html\.modal-open body \{ overflow: hidden; \}/, '锁住时 html/body 都不可滚');
+    assert.match(html, /html \{ scrollbar-gutter: stable; \}/, '槽位常驻：锁定时滚动条消失不会让内容横移');
+    const overlay = html.match(/\n  \.modal-overlay \{[\s\S]*?\n  \}/)[0];
+    assert.match(overlay, /overscroll-behavior: contain/, '滚到遮罩不再链到背景');
+    const content = html.match(/\n  \.modal-content \{[\s\S]*?\n  \}/)[0];
+    assert.match(content, /overscroll-behavior: contain/, '弹窗正文滚到头不把滚轮传给背景');
+    assert.match(content, /overflow-y: auto/, '弹窗正文仍是自己可滚的（锁的是背景）');
+  });
+
+  test('背景 inert：从文档流位置判定延伸层，不维护元素清单', () => {
+    const sync = fnSource('syncScrollLock');
+    assert.match(sync, /\.\.\.document\.body\.children/, '按 body 子元素全量重算（增量维护必漏）');
+    assert.match(sync, /el\.inert = open\.length > 0 && !isActiveLayer\(el\)/, '开与关走同一句表达式');
+    const layer = fnSource('isActiveLayer');
+    assert.match(layer, /modal-overlay/, '开着的弹窗本身是当前界面');
+    assert.match(layer, /getComputedStyle\(el\)\.position/, '延伸层按定位判定（fixed/absolute 挂在 body 下）');
+    // 反面：把便条/日历写进白名单就会漏下一个（实测 flatpickr 日历被一起冻住，日期选不了）
+    assert.doesNotMatch(layer, /toast-area|flatpickr|tip-bubble/, '不要用元素清单当判据（漏一个就是「弹窗里点不动」）');
+  });
+
+  test('台灯在弹窗打开时收起（判定在 logic.js，页面只传当前层数）', () => {
+    const logic = fs.readFileSync(path.join(__dirname, '..', 'logic.js'), 'utf8');
+    assert.match(logic, /function lampEnabled\([\s\S]*?!o\.modalOpen/, 'lampEnabled 认 modalOpen');
+    assert.match(fnSource('syncLamp'), /modalOpen: openModalStack\(\)\.length > 0/, '页面把「还有几层」传进判定');
+    assert.match(fnSource('syncScrollLock'), /syncLamp\(\)/, '冻结/解冻时灯跟着重判');
+  });
+});

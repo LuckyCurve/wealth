@@ -175,6 +175,7 @@ interface Expense {
 - **版式巡检（`consistency.spec.js`）**：同类元素的计算样式集合须为 1，表头与数据行列宽须相等，同档字号/字重唯一，展示档逐级递减。新增同类结构时不必改测试（判据从页面自身求值）；它拓的是「写对 class 但被覆盖 / 漏挂 class」这类单测看不见的漏洞。另有一条**全站文字对比度 ≥ AA** 巡检（亮/暗两套；「有意淡出」的元素显式豁免）。
 - **route 后注册者优先**：兜底「拦掉一切外网」必须先注册，具体 CDN 替身后注册才能覆盖它。次序写反会让所有替身失效且不报错，只表现为一串莫名失败。
 - **先关动效再断言数字**：masthead 净资产是计数动画，等它收敛会让每个数字断言吃满超时。`fixtures` 里统一 `emulateMedia({ reducedMotion: 'reduce' })`。
+- **`e2e/modal-scroll.spec.js`**：弹窗打开时背景必须冻住（滚动/触摸/键盘/inert/叠层/不误伤日历与便条）。判据全是运行时几何与 `inert` 状态，不读实现。
 - **E2E 里禁止 `waitForTimeout` 睡眠**：`switchTab` 的 display 翻转、`setTheme` 的 classList 翻转都是同步的，用可见断言即可到位；固定等待会让主题巡检这类全 Tab 遍历的用例凭空多吃数秒（曾占全套时长的 1/3）。确需等待异步渲染时用 `expect.poll`。`test/e2e-hygiene.test.js` 扫 `e2e/*.spec.js` 把守这一条。
 - **进资产的入口只有 `fixtures.gotoAssets()` 一处**：它走键盘通道（合成 click）直达确认框，既不必等满按住时长，也顺带护住「不用鼠标的人不被挡在门外」这条路径；长按手势本身由 `app.spec.js` 的专测用真实鼠标覆盖。已在资产模式时为幂等（不再走门）。
 - **语言默认英文，播种要显式选中文**：既有用例的断言写的都是中文文案，`fixtures` 的 `EMPTY_STATE`/`blankPage` 已固定 `lang: 'zh'`；默认英文与切换本身由 `e2e/i18n.spec.js` 覆盖（含一次「英文界面无中文残留」的全 Tab + 弹窗巡检）。

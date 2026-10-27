@@ -1862,6 +1862,12 @@ describe('台灯掠光 lampEnabled / lampPos（跟随指针的纸面光）', () 
     assert.strictEqual(L.ui.lampEnabled({ coarsePointer: true }), false, '触屏没有悬停');
     assert.strictEqual(L.ui.lampEnabled({ hidden: true }), false, '页面不可见时不必描');
     assert.strictEqual(L.ui.lampEnabled({ reducedMotion: false, coarsePointer: false, hidden: false }), true);
+    assert.strictEqual(L.ui.lampEnabled({ modalOpen: true }), false, '弹窗开着不画灯（背景已磨砂，光只会白烧一层全屏渐变）');
+    assert.strictEqual(
+      L.ui.lampEnabled({ reducedMotion: false, coarsePointer: false, hidden: false, modalOpen: true }),
+      false,
+      '四种「不跟」各自独立生效，弹窗与其余条件并列'
+    );
   });
 });
 

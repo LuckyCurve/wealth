@@ -283,9 +283,12 @@
 
   // 是否需要这盏灯：减动效（明确要求安静）/ 粗指针（触屏没有悬停，徒耗性能）/ 页面不可见
   // 三种情况都不跟。判定为纯函数，DOM 层只负责把三个信号取出来。
+  // 灯该不该亮：四种「不跟」的情况（减动效/触屏/页面不可见/弹窗开着）。
+  // 弹窗开着不跟：背景已被磨砂推远，光还在底下逐帧重算，既看不见又白花一次全屏渐变；
+  // 且「界面上只有最上层是活的」这条承诺在光的层次上也该成立。
   function lampEnabled(opts) {
     const o = opts || {};
-    return !o.reducedMotion && !o.coarsePointer && !o.hidden;
+    return !o.reducedMotion && !o.coarsePointer && !o.hidden && !o.modalOpen;
   }
 
   // 消费记录出现过的月份列表（去重、降序）：月份筛选下拉与趋势图维度下拉共用。
