@@ -1699,6 +1699,41 @@ describe('UI 接线契约：资产页只能靠长按送达（提高日常查看�
   });
 });
 
+describe('UI 接线契约：菜单图标（内联 Lucide symbol，一个来源）', () => {
+  // 图标只做路标：定义在页内 symbol 集里（不发额外请求、亮暗随 currentColor），
+  // 每个按钮 = 图标 + 紧邻文字。为什么要钉住「文字仍在」：图标一旦成了唯一标签，
+  // 读屏器与语音控制（WCAG 2.5.3）就都失去名字——而这一条单看 HTML 只能这样验。
+  const symbols = new Set([...html.matchAll(/<symbol id="(ic-[\w-]+)" viewBox="0 0 24 24">/g)].map((m) => m[1]));
+  const uses = [...html.matchAll(/<use href="#(ic-[\w-]+)"\/>/g)].map((m) => m[1]);
+
+  test('每个用到的图标都有定义，且没有无人使用的死图标（与死词条同理）', () => {
+    assert.ok(symbols.size >= 14, `图标集应有 15 枚（现 ${symbols.size}）`);
+    assert.deepStrictEqual(uses.filter((u) => !symbols.has(u)), [], '引用了不存在的 symbol');
+    assert.deepStrictEqual([...symbols].filter((i) => !uses.includes(i)), [], '定义了却没人用的图标会悄悄腐烂');
+  });
+
+  test('图标一律 aria-hidden，且紧跟着文字标签（图标不许当唯一标签）', () => {
+    const pairs = [...html.matchAll(
+      /<svg class="ico" aria-hidden="true"><use href="#ic-[\w-]+"\/><\/svg><span data-i18n="([^"]+)">([^<]+)<\/span>/g
+    )];
+    assert.strictEqual(pairs.length, uses.length, '每个 <use> 都要配一个紧跟的文字标签');
+    const bad = pairs.filter((m) => m[1] !== m[2]).map((m) => m[1]);
+    assert.deepStrictEqual(bad, [], 'span 的 data-i18n 与可见文字必须一致（否则换语言会错位）');
+  });
+
+  test('尺寸/描边只在 .ico 一处声明（符号里只有路径数据）', () => {
+    const css = html.match(/\n  \.ico \{[\s\S]*?\n  \}/)[0];
+    assert.match(css, /width: 1em; height: 1em/, '尺寸跟随所在档位字号');
+    assert.match(css, /stroke: currentColor/, '颜色随正文/主题');
+    assert.strictEqual(count(/stroke-width: 2/g), 1, '描边宽度只声明一次（symbol 里再写一遍就会漂）');
+    assert.strictEqual(count(/<path d=/g) > 20, true, '符号里应当只有路径数据');
+  });
+
+  test('主题档不再用 emoji（同一语义不留两套）', () => {
+    assert.strictEqual(count(/☀|☾/g), 0, 'emoji 与图标的混用会让两种语言下形态不一');
+  });
+});
+
 describe('UI 接线契约：弹窗可访问性', () => {
   test('每个 modal-overlay 都要有名字（aria-labelledby 指向本弹窗内的可见标题）', () => {
     // role="dialog" + aria-modal 只说明「这是一层模态」，没说明「这是哪一层」。

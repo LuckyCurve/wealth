@@ -157,6 +157,9 @@
 
 ## 键盘与无障碍
 
+- **图标只做路标，文字才是标签** — 菜单/Tab 的图标一律 `aria-hidden`，紧邻处必须留着 `data-i18n` 文字：图标当了唯一标签，读屏器与语音控制（WCAG 2.5.3）就都没有名字了。尺寸/描边只在 `.ico` 与 symbol 一处声明（页面里写第二份就会在某个主题下变粗）。
+  - **加图标会让「折行巡检」失真**：`range.getClientRects().length > 1` 量的是整个按钮的内容盒，图标 + 文字天然是两段——判据会变成「有没有图标」，永远红。要量的是**文字那一段**的行盒（`btn.querySelector('span[data-i18n]')`）。同理，任何拿「元素内 rects 数量」当折行判据的地方，凡是往元素里加子元素都得先重看这条。
+
 - **表单字段必须有真正的名字** — `<label class="field-label">资产名称</label>` 与它的 `<input id="asset-name">` 只是**视觉相邻**（label 既无 `for` 也不包裹 input）时，程序上毫无关联：真实浏览器 AX 树里那 13 个字段的可访问名是 **placeholder**（`textbox "如：招商银行活期"`）或干脆为空，读屏器于是念「如：招商银行活期，编辑框」而不是「资产名称，编辑框」——用户听不到这个框是干什么的，而 placeholder 本身是**示例**（「如：…」），当名字念更糟。
   - 正解是 `for`/`id` 关联（或让 label 包住控件）；**一个 label 管两个输入时（如利率区间），另一个必须自带 `aria-label`**。
   - 判据由 `consistency.spec.js` 全站巡检（从页面自身求值，不写死字段清单）：凡可见表单控件，可访问名不得为空，也不得「非来自 label、却恰好等于 placeholder」。**名字来自真 label 时，与 placeholder 同字是正当的**（`runway-expectation` 的 label 就叫「月消费 (CNY)」）。

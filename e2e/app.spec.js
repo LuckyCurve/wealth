@@ -1920,15 +1920,19 @@ test.describe('Tab 滑动指示条', () => {
 test.describe('窄屏 Tab 栏：标签不许折行（横滚代替换行）', () => {
   // 用户实测（420px）：四个 Tab 各自折成两行（「消费记 录」「分类管 理」）——中文在词中折断，
   // 黄条也对不上任何一行。Tab 标签是最短的定长词汇，折行只会让它更难读；放不下就该横滚。
+  // 判据量的是**文字那一段**的行盒，不是整个按钮：按钮里现在还有一枚图标，
+  // 整个按钮的 client rects 会永远是 2 段（图标一段、文字一段），那量的是「有没有图标」而不是「折没折行」。
   const wrappedTabs = (page) =>
     page.evaluate(() => {
       const out = [];
       for (const bar of document.querySelectorAll('.tab-bar')) {
         for (const btn of bar.querySelectorAll('.tab-btn')) {
           if (!btn.getBoundingClientRect().width) continue; // 隐藏容器的 Tab 栏（display:none）
+          const label = btn.querySelector('span[data-i18n]') || btn;
           const range = document.createRange();
-          range.selectNodeContents(btn);
-          if (range.getClientRects().length > 1) out.push(btn.textContent.trim());
+          range.selectNodeContents(label);
+          const tops = new Set([...range.getClientRects()].map((r) => Math.round(r.top)));
+          if (tops.size > 1) out.push(btn.textContent.trim());
         }
       }
       return out;

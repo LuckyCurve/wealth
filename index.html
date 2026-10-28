@@ -934,6 +934,11 @@ tailwind.config = {
   .dark .toast-success { background: #1c2a20; color: #7ba995; border-color: #2d4435; }
   .dark .toast-error { background: #2a1c1a; color: #d98a86; border-color: #4a2c2a; }
   .dark .toast-info { background: #292214; color: var(--accent-ink); border-color: #453a20; }
+  /* 图标：尺寸/描边只在此处定义（24 网格线稿，1em 跟随所在档位字号）。
+     inline 用 baseline 微调，免得图标把行高顶起来（Tab 栏高度会连带跳）。 */
+  .ico { width: 1em; height: 1em; flex: 0 0 auto; vertical-align: -0.125em; fill: none; stroke: currentColor;
+    stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .seg-btn, .tab-btn, .btn-ghost { display: inline-flex; align-items: center; gap: 6px; }
   .tab-btn {
     padding: 10px 22px; font-size: var(--fs-body); border: none; background: transparent;
     color: var(--muted); cursor: pointer;
@@ -1324,6 +1329,26 @@ tailwind.config = {
      z-index: -1 = 落在在流内容之后、根背景之前（为何仍可见见 CSS 里的实测说明）。 -->
 <div class="lamp-layer" aria-hidden="true"></div>
 
+<!-- 图标集（Lucide 线稿，24 网格，描边走 currentColor）：inline 不额外发请求，亮暗随主题。
+     每枚图标是一个 symbol，按钮里以 class="ico" 的 svg 经 use 引用；图标一律 aria-hidden，
+     可访问名仍来自紧邻的文字（WCAG 2.5.3：语音控制用户喊的是文字）。 -->
+<svg width="0" height="0" aria-hidden="true" style="position:absolute;overflow:hidden;">
+  <symbol id="ic-wallet" viewBox="0 0 24 24"><path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1"/> <path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4"/></symbol>
+  <symbol id="ic-coins" viewBox="0 0 24 24"><path d="M13.744 17.736a6 6 0 1 1-7.48-7.48"/> <path d="M15 6h1v4"/> <path d="m6.134 14.768.866-.5 2 3.464"/> <circle cx="16" cy="8" r="6"/></symbol>
+  <symbol id="ic-layers" viewBox="0 0 24 24"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"/> <path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12"/> <path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17"/></symbol>
+  <symbol id="ic-tags" viewBox="0 0 24 24"><path d="M13.172 2a2 2 0 0 1 1.414.586l6.71 6.71a2.4 2.4 0 0 1 0 3.408l-4.592 4.592a2.4 2.4 0 0 1-3.408 0l-6.71-6.71A2 2 0 0 1 6 9.172V3a1 1 0 0 1 1-1z"/> <path d="M2 7v6.172a2 2 0 0 0 .586 1.414l6.71 6.71a2.4 2.4 0 0 0 3.191.193"/> <circle cx="10.5" cy="6.5" r=".5" fill="currentColor"/></symbol>
+  <symbol id="ic-chart-pie" viewBox="0 0 24 24"><path d="M21 12c.552 0 1.005-.449.95-.998a10 10 0 0 0-8.953-8.951c-.55-.055-.998.398-.998.95v8a1 1 0 0 0 1 1z"/> <path d="M21.21 15.89A10 10 0 1 1 8 2.83"/></symbol>
+  <symbol id="ic-chart-line" viewBox="0 0 24 24"><path d="M3 3v16a2 2 0 0 0 2 2h16"/> <path d="m19 9-5 5-4-4-3 3"/></symbol>
+  <symbol id="ic-percent" viewBox="0 0 24 24"><line x1="19" x2="5" y1="5" y2="19"/> <circle cx="6.5" cy="6.5" r="2.5"/> <circle cx="17.5" cy="17.5" r="2.5"/></symbol>
+  <symbol id="ic-receipt-text" viewBox="0 0 24 24"><path d="M13 16H8"/> <path d="M14 8H8"/> <path d="M16 12H8"/> <path d="M4 3a1 1 0 0 1 1-1 1.3 1.3 0 0 1 .7.2l.933.6a1.3 1.3 0 0 0 1.4 0l.934-.6a1.3 1.3 0 0 1 1.4 0l.933.6a1.3 1.3 0 0 0 1.4 0l.933-.6a1.3 1.3 0 0 1 1.4 0l.934.6a1.3 1.3 0 0 0 1.4 0l.933-.6A1.3 1.3 0 0 1 19 2a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1 1.3 1.3 0 0 1-.7-.2l-.933-.6a1.3 1.3 0 0 0-1.4 0l-.934.6a1.3 1.3 0 0 1-1.4 0l-.933-.6a1.3 1.3 0 0 0-1.4 0l-.933.6a1.3 1.3 0 0 1-1.4 0l-.934-.6a1.3 1.3 0 0 0-1.4 0l-.933.6a1.3 1.3 0 0 1-.7.2 1 1 0 0 1-1-1z"/></symbol>
+  <symbol id="ic-shapes" viewBox="0 0 24 24"><path d="M8.3 10a.7.7 0 0 1-.626-1.079L11.4 3a.7.7 0 0 1 1.198-.043L16.3 8.9a.7.7 0 0 1-.572 1.1Z"/> <rect x="3" y="14" width="7" height="7" rx="1"/> <circle cx="17.5" cy="17.5" r="3.5"/></symbol>
+  <symbol id="ic-chart-column" viewBox="0 0 24 24"><path d="M3 3v16a2 2 0 0 0 2 2h16"/> <path d="M18 17V9"/> <path d="M13 17V5"/> <path d="M8 17v-3"/></symbol>
+  <symbol id="ic-settings" viewBox="0 0 24 24"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/> <circle cx="12" cy="12" r="3"/></symbol>
+  <symbol id="ic-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/> <path d="M12 2v2"/> <path d="M12 20v2"/> <path d="m4.93 4.93 1.41 1.41"/> <path d="m17.66 17.66 1.41 1.41"/> <path d="M2 12h2"/> <path d="M20 12h2"/> <path d="m6.34 17.66-1.41 1.41"/> <path d="m19.07 4.93-1.41 1.41"/></symbol>
+  <symbol id="ic-moon" viewBox="0 0 24 24"><path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401"/></symbol>
+  <symbol id="ic-database-backup" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/> <path d="M3 12a9 3 0 0 0 5 2.69"/> <path d="M21 9.3V5"/> <path d="M3 5v14a9 3 0 0 0 6.47 2.88"/> <path d="M12 12v4h4"/> <path d="M13 20a5 5 0 0 0 9-3 4.5 4.5 0 0 0-4.5-4.5c-1.33 0-2.54.54-3.41 1.41L12 16"/></symbol>
+</svg>
+
 <!-- Header -->
 <header class="app-header">
   <div class="app-header-inner py-4 flex items-center justify-between gap-4 flex-wrap">
@@ -1348,14 +1373,14 @@ tailwind.config = {
         <!-- 次序有意：消费在左、资产在右。默认模式是消费，落在浏览起点的第一项；
              资产侧带长按门槛，不占顺手位（位置本身也在劝人少误触）。
              次序同时决定 Tab 焦点次序（Tab 键已交还浏览器，不接管）。 -->
-        <button id="mode-expenses" onclick="switchMode('expenses')" class="seg-btn active" data-i18n="消费">消费</button>
+        <button id="mode-expenses" onclick="switchMode('expenses')" class="seg-btn active"><svg class="ico" aria-hidden="true"><use href="#ic-wallet"/></svg><span data-i18n="消费">消费</span></button>
         <!-- 资产入口是长按门槛（成本只加在资产侧）: 按住满时长才送达, 短按只弹一句提示;
              键盘 / 读屏器等合成 click 不经过按住链路，由 modePressClick 直通确认框 -->
-        <button id="mode-assets" class="seg-btn mode-press" onpointerdown="startModePress(event)" onpointerleave="cancelModePress()" onclick="modePressClick(event)" data-i18n="资产">资产</button>
+        <button id="mode-assets" class="seg-btn mode-press" onpointerdown="startModePress(event)" onpointerleave="cancelModePress()" onclick="modePressClick(event)"><svg class="ico" aria-hidden="true"><use href="#ic-coins"/></svg><span data-i18n="资产">资产</span></button>
       </div>
     </div>
     <div class="flex items-center gap-3">
-      <button onclick="showSettings()" class="btn-ghost" data-i18n="设置">设置</button>
+      <button onclick="showSettings()" class="btn-ghost"><svg class="ico" aria-hidden="true"><use href="#ic-settings"/></svg><span data-i18n="设置">设置</span></button>
     </div>
   </div>
 </header>
@@ -1364,11 +1389,11 @@ tailwind.config = {
 <div id="tabs-assets" class="content-column" style="display:none;">
   <div class="tab-bar">
     <span class="tab-indicator" aria-hidden="true"></span>
-    <button class="tab-btn active" data-tab="assets" onclick="tabClick(this)" data-i18n="资产管理">资产管理</button>
-    <button class="tab-btn" data-tab="categories" onclick="tabClick(this)" data-i18n="分类管理">分类管理</button>
-    <button class="tab-btn" data-tab="chart" onclick="tabClick(this)" data-i18n="资产分布">资产分布</button>
-    <button class="tab-btn" data-tab="history" onclick="tabClick(this)" data-i18n="历史净值">历史净值</button>
-    <button class="tab-btn" data-tab="income" onclick="tabClick(this)" data-i18n="收益测算">收益测算</button>
+    <button class="tab-btn active" data-tab="assets" onclick="tabClick(this)"><svg class="ico" aria-hidden="true"><use href="#ic-layers"/></svg><span data-i18n="资产管理">资产管理</span></button>
+    <button class="tab-btn" data-tab="categories" onclick="tabClick(this)"><svg class="ico" aria-hidden="true"><use href="#ic-tags"/></svg><span data-i18n="分类管理">分类管理</span></button>
+    <button class="tab-btn" data-tab="chart" onclick="tabClick(this)"><svg class="ico" aria-hidden="true"><use href="#ic-chart-pie"/></svg><span data-i18n="资产分布">资产分布</span></button>
+    <button class="tab-btn" data-tab="history" onclick="tabClick(this)"><svg class="ico" aria-hidden="true"><use href="#ic-chart-line"/></svg><span data-i18n="历史净值">历史净值</span></button>
+    <button class="tab-btn" data-tab="income" onclick="tabClick(this)"><svg class="ico" aria-hidden="true"><use href="#ic-percent"/></svg><span data-i18n="收益测算">收益测算</span></button>
   </div>
 </div>
 
@@ -1376,10 +1401,10 @@ tailwind.config = {
 <div id="tabs-expenses" class="content-column">
   <div class="tab-bar">
     <span class="tab-indicator" aria-hidden="true"></span>
-    <button class="tab-btn active" data-tab="expenses" onclick="tabClick(this)" data-i18n="消费记录">消费记录</button>
-    <button class="tab-btn" data-tab="expense-categories" onclick="tabClick(this)" data-i18n="分类管理">分类管理</button>
-    <button class="tab-btn" data-tab="expense-chart" onclick="tabClick(this)" data-i18n="消费分布">消费分布</button>
-    <button class="tab-btn" data-tab="expense-trend" onclick="tabClick(this)" data-i18n="消费趋势">消费趋势</button>
+    <button class="tab-btn active" data-tab="expenses" onclick="tabClick(this)"><svg class="ico" aria-hidden="true"><use href="#ic-receipt-text"/></svg><span data-i18n="消费记录">消费记录</span></button>
+    <button class="tab-btn" data-tab="expense-categories" onclick="tabClick(this)"><svg class="ico" aria-hidden="true"><use href="#ic-shapes"/></svg><span data-i18n="分类管理">分类管理</span></button>
+    <button class="tab-btn" data-tab="expense-chart" onclick="tabClick(this)"><svg class="ico" aria-hidden="true"><use href="#ic-chart-pie"/></svg><span data-i18n="消费分布">消费分布</span></button>
+    <button class="tab-btn" data-tab="expense-trend" onclick="tabClick(this)"><svg class="ico" aria-hidden="true"><use href="#ic-chart-column"/></svg><span data-i18n="消费趋势">消费趋势</span></button>
   </div>
 </div>
 
@@ -2129,8 +2154,8 @@ tailwind.config = {
           <p class="setting-desc" data-i18n="切换日间纸页与夜间墨底，立即生效并记住选择">切换日间纸页与夜间墨底，立即生效并记住选择</p>
         </div>
         <div class="seg-control" role="group" aria-label="外观主题" data-i18n-aria-label="外观主题">
-          <button id="theme-seg-light" onclick="setTheme(false)" class="seg-btn" aria-pressed="false" data-i18n="☀ 日间">☀ 日间</button>
-          <button id="theme-seg-dark" onclick="setTheme(true)" class="seg-btn" aria-pressed="false" data-i18n="☾ 夜间">☾ 夜间</button>
+          <button id="theme-seg-light" onclick="setTheme(false)" class="seg-btn" aria-pressed="false"><svg class="ico" aria-hidden="true"><use href="#ic-sun"/></svg><span data-i18n="日间">日间</span></button>
+          <button id="theme-seg-dark" onclick="setTheme(true)" class="seg-btn" aria-pressed="false"><svg class="ico" aria-hidden="true"><use href="#ic-moon"/></svg><span data-i18n="夜间">夜间</span></button>
         </div>
       </div>
       <hr>
@@ -2160,7 +2185,7 @@ tailwind.config = {
       </div>
     </div>
     <div class="modal-footer between">
-      <button type="button" onclick="closeModal('settings-modal');showImportExport();" class="btn-ghost" data-i18n="备份与导入…">备份与导入…</button>
+      <button type="button" onclick="closeModal('settings-modal');showImportExport();" class="btn-ghost"><svg class="ico" aria-hidden="true"><use href="#ic-database-backup"/></svg><span data-i18n="备份与导入…">备份与导入…</span></button>
       <button type="button" onclick="closeModal('settings-modal')" class="btn-ghost" data-i18n="关闭">关闭</button>
     </div>
   </div>

@@ -16,11 +16,15 @@ const fs = require('fs');
 const path = require('path');
 const ROOT = path.join(__dirname, '..');
 
-// index.html 当前 389,759 字节（2026-10-28，资产页门槛改成抄写闸后）。
+// index.html 当前 395,859 字节（2026-10-28，图标集落地后）。
 // 2026-10-27 从 380,000 抬到 390,000：多语言给每个静态文案节点加了 data-i18n 标记
 // （属性本身约 4KB），文案与英文词条已全部下沉 logic.js（那里没有预算，因为它是可单测的纯逻辑）。
+// 2026-10-28 从 390,000 抬到 397,000：菜单图标集（15 个 Lucide symbol + 逐按钮接线）。
+// 图标只能是标记：symbol 定义与 <use> 无法下沉 logic.js（下沉了就要求页面去拼 SVG）。
+// 已做的减量：三个槽子只留 path 数据（描边/尺寸/VB 统一写在 .ico 与 symbol 一次），
+// 没用图标库运行时（那会多一个 CDN 依赖与一次外网请求）。
 // 视图层没有可合并的重复结构：再抬之前先确认真的无处可沉。
-const INDEX_BUDGET = 390_000;
+const INDEX_BUDGET = 397_000;
 
 function bytes(name) {
   return fs.statSync(path.join(ROOT, name)).size;
