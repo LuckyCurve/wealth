@@ -191,15 +191,22 @@ test.describe('卡片材质：液态玻璃的可测特征', () => {
   test('页头下沿不得露出桌光的台阶（页头底色为 AA 巡检必须是不透明纯色）', async ({ page }) => {
     await open(page);
     const bottom = await page.evaluate(() => document.querySelector('.app-header').getBoundingClientRect().bottom);
-    const xs = [40, 640, 1130];
+    const width = page.viewportSize().width;
+    // 取**一整行的中位数**：台阶是整行的低频偏移，而纸纹（±5/255）与页头里的字都是少数点。
+    // 用平均值或单像素都曾误报：单像素撞上纸纹（-4/255），平均值把品牌字收进了「页头那一行」。
+    const xs = [];
+    for (let x = 8; x < width - 8; x += 2) xs.push(x);
     const pts = [];
     xs.forEach((x) => pts.push([x, bottom - 2], [x, bottom + 2]));
     const px = await samplePixels(page, pts);
-    xs.forEach((x, i) => {
-      const [above, below] = px.slice(i * 2, i * 2 + 2);
-      // 桌光在页头底下露出台阶时，那里会横着一条「淡淡的边」——实测改前右端 4/255
-      expect(Math.abs(below.r - above.r), `页头下沿 x=${x} 处有 ${below.r - above.r}/255 的台阶`).toBeLessThanOrEqual(2);
-    });
+    const median = (a) => {
+      const v = a.map((p) => p.r).sort((m, n) => m - n);
+      return v[Math.floor(v.length / 2)];
+    };
+    const above = median(px.filter((_, i) => i % 2 === 0));
+    const below = median(px.filter((_, i) => i % 2 === 1));
+    // 桌光/纸纹在页头底下露出台阶时，那里会横着一条「淡淡的边」——实测改前右端 4/255
+    expect(Math.abs(below - above), `页头下沿有 ${below - above}/255 的台阶（整行中位数）`).toBeLessThanOrEqual(2);
   });
 
   test('弹窗遮罩：磨砂够深、色走 --scrim，正文保持不透明底（表单可读性）', async ({ page }) => {

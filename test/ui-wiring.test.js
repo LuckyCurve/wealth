@@ -3529,33 +3529,44 @@ describe('UI 接线契约：假可点（悬停/按压反馈只给真能点的东
   });
 });
 
-describe('UI 接线契约：纸纹（非周期纤维，且暗色下也看得见）', () => {
+describe('UI 接线契约：纸纹（一张非周期纤维，纸面与页头共用）', () => {
   const css = stripComments(html);
   const block = (sel) => {
-    const start = css.indexOf(sel + ' {');
-    assert.ok(start >= 0, `找不到规则 ${sel}`);
-    const rest = css.slice(start);
-    return rest.slice(0, rest.indexOf('}') + 1);
+    const esc = sel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const m = css.match(new RegExp(`(?:^|\\n)\\s*${esc}[^{}\\n]*\\{([^}]*)\\}`));
+    assert.ok(m, `找不到规则 ${sel}`);
+    return m[0];
   };
 
-  test('纸纹用 feTurbulence 噪声，不是周期网格', () => {
-    const paper = block('body::before');
-    assert.match(paper, /feTurbulence/, '纸纤维应由 feTurbulence 生成（非周期）');
-    // 旧实现的正十字路径：它每隔 60px 精确复现一次，放大后读起来是坐标纸
-    assert.ok(!paper.includes('M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4z'), '不得回潮到周期十字纹');
+  test('纸纹只有一份定义，且是 feTurbulence 噪声（不是周期网格）', () => {
+    assert.strictEqual(count(/--grain:/g), 1, '--grain 只能定义一次（纸面与页头共用同一张）');
+    const decl = css.match(/--grain:[^;]*/);
+    assert.ok(decl, '找不到 --grain 定义');
+    assert.match(decl[0], /feTurbulence/, '纸纤维应由 feTurbulence 生成（非周期）');
+    assert.ok(!css.includes('M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4z'), '不得回潮到周期十字纹');
+    assert.strictEqual(count(/background-image:\s*url\("data:image\/svg/g), 0, '纸纹不得在别处再写一遍字面 URI');
   });
 
-  test('暗色下纸纹必须另给一档（黑斑叠深棕等于没叠）', () => {
+  test('纸面与页头髹同一张纹（否则页头是不透光的平色，下沿露台阶）', () => {
+    assert.match(block('body::before'), /background-image:\s*var\(--grain\)/);
+    assert.match(block('.app-header::after'), /background-image:\s*var\(--grain\)/);
+    assert.match(css, /(^|\n)\s*\.app-header\s*\{[^}]*position:\s*relative/, '.app-header 需要定位上下文给 ::after');
+  });
+
+  test('暗色下纸纹必须另给一档（黑斑叠深棕等于没叠），且两处一起翻', () => {
     const dark = block('.dark body::before');
-    assert.match(dark, /opacity|filter/, '暗色纸纹必须有自己的强度或反相（否则暗色下完全看不见）');
+    assert.match(dark, /\.dark \.app-header::after/, '页头的纸纹也要跟着反相（否则页头与纸面又不一样了）');
+    assert.match(dark, /filter:\s*invert\(1\)/);
   });
 
   test('纸纹强度上限：它是材质，不是一层灰膜', () => {
     // 0.12 是人眼尺度定出来的上限：实测 0.07（亮）/ 0.09（暗）时纸面亮度标准差约 1%——
     // 刚好能看出「齿」；到 0.3 就是 ~4%，看着像磨砂贴膜（探针实测，见提交正文）。
-    for (const sel of ['body::before', '.dark body::before']) {
-      const m = block(sel).match(/opacity:\s*([0-9.]+)/);
-      if (m) assert.ok(Number(m[1]) <= 0.12, `${sel} 的不透明度 ${m[1]} 过高：纸纹会变成均匀雾面，而不是纸的齿`);
+    const decls = css.match(/[^{}\n]*(?:body::before|\.app-header::after)[^{}\n]*\{[^}]*\}/g) || [];
+    assert.ok(decls.length >= 2, '应当能扫到纸纹规则');
+    for (const d of decls) {
+      const m = d.match(/opacity:\s*([0-9.]+)/);
+      if (m) assert.ok(Number(m[1]) <= 0.12, `不透明度 ${m[1]} 过高：纸纹会变成均匀雾面（${d.slice(0, 40)}）`);
     }
   });
 });

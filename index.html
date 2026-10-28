@@ -184,6 +184,9 @@ tailwind.config = {
      中文字形——不写这一层，中文会落到 monospace 的宋体兜底，12px 下笔画极细、发灰，
      正是「字很浅、字重不够」的根因；显式落到 PingFang/雅黑/Noto Sans 才有屏显黑体。 */
   :root, :root.dark {
+    /* 纸纤维（非周期的 feTurbulence 噪点）。只此一份：纸面与页头各用一次。
+       alpha 由噪声自己的 alpha 通道反相得来，故是稀疏墨点而不是一层灰膜。 */
+    --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='f'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.32' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 -1.4 0.95'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23f)'/%3E%3C/svg%3E");
     --font-body: 'IBM Plex Mono', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', monospace;
     --font-display: 'Noto Serif SC', 'Songti SC', serif;
     --font-numeric: 'Cormorant Garamond', 'Noto Serif SC', serif;
@@ -300,13 +303,15 @@ tailwind.config = {
      一颗均匀的灰蒙住。
      为何用 background-image 平铺而不是 filter 盖在内容上：平铺的 SVG 只会被光栅化一次，
      而全屏 filter 层会在每帧重新求值（滚动的头号卡顿源）。 */
+  /* 纸纹 = 非周期纤维（定义在 --grain）。为何不用周期十字纹：同一根笔画每隔 60px 精确复现一次，
+     最亮眼的就是那个周期（读起来是坐标纸）。为何平铺而不是全屏 filter：后者每帧重新求值。 */
   body::before {
     content: ''; position: fixed; inset: 0; z-index: -1; opacity: 0.07; pointer-events: none;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='f'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.32' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 -1.4 0.95'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23f)'/%3E%3C/svg%3E");
+    background-image: var(--grain);
   }
-  /* 暗色纸是深棕，黑墨点叠上去等于没叠（旧版的纸纹在暗色下完全不可见，一直没人发现）。
-     反相把墨点翻成亮点：纤维在暗纸上本来就是更亮的一点反光，不是更黑的杂质。 */
-  .dark body::before { filter: invert(1); opacity: 0.09; }
+  /* 暗色纸是深棕，黑墨点叠上去等于没叠（旧版的纸纹在暗色下完全不可见）。
+     反相把墨点翻成亮点：纤维在暗纸上本就是更亮的一点反光。 */
+  .dark body::before, .dark .app-header::after { filter: invert(1); opacity: 0.09; }
   /* 台灯掠光: 两条斜光带（同一角度、错开位置） + 指针处的小圆芯。
      带子用 calc(var(--lamp-x) ± …) 定位——光带跟着指针的横向位置扫，纵向只由圆芯微调，
      所以鼠标横移时纸面像被灯拂过，而不是一个球在跳。
@@ -434,7 +439,13 @@ tailwind.config = {
   }
   /* 页头：底色走变量（原来是内联 linear-gradient——渐变底无法校对比度，
      于是页头里每一行字都被巡检默默跳过了） */
-  .app-header { background: var(--bg); border-bottom: 1px solid var(--border); }
+  .app-header { background: var(--bg); border-bottom: 1px solid var(--border); position: relative; }
+  /* 页头必须是**同一张纸**：页头底面为了 AA 巡检是不透明纯色，它把 body::before 的纸纹遮住了，
+     于是那里是一块平色、下沿横着一条台阶（实测 4.5/255）。故把同一张纹再髹一遍。 */
+  .app-header::after {
+    content: ''; position: absolute; inset: 0; pointer-events: none;
+    background-image: var(--grain); opacity: 0.07;
+  }
   /* 卡片悬停：**只给真能点的卡片**（.card-interactive）。
      裸 .card:hover 曾经也会抬阴影，于是纯展示的卡片（图表、汇总、明细）同样摆出「可点」
      的样子，点了却没反应——那是「假可点」，不是质感：它让真可点的那几张淹没在一片都在动的
