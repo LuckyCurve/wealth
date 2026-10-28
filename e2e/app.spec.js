@@ -117,25 +117,27 @@ test.describe('模式与 Tab 导航', () => {
     await expect(page.locator('#tabs-assets')).toBeHidden();
   });
 
-  test('已在资产页时入口失效：不再弹「现在确实要看？」（键盘通直也被挡）', async ({ appPage: page }) => {
+  test('已在资产页时入口失效：不再抬闸（键盘通直也被挡）', async ({ appPage: page }) => {
     await gotoAssets(page);
-    // 按完整条链路（真实鼠标长按）也不应该再弹一次
+    // 按完整条链路（真实鼠标长按）也不应该再抬闸一次
     const box = await page.locator('#mode-assets').boundingBox();
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
     await page.mouse.down();
     await page.mouse.up();
     await page.locator('#mode-assets').focus();
     await page.keyboard.press('Enter');
-    await expect(page.locator('#confirm-modal')).toBeHidden();
+    await expect(page.locator('#asset-gate-modal')).toBeHidden();
     await expect(page.locator('#content-assets')).toBeVisible();
   });
 
-  test('确认框的按钮文案随调用重置（金调的「查看资产」不粘到删除确认上）', async ({ appPage: page }) => {
-    // 先用长按链路把确认框染成金色，再用同框做一次删除确认
-    await page.locator('#mode-assets').focus();
-    await page.keyboard.press('Enter');
-    await expect(page.locator('#confirm-ok-btn')).toHaveText('查看资产');
-    await page.locator('#confirm-modal button:has-text("取消")').click();
+  test('共用确认框的按钮文案/色调每次都重置（金调不粘到删除确认上）', async ({ appPage: page }) => {
+    // 备份提示是金调调用方：借它的公开入口把同一枚按钮染成金色，
+    // 再看下一次删除确认是不是回到「确认 / 危险色」。
+    await page.evaluate(() => showConfirm('测试用', () => {}, '备份', { okLabel: '备份', tone: 'gold' }));
+    await expect(page.locator('#confirm-ok-btn')).toHaveText('备份');
+    await expect(page.locator('#confirm-ok-btn')).toHaveClass(/btn-gold/);
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#confirm-modal')).toBeHidden();
 
     await gotoAssets(page);
     await page.locator('#assets-rows .asset-row').first().getByRole('button', { name: '删除' }).click();
@@ -160,12 +162,13 @@ test.describe('模式与 Tab 导航', () => {
     expect(await touch.evaluate(() => !!window.tailwind), '触摸上下文也必须走 CDN 替身').toBe(true);
     await touch.locator('#mode-assets').tap();
     await expect(touch.locator('#content-assets')).toBeHidden();
-    await expect(touch.locator('#confirm-modal')).toBeHidden();
+    await expect(touch.locator('#asset-gate-modal')).toBeHidden();
     await expect(touch.locator('#toast-area .toast', { hasText: '长按' })).toBeVisible();
-    // 键盘仍然可达（辅助技术不被挡在门外）
+    // 键盘仍然可达（只用键盘的人不被挡在门外）：但它也只得抬闸，进门要抄一句
     await touch.locator('#mode-assets').focus();
     await touch.keyboard.press('Enter');
-    await expect(touch.locator('#confirm-modal')).toBeVisible();
+    await expect(touch.locator('#asset-gate-modal')).toBeVisible();
+    await expect(touch.locator('#content-assets')).toBeHidden();
     await ctx.close();
   });
 
@@ -196,14 +199,15 @@ test.describe('模式与 Tab 导航', () => {
     }
   });
 
-  test('资产入口是长按门槛：短按不进门只给提示，按满再确认才进', async ({ appPage: page }) => {
+  test('资产入口是两段闸：短按只提示，按满抬闸，抄错不放行，抄对才进', async ({ appPage: page }) => {
     const assets = page.locator('#mode-assets');
+    const gate = page.locator('#asset-gate-modal');
     // 短按：不进门，只给一句「长按多久」
     await assets.click();
     await expect(page.locator('#content-assets')).toBeHidden();
     await expect(page.locator('#toast-area .toast', { hasText: '长按' })).toBeVisible();
 
-    // 长按：按住期间墨线浸满（--mode-press 由 rAF 推进），**按满即弹**（不必等松手）
+    // 长按：按住期间墨线浸满（--mode-press 由 rAF 推进），**按满即抬闸**（不必等松手）
     const box = await assets.boundingBox();
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
     await page.mouse.down();
@@ -212,26 +216,53 @@ test.describe('模式与 Tab 导航', () => {
       .poll(() => assets.evaluate((el) => parseFloat(el.style.getPropertyValue('--mode-press'))))
       .toBeGreaterThan(0.2);
 
-    // 按满的瞬间确认框自己出现（手指还按着）——这就是「自动弹窗」的观感
-    await expect(page.locator('#confirm-modal')).toBeVisible({ timeout: 5000 });
-    await expect(page.locator('#confirm-title')).toHaveText('进入资产页');
-    await expect(page.locator('#confirm-ok-btn')).toHaveText('查看资产');
+    // 按满的瞬间抄写框自己出现（手指还按着）——这就是「自动抬闸」的观感
+    await expect(gate).toBeVisible({ timeout: 5000 });
     await expect(page.locator('#content-assets')).toBeHidden();
+    const phrase = ((await page.locator('#asset-gate-phrase').textContent()) || '').trim();
+    expect(phrase.length, '抄写框里必须有可抄的原句').toBeGreaterThan(0);
 
-    // 抬起的手指紧跟一次 mouse.up —— 守卫窗内不得把确认框点掉/取消
+    // 抬起的手指紧跟一次 mouse.up —— 守卫窗内不得把抄写框点掉
     await page.mouse.up();
-    await expect(page.locator('#confirm-modal')).toBeVisible();
-    await expect(page.locator('#content-assets')).toBeHidden();
+    await expect(gate).toBeVisible();
 
-    // 守卫窗后再点确认，正常进门：轮询到守卫过期（阈值取 logic.js 常量——固定 sleep 要么白等要么不够）
+    // 守卫窗后再提交，判据才生效（轮询真实常量，不猜睡眠）
     await expect
       .poll(() => page.evaluate(() => (__autoOpenedAt === null ? -1 : performance.now() - __autoOpenedAt)),
         { message: '等长按守卫窗过期' })
       .toBeGreaterThan(AUTO_OPEN_GUARD_MS);
-    await page.locator('#confirm-ok-btn').click();
+
+    // 抄错：原地重试 —— 原句不换、输入清空、人还在消费页
+    await page.locator('#asset-gate-input').fill(phrase + '错');
+    await page.locator('#asset-gate-ok').click();
+    await expect(page.locator('#asset-gate-error')).toBeVisible();
+    await expect(page.locator('#asset-gate-phrase')).toHaveText(phrase);
+    await expect(page.locator('#asset-gate-input')).toHaveValue('');
+    await expect(page.locator('#content-assets')).toBeHidden();
+
+    // 抄对：提交即进（不再有第二次确认框）
+    await page.locator('#asset-gate-input').fill(phrase);
+    await page.keyboard.press('Enter');
     await expect(page.locator('#content-assets')).toBeVisible();
-    await expect(page.locator('#mode-assets')).toHaveClass(/active/);
-    await expect(page.locator('#mode-assets')).not.toHaveClass(/pressing|armed/);
+    await expect(gate).toBeHidden();
+    await expect(assets).toHaveClass(/active/);
+    await expect(assets).not.toHaveClass(/pressing|armed/);
+  });
+
+  test('键盘激活只抬闸、不进门（合成 click 也得抄一句）', async ({ appPage: page }) => {
+    await page.locator('#mode-assets').focus();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#asset-gate-modal')).toBeVisible();
+    await expect(page.locator('#content-assets')).toBeHidden();
+    // 再按一次回车只是提交一个空输入：被驳回，不会进门
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#asset-gate-error')).toBeVisible();
+    await expect(page.locator('#content-assets')).toBeHidden();
+    // 抄对了才进
+    const phrase = ((await page.locator('#asset-gate-phrase').textContent()) || '').trim();
+    await page.locator('#asset-gate-input').fill(phrase);
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#content-assets')).toBeVisible();
   });
 
   test('长按中途取消：指针移开即放弃，不留满格墨线', async ({ appPage: page }) => {
@@ -244,18 +275,18 @@ test.describe('模式与 Tab 导航', () => {
     await page.mouse.up();
     await expect(assets).not.toHaveClass(/pressing/);
     await expect(page.locator('#content-assets')).toBeHidden();
-    await expect(page.locator('#confirm-modal')).toBeHidden();
+    await expect(page.locator('#asset-gate-modal')).toBeHidden();
   });
 
-  test('取消确认框：留在消费页', async ({ appPage: page }) => {
-    await page.locator('#mode-assets').click(); // 短按只提示，不弹确认
+  test('放弃抄写：留在消费页', async ({ appPage: page }) => {
+    await page.locator('#mode-assets').click(); // 短按只提示，不抬闸
     await expect(page.locator('#content-assets')).toBeHidden();
-    // 键盘激活（detail === 0）直通确认框：不用鼠标的人不该被长按挡在门外
+    // 键盘激活（detail === 0）只抬闸：不用鼠标的人同样不被长按挡在门外
     await page.locator('#mode-assets').focus();
     await page.keyboard.press('Enter');
-    await expect(page.locator('#confirm-modal')).toBeVisible();
-    await page.locator('#confirm-modal button:has-text("取消")').click();
-    await expect(page.locator('#confirm-modal')).toBeHidden();
+    await expect(page.locator('#asset-gate-modal')).toBeVisible();
+    await page.locator('#asset-gate-modal button:has-text("不看")').click();
+    await expect(page.locator('#asset-gate-modal')).toBeHidden();
     await expect(page.locator('#content-expenses')).toBeVisible();
     await expect(page.locator('#content-assets')).toBeHidden();
   });

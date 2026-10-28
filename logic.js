@@ -168,9 +168,13 @@
     return t('{label}，已按{dir}排列', { label: label, dir: t(dir === 'desc' ? '降序' : '升序') });
   }
 
-  // ===== 进入资产页的长按门槛 =====
-  // 按住「资产」需满 MODE_PRESS_MS 才算出货（提高从消费页进入资产页的成本：
-  // 资产价格短期波动天然大，日常高频查看只会放大情绪噪音）。
+  // ===== 进入资产页的门槛：长按 + 抄写 =====
+  // 目的不是权限，是给「顺手看一眼」定价（资产价格短期波动天然大，高频查看只会
+  // 放大情绪噪音）。两段闸：
+  //   ① 指针路径上按住「资产」满 MODE_PRESS_MS——只挡顺手一点；
+  //   ② 抬闸后抄一句随机箴言——每次进入都要付，且无法被肌肉记忆抹平。
+  // 键盘/读屏器不付①（按住 Enter 会按键重复，计时不可信），但②对所有人同价：
+  // 门槛的价格不能取决于你用什么设备。
   // 阈值、进度比例与「按满/仅提示」判定都收在这里：文案要报时长，判定要用时长，
   // 分散在页面里改一处忘一处就会出现「文案说 1.2 秒、实际 1 秒」这类漂移。
   const MODE_PRESS_MS = 1000;
@@ -180,7 +184,7 @@
     return pressProgress(heldMs, MODE_PRESS_MS);
   }
 
-  // 松手时的处置：'enter' = 放行到确认框；'hint' = 短击，弹一句「长按多久」的教学。
+  // 松手时的处置：'enter' = 抬闸（进抄写框）；'hint' = 短击，弹一句「长按多久」的教学。
   // 无有效按住时长（0/负值/NaN）视为没按，不响应
   function modePressDecision(heldMs) {
     const d = pressDecision(heldMs, MODE_PRESS_MS);
@@ -217,6 +221,100 @@
   function modePressHint(ms) {
     const sec = (ms === undefined ? MODE_PRESS_MS : ms) / 1000;
     return t('长按 {sec} 秒进入资产页', { sec: Number.isInteger(sec) ? sec : sec.toFixed(1) });
+  }
+
+  // 门槛箴言池（复制粘贴=0）：抬闸后要现场抄写其中一句。
+  // 两池**各用母语写、互不翻译**——译文腔读起来像考试题，也会把「无常」这层意思磨平。
+  // 硬约束（由单测把关）：句数相等、长度等价（中文 ≤10 字 / 英文 ≤24 字符）、
+  // 两池都不含标点。否则换个界面语言就顺手改了门槛的价钱，或者全角/半角逗号
+  // 打错变成一次无意义的失败。
+  const ENTRY_PHRASES = {
+    zh: [
+      '账面起落皆是暂相',
+      '涨跌无常心不随转',
+      '今日数字明日尘埃',
+      '波动只是噪音',
+      '静看潮起潮落',
+      '未落袋的都不算钱',
+      '一时的涨跌不算账',
+      '潮涨潮落不改岸',
+      '心静账才清',
+      '数只是数',
+      '浮盈浮亏皆浮云',
+      '看过不会多一分',
+      '慢即是快',
+      '多看一眼不添一分',
+      '不急这一眼',
+      '你看到的只是片刻',
+      '价格是别人的意见',
+      '一天的涨跌不算数',
+      '越看越想动手',
+      '手一抖就亏了',
+      '波动不是损失',
+      '账面不是现实',
+      '心不动数不摇',
+      '时间会替你算',
+      '少看一次多睡一会',
+      '让潮水自己退去',
+      '别跟自己的数字较劲',
+      '数字不催人',
+      '明日再看仍是你',
+      '看不看都在那里',
+    ],
+    en: [
+      'Numbers rise and fall',
+      'A price is not a fact',
+      'Calm outlasts the swings',
+      'Look later not now',
+      'Waves pass shore remains',
+      'Short moves are noise',
+      'Nothing is permanent',
+      'One look adds nothing',
+      'Slow is steady',
+      'Let the numbers wait',
+      'Flux is the only law',
+      'Gains not taken not real',
+      'Silence beats watching',
+      'Numbers change nothing',
+      'Patience prices itself',
+      'Look once then let go',
+      'Prices are opinions',
+      'One day is not a trend',
+      'Watching breeds wanting',
+      'The market is not you',
+      'Nothing to do today',
+      'Rest beats watching',
+      'A dip is not a loss',
+      'Paper is not real',
+      'Let time do the math',
+      'Sleep more look less',
+      'The tide has its hours',
+      'Do not fight the number',
+      'Numbers are in no hurry',
+      'Still here tomorrow',
+    ],
+  };
+
+  // 取一句箴言：按界面语言选池，池子缺失/为空时回落到中文池——空手放行比缺翻译更糟。
+  // rng 可注入（单测不赌随机）；脏值一律夹回池内，绝不返回 undefined（那会被
+  // 比对函数当成「原句为空」，于是每次都被驳回，门永远打不开）。
+  function entryPhrase(lang, rng) {
+    const pool = Array.isArray(ENTRY_PHRASES[lang]) && ENTRY_PHRASES[lang].length
+      ? ENTRY_PHRASES[lang]
+      : ENTRY_PHRASES.zh;
+    const raw = typeof rng === 'function' ? Number(rng()) : Math.random();
+    const r = Number.isFinite(raw) ? Math.min(Math.max(raw, 0), 0.999999) : 0;
+    return pool[Math.floor(r * pool.length)];
+  }
+
+  // 抄写比对：忽略首尾空白与英文大小写，其余（字序、字数、中间空格、标点）必须一致。
+  // 不做「去所有空白/去标点」的归一：那等于允许只抄骨架，而门槛的全部意义是让人
+  // 把整句读完。原句为空也判不通过——不能因为取句失败就白放人进去。
+  function entryPhraseMatches(input, phrase) {
+    if (typeof input !== 'string' || typeof phrase !== 'string') return false;
+    const want = phrase.trim().toLowerCase();
+    if (want === '') return false;
+    return input.trim().toLowerCase() === want;
   }
 
   // ===== 翻页的方向（Tab / 模式切换的入场方向）=====
@@ -1710,9 +1808,12 @@
     '备份与导入…': 'Backup & import…',
     '汇率响应缺少有效币种': 'The rate response had no usable currency',
     '汇率已更新': 'Rates updated',
-    '资产价格短期波动大，反复看容易被涨跌牵着走。现在确实要看？': 'Asset prices swing a lot, and watching them often lets the swings pull at you. Look now anyway?',
+    '资产波动大，反复看容易被涨跌牵着走。抄下这一句再进去。': 'Prices swing, and watching often lets the swings pull at you. Copy the line below to go on.',
     '进入资产页': 'Enter assets',
-    '查看资产': 'View assets',
+    '抄写这句话': 'Copy this line',
+    '与原句不一致，请重抄一遍': 'Not the same line — please copy it again',
+    '不看': 'Not now',
+    '进入': 'Enter',
     '未设置': 'Not set',
     ' · 现金 ': ' · Cash ',
     '调整排序，按上移或下移': 'Reorder: press up or down',
@@ -2125,6 +2226,9 @@
       modePressProgress,
       modePressDecision,
       modePressHint,
+      ENTRY_PHRASES,
+      entryPhrase,
+      entryPhraseMatches,
       TAG_PRESS_MS,
       pressProgress,
       pressDecision,

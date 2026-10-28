@@ -255,12 +255,15 @@ async function disableMotion(page) {
  * @param {string} [tab] 进入后再切到的资产子 Tab（默认停在「资产管理」）
  */
 async function gotoAssets(page, tab) {
-  // 幂等：已在资产模式就别再走一次门（第二次长按确认框不会出现——门上本来就有「已在里面就失效」这道闸）
+  // 幂等：已在资产模式就别再走一次门（门上本来就有「已在里面就失效」这道闸）
   if (!(await page.locator('#tabs-assets').isVisible())) {
     await page.locator('#mode-assets').focus();
     await page.keyboard.press('Enter');
-    await expect(page.locator('#confirm-modal')).toBeVisible();
-    await page.locator('#confirm-ok-btn').click();
+    // 合成 click 只抬闸、不进门：抄写那一句才放行（门槛对键盘与鼠标同价）
+    await expect(page.locator('#asset-gate-modal')).toBeVisible();
+    const phrase = await page.locator('#asset-gate-phrase').textContent();
+    await page.locator('#asset-gate-input').fill(String(phrase).trim());
+    await page.locator('#asset-gate-ok').click();
     await expect(page.locator('#tabs-assets')).toBeVisible();
   }
   if (tab) await page.locator(`#tabs-assets .tab-btn[data-tab="${tab}"]`).click();

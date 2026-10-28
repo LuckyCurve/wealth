@@ -1796,6 +1796,84 @@ describe('长按判定（pill 长按改名 / 资产入口共用同一套状态�
   });
 });
 
+describe('进入资产页的门槛箴言（抄写闸）', () => {
+  // 门槛的第二段：抬闸后要现场抄一句随机箴言（世事无常、短期波动不值得看）。
+  // 两池各用母语写、互不翻译、句数相等、长度等价——否则「换个界面语言」会顺手改掉
+  // 门槛的价钱，而那是用户看不见的定价变化。
+  const P = L.ui.ENTRY_PHRASES;
+  const CJK = /[\u4e00-\u9fff]/;
+  const PUNCT = /[,.;:!?'"，。；：！？、（）()]/;
+
+  test('两池都够用、句数相等、各自不重复', () => {
+    assert.deepStrictEqual(Object.keys(P).sort(), ['en', 'zh']);
+    assert.ok(P.zh.length >= 30, '池子太小会天天抄同一句，等于固定口令（30 句起，逐日进入也不容易撞');
+    assert.strictEqual(P.en.length, P.zh.length, '句数不等 = 语言改变门槛的频率');
+    for (const lang of ['zh', 'en']) {
+      assert.strictEqual(new Set(P[lang]).size, P[lang].length, lang + ' 池里有重复句');
+    }
+  });
+
+  test('两池都不含标点（全角/半角打错会变成无意义的失败）', () => {
+    const bad = [...P.zh, ...P.en].filter((s) => PUNCT.test(s));
+    assert.deepStrictEqual(bad, [], '带标点的箴言：' + bad.join(' | '));
+  });
+
+  test('长度等价：中文 ≤10 字、英文 ≤24 字符（英语界面不该更难抄）', () => {
+    assert.deepStrictEqual(P.zh.filter((s) => [...s].length > 10), [], '中文超长');
+    assert.deepStrictEqual(P.en.filter((s) => s.length > 24), [], '英文超长');
+    assert.deepStrictEqual(
+      P.en.filter((s) => CJK.test(s) || !/^[\x20-\x7e]+$/.test(s)),
+      [], '英文池必须是纯 ASCII（否则光切换输入法就又是一道暗坎）'
+    );
+  });
+
+  test('按界面语言取池，取到的是本池里的整句', () => {
+    assert.ok(P.zh.includes(L.ui.entryPhrase('zh')));
+    assert.ok(P.en.includes(L.ui.entryPhrase('en')));
+  });
+
+  test('没有语言/池子缺失时回落到中文池（宁可真有话可抄，也不能空手放行）', () => {
+    assert.ok(P.zh.includes(L.ui.entryPhrase('fr')));
+    assert.ok(P.zh.includes(L.ui.entryPhrase(undefined)));
+  });
+
+  test('rng 可注入：0 取第一句、逼近 1 取最后一句（测试不赌随机）', () => {
+    assert.strictEqual(L.ui.entryPhrase('zh', () => 0), P.zh[0]);
+    assert.strictEqual(L.ui.entryPhrase('zh', () => 0.999999), P.zh[P.zh.length - 1]);
+  });
+
+  test('脏 rng 不返回 undefined（NaN/负数/超界都夹回池内）', () => {
+    for (const r of [NaN, -1, 2, Infinity, undefined]) {
+      assert.strictEqual(typeof L.ui.entryPhrase('zh', () => r), 'string', String(r) + ' 取出了空值');
+    }
+  });
+
+  test('比对：完全一致才通过', () => {
+    assert.strictEqual(L.ui.entryPhraseMatches('无色无相', '无色无相'), true);
+    assert.strictEqual(L.ui.entryPhraseMatches('无色无', '无色无相'), false, '少一字不放行');
+    assert.strictEqual(L.ui.entryPhraseMatches('无色无相相', '无色无相'), false, '多一字不放行');
+    assert.strictEqual(L.ui.entryPhraseMatches('无相无色', '无色无相'), false, '顺序错不放行');
+  });
+
+  test('比对：忽略首尾空白与英文大小写（键盘与蓝牙键盘的正常差异不算失败）', () => {
+    assert.strictEqual(L.ui.entryPhraseMatches('  无色无相\n', '无色无相'), true);
+    assert.strictEqual(L.ui.entryPhraseMatches('numbers RISE and fall', 'Numbers rise and fall'), true);
+  });
+
+  test('比对：中间的空格与标点不做归一（抄骨架不算抄完）', () => {
+    assert.strictEqual(L.ui.entryPhraseMatches('numbersriseandfall', 'Numbers rise and fall'), false);
+    assert.strictEqual(L.ui.entryPhraseMatches('无色无相。', '无色无相'), false);
+  });
+
+  test('比对：空输入/非字符串/空原句一律不通过', () => {
+    assert.strictEqual(L.ui.entryPhraseMatches('', '无色无相'), false);
+    assert.strictEqual(L.ui.entryPhraseMatches('   ', '无色无相'), false);
+    assert.strictEqual(L.ui.entryPhraseMatches(undefined, '无色无相'), false);
+    assert.strictEqual(L.ui.entryPhraseMatches('无色无相', undefined), false);
+    assert.strictEqual(L.ui.entryPhraseMatches('', ''), false, '空原句不得变成「空手放行」');
+  });
+});
+
 describe('气泡定位 tipBubblePos（脱离祖先层叠上下文，按视口定位）', () => {
   // 用户实测：收益测算里「缺口」旁的 ? hover 后，气泡下半被下面那张卡片盖住。
   // 根因是卡片有 backdrop-filter 会自成层叠上下文，气泡的 z-index 只在自己卡片内有效。

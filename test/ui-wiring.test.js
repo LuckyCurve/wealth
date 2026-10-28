@@ -1590,11 +1590,13 @@ describe('UI 接线契约：资产页只能靠长按送达（提高日常查看�
     assert.strictEqual(count(/onclick="switchMode\('assets'\)"/g), 0, '旧「点一下就进」入口应保持移除');
   });
 
-  test('合成长按不再放行：只有 detail 为 0 的激活（键盘/读屏器）才直通确认框', () => {
+  test('合成 click 只抬闸、不进门（廉价通道不存在，键盘也没被挡在门外）', () => {
     assert.match(html, /id="mode-assets"[^>]*onclick="modePressClick\(event\)"/, 'click 走单一处置函数');
-    assert.match(fnSource('modePressClick'), /e\.detail === 0/, '只有合成激活直通；鼠标/触摸的 detail 是 1，被挡住');
+    const src = fnSource('modePressClick');
+    assert.match(src, /e\.detail === 0/, '只有合成激活抬闸；鼠标/触摸的 detail 是 1，被长按链挡住');
+    assert.match(src, /openAssetGate\(\)/, '合成激活只开抄写框');
+    assert.doesNotMatch(src, /switchMode\(/, '合成激活绝不能直接进资产页（那正是被删掉的「两次回车进去」）');
     // detail 的取值不是猜的：app.spec.js 用真实触摸与键盘各跑一遍把它钉住
-    assert.match(html, /if \(e\.detail === 0\) enterAssets\(\)/, '不在页面里重写第二套判据');
   });
 
   test('右键不参与长按（option+点击是「想开菜单」，不是想进门）', () => {
@@ -1606,7 +1608,7 @@ describe('UI 接线契约：资产页只能靠长按送达（提高日常查看�
     const src = fnSource('assetsEntryOpen');
     assert.match(src, /currentMode !== 'assets'/, '判据单一来源');
     assert.match(fnSource('startModePress'), /assetsEntryOpen\(\)/, '按下前先问这道闸');
-    assert.match(fnSource('enterAssets'), /assetsEntryOpen\(\)/, '进门链路也得问（键盘通直也不例外）；重入路径不留缺口');
+    assert.match(fnSource('openAssetGate'), /assetsEntryOpen\(\)/, '抬闸链路也得问（键盘通直也不例外）；重入路径不留缺口');
   });
 
   test('收尾后的残留帧不报错（cancel 排在下一帧之前时 rAF 仍会跑到）', () => {
@@ -1622,7 +1624,7 @@ describe('UI 接线契约：资产页只能靠长按送达（提高日常查看�
     assert.match(fnSource('endModePress'), /(?:[A-Za-z_$][A-Za-z0-9_$]*\.)?modePressDecision\(/, '送达判定下沉 logic.js');
     assert.match(fnSource('tickModePress'), /(?:[A-Za-z_$][A-Za-z0-9_$]*\.)?modePressProgress\(/, '进度比例下沉 logic.js');
     // 阈值只在 logic.js 定义一次；页面脚本里不得出现裸的毫秒字面量（文案里的「1 秒」由常量派生）
-    const src = ['startModePress', 'tickModePress', 'endModePress', 'cancelModePress', 'enterAssets']
+    const src = ['startModePress', 'tickModePress', 'endModePress', 'cancelModePress', 'openAssetGate']
       .map(fnSource).join('\n');
     assert.ok(!/\b\d{3,}\b/.test(src), '按下/松手链路不得内联毫秒阈值');
     assert.strictEqual(count(/MODE_PRESS_MS\s*=/g), 0, '常量定义只在 logic.js');
@@ -1633,12 +1635,12 @@ describe('UI 接线契约：资产页只能靠长按送达（提高日常查看�
     assert.match(fnSource('tickModePress'), /style\.setProperty\('--mode-press'/, 'JS 只同步 CSS 变量，不逐帧改 class');
   });
 
-  test('长按满时长自动弹窗（按满即弹，不必再松手）', () => {
+  test('长按满时长自动抬闸（按满即弹抄写框，不必再松手）', () => {
     // 旧决策「弹窗只能松手时出现」是为了躲「抬手指落到刚出现的遮罩上」；
     // 现由 autoOpenGuard 守卫窗解决（弹出后一小段时间内的指针事件一律忽略），
     // 行为改为按满即弹——更自然。
     const tick = fnSource('tickModePress');
-    assert.match(tick, /enterAssets\(/, '满时长由推进帧直接弹窗（不必等松手）');
+    assert.match(tick, /openAssetGate\(/, '满时长由推进帧直接抬闸（不必等松手）');
     assert.match(tick, /__autoOpenedAt = performance\.now\(\)/, '弹出时刻要记下（守卫窗的起点）');
     // 收尾函数只处理短按提示；守卫窗内紧跟的松手要被忽略
     const end = fnSource('endModePress');
@@ -1646,14 +1648,51 @@ describe('UI 接线契约：资产页只能靠长按送达（提高日常查看�
     assert.match(end, /(?:[A-Za-z_$][A-Za-z0-9_$]*\.)?autoOpenGuard\(/, 'pointerup 收尾必须查守卫（否则抬手即关）');
   });
 
-  test('送达前有过一次确认：挡住「顺手点开看看」', () => {
-    const src = fnSource('enterAssets');
-    assert.match(src, /showConfirm\(/, '送达资产页前必须确认');
-    assert.match(src, /switchMode\('assets'\)/, '确认回调里才真正切换');
-    assert.ok(src.indexOf('showConfirm(') < src.indexOf("switchMode('assets')"), '切换只能发生在确认回调内');
+  test('抄写闸：进门只能发生在抄对之后（唯一放行点）', () => {
+    assert.strictEqual(count(/switchMode\('assets'\)/g), 1, '全页只有一个地方能把人送进资产页');
+    const src = fnSource('submitAssetGate');
+    assert.match(src, /(?:[A-Za-z_$][A-Za-z0-9_$]*\.)?entryPhraseMatches\(/, '比对下沉 logic.js（可单测）');
+    assert.match(src, /switchMode\('assets'\)/, '抄对才切模式');
+    assert.match(
+      src.slice(src.indexOf('entryPhraseMatches('), src.indexOf("switchMode('assets')")),
+      /return;/,
+      '不匹配的分支必须 return，切换只能在通过之后');
   });
 
-  test('确认框的按钮文案/色调每次重置（金调不得粘到下一个删除确认上）', () => {
+  test('抄写闸：手误原地重试（原句不换、输入清空、报错可见）', () => {
+    const src = fnSource('submitAssetGate');
+    assert.match(src, /input\.value = ''/, '不一致就清空重抄');
+    assert.match(src, /setAssetGateError\(true\)/, '要明文说「不一致」，不能默默驳回');
+    assert.match(fnSource('openAssetGate'), /assetGatePhrase = ui\.entryPhrase\(state\.lang\)/, '每次抬闸重新抽句（界面语言决定取哪一池）');
+    assert.strictEqual(count(/assetGatePhrase = ui\.entryPhrase/g), 1, '抽句只此一处');
+    assert.doesNotMatch(src, /assetGatePhrase =/, '重试不得换句（换句等于惩罚手误，还给背句子的人开口子）');
+    assert.match(fnSource('cancelAssetGate'), /assetGatePhrase = ''/, '放弃后收尾旧句');
+  });
+
+  test('抄写闸：粘贴被拦、Enter 提交、输入法组合中的 Enter 不算提交', () => {
+    assert.match(html, /id="asset-gate-input"[^>]*onpaste="event\.preventDefault\(\)"/, '允许粘贴就把门槛变成一次性的');
+    assert.match(html, /id="asset-gate-input"[^>]*onkeydown="assetGateKey\(event\)"/, 'Enter 提交走单一入口');
+    const src = fnSource('assetGateKey');
+    assert.match(src, /e\.isComposing/, '输入法选词时的 Enter 不得提交');
+    assert.match(src, /submitAssetGate\(\)/, '提交即判（不再要一次「确认」点击）');
+  });
+
+  test('抄写闸：三道出口都作废本次（Esc / 点遮罩 / 「不看」）', () => {
+    assert.match(html, /id="asset-gate-modal"[^>]*aria-labelledby="asset-gate-title"/, '弹窗要有名字');
+    assert.match(html, /onclick="cancelAssetGate\(\)"[^>]*data-i18n="不看"/, '「不看」退出建成一条按钮');
+    // Esc 与遮罩 click 都得走同一条出口，否则「放弃」有两种不一致的结局
+    assert.match(html, /top\.id === 'asset-gate-modal'\) cancelAssetGate\(\)/, 'Esc 走 cancelAssetGate');
+    assert.match(html, /e\.target\.id === 'asset-gate-modal'\) \{\s*cancelAssetGate\(\)/, '点遮罩也走同一条出口');
+  });
+
+  test('门槛箴言池不在 index.html（下沉 logic.js 才能单测长度/标点/句数）', () => {
+    assert.doesNotMatch(html, /账面起落皆是暂相|Numbers rise and fall/, '箴言池写进页面就成了第二份真相');
+    assert.match(fnSource('openAssetGate'), /ui\.entryPhrase\(/, '唯一取句入口');
+  });
+
+  test('共用确认框的文案/色调每次重置（金调不得粘到下一个删除确认上）', () => {
+    // 备份提示是金调调用方；门槛已改用自有弹窗，但重置这条不能跟着走：
+    // 剩下的调用方一样靠「每次写回」把上一次的文案/色调摸掉
     const src = fnSource('showConfirm');
     assert.match(src, /ok\.textContent = opts\.okLabel \|\| i18n\.t\('确认'\)/, '文案默认回「确认」');
     assert.match(src, /ok\.className = opts\.tone === 'gold' \? 'btn-gold' : 'btn-danger'/, '色调默认回危险色');
@@ -3089,7 +3128,7 @@ describe('UI 接线契约：点「当前这一页」时是空点击', () => {
 describe('UI 接线契约：长按满时长自动弹窗', () => {
   test('满时长由 tick 直接弹窗（不再等松手）', () => {
     const src = stripComments(fnSource('tickModePress'));
-    assert.match(src, /enterAssets\(\)/, 'tick 满时长要直接 enterAssets()');
+    assert.match(src, /openAssetGate\(\)/, 'tick 满时长要直接抬闸');
   });
 
   test('自动弹出必须开守卫闸：紧跟的 pointerup/click 不得把弹窗点掉', () => {

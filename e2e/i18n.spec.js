@@ -147,6 +147,15 @@ test.describe('英文界面的完整性巡检', () => {
       await walk(tab);
     }
 
+    // 门槛弹窗：英文界面下抄写对象必须来自英文池（语言不得改变门槛的形态）
+    await page.locator('#mode-expenses').click();
+    await page.locator('#mode-assets').focus();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#asset-gate-modal')).toBeVisible();
+    await walk('资产门槛弹窗');
+    await expect(page.locator('#asset-gate-phrase')).toHaveText(/^[\x20-\x7e]+$/);
+    await page.locator('#asset-gate-modal button:has-text("Not now")').click();
+
     // 弹窗：设置（语言/外观/备份三行说明文字最多）、登记资产、记录消费、备份与导入
     await page.locator('header button[onclick="showSettings()"]').click();
     await walk('设置弹窗');

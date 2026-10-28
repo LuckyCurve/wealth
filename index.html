@@ -666,6 +666,13 @@ tailwind.config = {
     content: ''; display: block; width: 28px; height: 2px; border-radius: 1px;
     background: var(--accent-soft); margin-bottom: 12px;
   }
+  /* 门槛箴言：整张弹窗里唯一需要照抄的文字，故单列一档（题名体 + 居中 + 浅底框 = 像一句引文）。 */
+  .gate-phrase {
+    font-family: var(--font-display); font-size: var(--fs-section); color: var(--fg);
+    background: var(--card-2); border: 1px solid var(--border); border-radius: 8px;
+    padding: 14px 16px; margin: 0 0 20px; line-height: 1.5; letter-spacing: 0.04em; text-align: center;
+  }
+  .gate-error { font-size: var(--fs-body); color: var(--down); margin: 8px 0 0; }
   @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
   @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
   /* ===== 开屏：落纸 =====
@@ -1954,6 +1961,24 @@ tailwind.config = {
   </div>
 </div>
 
+<!-- Asset Gate Modal：进资产页的第二道闸（抄一句箴言才放行）——不是权限，是给「顺手看一眼」定价。
+     第一段闸（长按）在顶部按钮上；这一道对指针/键盘/读屏器同价。 -->
+<div id="asset-gate-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="asset-gate-title" style="display:none;">
+  <div class="modal-content modal-sm">
+    <h3 class="font-display modal-title" id="asset-gate-title" data-i18n="进入资产页">进入资产页</h3>
+    <p class="t-body muted" style="margin-bottom:20px;" data-i18n="资产波动大，反复看容易被涨跌牵着走。抄下这一句再进去。">资产波动大，反复看容易被涨跌牵着走。抄下这一句再进去。</p>
+    <p id="asset-gate-phrase" class="gate-phrase"></p>
+    <label class="field-label" for="asset-gate-input" data-i18n="抄写这句话">抄写这句话</label>
+    <!-- 禁止粘贴：允许粘贴就把这道闸变成一次性的（抄过一次就永远 Ctrl+V） -->
+    <input type="text" id="asset-gate-input" class="w-full" autocomplete="off" spellcheck="false" onpaste="event.preventDefault()" onkeydown="assetGateKey(event)">
+    <p id="asset-gate-error" class="gate-error" style="display:none;" role="alert" data-i18n="与原句不一致，请重抄一遍">与原句不一致，请重抄一遍</p>
+    <div class="modal-footer">
+      <button type="button" onclick="cancelAssetGate()" class="btn-ghost" data-i18n="不看">不看</button>
+      <button type="button" id="asset-gate-ok" onclick="submitAssetGate()" class="btn-gold" data-i18n="进入">进入</button>
+    </div>
+  </div>
+</div>
+
 <!-- Confirm Modal -->
 <div id="confirm-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="confirm-title" style="display:none;">
   <div class="modal-content modal-sm">
@@ -2490,12 +2515,12 @@ function switchTab(tab, shift) {
   }
 }
 
-// ========== 进入资产页的长按门槛 ==========
-// 按住「资产」满 ui.MODE_PRESS_MS 才算送达：资产短期波动天然大，日常顺手点开只会被涨跌牵着走。
-// 按住期间底边墨线浸满按钮（每帧只写 --mode-press，宽度换算在 CSS），短按只弹一句
-// 「长按多久」的教学。**松手才弹确认框** —— 满时长就弹的话，抬起的手指会立刻点到刚出现的遮罩上。
+// ========== 进入资产页的门槛：长按抬闸 + 抄写放行 ==========
+// 两段闸：指针先按住「资产」满 ui.MODE_PRESS_MS，抬闸后抄一句随机箴言才进。这不是权限，
+// 是给「看一眼」定价；价格不因设备而异：合成 click 不付长按（按住 Enter 会按键重复），但抄写同价。
 let modePressStart = null;
 let modePressRaf = 0;
+let assetGatePhrase = ''; // 本次要抄的那一句：抬闸时抽定，抄错也**不换句**
 
 // 已经在资产页时入口整体失效：再问一次「现在确实要看？」是荒谬的。
 // 抽成函数是因为按下与进门两条路径都要这道闸，而它是「门的语义」而非权限校验
@@ -2523,15 +2548,14 @@ function tickModePress() {
     modePressRaf = requestAnimationFrame(tickModePress);
     return;
   }
-  // 满时长**直接弹窗**（不再等松手）：按满的那一瞬间确认框出现，跟手的 pointerup/click
-  // 由 ui.autoOpenGuard 守卫窗忽略（旧实现让用户「按满—松手」两步，且松手前墨线停在满格
-  // 像卡住；旧决策躲的「手指落在遮罩上把弹窗点掉」由守卫窗解决，两全）。
+  // 满时长**直接抬闸**（不等松手）：跟着抬起的 pointerup/click 由 autoOpenGuard 守卫窗忽略
+  // （旧决策躲的「手指落在遮罩上把弹窗点掉」已由守卫窗解决，不必再等松手）。
   modePressRaf = 0;
   modePressStart = null;
   btn.classList.remove('pressing');
   btn.style.removeProperty('--mode-press');
   __autoOpenedAt = performance.now();
-  enterAssets();
+  openAssetGate();
 }
 
 // 自动弹出后一小段时间内的指针事件全部忽略（抬起的手指紧跟一次 pointerup/click，
@@ -2546,16 +2570,15 @@ function endModePress(e) {
   if (__autoOpenedAt !== null && !ui.autoOpenGuard(performance.now() - __autoOpenedAt)) return;
   const decision = ui.modePressDecision(performance.now() - modePressStart);
   resetModePress();
-  if (decision === 'enter') enterAssets();
+  if (decision === 'enter') openAssetGate();
   else if (decision === 'hint') toast(ui.modePressHint(), 'info');
 }
 
-// click 的处置：键盘 Enter/Space、读屏器与程序化激活的 click 都不带指针按压过程，
-// detail 为 0（浏览器就是这样标注「不是人手点出来的」，鼠标与触摸点出来的是 1，E2E 已验证）——
-// 这类激活按住链路没经手，直通确认框：门槛只该加在「顺手点一下」上，
-// 不该把用键盘与辅助技术的人挡在门外
+// click 的处置：键盘 Enter/Space、读屏器与程序化激活都不带指针按压过程，detail 为 0
+//（浏览器就是这样标注「不是人手点出来的」，鼠标/触摸是 1，E2E 已验证）。它们**只抬闸、
+// 不进门**：长按挡的是顺手一点，这条路一样要抄一句——曾经的「合成 click 直达」是廉价通道。
 function modePressClick(e) {
-  if (e.detail === 0) enterAssets();
+  if (e.detail === 0) openAssetGate();
 }
 
 // 指针移开/被系统夺走：放弃本次按下，既不提示也不进门
@@ -2581,15 +2604,46 @@ function resetModePress() {
 document.addEventListener('pointerup', endModePress);
 document.addEventListener('pointercancel', cancelModePress);
 
-// 进入资产页的唯一入口（长按送达与合成 click 共用）：这道闸的作用是让人先掂量一下，
-// 不是权限校验，所以文案只说理由与后果
-function enterAssets() {
+// 抬闸：抽一句箴言、清空输入、打开抄写框。已在资产页时不弹（入口整体失效）。
+function openAssetGate() {
   if (!assetsEntryOpen()) return;
-  showConfirm(
-    i18n.t('资产价格短期波动大，反复看容易被涨跌牵着走。现在确实要看？'),
-    () => switchMode('assets'),
-    i18n.t('进入资产页'),
-    { okLabel: i18n.t('查看资产'), tone: 'gold' });
+  assetGatePhrase = ui.entryPhrase(state.lang);
+  document.getElementById('asset-gate-phrase').textContent = assetGatePhrase;
+  document.getElementById('asset-gate-input').value = '';
+  setAssetGateError(false);
+  openModal('asset-gate-modal');
+}
+
+function setAssetGateError(on) {
+  document.getElementById('asset-gate-error').style.display = on ? '' : 'none';
+}
+
+// 输入框键位：Enter 提交（输入法组合中的 Enter 是「选词」，不提交）；不在输入时校验。
+function assetGateKey(e) {
+  if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); submitAssetGate(); }
+}
+
+// 提交即判：抄对就进门（不再要第二次点击，那只会教人连点）；抄错原地重试——原句不换、输入清空。
+function submitAssetGate() {
+  // 守卫窗内落到按钮上的 click 是抬手余波（用户并没有真点它）
+  if (__autoOpenedAt !== null && !ui.autoOpenGuard(performance.now() - __autoOpenedAt)) return;
+  if (!assetsEntryOpen()) { cancelAssetGate(); return; }
+  const input = document.getElementById('asset-gate-input');
+  if (!ui.entryPhraseMatches(input.value, assetGatePhrase)) {
+    input.value = '';
+    setAssetGateError(true);
+    input.focus();
+    return;
+  }
+  cancelAssetGate();
+  switchMode('assets');
+}
+
+// 放弃（Esc / 点遮罩 / 「不看」）：本次作废，下次从长按重新开始
+function cancelAssetGate() {
+  assetGatePhrase = '';
+  setAssetGateError(false);
+  closeModal('asset-gate-modal');
 }
 
 // ========== 台灯掠光（跟随指针的纸面光）==========
@@ -5655,7 +5709,7 @@ function showConfirm(msg, onOk, title, opts) {
   opts = opts || {};
   document.getElementById('confirm-msg').textContent = msg;
   document.getElementById('confirm-title').textContent = title || i18n.t('确认操作');
-  // 按钮文案与色调每次都重置：确认框全站共用，上一个调用留下的「查看资产/金色」
+  // 按钮文案与色调每次都重置：确认框全站共用，上一个调用留下的（如备份的金调）
   // 绝不能粘到下一个（删除这类真危险动作）确认上
   const ok = document.getElementById('confirm-ok-btn');
   ok.textContent = opts.okLabel || i18n.t('确认');
@@ -5684,6 +5738,8 @@ document.addEventListener('click', e => {
   if (e.target.classList.contains('modal-overlay') && __modalMouseDownTarget && !__modalMouseDownTarget.closest('.modal-content')) {
     if (e.target.id === 'confirm-modal') {
       confirmCancel(); // 统一走 confirmCancel：隐藏 + 清空 _confirmCallback
+    } else if (e.target.id === 'asset-gate-modal') {
+      cancelAssetGate(); // 点遮罩 = 放弃本次（与 Esc 同一条出口）
     } else {
       closeModal(e.target.id); // 必须走 closeModal：直接改 display 会把焦点管理整个绕过
     }
@@ -5712,7 +5768,8 @@ document.addEventListener('keydown', e => {
   if (e.key !== 'Escape') return;
   const top = topModal();
   if (!top) return;
-  if (top.id === 'confirm-modal') confirmCancel();
+  if (top.id === 'asset-gate-modal') cancelAssetGate(); // 作废本次抄写（下次抬闸重新抽句）
+  else if (top.id === 'confirm-modal') confirmCancel();
   else closeModal(top.id); // 同上：ESC 也要还焦点，不能只改 display
 });
 

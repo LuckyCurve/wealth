@@ -49,7 +49,7 @@ docs/agents/          # 工程技能的仓库约定（票存哪 / triage 标签 
 
 ## 功能模块
 
-两大主模式（`switchMode`），默认 **消费**：资产模式、消费模式。每个模式内各有子 Tab（`switchTab`）。进入资产模式有长按门槛与一次确认（见 [LESSONS.md](LESSONS.md#门槛与模式入口)）。
+两大主模式（`switchMode`），默认 **消费**：资产模式、消费模式。每个模式内各有子 Tab（`switchTab`）。进入资产模式是两段闸：长按 1 秒抬闸 + 抄写一句门槛箴言（见 [LESSONS.md](LESSONS.md#门槛与模式入口)、[ADR 0003](docs/adr/0003-asset-entry-copy-gate.md)）。
 
 ## 核心数据模型 (localStorage key: `wealth-manager-data`)
 
@@ -177,7 +177,7 @@ interface Expense {
 - **先关动效再断言数字**：masthead 净资产是计数动画，等它收敛会让每个数字断言吃满超时。`fixtures` 里统一 `emulateMedia({ reducedMotion: 'reduce' })`。
 - **`e2e/modal-scroll.spec.js`**：弹窗打开时背景必须冻住（滚动/触摸/键盘/inert/叠层/不误伤日历与便条）。判据全是运行时几何与 `inert` 状态，不读实现。
 - **E2E 里禁止 `waitForTimeout` 睡眠**：`switchTab` 的 display 翻转、`setTheme` 的 classList 翻转都是同步的，用可见断言即可到位；固定等待会让主题巡检这类全 Tab 遍历的用例凭空多吃数秒（曾占全套时长的 1/3）。确需等待异步渲染时用 `expect.poll`。`test/e2e-hygiene.test.js` 扫 `e2e/*.spec.js` 把守这一条。
-- **进资产的入口只有 `fixtures.gotoAssets()` 一处**：它走键盘通道（合成 click）直达确认框，既不必等满按住时长，也顺带护住「不用鼠标的人不被挡在门外」这条路径；长按手势本身由 `app.spec.js` 的专测用真实鼠标覆盖。已在资产模式时为幂等（不再走门）。
+- **进资产的入口只有 `fixtures.gotoAssets()` 一处**：它走键盘通道（合成 click 只抬闸）再抄写箴言——既不必等满按住时长，也顺带护住「不用鼠标的人不被挡在门外」这条路径；长按手势本身由 `app.spec.js` 的专测用真实鼠标覆盖。已在资产模式时为幂等（不再走门）。
 - **语言默认英文，播种要显式选中文**：既有用例的断言写的都是中文文案，`fixtures` 的 `EMPTY_STATE`/`blankPage` 已固定 `lang: 'zh'`；默认英文与切换本身由 `e2e/i18n.spec.js` 覆盖（含一次「英文界面无中文残留」的全 Tab + 弹窗巡检）。
 - **读内存态 vs 读存档**：`migrateState()` 只修内存态、不回写 localStorage。验证「已落盘」读 localStorage，验证「迁移/兜底已生效」读 `state`。
 - **seed 只在首次导航生效**：`addInitScript` 对每次导航（含 reload）都会重跑，若无条件覆盖，reload 会把存档洗回种子值 —— 持久化用例会「永远绿」（假通过）。标记用 sessionStorage（同一标签页跨 reload 存活、每个用例独立）。
