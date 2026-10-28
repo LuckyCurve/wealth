@@ -288,10 +288,21 @@ tailwind.config = {
       radial-gradient(115% 62% at 14% 58%, var(--desk-lit), transparent 62%),
       linear-gradient(168deg, transparent 46%, var(--desk-fall));
   }
+  /* 纸纹（纸纤维）= feTurbulence 生成的非周期噪声。
+     为何换掉周期十字纹：同一根笔画每隔 60px 精确复现一次，放大或贴近看时最先看见的是
+     那个周期——读起来是「坐标纸」而不是纸。纤维是无序的。
+     为何是「斑点」而不是「一层灰膜」：alpha 由噪声自己的 alpha 通道反相得来（feColorMatrix
+     末行），像素要么接近透明、要么是深墨点；整层不透明度乘上去后，纸只长「齿」，不会被
+     一颗均匀的灰蒙住。
+     为何用 background-image 平铺而不是 filter 盖在内容上：平铺的 SVG 只会被光栅化一次，
+     而全屏 filter 层会在每帧重新求值（滚动的头号卡顿源）。 */
   body::before {
-    content: ''; position: fixed; inset: 0; z-index: -1; opacity: 0.035; pointer-events: none;
-    background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23000' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+    content: ''; position: fixed; inset: 0; z-index: -1; opacity: 0.07; pointer-events: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='f'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.32' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 -1.4 0.95'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23f)'/%3E%3C/svg%3E");
   }
+  /* 暗色纸是深棕，黑墨点叠上去等于没叠（旧版的纸纹在暗色下完全不可见，一直没人发现）。
+     反相把墨点翻成亮点：纤维在暗纸上本来就是更亮的一点反光，不是更黑的杂质。 */
+  .dark body::before { filter: invert(1); opacity: 0.09; }
   /* 台灯掠光: 两条斜光带（同一角度、错开位置） + 指针处的小圆芯。
      带子用 calc(var(--lamp-x) ± …) 定位——光带跟着指针的横向位置扫，纵向只由圆芯微调，
      所以鼠标横移时纸面像被灯拂过，而不是一个球在跳。
@@ -358,6 +369,10 @@ tailwind.config = {
   }
   .btn-gold:hover { filter: brightness(1.04); box-shadow: inset 0 1px 0 rgba(255,255,255,0.45), inset 0 -1px 0 rgba(33,27,16,0.22), 0 2px 10px rgba(180,132,26,0.22); }
   .btn-gold:active { transform: translateY(1px); box-shadow: inset 0 2px 5px rgba(33,27,16,0.3); }
+  /* 按压反馈只有一档：其余可点控件共享这一条（金色主按钮另有一套压印，见上一行）。
+     用 transform 而不是 padding/margin：按压不该推动邻居，也不该产生一次重排。
+     下沉量比主按钮小（0.5px vs 1px）——主按钮是「盖章」，次级控件只是「被指尖按了一下」。 */
+  .btn-ghost:active, .btn-danger:active, .row-btn:active, .seg-btn:active { transform: translateY(0.5px); }
   .btn-ghost {
     background: transparent; color: var(--muted); border: 1px solid var(--border);
     border-radius: 6px; padding: 8px 20px; cursor: pointer; transition: all 0.15s;
@@ -402,8 +417,8 @@ tailwind.config = {
     border-radius: 10px;
     /* 背光模糊 + 提饱和：玻璃会把背后的颜色揉开并让它更「润」。
        半径从 10px 提到 14px（用户反馈玻璃太浅淡）：桌光的明暗层次被揉得更开，
-       折射感才出得来。上限仍受纸纹周期约束——纸纹周期 60px、十字笔画 2px 宽，
-       模糊半径不超过周期的一半（30px）就不会把纸纹整个揉平。 */
+       折射感才出得来。上限现在只受「别把纸纹揉成一块平色」约束——纤维是非周期的，
+       没有周期上限；但模糊半径远超斑点尺度时，透上来的就只剩一层匀色。 */
     backdrop-filter: blur(14px) saturate(1.8);
     -webkit-backdrop-filter: blur(14px) saturate(1.8);
     /* 外阴影分三层：接触影（贴地的一线）+ 近影 + 远影（环境遮蔽）。
@@ -415,10 +430,13 @@ tailwind.config = {
   /* 页头：底色走变量（原来是内联 linear-gradient——渐变底无法校对比度，
      于是页头里每一行字都被巡检默默跳过了） */
   .app-header { background: var(--bg); border-bottom: 1px solid var(--border); }
-  /* 卡片悬停：只抬外阴影（玻璃自身的高光不动，否则卡片会在指针下「变色」）；
+  /* 卡片悬停：**只给真能点的卡片**（.card-interactive）。
+     裸 .card:hover 曾经也会抬阴影，于是纯展示的卡片（图表、汇总、明细）同样摆出「可点」
+     的样子，点了却没反应——那是「假可点」，不是质感：它让真可点的那几张淹没在一片都在动的
+     卡里。抬升是承诺，不给就一次也不给。
+     抬升本身只动外阴影（玻璃自身的高光不动，否则卡片会在指针下「变色」）；
      不做跟随指针的卡片光晕——全站只此一盏灯，逐卡片再加一层 radial-gradient
      会变成一屏十几个光源、互相打架 */
-  .card:hover { box-shadow: var(--glass-shadow), var(--glass-depth-lift); }
   .card-interactive { cursor: pointer; }
   .card-interactive:hover { box-shadow: var(--glass-shadow), var(--glass-depth-lift); border-color: var(--accent-soft); }
   /* 表单控件（输入框 / 下拉框）统一规格。**必须限定在一处容器前缀下**：

@@ -24,7 +24,13 @@ const ROOT = path.join(__dirname, '..');
 // 已做的减量：三个槽子只留 path 数据（描边/尺寸/VB 统一写在 .ico 与 symbol 一次），
 // 没用图标库运行时（那会多一个 CDN 依赖与一次外网请求）。
 // 视图层没有可合并的重复结构：再抬之前先确认真的无处可沉。
-const INDEX_BUDGET = 397_000;
+// 2026-10-28 从 397,000 抬到 400,000：纸纹换成 feTurbulence 非周期纤维。
+// 抬之前先试了两条减量，都是**字节中性**，不足以抵账：①内联图表尺寸/滚动上限收成
+// `.chart-pane` / `.scroll-cap`（两个 19 字节的 class 换两个 32 字节的内联属性）；
+// ②`style="display:none"` 共 20 余处 —— 它们是 JS 的开关状态（`el.style.display` 是
+// 唯一写入点），改 class 等于把所有显隐路径重写一遍，风险远大于 400 字节。
+// 本轮之后同方向的增改请先在这个文件里写「试过什么」。
+const INDEX_BUDGET = 400_000;
 
 function bytes(name) {
   return fs.statSync(path.join(ROOT, name)).size;

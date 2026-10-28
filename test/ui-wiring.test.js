@@ -3496,3 +3496,66 @@ describe('UI 接线契约：弹窗打开时背景冻结', () => {
     assert.match(fnSource('syncScrollLock'), /syncLamp\(\)/, '冻结/解冻时灯跟着重判');
   });
 });
+
+describe('UI 接线契约：假可点（悬停/按压反馈只给真能点的东西）', () => {
+  const css = stripComments(html);
+  // 取某选择器所在规则块（`{` 到 `}`；本文件的规则都是平铺单层，不含嵌套块）
+  const rule = (sel) => {
+    const esc = sel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const m = css.match(new RegExp(`(^|\\n)\\s*${esc}\\s*\\{([^}]*)\\}`));
+    return m ? m[2] : null;
+  };
+
+  test('裸 .card:hover 不得抬升：静态卡片不是按钮', () => {
+    // 判据是「.card 自己」（不含 .card-interactive 之类的派生选择器）。
+    // 抬升是「可以点」的语言，摆给纯展示卡就是一次空承诺。
+    assert.strictEqual(rule('.card:hover'), null, '裸 .card:hover 应保持删除（悬停抬升只留给 .card-interactive）');
+    const lift = rule('.card-interactive:hover');
+    assert.ok(lift && /--glass-depth-lift/.test(lift), '.card-interactive:hover 仍要抬升（真能点的那几张靠它）');
+  });
+
+  test('按压反馈：幽灵按钮 / 危险按钮 / 行内按钮 / 分段按钮同一条规则', () => {
+    // 四处各写一遍会漂（有的下沉 1px、有的 2px）；按压是同一档手感，故同一条规则。
+    const press = css.match(/(^|\n)\s*([^{}\n]*:active[^{}\n]*)\{([^}]*)\}/g) || [];
+    const hit = press.find(
+      (r) =>
+        r.includes('.btn-ghost:active') &&
+        r.includes('.btn-danger:active') &&
+        r.includes('.row-btn:active') &&
+        r.includes('.seg-btn:active')
+    );
+    assert.ok(hit, '四个可点控件应在同一条 :active 规则里共享按压反馈（不要各写一份）');
+    assert.match(hit, /transform:\s*translateY/, '按压反馈用 transform（不参与布局，不会把邻居顶开）');
+  });
+});
+
+describe('UI 接线契约：纸纹（非周期纤维，且暗色下也看得见）', () => {
+  const css = stripComments(html);
+  const block = (sel) => {
+    const start = css.indexOf(sel + ' {');
+    assert.ok(start >= 0, `找不到规则 ${sel}`);
+    const rest = css.slice(start);
+    return rest.slice(0, rest.indexOf('}') + 1);
+  };
+
+  test('纸纹用 feTurbulence 噪声，不是周期网格', () => {
+    const paper = block('body::before');
+    assert.match(paper, /feTurbulence/, '纸纤维应由 feTurbulence 生成（非周期）');
+    // 旧实现的正十字路径：它每隔 60px 精确复现一次，放大后读起来是坐标纸
+    assert.ok(!paper.includes('M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4z'), '不得回潮到周期十字纹');
+  });
+
+  test('暗色下纸纹必须另给一档（黑斑叠深棕等于没叠）', () => {
+    const dark = block('.dark body::before');
+    assert.match(dark, /opacity|filter/, '暗色纸纹必须有自己的强度或反相（否则暗色下完全看不见）');
+  });
+
+  test('纸纹强度上限：它是材质，不是一层灰膜', () => {
+    // 0.12 是人眼尺度定出来的上限：实测 0.07（亮）/ 0.09（暗）时纸面亮度标准差约 1%——
+    // 刚好能看出「齿」；到 0.3 就是 ~4%，看着像磨砂贴膜（探针实测，见提交正文）。
+    for (const sel of ['body::before', '.dark body::before']) {
+      const m = block(sel).match(/opacity:\s*([0-9.]+)/);
+      if (m) assert.ok(Number(m[1]) <= 0.12, `${sel} 的不透明度 ${m[1]} 过高：纸纹会变成均匀雾面，而不是纸的齿`);
+    }
+  });
+});
