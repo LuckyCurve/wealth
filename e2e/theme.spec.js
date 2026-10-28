@@ -70,8 +70,26 @@ const switchToDark = async (page) => {
 
 const fmt = (list) =>
   [...new Set(list.map((o) => `${o.color}  ${o.where}:${o.prop}`))].sort().join('\n  ');
-
 test.describe('主题色一致性', () => {
+  test('状态栏颜色跟着应用主题（不是系统主题，也不是写死的色值）', async ({ appPage: page }) => {
+    // 回归：手机浏览器的地址栏/状态栏取 <meta name=theme-color>。它必须与 --bg 同值——
+    // 写死一份就会在调色时与纸面漂移，用 prefers-color-scheme 则会在「系统亮、页面暗」时反色。
+    const chrome = await page.evaluate(() => ({
+      meta: document.querySelector('meta[name="theme-color"]')?.content || null,
+      bg: getComputedStyle(document.documentElement).getPropertyValue('--bg').trim(),
+    }));
+    expect(chrome.meta).toBeTruthy();
+    expect(chrome.meta.toLowerCase()).toBe(chrome.bg.toLowerCase());
+
+    await switchToDark(page);
+    const darkChrome = await page.evaluate(() => ({
+      meta: document.querySelector('meta[name="theme-color"]')?.content || null,
+      bg: getComputedStyle(document.documentElement).getPropertyValue('--bg').trim(),
+    }));
+    expect(darkChrome.bg).not.toBe(chrome.bg);
+    expect(darkChrome.meta.toLowerCase()).toBe(darkChrome.bg.toLowerCase());
+  });
+
   test('亮色模式：无元素使用浏览器默认外观（漏设样式）', async ({ appPage: page }) => {
     // 回归：分类 pill 里的 ✕ 删除按钮只设了 color，background/border 走 UA 默认，
     // 在暖色古纸主题上是个灰底黑边的系统按钮

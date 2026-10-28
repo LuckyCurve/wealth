@@ -3559,3 +3559,35 @@ describe('UI 接线契约：纸纹（非周期纤维，且暗色下也看得见�
     }
   });
 });
+
+describe('UI 接线契约：系统层（浏览器/系统画的那一圈）', () => {
+  test('状态栏颜色跟随应用主题，而不是跟随系统', () => {
+    assert.match(html, /<meta name="theme-color"[^>]*>/, 'theme-color 元信息必须存在（手机浏览器地址栏/状态栏的颜色）');
+    // 主题是应用内自己切的：用 media=prefers-color-scheme 会让「系统亮、页面暗」时状态栏反色
+    const meta = html.match(/<meta name="theme-color"[^>]*>/)[0];
+    assert.ok(!/media=/.test(meta), 'theme-color 不得写死一根 media 查询，应由 setTheme 写入');
+    assert.match(fnSource('setTheme'), /applyThemeChrome\(\)/, 'setTheme 必须同步状态栏颜色');
+  });
+
+  test('触屏原生痕迹：点击高亮 / 插入符 / 原生控件强调色', () => {
+    assert.match(html, /-webkit-tap-highlight-color:\s*transparent/, 'iOS/Android 点击时那层灰要走自己的激活态，不能留给系统');
+    assert.match(html, /caret-color:\s*var\(--accent\)/, '插入符颜色应跟主题（默认黑色插入符在暖色纸面上是一根黑棍）');
+    assert.match(html, /accent-color:\s*var\(--accent\)/, '原生 checkbox/radio 的选中色应跟主题');
+  });
+
+  test('placeholder 不能是浏览器默认灰', () => {
+    assert.match(html, /::placeholder\s*\{[^}]*color:\s*var\(--muted\)/, 'placeholder 颜色要进主题（否则暖色纸面上是一块系统灰）');
+    // 浏览器默认 placeholder 带 opacity，只写 color 会被它拉淡
+    assert.match(html, /::placeholder\s*\{[^}]*opacity:\s*1/, 'placeholder 需显式 opacity: 1，否则会被 UA 自带的半透明再摸一层');
+  });
+
+  test('视口单位用 dvh：移动端地址栏收缩时不得让弹窗/列表跳高', () => {
+    assert.ok(!/\d+vh\b/.test(stripComments(html).replace(/dvh|svh|lvh/g, '')), '不得再用 vh（移动端地址栏一收就跳）');
+    assert.match(html, /\d+dvh/, '至少一处 dvh（弹窗上限 / 可选标签列表）');
+  });
+
+  test('安全区：刘海与底部横条不得压住内容', () => {
+    assert.match(html, /env\(safe-area-inset-/, '必须有 env(safe-area-inset-*)');
+    assert.match(html, /padding-inline:[^;]*max\(/, '内容栏的左右边距应与刘海取 max，而不是相加');
+  });
+});

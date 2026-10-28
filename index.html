@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#ebe3d0">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='%23d9b25e'/><stop offset='1' stop-color='%238f6713'/></linearGradient></defs><path fill-rule='evenodd' d='M16 2a14 14 0 1 0 0 28 14 14 0 1 0 0-28zM10.5 10.5h11v11h-11z' fill='url(%23g)'/><path d='M10.5 10.5v3M10.5 10.5h3M21.5 10.5v3M21.5 10.5h-3M10.5 21.5v-3M10.5 21.5h3M21.5 21.5v-3M21.5 21.5h-3' stroke='%23211b10' stroke-width='1.8' stroke-linecap='round' fill='none'/></svg>">
 <title data-i18n="财富管理">财富管理</title>
 <meta name="description" content="本机保存的个人资产与消费账本：记录资产、月度快照、消费与趋势，数据不上传。" data-i18n-content="本机保存的个人资产与消费账本：记录资产、月度快照、消费与趋势，数据不上传。">
@@ -255,7 +256,10 @@ tailwind.config = {
   /* 可点击行/表头禁用文字选中：快速点击(双击)排序表头时避免浏览器选中文本（<button> 原生即不选中，无需处理） */
   [onclick]:not(button) { user-select: none; -webkit-user-select: none; }
   * { box-sizing: border-box; }
-  html { -webkit-text-size-adjust: 100%; }
+  html { -webkit-text-size-adjust: 100%; -webkit-tap-highlight-color: transparent; }
+  /* ===== 系统层：浏览器/系统画的那一圈 =====
+     画布之外才是「像 App 还是像网页」的分界线：点击高亮的灰块、默认黑插入符、系统灰的
+     placeholder、纯黑的原生控件强调色。它们不跟主题，在暖色纸面上格外显眼。 */
   /* 滚动条槽位**永远**预留：锁定背景滚动时经典滚动条会消失，内容整块右移几像素
      （最容易被当成「弹窗一开页面跳一下」）。用 gutter 而不是「锁定时加 padding」——
      后者要量滚动条宽度、还要在解锁时原样撤回，两处对不上就又跳一次。 */
@@ -263,7 +267,7 @@ tailwind.config = {
   /* 弹窗开着时背景不可滚（真正的锁在 JS：按「还有几层开着」派生，见 syncScrollLock）。
      这里只声明锁住时的形态，条件类名由那一处写。 */
   html.modal-open, html.modal-open body { overflow: hidden; }
-  body { background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: var(--fs-body); font-weight: var(--fw-medium); font-feature-settings: 'tnum' 1; }
+  body { background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: var(--fs-body); font-weight: var(--fw-medium); font-feature-settings: 'tnum' 1; padding-bottom: env(safe-area-inset-bottom, 0px); }
   /* ===== 纸纹与桌光：这个产品的隐喻是「一张摊在桌面上、被灯照着的账页」=====
      三层各司其职：
      ①  body::after  = 桌面（静止的、铺满视口的**光照层次**）
@@ -331,6 +335,8 @@ tailwind.config = {
     max-width: var(--content-max);
     margin-inline: auto;
     padding-inline: var(--content-pad);
+    /* 刘海/圆角屏：左右边距与安全区取 max，不加相（否则窄条上内容被顶出屏幕） */
+    padding-inline: max(var(--content-pad), env(safe-area-inset-left, 0px)) max(var(--content-pad), env(safe-area-inset-right, 0px));
   }
   .font-masthead { font-family: var(--font-numeric); font-feature-settings: 'lnum' 1, 'tnum' 1; }
   .tabular { font-variant-numeric: tabular-nums; font-feature-settings: 'tnum' 1; }
@@ -353,6 +359,8 @@ tailwind.config = {
   /* 包住隐藏 input 的 label：焦点在里面的 input 上，环要画在能看见的 label 上。
      用 :focus-within 而不是给 label 加 tabindex——那会多出一个空的 Tab 停靠点。 */
   .file-label:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+  /* 超长列表的滚动上限：用 dvh，vh 在移动端地址栏收缩时会把底部按钮顶出屏幕 */
+  .scroll-cap { max-height: 44dvh; overflow-y: auto; }
   ::selection { background: rgba(180, 132, 26, 0.28); }
   button:focus-visible, .btn-gold:focus-visible, .btn-ghost:focus-visible, .btn-danger:focus-visible { outline-offset: 2px; }
   @media (prefers-reduced-motion: reduce) {
@@ -451,8 +459,12 @@ tailwind.config = {
     line-height: 1.5;
     border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px;
     background: var(--card); color: var(--fg); transition: border-color 0.15s, box-shadow 0.15s;
+    /* 插入符与原生控件的强调色跟主题（默认是黑棍与纯黑） */
+    caret-color: var(--accent); accent-color: var(--accent);
     outline: none;
   }
+  /* placeholder 不是内容，是提示：用 muted 而不是 UA 的系统灰；UA 自带半透明，opacity 需显式。 */
+  body input::placeholder, body textarea::placeholder { color: var(--muted); opacity: 1; }
   /* 下拉框：外观由页面接管（理由见 --chevron）。关掉原生外观后浏览器不再画箭头，
      箭头位置就是「right 10px」，与左侧 12px 的内边距成为一对，左右才对称。
      background-image 只在这一处（背景色仍是 --card，AA 巡检按它算对比度）。 */
@@ -667,7 +679,7 @@ tailwind.config = {
   }
   .modal-content {
     background: var(--card); border-radius: 10px; padding: 32px;
-    max-width: 560px; width: 90%; max-height: 85vh; overflow-y: auto;
+    max-width: 560px; width: 90%; max-height: 85dvh; overflow-y: auto;
     /* 弹窗正文是**自己的**滚动上下文，滚到头的滚轮/触摸不得冒泡给页面（否则在弹窗里
        滚到底，背后的账页会接着滚——这正是「背景冻住」最容易被漏掉的一条路径） */
     overscroll-behavior: contain;
@@ -2128,7 +2140,7 @@ tailwind.config = {
       <button type="button" class="tip-mark" aria-describedby="runway-tip" aria-label="标签如何参与计算" data-i18n-aria-label="标签如何参与计算">?</button>
       <span class="tip-bubble" id="runway-tip" role="tooltip" data-i18n="同一分类内多选为「或」，不同分类之间为「且」；某个分类不选则不参与过滤。">同一分类内多选为「或」，不同分类之间为「且」；某个分类不选则不参与过滤。</span>
     </span></h3>
-    <div id="runway-tag-groups" class="space-y-3" style="max-height:44vh;overflow-y:auto;"></div>
+    <div id="runway-tag-groups" class="space-y-3 scroll-cap"></div>
     <!-- 月消费: 默认带出全局「预期月消费」, 改成自定值只影响这张读数卡（不回填全局）; 清空即回默认 -->
     <label class="field-label mt-4" for="runway-expectation" data-i18n="月消费 (CNY)">月消费 (CNY)</label>
     <div class="flex items-center gap-2">
@@ -2292,6 +2304,8 @@ function observeChartSize(chart) {
     // 否则英文用户会先看见一闪而过的中文
     applyI18nDom();
     syncLangSeg();
+    // 状态栏颜色在首帧就定下来（launch 时主题已由 <head> 的内联脚本定好）
+    applyThemeChrome();
     // 捕获本次启动的汇率拉取 promise，交给 maybeAutoBackup 复用同一笔请求、
     // 等汇率更新完毕后再导出，避免备份拿到过期汇率（见 maybeAutoBackup）
     const ratePromise = fetchRates();
@@ -5349,11 +5363,21 @@ function syncThemeSeg() {
   darkBtn.setAttribute('aria-pressed', String(dark));
 }
 
+// 状态栏/地址栏颜色跟随**应用主题**（不是系统）：主题是应用内切的，用 media 版本
+// 会在「系统亮、页面暗」时反成白色。颜色取 --bg，不另写色值（写两份就会漂）。
+function applyThemeChrome() {
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (!meta) return;
+  const bg = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim();
+  if (bg) meta.content = bg;
+}
+
 function setTheme(dark) {
   dark = !!dark;
   if (dark === document.documentElement.classList.contains('dark')) return;
   document.documentElement.classList.toggle('dark', dark);
   localStorage.setItem('dark-mode', dark ? '1' : '');
+  applyThemeChrome(); // 状态栏跟纸色，不留一块上白下褐
   syncThemeSeg(); // 回显 seg 状态
   renderAll();
   refreshVisibleCharts();
