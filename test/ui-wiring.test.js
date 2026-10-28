@@ -3591,3 +3591,31 @@ describe('UI 接线契约：系统层（浏览器/系统画的那一圈）', () 
     assert.match(html, /padding-inline:[^;]*max\(/, '内容栏的左右边距应与刘海取 max，而不是相加');
   });
 });
+
+describe('UI 接线契约：动效节奏（两档微反馈 + 编排档，不得再长出新值）', () => {
+  const css = stripComments(html);
+
+  test('不用 transition: all', () => {
+    // `all` 会把布局属性（padding/width/left）也纳入过渡：一次重排就开始补间。
+    // 更隐蔽的一条：`.tag-pill` 的长按进度是**每帧写内联 box-shadow** 画出来的，
+    // `transition: all 0.15s` 会让每一帧都被 0.15s 追一次——进度线会拖在手指后面。
+    const all = css.match(/transition:\s*all\b/g) || [];
+    assert.deepStrictEqual(all, [], 'transition 必须列名属性（all 会连布局一起过渡，且会拖慢逐帧写入的进度线）');
+  });
+
+  test('时长只能落在已知档位（新增一个值是一次决定，不是顺手）', () => {
+    // 微反馈 .15s 一档；.12s 是 flatpickr 第三方控件的自有节奏；.2s~.5s 是编排档
+    // （弹层/入场/指标条）。历史上 0.12/0.15/0.2/0.25 逐处手调过，肉眼说不出差在哪，只觉得飘。
+    const known = new Set(['0s', '0.05s', '0.06s', '0.12s', '0.15s', '0.2s', '0.25s', '0.28s', '0.3s', '0.4s', '0.42s', '0.5s']);
+    const decls = css.match(/transition:[^;}]+/g) || [];
+    const found = new Set();
+    for (const d of decls) {
+      for (const m of d.match(/(?:^|[\s,])(\.?\d*\.?\d+m?s)\b/g) || []) {
+        const v = m.trim().replace(/^([.,])/, '0$1');
+        if (/^\d/.test(v)) found.add(v);
+      }
+    }
+    const unknown = [...found].filter((v) => !known.has(v));
+    assert.deepStrictEqual(unknown, [], `这些时长不在档位里：${unknown.join(', ')}（加档位先问一句「哪一档不够用」）`);
+  });
+});

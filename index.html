@@ -259,7 +259,7 @@ tailwind.config = {
   html { -webkit-text-size-adjust: 100%; -webkit-tap-highlight-color: transparent; }
   /* ===== 系统层：浏览器/系统画的那一圈 =====
      画布之外才是「像 App 还是像网页」的分界线：点击高亮的灰块、默认黑插入符、系统灰的
-     placeholder、纯黑的原生控件强调色。它们不跟主题，在暖色纸面上格外显眼。 */
+     placeholder、纯黑的原生控件强调色——它们不跟主题，在暖色纸面上格外显眼。 */
   /* 滚动条槽位**永远**预留：锁定背景滚动时经典滚动条会消失，内容整块右移几像素
      （最容易被当成「弹窗一开页面跳一下」）。用 gutter 而不是「锁定时加 padding」——
      后者要量滚动条宽度、还要在解锁时原样撤回，两处对不上就又跳一次。 */
@@ -381,17 +381,14 @@ tailwind.config = {
      用 transform 而不是 padding/margin：按压不该推动邻居，也不该产生一次重排。
      下沉量比主按钮小（0.5px vs 1px）——主按钮是「盖章」，次级控件只是「被指尖按了一下」。 */
   .btn-ghost:active, .btn-danger:active, .row-btn:active, .seg-btn:active { transform: translateY(0.5px); }
-  .btn-ghost {
-    background: transparent; color: var(--muted); border: 1px solid var(--border);
-    border-radius: 6px; padding: 8px 20px; cursor: pointer; transition: all 0.15s;
-    font-family: var(--font-body); font-size: var(--fs-body);
+  /* 次级按钮同一种骨：只差颜色/内边距/字号，共用部分写一次 */
+  .btn-ghost, .btn-danger {
+    background: transparent; border-radius: 6px; cursor: pointer; font-family: var(--font-body);
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
   }
+  .btn-ghost { color: var(--muted); border: 1px solid var(--border); padding: 8px 20px; font-size: var(--fs-body); }
   .btn-ghost:hover { border-color: var(--accent); color: var(--accent-ink); }
-  .btn-danger {
-    background: transparent; color: var(--down); border: 1px solid #dcb6b4;
-    border-radius: 6px; padding: 6px 14px; cursor: pointer; transition: all 0.15s;
-    font-family: var(--font-body); font-size: var(--fs-micro);
-  }
+  .btn-danger { color: var(--down); border: 1px solid #dcb6b4; padding: 6px 14px; font-size: var(--fs-micro); }
   .btn-danger:hover { background: var(--down); color: white; border-color: var(--down); }
   .dark .btn-danger { color: #d98a86; border-color: #5a3a39; }
   .dark .btn-danger:hover { color: #fff; }
@@ -459,7 +456,7 @@ tailwind.config = {
     line-height: 1.5;
     border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px;
     background: var(--card); color: var(--fg); transition: border-color 0.15s, box-shadow 0.15s;
-    /* 插入符与原生控件的强调色跟主题（默认是黑棍与纯黑） */
+    /* 插入符与原生控件的强调色跟主题 */
     caret-color: var(--accent); accent-color: var(--accent);
     outline: none;
   }
@@ -764,7 +761,8 @@ tailwind.config = {
     font-weight: var(--fw-medium); font-family: var(--font-body);
     border: 1px solid var(--border);
     border-left: 3px solid var(--border);
-    transition: all 0.15s; white-space: nowrap; line-height: 1.5;
+    /* 不能含 box-shadow：长按进度是每帧写内联 box-shadow，补间会让墨线拖在手指后面 */
+    transition: filter 0.15s, border-color 0.15s; white-space: nowrap; line-height: 1.5;
   }
   /* 分类名（key）与标签值（val）同字号，层级只靠字重区分：
      曾用 opacity .55 把 key 压淡，实测对比掉到 1.6–2.1:1 —— 分类名恰恰是用户要读的信息。 */
@@ -5363,8 +5361,7 @@ function syncThemeSeg() {
   darkBtn.setAttribute('aria-pressed', String(dark));
 }
 
-// 状态栏/地址栏颜色跟随**应用主题**（不是系统）：主题是应用内切的，用 media 版本
-// 会在「系统亮、页面暗」时反成白色。颜色取 --bg，不另写色值（写两份就会漂）。
+// 状态栏/地址栏颜色跟随**应用主题**（media 版本会在「系统亮、页面暗」时反色）。取 --bg 不另写色值。
 function applyThemeChrome() {
   const meta = document.querySelector('meta[name="theme-color"]');
   if (!meta) return;
