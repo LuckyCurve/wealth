@@ -178,11 +178,12 @@ CI 的单元测试只跑 **ubuntu + windows** 两平台：macOS 与 ubuntu 同�
 - **route 后注册者优先**：兜底「拦掉一切外网」必须先注册，具体 CDN 替身后注册才能覆盖它。次序写反会让所有替身失效且不报错，只表现为一串莫名失败。
 - **先关动效再断言数字**：masthead 净资产是计数动画，等它收敛会让每个数字断言吃满超时。`fixtures` 里统一 `emulateMedia({ reducedMotion: 'reduce' })`。
 - **`e2e/modal-scroll.spec.js`**：弹窗打开时背景必须冻住（滚动/触摸/键盘/inert/叠层/不误伤日历与便条）。判据全是运行时几何与 `inert` 状态，不读实现。
-- **按用例并行**：`fullyParallel: true`，本地 6 worker、CI 4。用例之间互不依赖（每条自带播种存档与新页面），所以不必按文件串行——否则一个 60 多秒的 spec 就是整轮的墙钟下限。实测 2 worker 按文件串行 ~78s → 6 worker 按用例并行 ~29s；加到 10 反而更慢（争抢 CPU 时单条用例自己会膨胀 2~3 倍）。
-- **trace 本地默认关**：`use.trace` 只在 CI 上录。实测同一套 194 条用例，开着 trace 44s、关掉 30s（+30%）。本地要看 DOM 快照时，单跑那一支并显式加 `--trace retain-on-failure`。
+- **按用例并行**：`fullyParallel: true`，本地 6 worker、CI 4。用例之间互不依赖（每条自带播种存档与新页面），所以不必按文件串行——否则一个 60 多秒的 spec 就是整轮的墙钟下限。拐点在 6~8，再往上反而更慢（争抢 CPU 时单条用例自己会膨胀）。耗时数字不进注释——会烂，见 [LESSONS.md](LESSONS.md#结构与单一来源)。
+- **trace 本地默认关**：`use.trace` 只在 CI 上录。录 trace 会让整轮慢三成左右。本地要看 DOM 快照时，单跑那一支并显式加 `--trace retain-on-failure`。
 - **固定定时器用 `page.clock` 快进，不要真等**：便条 2.5s 自动退场、备份确认框 4s 后弹出、开屏看门狗 1.5s——这三处各自只值一条断言，却能让整轮多数秒。`await page.clock.install()` 后 `runFor(...)` / `fastForward(...)`，断言的内容不变。注意时钟要在**定时器注册之前**接管（导航前 install，或在本用例触发该定时器之前 install）。
 - **巡检驱动 Tab 别用 `locator.click()`**：一次点击要走 actionability + 一次 expect 轮询，实测每枚 ~53ms；`visitAllTabs` 九枚加起来近 1s，而巡检要的只是「内容都渲染进 DOM」。改为一次 `page.evaluate` 里 `btn.click()` + 同步读面板 display，真实点击路径由导航用例覆盖。
 - **要真库就从 `node_modules` 读**：`flatpickr` 是 devDependency，日期选择器那条用例把 `dist/` 直接喂给 route（版本钉在 lock 里、断网可跑）。`test/e2e-hygiene.test.js` 扫 `e2e/` 禁止 `route.continue` / `unroute`——放行外网既慢又脆。
+- **临时探针一律叫 `e2e/_probe.spec.js`（`e2e/_*.spec.js` 已 gitignore）**：遇到「这段布局/这串数字到底是什么」时，现写一支量几何或截图的探针比读 CSS 猜快得多，也不进提交。定位慢用例用 `PLAYWRIGHT_JSON_OUTPUT_NAME=... --reporter=json` 再按 duration 排序——这是唯一可靠的办法，猜不出来。
 - **E2E 里禁止 `waitForTimeout` 睡眠**：`switchTab` 的 display 翻转、`setTheme` 的 classList 翻转都是同步的，用可见断言即可到位；固定等待会让主题巡检这类全 Tab 遍历的用例凭空多吃数秒（曾占全套时长的 1/3）。确需等待异步渲染时用 `expect.poll`。`test/e2e-hygiene.test.js` 扫 `e2e/*.spec.js` 把守这一条。
 - **进资产的入口只有 `fixtures.gotoAssets()` 一处**：它走键盘通道（合成 click 只抬闸）再抄写箴言——既不必等满按住时长，也顺带护住「不用鼠标的人不被挡在门外」这条路径；长按手势本身由 `app.spec.js` 的专测用真实鼠标覆盖。已在资产模式时为幂等（不再走门）。
 - **语言默认英文，播种要显式选中文**：既有用例的断言写的都是中文文案，`fixtures` 的 `EMPTY_STATE`/`blankPage` 已固定 `lang: 'zh'`；默认英文与切换本身由 `e2e/i18n.spec.js` 覆盖（含一次「英文界面无中文残留」的全 Tab + 弹窗巡检）。

@@ -2,6 +2,9 @@
 .pi/
 .scratch/
 
+# 临时探针 spec（_probe.spec.js / _shot.spec.js：量几何、截图用，不入库）
+e2e/_*.spec.js
+
 # 依赖与测试产物
 node_modules/
 e2e-results/

@@ -19,16 +19,14 @@ module.exports = defineConfig({
   // e2e/ 下不放 *.test.js（那是 node --test 的命名约定，见 test/e2e-server.test.js）
   testDir: './e2e',
   testMatch: '**/*.spec.js',
-  // 用例之间互不依赖（每条用例自带「播种存档 + 新页面」），所以按**用例**并行，
-  // 不必按文件串行——否则 app.spec.js 那 60 多秒会独占一个 worker，成为整轮的墙钟下限。
-  //
-  // 实测（12 逻辑核，194 条用例，本机，trace 关）：
-  //   按文件串行 · workers=2  ~78s
-  //   按用例并行 · workers=4  ~33s
-  //   按用例并行 · workers=6  ~29s   ← 默认
-  //   按用例并行 · workers=8  ~28s
-  //   按用例并行 · workers=10 ~29s   ← 不再下降：单条用例争抢 CPU 时自己会膨胀
-  // CI（ubuntu-latest 4 核）给 4。失败排查时用 --workers=1 复现。
+  // 用例之间互不依赖（每条用例自带「播种存档 + 新页面」），所以按**用例**并行：
+  // 按文件串行时最大的那个 spec 会独占一个 worker，成为整轮的墙钟下限。
+  // 拐点在 6~8 之间，再往上不再变快——单条用例争抢 CPU 时自己会膨胀。
+  // 耗时数字不写在这里（会烂一次，见 LESSONS「文档别缓存可变数字」）：要复现就
+  //   npx playwright test --workers=1   # 排查
+  //   PLAYWRIGHT_JSON_OUTPUT_NAME=e2e-results/pw.json npx playwright test --reporter=json
+  // 然后按 duration 排序（定位慢用例的唯一可靠方式）。
+  // CI（ubuntu-latest 4 核）给 4。
   fullyParallel: true,
   workers: process.env.CI ? 4 : 6,
   // 单测已经把契约钉死，E2E 只在 CI 上跑，失败即失败，不做重试掩盖
@@ -42,8 +40,8 @@ module.exports = defineConfig({
     // 相对路径（page.goto('index.html')）会拼在 baseURL 上，即本服务器的 http 地址；
     // 不用 file://：localStorage 在 file origin 下不可靠，且 route 拦截语义会漂（见 e2e/server.js 头注）
     baseURL: `http://127.0.0.1:${PORT}/`,
-    // trace 默认只在 CI 上录：本地实测它让整轮从 30s 涨到 44s（+30%），
-    // 而本地失败时截图 + 断言信息通常已够——需要 DOM 快照就单跑那个 spec：
+    // trace 默认只在 CI 上录：本地录它会让整轮慢三成左右，而本地失败时截图 + 断言信息
+    // 通常已够——需要 DOM 快照就单跑那个 spec：
     //   npx playwright test e2e/app.spec.js -g '用例名' --trace retain-on-failure
     trace: process.env.CI ? 'retain-on-failure' : 'off',
     screenshot: 'only-on-failure',
