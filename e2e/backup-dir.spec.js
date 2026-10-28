@@ -32,6 +32,9 @@ async function setup(page, opts = {}) {
     };
     if (cfg.noFsa) { delete window.showDirectoryPicker; delete window.showSaveFilePicker; }
   }, opts);
+  // 自动备份的确认框在 4 秒后才弹（Backup prompt delay）。作者要的是「打开几秒后问一次」，
+  // 但测试没必要真等：`page.clock` 让这个定时器可以被快进，断言的内容一模一样。
+  if (opts.clock) await page.clock.install();
   await page.goto(INDEX_URL);
   await waitReady(page);
 }
@@ -133,7 +136,7 @@ test('不支持文件 API 时回退下载：中性提示，不虚报已备份', 
 });
 
 test('自动备份先弹确认框（写清文件名与目录），点确认才落盘、才记「已备份」', async ({ page }) => {
-  await setup(page, { autoFreq: 'daily' });
+  await setup(page, { autoFreq: 'daily', clock: true });
   // 4 秒定时器读的是当前句柄：加载后立刻选文件夹，确认框就会写上这个目录名
   await page.evaluate(() => showSettings());
   await page.click('#backup-dir-choose');
@@ -142,7 +145,8 @@ test('自动备份先弹确认框（写清文件名与目录），点确认才�
   await page.evaluate(() => closeModal('settings-modal'));
 
   const base = `wealth-data-${today()}.json`;
-  await expect(confirmBox(page)).toBeVisible({ timeout: 12000 });
+  await page.clock.runFor(4200); // 快进那 4 秒的「打开几秒后问一次」
+  await expect(confirmBox(page)).toBeVisible();
   await expect(page.locator('#confirm-title')).toHaveText('自动备份');
   await expect(page.locator('#confirm-msg')).toContainText(base);
   if (dirName) await expect(page.locator('#confirm-msg')).toContainText(dirName);
@@ -158,10 +162,11 @@ test('自动备份先弹确认框（写清文件名与目录），点确认才�
 });
 
 test('自动备份点取消：不写盘、不记状态，当天再进来还会再问一次', async ({ page }) => {
-  await setup(page, { autoFreq: 'daily', cancelSave: true });
+  await setup(page, { autoFreq: 'daily', cancelSave: true, clock: true });
   const base = `wealth-data-${today()}.json`;
 
-  await expect(confirmBox(page)).toBeVisible({ timeout: 12000 });
+  await page.clock.runFor(4200);
+  await expect(confirmBox(page)).toBeVisible();
   await confirmOk(page);
   await expect(page.locator('#toast-area')).toContainText('已取消备份');
   expect(await listRoot(page)).not.toContain(base);
@@ -170,5 +175,6 @@ test('自动备份点取消：不写盘、不记状态，当天再进来还会�
   // 用户实测的 bug：「取消后第二次进来就没了」——旧实现把回退下载记成节流，当天不再问
   await page.reload();
   await waitReady(page);
-  await expect(confirmBox(page)).toBeVisible({ timeout: 12000 });
+  await page.clock.runFor(4200);
+  await expect(confirmBox(page)).toBeVisible();
 });

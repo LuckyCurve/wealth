@@ -10,6 +10,7 @@
     "test:all": "node --test && playwright test"
   },
   "devDependencies": {
-    "@playwright/test": "1.63.0"
+    "@playwright/test": "1.63.0",
+    "flatpickr": "^4.6.13"
   }
 }

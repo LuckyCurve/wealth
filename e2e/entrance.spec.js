@@ -105,9 +105,12 @@ test.describe('开屏：落纸入场', () => {
     await seed(page, sampleState());
     // 阻断应用脚本：只加 booting、永远等不到 ready
     await page.route('**/logic.js', (r) => r.abort());
+    // 时钟必须在导航前接管（看门狗的 setTimeout 是加载时注册的）
+    await page.clock.install();
     await page.goto('index.html');
     await expect(page.locator('html')).toHaveClass(/\bbooting\b/);
-    await expect.poll(async () => page.evaluate(() => document.documentElement.className), { timeout: 4000 })
-      .toContain('ready');
+    // 看门狗是 1.5s 的定时器：接管时钟后快进，不必真等（要验的是「它会不会自己放行」）
+    await page.clock.runFor(1600);
+    await expect(page.locator('html')).toHaveClass(/\bready\b/);
   });
 });

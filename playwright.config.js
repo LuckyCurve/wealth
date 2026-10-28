@@ -19,11 +19,18 @@ module.exports = defineConfig({
   // e2e/ 下不放 *.test.js（那是 node --test 的命名约定，见 test/e2e-server.test.js）
   testDir: './e2e',
   testMatch: '**/*.spec.js',
-  // workers=2 为实测拐点：1→2 约快 40%，2→4 不再下降（主题巡检用例本身是串行长尾）。
-  // 本地与 CI（ubuntu-latest 4 核）都安全：每个 worker 是独立浏览器进程，约 300MB。
-  // 串行跑完约 31s，并行约 20s；失败排查时可用 --workers=1 复现。
-  fullyParallel: false,
-  workers: 2,
+  // 用例之间互不依赖（每条用例自带「播种存档 + 新页面」），所以按**用例**并行，
+  // 不必按文件串行——否则 app.spec.js 那 60 多秒会独占一个 worker，成为整轮的墙钟下限。
+  //
+  // 实测（12 逻辑核，194 条用例，本机，trace 关）：
+  //   按文件串行 · workers=2  ~78s
+  //   按用例并行 · workers=4  ~33s
+  //   按用例并行 · workers=6  ~29s   ← 默认
+  //   按用例并行 · workers=8  ~28s
+  //   按用例并行 · workers=10 ~29s   ← 不再下降：单条用例争抢 CPU 时自己会膨胀
+  // CI（ubuntu-latest 4 核）给 4。失败排查时用 --workers=1 复现。
+  fullyParallel: true,
+  workers: process.env.CI ? 4 : 6,
   // 单测已经把契约钉死，E2E 只在 CI 上跑，失败即失败，不做重试掩盖
   retries: 0,
   forbidOnly: !!process.env.CI,
@@ -35,7 +42,10 @@ module.exports = defineConfig({
     // 相对路径（page.goto('index.html')）会拼在 baseURL 上，即本服务器的 http 地址；
     // 不用 file://：localStorage 在 file origin 下不可靠，且 route 拦截语义会漂（见 e2e/server.js 头注）
     baseURL: `http://127.0.0.1:${PORT}/`,
-    trace: 'retain-on-failure',
+    // trace 默认只在 CI 上录：本地实测它让整轮从 30s 涨到 44s（+30%），
+    // 而本地失败时截图 + 断言信息通常已够——需要 DOM 快照就单跑那个 spec：
+    //   npx playwright test e2e/app.spec.js -g '用例名' --trace retain-on-failure
+    trace: process.env.CI ? 'retain-on-failure' : 'off',
     screenshot: 'only-on-failure',
     video: 'off',
   },

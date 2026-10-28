@@ -945,9 +945,13 @@ test.describe('弹窗与提示', () => {
   test('提示便条是唯一出口且会自动退场', async ({ appPage: page }) => {
     await page.locator('#tab-expenses button:has-text("记录消费")').click();
     await page.fill('#expense-amount', '0');
+    // 便条 2.5s 后自己退场：真等就是每条用例白烧 2.5s。这里接管页面时钟后快进，
+    // 断言的东西一模一样（是不是自己消失、有没有留残影）。
+    await page.clock.install();
     await page.locator('#expense-form button:has-text("保存")').click();
     await expect(page.locator('#toast-area .toast', { hasText: '金额必须大于 0' })).toBeVisible();
-    await expect(page.locator('#toast-area .toast', { hasText: '金额必须大于 0' })).toBeHidden({ timeout: 10000 });
+    await page.clock.runFor(3000);
+    await expect(page.locator('#toast-area .toast', { hasText: '金额必须大于 0' })).toBeHidden();
   });
 
   test('错误的播报档位是 assertive，成功/知会是 polite（读屏器只认 live region 的档位）', async ({ appPage: page }) => {

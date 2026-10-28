@@ -278,10 +278,23 @@ async function gotoAssets(page, tab) {
  * 固定等待会让每个主题用例凭空多吃 2s——Theme spec 是全套最慢的，这里是主战场。
  */
 async function visitAllTabs(page) {
+  // 一次往返完成「点这枚 Tab + 断言它的面板翻上来」：面板翻转是同步的（见 switchTab），
+  // 所以判断可以在同一个 evaluate 里做完。为什么不用 locator.click()：那要走一遍
+  // actionability（可见/稳定/可接收事件）+ 一次 expect 轮询，实测每枚 Tab 约 53ms，
+  // 九枚加上模式切换近 1s——而巡检要的只是「内容都渲染进 DOM」，真实点击路径由
+  // app.spec.js 的导航用例覆盖（那里点的是用户真的会点的东西）。
   const showPanel = async (bar, tab) => {
-    await page.locator(`${bar} .tab-btn[data-tab="${tab}"]`).click();
-    // 面板翻转同步发生：直接断言，不 sleep
-    await expect(page.locator(`#tab-${tab}`)).toBeVisible();
+    const shown = await page.evaluate(
+      ([b, t]) => {
+        const btn = document.querySelector(`${b} .tab-btn[data-tab="${t}"]`);
+        if (!btn) return 'missing';
+        btn.click();
+        const panel = document.getElementById('tab-' + t);
+        return panel && panel.style.display !== 'none' ? 'ok' : 'hidden';
+      },
+      [bar, tab]
+    );
+    expect(shown, `${bar} → ${tab} 的面板没翻上来`).toBe('ok');
   };
   await gotoAssets(page);
   for (const t of ['assets', 'categories', 'chart', 'history', 'income']) await showPanel('#tabs-assets', t);

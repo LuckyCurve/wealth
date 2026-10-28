@@ -239,14 +239,27 @@ test.describe('弹窗打开时背景不可交互', () => {
  */
 test.describe('背景冻结不误伤「当前弹窗的延伸」', () => {
   test('弹窗里的日期选择器仍可选日期（日历挂在 body 下也不算背景）', async ({ page }) => {
-    // flatpickr 在 fixtures 里是空壳，这里要真的库：直接从 CDN 拉一份
-    await page.route('**/flatpickr**', (route) => route.continue());
-    await page.route('**/cdn.jsdelivr.net/**', (route) => route.continue());
+    // flatpickr 在 fixtures 里是空壳，这里要**真的库**（日历由库自己挂到 body 下，正是被判据漏掉的那类层）。
+    // 但不能放行外网：cdn.jsdelivr 那 300KB 是每轮 3~4s，且断网即红——
+    // 改为从 devDependency `flatpickr` 读同一份 dist（版本钉在 package-lock，离线可跑）。
+    const fs = require('fs');
+    const path = require('path');
+    const FP = path.dirname(require.resolve('flatpickr/package.json'));
+    const flatpickrRoutes = {
+      js: fs.readFileSync(path.join(FP, 'dist/flatpickr.js'), 'utf8'),
+      css: fs.readFileSync(path.join(FP, 'dist/flatpickr.min.css'), 'utf8'),
+      zh: fs.readFileSync(path.join(FP, 'dist/l10n/zh.js'), 'utf8'),
+    };
     const { stubCdn, seed, waitReady, sampleState, disableMotion, INDEX_URL } = require('./fixtures');
     await disableMotion(page);
     await stubCdn(page);
-    await page.unroute('**/flatpickr**');
-    await page.route('**/flatpickr**', (route) => route.continue());
+    // route 后注册者优先：具体替身必须压在 stubCdn 的兜底之上
+    await page.route('**/flatpickr**', (route) => {
+      const url = route.request().url();
+      if (url.endsWith('.css')) return route.fulfill({ status: 200, contentType: 'text/css', body: flatpickrRoutes.css });
+      if (url.includes('/l10n/zh')) return route.fulfill({ status: 200, contentType: 'text/javascript', body: flatpickrRoutes.zh });
+      return route.fulfill({ status: 200, contentType: 'text/javascript', body: flatpickrRoutes.js });
+    });
     await seed(page, sampleState());
     await page.goto(INDEX_URL);
     await waitReady(page);
