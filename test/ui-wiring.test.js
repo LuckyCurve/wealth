@@ -106,8 +106,9 @@ describe('UI 接线契约：统一提示便条（右下角单一出口）', () =
 
   test('三种语义色齐全：success/error/info 各有亮暗两套样式', () => {
     for (const t of ['success', 'error', 'info']) {
-      assert.match(html, new RegExp(`\\.toast-${t} \\{`), `.toast-${t} 亮色样式存在`);
-      assert.match(html, new RegExp(`\\.dark \\.toast-${t} \\{`), `.toast-${t} 暗色样式存在`);
+      // 选择器可能与其他同色系规则合并（`.toast-success, .mo-badge.up`）：只要求它带了样式
+      assert.match(html, new RegExp(`\\.toast-${t}\\s*[,{]`), `.toast-${t} 亮色样式存在`);
+      assert.match(html, new RegExp(`\\.dark \\.toast-${t}\\s*[,{]`), `.dark .toast-${t} 暗色样式存在`);
     }
   });
 
@@ -3628,5 +3629,28 @@ describe('UI 接线契约：动效节奏（两档微反馈 + 编排档，不得�
     }
     const unknown = [...found].filter((v) => !known.has(v));
     assert.deepStrictEqual(unknown, [], `这些时长不在档位里：${unknown.join(', ')}（加档位先问一句「哪一档不够用」）`);
+  });
+});
+
+describe('UI 接线契约：排版细节（断行与中英混排）', () => {
+  const css = stripComments(html);
+  // 只认行首即该选择器的规则：`html.modal-open body {` 这类组合器不算 `body {`
+  const body = (sel) => {
+    const esc = sel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const m = css.match(new RegExp(`(?:^|\\n)\\s*${esc}\\s*\\{([^}]*)\\}`));
+    assert.ok(m, `找不到规则 ${sel}`);
+    return m[0];
+  };
+
+  test('标题断行要匀（text-wrap: balance），不要最后一行只剩一个字', () => {
+    for (const sel of ['.section-head h2', '.modal-title']) {
+      assert.match(body(sel), /text-wrap:\s*balance/, `${sel} 需要 text-wrap: balance（长标题的孤字是账页上最显眼的一处毛边）`);
+    }
+  });
+
+  test('中英混排自动加间隙（text-autospace）', () => {
+    // 中文与数字/拉丁字母之间没有词边界，默认挤在一起（「消费记录3笔」）。
+    // 不支持该属性的浏览器整条忽略，不影响排版。
+    assert.match(body('body'), /text-autospace:/, 'body 需要 text-autospace');
   });
 });

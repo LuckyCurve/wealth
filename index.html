@@ -270,7 +270,7 @@ tailwind.config = {
   /* 弹窗开着时背景不可滚（真正的锁在 JS：按「还有几层开着」派生，见 syncScrollLock）。
      这里只声明锁住时的形态，条件类名由那一处写。 */
   html.modal-open, html.modal-open body { overflow: hidden; }
-  body { background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: var(--fs-body); font-weight: var(--fw-medium); font-feature-settings: 'tnum' 1; padding-bottom: env(safe-area-inset-bottom, 0px); }
+  body { background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: var(--fs-body); font-weight: var(--fw-medium); font-feature-settings: 'tnum' 1; padding-bottom: env(safe-area-inset-bottom, 0px); text-autospace: normal; }
   /* ===== 纸纹与桌光：这个产品的隐喻是「一张摊在桌面上、被灯照着的账页」=====
      三层各司其职：
      ①  body::after  = 桌面（静止的、铺满视口的**光照层次**）
@@ -295,14 +295,6 @@ tailwind.config = {
       radial-gradient(115% 62% at 14% 58%, var(--desk-lit), transparent 62%),
       linear-gradient(168deg, transparent 46%, var(--desk-fall));
   }
-  /* 纸纹（纸纤维）= feTurbulence 生成的非周期噪声。
-     为何换掉周期十字纹：同一根笔画每隔 60px 精确复现一次，放大或贴近看时最先看见的是
-     那个周期——读起来是「坐标纸」而不是纸。纤维是无序的。
-     为何是「斑点」而不是「一层灰膜」：alpha 由噪声自己的 alpha 通道反相得来（feColorMatrix
-     末行），像素要么接近透明、要么是深墨点；整层不透明度乘上去后，纸只长「齿」，不会被
-     一颗均匀的灰蒙住。
-     为何用 background-image 平铺而不是 filter 盖在内容上：平铺的 SVG 只会被光栅化一次，
-     而全屏 filter 层会在每帧重新求值（滚动的头号卡顿源）。 */
   /* 纸纹 = 非周期纤维（定义在 --grain）。为何不用周期十字纹：同一根笔画每隔 60px 精确复现一次，
      最亮眼的就是那个周期（读起来是坐标纸）。为何平铺而不是全屏 filter：后者每帧重新求值。 */
   body::before {
@@ -696,7 +688,7 @@ tailwind.config = {
   }
   /* 弹窗标题下间距与页脚布局收在这里: 原先标题有 mb-2/3/4/6 四种、页脚 mt-6/mt-8 混用、
      有的页脚忘写 gap-3 两按钮贴在一起, 同类弹窗高矮不一 */
-  .modal-title { font-size: var(--fs-modal); font-weight: var(--fw-bold); margin-bottom: 24px; }
+  .modal-title { font-size: var(--fs-modal); font-weight: var(--fw-bold); margin-bottom: 24px; text-wrap: balance; }
   .modal-footer { display: flex; align-items: center; justify-content: flex-end; gap: 12px; margin-top: 32px; }
   .modal-footer.between { justify-content: space-between; }
   /* 章节线: 与 section-head/empty-rule 同一结构语言, 每个弹窗如账页新起一章 */
@@ -967,11 +959,11 @@ tailwind.config = {
   .toast.leaving { transform: translateY(6px); visibility: hidden; }
   /* 与 mo-badge 同色系: 提示即一张盖在账页上的便条。三种墨色=三种语义:
      绿=操作已落账 / 红=出错待处理 / 金墨边注(info)=系统自己的中性知会，注意但不报警 */
-  .toast-success { background: #e8f5ec; color: #3d7a52; border-color: #b8dfc4; }
-  .toast-error { background: #fce8e0; color: var(--down); border-color: #f0c8b8; }
+  .toast-success, .mo-badge.up { background: #e8f5ec; color: #3d7a52; border-color: #b8dfc4; }
+  .toast-error, .mo-badge.down { background: #fce8e0; color: var(--down); border-color: #f0c8b8; }
   .toast-info { background: #f8f1de; color: var(--accent-ink); border-color: #e3d3a3; }
-  .dark .toast-success { background: #1c2a20; color: #7ba995; border-color: #2d4435; }
-  .dark .toast-error { background: #2a1c1a; color: #d98a86; border-color: #4a2c2a; }
+  .dark .toast-success, .dark .mo-badge.up { background: #1c2a20; color: #7ba995; border-color: #2d4435; }
+  .dark .toast-error, .dark .mo-badge.down { background: #2a1c1a; color: #d98a86; border-color: #4a2c2a; }
   .dark .toast-info { background: #292214; color: var(--accent-ink); border-color: #453a20; }
   /* 图标：尺寸/描边只在此处定义（24 网格线稿，1em 跟随所在档位字号）。
      inline 用 baseline 微调，免得图标把行高顶起来（Tab 栏高度会连带跳）。 */
@@ -1282,12 +1274,9 @@ tailwind.config = {
   .composition-legend { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: var(--fs-micro); color: var(--muted); font-variant-numeric: tabular-nums; }
   .composition-legend .dot { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 5px; transform: translateY(0px); }
   /* 涨跌徽章（历史净值环比 / 目标达成） */
+  /* 与 mo-badge 同色系（二者共用上面 .toast-* 那两条本体，故上色只写一次） */
   .mo-badge { display: inline-flex; align-items: center; padding: 1px 7px; border-radius: 4px; font-size: var(--fs-micro); font-weight: var(--fw-strong); font-family: var(--font-body); border: 1px solid; line-height: 1.6; white-space: nowrap; }
-  .mo-badge.up { background: #e8f5ec; color: #3d7a52; border-color: #b8dfc4; }
-  .mo-badge.down { background: #fce8e0; color: var(--down); border-color: #f0c8b8; }
   .mo-badge.first { background: var(--bg-2); color: var(--muted); border-color: var(--border); }
-  .dark .mo-badge.up { background: #1c2a20; color: #7ba995; border-color: #2d4435; }
-  .dark .mo-badge.down { background: #2a1c1a; color: #d98a86; border-color: #4a2c2a; }
   .dark .mo-badge.first { background: var(--card-2); color: var(--muted); border-color: var(--border); }
   /* 目标净资产面板（独立浅色底容器, 与货币构成条区分）。
      空态与满态同为「一行」：左写这行是什么、右放动作——只塞一枚按钮的大框会被读成输入框。 */
@@ -1350,7 +1339,7 @@ tailwind.config = {
   /* ===== Section headers (eyebrow + title) =====
      布局（左标题组 / 右操作区、窄屏换行）归 CSS: 原先每处复制一遍类串, 还漏过一处 */
   .section-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
-  .section-head h2 { font-size: var(--fs-section); font-weight: var(--fw-bold); letter-spacing: -0.005em; }
+  .section-head h2 { font-size: var(--fs-section); font-weight: var(--fw-bold); letter-spacing: -0.005em; text-wrap: balance; }
   /* 眉标（eyebrow）: 全站同一支——品牌副标、区块眉标、报头眉标共用，
      字号/字距/大写/颜色只此一处（原品牌副标单独写了一套 0.2em + Tailwind tracking 类） */
   .eyebrow, .section-head .eyebrow {
