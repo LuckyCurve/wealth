@@ -917,6 +917,43 @@ test.describe('可读性：文字对比度达 AA（亮/暗两套）', () => {
  * 档位一致性：文字只两档字号 + 三档字重，同档元素在真实浏览器里算出来必须一模一样。
  * 漏挂档位类（或挂了又被别的规则覆盖）会在这里现形——单测只能看 HTML 文本。
  */
+/*
+ * 设置弹窗在窄屏上的折叠形态。
+ * --------------------------------------------------------------------------
+ * 用户实测（窄窗口）：每行「标题 / 说明 / 控件」全挤成一条左栏，按钮还几乎贴住下面的发丝线，
+ * 看起来像布局坏了。规则其实一直存在（`.setting-row` 允许换行），坏的是换行之后的样子：
+ * 控件跑到左边就失去了「控件列」的语义，发丝线又只靠 `<hr>` 的默认 0.5em 撑开。
+ * 判据从页面自身求值（不写死像素）：控件右边缘与行右边缘对齐、控件在说明文字下方不重叠、
+ * 分隔线上下各留出可见呼吸。
+ */
+test.describe('版式一致性：窄屏设置行折叠后仍是「标签列 / 控件列」', () => {
+  test('控件换行后贴右边缘、与说明不重叠，分隔线上下留白', async ({ appPage: page }) => {
+    await page.setViewportSize({ width: 420, height: 900 });
+    await page.locator('header button[onclick="showSettings()"]').click();
+    await expect(page.locator('#settings-modal')).toBeVisible();
+
+    const report = await page.evaluate(() => {
+      const bad = [];
+      for (const row of document.querySelectorAll('#settings-modal .setting-row')) {
+        const ctl = row.querySelector('.seg-control, .setting-actions');
+        if (!ctl) continue;
+        const info = row.querySelector('.setting-info');
+        const r = row.getBoundingClientRect();
+        const c = ctl.getBoundingClientRect();
+        const i = info.getBoundingClientRect();
+        if (Math.abs(c.right - r.right) > 1) bad.push(`${row.querySelector('.setting-label')?.textContent}: 控件右边缘 ${Math.round(c.right)} ≠ 行右缘 ${Math.round(r.right)}`);
+        if (c.top < i.bottom - 1 && c.left < i.right - 1) bad.push(`${row.querySelector('.setting-label')?.textContent}: 控件压住了说明文字`);
+      }
+      const hr = getComputedStyle(document.querySelector('#settings-modal hr'));
+      return { bad, mt: parseFloat(hr.marginTop), mb: parseFloat(hr.marginBottom) };
+    });
+
+    expect(report.bad, '窄屏设置行折叠后应右对齐且不重叠').toEqual([]);
+    expect(report.mt, '分隔线上方要有可见留白（默认 0.5em 会让按钮贴线）').toBeGreaterThanOrEqual(12);
+    expect(report.mb, '分隔线下方同理').toBeGreaterThanOrEqual(12);
+  });
+});
+
 test.describe('版式一致性：排版档位在真实浏览器里唯一', () => {
   test('同档元素字号/字重唯一', async ({ appPage: page }) => {
     await visitAllTabs(page);

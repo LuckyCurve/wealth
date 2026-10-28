@@ -1003,6 +1003,13 @@ tailwind.config = {
   .mode-press.pressing { color: var(--fg); background: var(--card-2); }
   /* ===== 设置弹窗: 账本「凡例」页 —— 每条设置如一条目录, 标签居左、控件居右、发丝线分章 ===== */
   .setting-row { display: flex; align-items: center; justify-content: space-between; gap: 14px 24px; flex-wrap: wrap; }
+  /* 窄屏放不下时控件换到下一行——**贴着右边缘**：左对齐会让整页塌成一条左栏，
+     控件像是说明文字的一部分。右对齐把「标签列 / 控件列」的语义保留到手机上。
+     两条发丝线的呼吸由 hr 的上下外边距承担（默认 0.5em 会让按钮几乎贴住分隔线）。 */
+  @media (max-width: 720px) {
+    .setting-row > .seg-control, .setting-row > .setting-actions { margin-left: auto; }
+  }
+  .modal-content hr { margin: 20px 0; }
   .setting-info { flex: 1 1 260px; min-width: 200px; }
   .setting-label { font-size: var(--fs-body); font-weight: var(--fw-strong); }
   .setting-desc { font-size: var(--fs-body); color: var(--muted); margin-top: 4px; line-height: 1.7; }
