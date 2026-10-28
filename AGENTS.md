@@ -11,7 +11,7 @@ test/                 # node --test（logic / ui-wiring 契约 / e2e-server / si
 e2e/                  # Playwright 端到端（app / i18n / theme / consistency / glass-material / chart-resize / entrance + fixtures.js + server.js）
 playwright.config.js
 package.json          # 仅 devDependency: @playwright/test（无构建步骤）
-.github/workflows/    # CI：三平台 node --test + Linux Playwright E2E
+.github/workflows/    # CI：node --test（ubuntu + windows）+ Linux Playwright E2E
 AGENTS.md             # 路标：结构、命令、怎么提交
 LESSONS.md            # 踩过的坑与原因（改哪块读哪节）
 GLOSSARY.md           # 领域术语（下拉控件 / 下拉弹层 / 巡检）
@@ -169,6 +169,8 @@ interface Expense {
 ## 端到端测试（Playwright）
 
 真实浏览器里跑一遍：`npm run test:e2e`（`npx playwright test`）。跑在 `e2e/`，与 `node --test` 的 `test/` 完全分开（后者只拾取 `test/*.test.js`）。CI 上 Linux + chromium 单矩阵即可，E2E 验证的是应用行为、与 OS 无关。
+
+CI 的单元测试只跑 **ubuntu + windows** 两平台：macOS 与 ubuntu 同为 POSIX，`node --test` 又是纯逻辑 + 读文件，多那一行几乎不产生新信号，而 macos runner 供给最不稳（2026-10-27 排了 15 分钟没分到机器，任务被判「取消」，看起来像代码红了）。真差异在 windows 那一侧（路径、换行、文件编码）。
 
 - **不访问外网**：汇率 / echarts / tailwind / flatpickr / 字体全部 `page.route` stub（见 `e2e/fixtures.js`）。要测的是应用自身行为，不是 CDN 可用性；断网也能跑。想验真实库行为时不要临时放行外网——要么把要断言的东西做成纯 DOM，要么承认替代物看不见，并在本地用像素/量测确认。
 - **Tailwind 在 E2E 里是空壳**：`window.tailwind = {}`，所以工具类（`flex`/`gap-3`/`grid-cols-2`）在 E2E 里不生效——截图不能用来验收 Tailwind 布局。这也是「版式规格必须写在自有 CSS 里」的原因之一。

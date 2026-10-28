@@ -13,10 +13,17 @@ jobs:
   test:
     name: 运行单元测试 (node --test · ${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    # 上限比实际耗时（<30s）宽很多，只用来兜「卡住」：某次 macOS 任务等了 15 分钟没分配到
+    # runner，最后被判取消——没有上限的话这种等待会一直挂着。
+    timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        # 两平台：ubuntu（POSIX 基线）+ windows（路径/换行/文件编码这些真差异都在这一侧）。
+        # 2026-10-28 去掉 macOS：它与 ubuntu 同为 POSIX，node --test 是纯逻辑 + 读文件，多它一行
+        # 几乎不产生新信号；而 macos runner 供给最不稳（10-27 那次排了 15 分钟没拿到机器，
+        # 任务被判「取消」，看着像我们的代码红了）。
+        os: [ubuntu-latest, windows-latest]
     steps:
       - name: 检出代码
         uses: actions/checkout@v7
@@ -53,7 +60,7 @@ jobs:
       # 缓存 key 带上 package-lock 的 playwright 版本，升级 playwright 时自动失效重装。
       - name: 缓存 Playwright 浏览器
         id: pw-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.cache/ms-playwright
           key: ${{ runner.os }}-playwright-${{ hashFiles('package-lock.json') }}
@@ -67,7 +74,7 @@ jobs:
 
       - name: 上传失败用例的 trace / 截图
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: playwright-results
           path: e2e-results/
