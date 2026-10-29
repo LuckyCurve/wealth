@@ -694,12 +694,15 @@ test.describe('图表初始化与空态', () => {
     await gotoAssetsTab(page, 'chart');
     await expect(page.locator('#sunburst-chart')).toBeVisible();
     await expect(page.locator('#chart-empty')).toBeHidden();
-    // 图表渲染排在新面板布局好之后（afterTabPaint），init 晚于容器可见
+    // 图表渲染排在新面板布局好之后（afterTabPaint），init 晚于容器可见。
+    // 图表库是**按需加载**的：脚本注入途中 `__echartsCalls` 还不存在，
+    // 裸读会抛 TypeError，而 expect.poll 遇到抛错是直接失败、不重试（同文件其它调用点早已加上守卫，
+    // 这两处漏了，症状是「本机必红、CI 绿」的假红/假绿摇摆）。
     await expect
-      .poll(() => page.evaluate(() => window.__echartsCalls.init))
+      .poll(() => page.evaluate(() => (window.__echartsCalls ? window.__echartsCalls.init : [])))
       .toContain('sunburst-chart');
     await expect
-      .poll(() => page.evaluate(() => window.__echartsCalls.setOption.length))
+      .poll(() => page.evaluate(() => (window.__echartsCalls ? window.__echartsCalls.setOption.length : 0)))
       .toBeGreaterThan(0);
   });
 
