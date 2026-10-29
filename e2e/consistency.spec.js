@@ -1396,3 +1396,70 @@ test.describe('版式一致性：真实数据下的读数层级', () => {
     await once(await uniqStyles(page, '#tagcheck-modal .card-title-sm', ['fontSize', 'fontWeight']));
   });
 });
+
+test.describe('版式：弹窗宽度的四档真的生效', () => {
+  test('每个弹窗的实际宽度等于它挂的档位', async ({ appPage: page }) => {
+    // `.modal-sm/.modal-md/.modal-lg/.modal-xl` 与 `.modal-content { max-width }` 的特异性都是
+    // 单类，**同特异性下后写者胜**：四档曾写在 .modal-content 之前，于是 17 个弹窗无一例外
+    // 全都卡在 560px，改档位毫无效果（设置弹窗因此只有 480 却被压在 560，仍显挤）。
+    // 判据从页面自身求值，不写死弹窗清单。
+    const EXPECT = { '': 560, 'modal-sm': 400, 'modal-md': 480, 'modal-lg': 720, 'modal-xl': 960 };
+    const rows = await page.evaluate(() => {
+      return [...document.querySelectorAll('.modal-overlay')].map((ov) => {
+        const c = ov.querySelector('.modal-content');
+        if (!c) return null;
+        const tier = ['modal-sm', 'modal-md', 'modal-lg', 'modal-xl'].find((t) => c.classList.contains(t)) || '';
+        const prev = ov.style.display;
+        ov.style.display = 'flex'; // 量完还原：不改变用例原有的页面状态
+        const w = c.getBoundingClientRect().width;
+        ov.style.display = prev;
+        return { id: ov.id, tier, w: Math.round(w) };
+      }).filter(Boolean);
+    });
+    expect(rows.length).toBeGreaterThan(10);
+    const bad = rows
+      .filter((r) => Math.abs(r.w - EXPECT[r.tier]) > 1)
+      .map((r) => `#${r.id} 挂 ${r.tier || 'default'} = ${r.w}px（应为 ${EXPECT[r.tier]}px）`);
+    expect(bad, '档位必须定义在 .modal-content 之后，否则四档全部失效：' + bad.join(' / ')).toEqual([]);
+    // 四档都不是死档：某一档没人用时，它是不是生效不会有人发现
+    for (const tier of ['modal-sm', 'modal-md', 'modal-lg', 'modal-xl']) {
+      expect(rows.some((r) => r.tier === tier), `档位 ${tier} 没有任何弹窗在用`).toBe(true);
+    }
+  });
+});
+
+test.describe('版式：设置行的标签列 / 控件列', () => {
+  test('控件永远贴右（换行时也一样），且不越出行右缘', async ({ appPage: page }) => {
+    // 用户原话：「按钮都放在右边，这样看着整齐一些，现在很潦草」——描述一长，控件会换行，
+    // 而换行后左对齐会让它看着像说明文字的一部分，与上下几行的右对齐对不上。
+    // 判据是运行时几何，不写死行清单：宽屏与窄屏各量一次。
+    for (const vw of [1280, 390]) {
+      await page.setViewportSize({ width: vw, height: 800 });
+      await page.evaluate(() => showSettings());
+      await expect(page.locator('#settings-modal')).toBeVisible();
+      // 开场不得跳到底：参数类输入框抢首焦点会把整层滚到最下面
+      const top = await page.evaluate(() => {
+        const m = document.getElementById('settings-modal').querySelector('.modal-content');
+        return { scrollTop: m.scrollTop, active: document.activeElement && document.activeElement.id };
+      });
+      expect(top.scrollTop, '打开设置不得自己滚到底（参数类控件不得抢首焦点）').toBe(0);
+      expect(top.active, '首焦点应落在顶部的设置项上').not.toBe('snapshot-reminder-days');
+      const bad = await page.evaluate(() => {
+        return [...document.querySelectorAll('#settings-modal .setting-row')].map((row) => {
+          const ctl = row.querySelector('.seg-control, .setting-actions');
+          if (!ctl) return null;
+          const a = row.getBoundingClientRect();
+          const b = ctl.getBoundingClientRect();
+          const label = (row.querySelector('.setting-label') || {}).textContent || '?';
+          const gap = Math.round(a.right - b.right);
+          if (Math.abs(gap) > 1) return `${label}: 控件离右缘 ${gap}px`;
+          if (b.top < a.top - 1 || b.bottom > a.bottom + 1) return `${label}: 控件越出了本行`;
+          return null;
+        }).filter(Boolean);
+      });
+      expect(bad, `${vw}px 宽下控件必须贴右且不越界: ` + bad.join(' / ')).toEqual([]);
+      await page.evaluate(() => closeModal('settings-modal'));
+    }
+    await page.setViewportSize({ width: 1280, height: 800 });
+  });
+});

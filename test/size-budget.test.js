@@ -37,7 +37,11 @@ const ROOT = path.join(__dirname, '..');
 // 设置行复用 .setting-row/.setting-actions/.seg-control，弹窗复用 .modal-sm 与既有的 modal-footer，
 // 新增 CSS 只有 .snap-days 两条；两个 setter 压成一行。剩下的只能是标记本身。
 // 本轮之后同方向的增改请先在这个文件里写「试过什么」。
-const INDEX_BUDGET = 407_000;
+// 2026-10-29 再从 407,000 抬到 409,000：设置弹窗变宽 + 弹窗四档生效。
+// 抬之前的真实原因是注释——四档失效与「控件贴右」都得把 why 写在规则旁（否则下一个人
+// 会把档位挪回 .modal-content 前面、或把 margin-left:auto 又收进媒体查询里），
+// 这里没有可下沉的纯逻辑（全是级联与盒模型），内联样式也是收回而非新增。
+const INDEX_BUDGET = 409_000;
 
 function bytes(name) {
   return fs.statSync(path.join(ROOT, name)).size;

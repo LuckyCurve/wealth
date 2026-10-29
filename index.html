@@ -246,11 +246,6 @@ tailwind.config = {
   .select-field { min-width: 160px; }
   /* 小号元信息标签（收益摘要口径名 / 对比弹窗筛选标签）: 字号+字距只此一处 */
   .meta-label { font-size: var(--fs-body); font-weight: var(--fw-medium); letter-spacing: 0.06em; }
-  /* 弹窗宽度四档（默认 560px）: 尺寸语汇收在这里, 弹窗结构里不再逐个内联 max-width */
-  .modal-sm { max-width: 400px; }
-  .modal-md { max-width: 480px; }
-  .modal-lg { max-width: 720px; }
-  .modal-xl { max-width: 960px; }
   /* 对比弹窗读数行（快照/消费共用）: 大字与右侧上下文同一种排法 */
   .compare-hero-row {
     display: flex; align-items: flex-end; justify-content: space-between;
@@ -691,6 +686,14 @@ tailwind.config = {
     box-shadow: 0 20px 60px rgba(0,0,0,0.15); animation: slideUp 0.25s ease;
     border: 1px solid var(--border);
   }
+  /* 弹窗宽度四档（默认 560px）: 尺寸语汇收在这里, 弹窗结构里不再逐个内联 max-width。
+     **必须定义在 .modal-content 之后**：两边的特异性都是单类，同特异性下后写者胜——
+     写在前面的时候四档全部阵亡、所有弹窗恒为 560px（实测 17 个弹窗无一例外）。
+     consistency.spec 里有一条量实际宽度的巡检把守「档位真的生效」。 */
+  .modal-sm { max-width: 400px; }
+  .modal-md { max-width: 480px; }
+  .modal-lg { max-width: 720px; }
+  .modal-xl { max-width: 960px; }
   /* 弹窗标题下间距与页脚布局收在这里: 原先标题有 mb-2/3/4/6 四种、页脚 mt-6/mt-8 混用、
      有的页脚忘写 gap-3 两按钮贴在一起, 同类弹窗高矮不一 */
   .modal-title { font-size: var(--fs-modal); font-weight: var(--fw-bold); margin-bottom: 24px; text-wrap: balance; }
@@ -1015,7 +1018,7 @@ tailwind.config = {
   }
   /* Segmented control（模式/视图切换器） */
   .seg-control { display: inline-flex; padding: 3px; border-radius: 8px; background: var(--bg-2); border: 1px solid var(--border); gap: 2px; }
-  .seg-btn { border: none; background: transparent; color: var(--muted); font-size: var(--fs-micro); font-family: var(--font-body); padding: 5px 18px; border-radius: 6px; cursor: pointer; transition: background 0.15s, color 0.15s; }
+  .seg-btn { border: none; background: transparent; color: var(--muted); font-size: var(--fs-micro); font-family: var(--font-body); padding: 5px 18px; border-radius: 6px; cursor: pointer; transition: background 0.15s, color 0.15s; white-space: nowrap; }
   .seg-btn:hover { color: var(--fg); }
   .seg-btn.active { background: linear-gradient(180deg, #d9b25e, #b4841a); color: var(--on-accent); font-weight: var(--fw-strong); box-shadow: inset 0 1px 0 rgba(255,255,255,0.25), 0 1px 2px var(--shadow); }
   /* ===== 进入资产页的长按门槛：按住时金色墨线沿底边自左向右浸满按钮 =====
@@ -1039,14 +1042,15 @@ tailwind.config = {
   .mode-press.pressing { color: var(--fg); background: var(--card-2); }
   /* ===== 设置弹窗: 账本「凡例」页 —— 每条设置如一条目录, 标签居左、控件居右、发丝线分章 ===== */
   .setting-row { display: flex; align-items: center; justify-content: space-between; gap: 14px 24px; flex-wrap: wrap; }
-  /* 窄屏放不下时控件换到下一行——**贴着右边缘**：左对齐会让整页塌成一条左栏，
-     控件像是说明文字的一部分。右对齐把「标签列 / 控件列」的语义保留到手机上。
-     两条发丝线的呼吸由 hr 的上下外边距承担（默认 0.5em 会让按钮几乎贴住分隔线）。 */
-  @media (max-width: 720px) {
-    .setting-row > .seg-control, .setting-row > .setting-actions { margin-left: auto; }
-  }
+  /* 标签列 / 控件列：控件**永远贴右**，换行时也贴右——左对齐会让一组按钮看着像说明文字的一部分
+     （英文界面下 Auto backup 行就是这样：描述一长，Daily/Weekly/Close 掉到下一行贴左，
+     与上下两行的右对齐控件对不上，整页就显得「潦草」）。
+     flex: 0 0 auto 不让控件被压窄：一压窄，段控件的文字就折行，按钮变成两个字的竖柱。 */
+  .setting-row > .seg-control, .setting-row > .setting-actions { margin-left: auto; flex: 0 1 auto; max-width: 100%; }
   .modal-content hr { margin: 20px 0; }
-  .setting-info { flex: 1 1 260px; min-width: 200px; }
+  /* min-width: 0 是「控件优先」的另一半：不给 0 时信息列的 flex-basis 会把控件挤到下一行，
+     而 description 本来就该 wrap，它没有「最小可读宽度」这回事 */
+  .setting-info { flex: 1 1 260px; min-width: 0; }
   .setting-label { font-size: var(--fs-body); font-weight: var(--fw-strong); }
   .setting-desc { font-size: var(--fs-body); color: var(--muted); margin-top: 4px; line-height: 1.7; }
   /* 边注状态行: 金墨点引导, 与 masthead live-dot / 章节线同语言 */
@@ -2188,7 +2192,7 @@ tailwind.config = {
 
 <!-- Settings Modal (设置 · 账本凡例: 外观 + 自动备份) -->
 <div id="settings-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="settings-modal-title" style="display:none;">
-  <div class="modal-content modal-md">
+  <div class="modal-content modal-lg">
     <h3 class="font-display modal-title" id="settings-modal-title" data-i18n="设置">设置</h3>
     <div>
       <div class="setting-row">
@@ -2251,7 +2255,7 @@ tailwind.config = {
             <button id="snap-remind-end" onclick="setSnapshotReminderWindow('end')" class="seg-btn" aria-pressed="false" data-i18n="月末前">月末前</button>
           </div>
           <span class="snap-days">
-            <input type="number" id="snapshot-reminder-days" min="1" max="28" step="1" onchange="setSnapshotReminderDays(this.value)" aria-label="快照提醒天数" data-i18n-aria-label="快照提醒天数">
+            <input type="number" id="snapshot-reminder-days" data-no-autofocus min="1" max="28" step="1" onchange="setSnapshotReminderDays(this.value)" aria-label="快照提醒天数" data-i18n-aria-label="快照提醒天数">
             <span class="t-micro muted" data-i18n="天">天</span>
           </span>
         </div>
@@ -3689,8 +3693,12 @@ function openModal(id) {
   // **聚焦即展开**，把焦点放到日期框上会让日历自己弹出来。用户点「复制」时想要的是
   // 「表单打开、日期默认今天」，不是「先弹一个日历给我」。日期框仍然可点、可键盘进入。
   const isPickerHost = (el) => !!el._flatpickr;
-  const firstField = list.find(el => el.matches('input, select, textarea') && !isPickerHost(el));
-  const target = firstField || list.find(el => !isPickerHost(el)) || list[0];
+  // 参数类控件挂 data-no-autofocus：它们不是「打开这层弹窗要填的东西」，抢走焦点会把
+  // 整层滚到底部（实测：设置里多一个天数输入框后，一按「设置」就跳到最下面，
+  // 顶部的语言/外观被顶出视口）。表单弹窗的文本框不受影响。
+  const isAutoFocusable = (el) => !isPickerHost(el) && !el.hasAttribute('data-no-autofocus');
+  const firstField = list.find(el => el.matches('input, select, textarea') && isAutoFocusable(el));
+  const target = firstField || list.find(isAutoFocusable) || list[0];
   if (target) target.focus();
 }
 
