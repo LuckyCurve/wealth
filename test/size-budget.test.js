@@ -32,7 +32,12 @@ const ROOT = path.join(__dirname, '..');
 // 本轮之后同方向的增改请先在这个文件里写「试过什么」。
 // 2026-10-28：纸纹修正曾临时抬到 401,000；本轮合并了 toast/badge 的同色规则、收缩了纸纹注释，
 // 实际回落到 400,000 以下，故把预算退回 400,000（预算跟现实走，不跟历史最高走）。
-const INDEX_BUDGET = 400_000;
+// 2026-10-29 从 400,000 抬到 407,000：月度快照提醒（设置里一行控件 + 一个只有一个按钮的弹窗）。
+// 抬之前做过的：reminder 的判据/文案/归一全部下沉 logic.js（那里没有预算，可单测）；
+// 设置行复用 .setting-row/.setting-actions/.seg-control，弹窗复用 .modal-sm 与既有的 modal-footer，
+// 新增 CSS 只有 .snap-days 两条；两个 setter 压成一行。剩下的只能是标记本身。
+// 本轮之后同方向的增改请先在这个文件里写「试过什么」。
+const INDEX_BUDGET = 407_000;
 
 function bytes(name) {
   return fs.statSync(path.join(ROOT, name)).size;

@@ -66,6 +66,8 @@ interface AppState {
   incomeSafetyFactor: number;    // 安全边际因子 (%)，默认 100，钳制 1~100
   runwayTags: { catId: string; tag: string }[];  // 读数卡所选标签，空 = 未选
   runwayExpectation: number;     // 读数卡自定月消费 (CNY)，0=用全局 expenseExpectation，不回填全局
+  snapshotReminder: { window: 'off' | 'start' | 'end'; days: number };  // 月度快照提醒窗口；days 1~28，默认 { end, 5 }
+  snapshotReminderLastPrompted: string | null;  // 'YYYY-MM-DD'，只作「今天问过没有」的节流痕迹
   lang: 'en' | 'zh';             // 界面语言（用户设置），默认 en；分类/标签/备注是账本内容，不随它翻译
   backup: {
     autoFreq: 'daily' | 'weekly' | 'off';

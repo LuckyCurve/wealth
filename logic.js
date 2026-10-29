@@ -413,6 +413,59 @@
     return list.length >= 2 ? list[list.length - 2].month : null;
   }
 
+  // ========== 月度快照提醒（纯决策）==========
+  // 快照是**某个月的资产事实**：只提醒当月，绝不催促补记历史月份（补记只能拿今天的数贴上一个月的标签）。
+  // 提醒只是通知，不跳转、不带入口按钮——门槛（ADR 0003）保护的是「看数字」，提醒不替用户省这笔钱。
+  const SNAPSHOT_REMINDER_DEFAULT_DAYS = 5;
+  const SNAPSHOT_REMINDER_MAX_DAYS = 28; // 2 月只有 28 天，「月末前 30 天」等于整月
+
+  function normalizeSnapshotReminder(v) {
+    const o = v && typeof v === 'object' ? v : {};
+    const win = ['off', 'start', 'end'].includes(o.window) ? o.window : 'end';
+    const n = Math.round(Number(o.days));
+    const days = Number.isFinite(n)
+      ? Math.min(SNAPSHOT_REMINDER_MAX_DAYS, Math.max(1, n))
+      : SNAPSHOT_REMINDER_DEFAULT_DAYS;
+    return { window: win, days };
+  }
+
+  // 今天是否落在提醒窗口内。窗口按**当月实际天数**算：「月末前 N 天」= 距月末不足 N 天，
+  // 「月初后 N 天」= 日号大于 N。两个模式二选一：并集在 31 天的月里能连成整月，解释不了「为什么天天弹」。
+  function snapshotReminderInWindow(reminder, today) {
+    const r = normalizeSnapshotReminder(reminder);
+    if (r.window === 'off') return false;
+    const day = Number(String(today || '').split('-')[2]);
+    const dim = daysInMonthOf(String(today || '').slice(0, 7));
+    if (!day || !dim) return false; // 脏日期不弹（不猜，也不当作「窗口内」）
+    return r.window === 'start' ? day > r.days : dim - day < r.days;
+  }
+
+  // 今天该不该弹：窗口内 ∧ 有资产 ∧ 本月还没快照 ∧ 今天还没提醒过。
+  // 无资产不催：快照会是一张全 0 的表，提醒只会教人忽视提醒。
+  // 节流痕迹只有 lastPrompted：用户没记就明天再问（与备份「取消=没发生过」同一种耐心，一个月一档、一天一档）。
+  function shouldRemindSnapshot(s, today) {
+    s = s || {};
+    const r = normalizeSnapshotReminder(s.snapshotReminder);
+    if (r.window === 'off') return false;
+    if ((s.assets || []).length === 0) return false;
+    const month = String(today || '').slice(0, 7);
+    if ((s.snapshots || []).some(x => x && x.month === month)) return false;
+    if (s.snapshotReminderLastPrompted === today) return false;
+    return snapshotReminderInWindow(r, today);
+  }
+
+  // 提醒文案：报最近一次快照月份（月份不是金额，不泄露资产数值），让「欠了多久」自明。
+  // 标题是静态文案（data-i18n="快照提醒"），这里只产正文。
+  function snapshotReminderText(s) {
+    const months = ((s && s.snapshots) || []).map(x => x && x.month).filter(Boolean).sort();
+    const last = months.length ? monthLabel(months[months.length - 1]) : null;
+    return {
+      msg: last
+        ? t('本月快照还没记。上次快照：{p1}。在「资产 → 历史净值」记录本月快照，净值曲线才连得上。', { p1: last })
+        : t('本月快照还没记。还没有任何月度快照。在「资产 → 历史净值」记录本月快照，净值曲线才连得上。'),
+    };
+  }
+
   // ========== 消费月度聚合（纯函数，不依赖全局）==========
   // 按 'YYYY-MM' 聚合消费记录，返回升序 [{ month, total, count }]
   function monthlyExpenseTotals(expenses) {
@@ -979,6 +1032,12 @@
     if (!state.backup || typeof state.backup !== 'object') state.backup = {};
     state.backup.autoFreq = normalizeBackupFreq(state.backup.autoFreq);
     if (!state.backup.lastBackup) state.backup.lastBackup = null;
+    // 快照提醒（旧数据/导入文件可能缺失）：窗口走白名单、天数钳 1~28；
+    // 提醒日只认 'YYYY-MM-DD'——它只是「今天问过没有」的痕迹，脏值当没问过（不阻断提醒）
+    state.snapshotReminder = normalizeSnapshotReminder(state.snapshotReminder);
+    state.snapshotReminderLastPrompted = /^\d{4}-\d{2}-\d{2}$/.test(String(state.snapshotReminderLastPrompted || ''))
+      ? state.snapshotReminderLastPrompted
+      : null;
     // 用户设置字段（旧数据/导入数据可能缺失或为字符串）
     // 数字归一：字符串会让 formatCNY 走 String.toLocaleString 丢掉两位小数，统一转数字
     state.expenseExpectation = Number(state.expenseExpectation) || 0;
@@ -2075,6 +2134,20 @@
     '已选择「{p1}」，但当前浏览器不支持指定目录，文件窗口从默认位置打开': '“{p1}” chosen, but this browser cannot target folders; the save dialog opens at the default location',
     '使用缓存汇率': 'Using cached rates',
     '汇率获取失败': 'Exchange rates unavailable',
+    // 月度快照提醒（文案只报月份，不报金额）
+    '快照提醒': 'Snapshot reminder',
+    '本月快照还没记。上次快照：{p1}。在「资产 → 历史净值」记录本月快照，净值曲线才连得上。':
+      'No snapshot for this month yet. Last one: {p1}. Record it under Assets → Net worth history so the curve stays continuous.',
+    '本月快照还没记。还没有任何月度快照。在「资产 → 历史净值」记录本月快照，净值曲线才连得上。':
+      'No snapshot for this month yet — and none at all so far. Record it under Assets → Net worth history so the curve has a starting point.',
+    '本月还没记录快照时，打开页面提醒一次；同一天最多提醒一次，记完本月就不再出现。':
+      'Reminds you once when this month has no snapshot. At most once a day, and it stops as soon as this month is recorded.',
+    '快照提醒时机': 'Snapshot reminder timing',
+    '月初后': 'After day',
+    '月末前': 'Last',
+    '快照提醒天数': 'Snapshot reminder days',
+    '天': 'days',
+    '知道了': 'Got it',
   };
 
   // 页面不直接调用、但被单测逐条断言的内部件（保留在域里：单测就是它们的使用者，
@@ -2147,6 +2220,11 @@
       findMonthSnapshot,
       getPrevSnapshot,
       defaultCompareBaseMonth,
+      shouldRemindSnapshot,
+      snapshotReminderText,
+      normalizeSnapshotReminder,
+      SNAPSHOT_REMINDER_MAX_DAYS,
+      SNAPSHOT_REMINDER_DEFAULT_DAYS,
     },
     expense: {
       expenseMonths,

@@ -39,6 +39,11 @@ const EMPTY_STATE = {
   netWorthTarget: 0,
   incomeSafetyFactor: 100,
   runwayTags: [], runwayExpectation: 0,
+  // 月度快照提醒在 E2E 里默认关掉：它是「月末那几天」才弹的模态，
+  // 若跟着真实日期走，整套用例会在每个月末那几天集体变红（弹窗拦住点击）。
+  // 提醒本身的行为由 snapshot-reminder.spec.js 自己打开（那里用 page.clock 固定日期）。
+  snapshotReminder: { window: 'off', days: 5 },
+  snapshotReminderLastPrompted: null,
   backup: { autoFreq: 'off', lastBackup: null, lastAutoDownload: null },
   // 既有用例断言的都是中文文案：语言是用户设置（默认英文），播种时显式选中文。
   // 默认英文与切换行为由 i18n.spec.js 单独验证。

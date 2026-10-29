@@ -1053,6 +1053,9 @@ tailwind.config = {
   .safety-control { display: inline-flex; align-items: center; gap: 10px; padding: 5px 10px; border-radius: 8px; background: var(--bg-2); border: 1px solid var(--border); }
   .safety-label { font-family: var(--font-body); font-size: var(--fs-micro); color: var(--muted); letter-spacing: 0.08em; }
   .safety-control .scale-input { width: 150px; }
+  /* 快照提醒的天数：与安全边际因子同一种「参数条」语言（段控件旁的一个数） */
+  .snap-days { display: inline-flex; align-items: center; gap: 6px; }
+  .snap-days input { width: 58px; text-align: center; }
   /* ===== 比例尺滑块: 账页刻度量尺 =====
      刻度线 0/25/50/75/100% 与货币构成条同语言; 菱形拇指呼应报头裁切标记;
      填充段表示当前比例 (--fill 由 JS 同步), 读数用等宽 tabular */
@@ -2051,6 +2054,17 @@ tailwind.config = {
   </div>
 </div>
 
+<!-- Snapshot Reminder Modal（月度快照提醒：只有一个「知道了」，不跳转、不带入口） -->
+<div id="snapshot-reminder-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="snapshot-reminder-title" style="display:none;">
+  <div class="modal-content modal-sm">
+    <h3 class="font-display modal-title" id="snapshot-reminder-title" data-i18n="快照提醒">快照提醒</h3>
+    <p id="snapshot-reminder-msg" class="t-body muted"></p>
+    <div class="modal-footer">
+      <button type="button" onclick="closeSnapshotReminder()" class="btn-gold" data-i18n="知道了">知道了</button>
+    </div>
+  </div>
+</div>
+
 <!-- Expense Modal -->
 <div id="expense-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="expense-modal-title" style="display:none;">
   <div class="modal-content">
@@ -2218,6 +2232,25 @@ tailwind.config = {
           <button type="button" id="backup-dir-clear" onclick="clearBackupDir()" class="btn-danger btn-sm" hidden data-i18n="清除">清除</button>
         </div>
       </div>
+      <hr>
+      <!-- 快照提醒：只提醒当月（快照是某个月的资产事实, 补记历史月份等于拿今天的数贴上一个月的标签） -->
+      <div class="setting-row">
+        <div class="setting-info">
+          <p class="setting-label" data-i18n="快照提醒">快照提醒</p>
+          <p class="setting-desc" data-i18n="本月还没记录快照时，打开页面提醒一次；同一天最多提醒一次，记完本月就不再出现。">本月还没记录快照时，打开页面提醒一次；同一天最多提醒一次，记完本月就不再出现。</p>
+        </div>
+        <div class="setting-actions">
+          <div class="seg-control" role="group" aria-label="快照提醒时机" data-i18n-aria-label="快照提醒时机">
+            <button id="snap-remind-off" onclick="setSnapshotReminderWindow('off')" class="seg-btn" aria-pressed="false" data-i18n="关闭">关闭</button>
+            <button id="snap-remind-start" onclick="setSnapshotReminderWindow('start')" class="seg-btn" aria-pressed="false" data-i18n="月初后">月初后</button>
+            <button id="snap-remind-end" onclick="setSnapshotReminderWindow('end')" class="seg-btn" aria-pressed="false" data-i18n="月末前">月末前</button>
+          </div>
+          <span class="snap-days">
+            <input type="number" id="snapshot-reminder-days" min="1" max="28" step="1" onchange="setSnapshotReminderDays(this.value)" aria-label="快照提醒天数" data-i18n-aria-label="快照提醒天数">
+            <span class="t-micro muted" data-i18n="天">天</span>
+          </span>
+        </div>
+      </div>
     </div>
     <div class="modal-footer between">
       <button type="button" onclick="closeModal('settings-modal');showImportExport();" class="btn-ghost"><svg class="ico" aria-hidden="true"><use href="#ic-database-backup"/></svg><span data-i18n="备份与导入…">备份与导入…</span></button>
@@ -2244,6 +2277,8 @@ function freshAppState() {
     rates: { CNY: 1, HKD: 1, USD: 1, fetchedAt: null },
     expenseExpectation: 0, netWorthTarget: 0, incomeSafetyFactor: 100,
     runwayTags: [], runwayExpectation: 0,
+    // 月度快照提醒（用户设置）：窗口三选一 + 天数；lastPrompted 只是「今天问过没有」的痕迹
+    snapshotReminder: { window: 'end', days: 5 }, snapshotReminderLastPrompted: null,
     // 界面语言（用户设置，随存档落盘）：默认英文
     lang: 'en',
     backup: { autoFreq: 'daily', lastBackup: null },
@@ -5385,6 +5420,7 @@ function showSettings() {
   syncThemeSeg();
   syncLangSeg();
   syncBackupControls();
+  syncSnapshotReminderControls();
   openModal('settings-modal');
 }
 
@@ -5579,8 +5615,16 @@ function applyBackupResult(notice, today) {
 // 避免备份抢在汇率刷新前拿到过期汇率。失败也不阻塞备份，用缓存汇率继续。
 // 确认框的「确认」就是那次用户手势：回调里**不得有任何 await** 就调 saveBackupToFile，
 // 否则手势被消耗、文件窗口打不开（测试把守这一条）。
+//
+// 快照提醒排在备份**收尾之后**（同一次启动不并存两层模态），所以收尾挂在两个点上：
+//   ① 取消 / ESC / 点遮罩——confirmCancel 里的 onCancel；
+//   ② 确认——写入 promise 的 finally（不能挂在「框关了」上：那时系统文件窗口正开着，也是模态）。
 async function maybeAutoBackup(ratePromise) {
-  if (!backup.shouldAutoBackup(state, date.getLocalDateStr())) return;
+  const settle = () => maybeSnapshotReminder();
+  if (!backup.shouldAutoBackup(state, date.getLocalDateStr())) {
+    setTimeout(settle, 1500); // 没有备份要弹时自己走，延后一点避开首屏入场
+    return;
+  }
   setTimeout(async () => {
     try {
       if (ratePromise) await ratePromise;
@@ -5591,11 +5635,33 @@ async function maybeAutoBackup(ratePromise) {
       const prompt = backup.backupPromptText('auto', backup.backupFileName(t), backupDirHandle && backupDirHandle.name);
       showConfirm(prompt.msg, () => {
         const plan = backup.backupWritePlan({ supportsPicker: canSaveBackupFile() });
-        if (plan.target === 'file') saveBackupToFile(t, 'auto');
-        else exportViaDownload(t);
-      }, prompt.title, { okLabel: i18n.t('备份'), tone: 'gold' });
+        const written = plan.target === 'file' ? saveBackupToFile(t, 'auto') : exportViaDownload(t);
+        Promise.resolve(written).finally(settle);
+      }, prompt.title, { okLabel: i18n.t('备份'), tone: 'gold', onCancel: settle });
     } catch (e) { /* 忽略 */ }
   }, 4000);
+}
+
+// ========== 月度快照提醒（DOM 副作用）==========
+// 决策全在 logic.js snapshot.shouldRemindSnapshot；这里只写 DOM、记「今天问过」。
+// 提醒只是通知：不跳转、不过闸、不带入口按钮——门槛（ADR 0003）保护的是「看数字」，
+// 提醒不替用户省这笔钱；文案又只报月份、不报金额（不变成一条旁路读数）。
+function maybeSnapshotReminder() {
+  const today = date.getLocalDateStr();
+  if (!snapshot.shouldRemindSnapshot(state, today)) return;
+  // 用户正在干别的事（已经开了一层弹窗）就不抢：提醒只是知会，不值得把人家手里的表单顶下去。
+  // 没弹就不记 lastPrompted，窗口内下次启动再试。
+  if (topModal()) return;
+  const text = snapshot.snapshotReminderText(state);
+  document.getElementById('snapshot-reminder-msg').textContent = text.msg;
+  // 弹出那一刻就记「今天问过」：只有一个按钮，看不看用户的选择都已计价。
+  state.snapshotReminderLastPrompted = today;
+  saveState();
+  openModal('snapshot-reminder-modal');
+}
+
+function closeSnapshotReminder() {
+  closeModal('snapshot-reminder-modal');
 }
 
 // 方案 C：超期未备份提醒（toast 略延迟弹出，避开首屏渲染瞬间）；
@@ -5635,6 +5701,29 @@ function setBackupFreq(v) {
   saveState();
   syncBackupControls(); // 两处弹窗控件同源刷新
   toast(state.backup.autoFreq === 'off' ? i18n.t('已关闭自动备份') : i18n.t('自动备份：{p1}', { p1: i18n.t(state.backup.autoFreq === 'daily' ? '每天' : '每周') }), 'success');
+}
+
+// 快照提醒的两个控件（窗口 seg + 天数）落到**同一个写入点**：改的是同一个对象，
+// 分两处赋值迟早一边忘了归一（与 setBackupFreq 同一种收敛）。归一在 logic.js。
+function setSnapshotReminder(patch) {
+  state.snapshotReminder = snapshot.normalizeSnapshotReminder(Object.assign({}, state.snapshotReminder, patch));
+  saveState();
+  syncSnapshotReminderControls(); // 归一后回写到输入框（0 / 99 / 空 都落到 1~28）
+}
+function setSnapshotReminderWindow(v) { setSnapshotReminder({ window: v }); }
+function setSnapshotReminderDays(v) { setSnapshotReminder({ days: v }); }
+
+// 回显：seg 的 aria-pressed 与天数输入框同一来源，不各读一遍 state
+function syncSnapshotReminderControls() {
+  const r = snapshot.normalizeSnapshotReminder(state.snapshotReminder);
+  ['off', 'start', 'end'].forEach(v => {
+    const btn = document.getElementById('snap-remind-' + v);
+    if (!btn) return;
+    btn.classList.toggle('active', v === r.window);
+    btn.setAttribute('aria-pressed', String(v === r.window));
+  });
+  const days = document.getElementById('snapshot-reminder-days');
+  if (days) days.value = String(r.days);
 }
 
 function exportData() {
@@ -5776,6 +5865,7 @@ function closeModal(id) {
 
 // custom confirm dialog
 let _confirmCallback = null;
+let _confirmCancelCallback = null;
 function showConfirm(msg, onOk, title, opts) {
   opts = opts || {};
   document.getElementById('confirm-msg').textContent = msg;
@@ -5787,16 +5877,23 @@ function showConfirm(msg, onOk, title, opts) {
   ok.className = opts.tone === 'gold' ? 'btn-gold' : 'btn-danger';
   openModal('confirm-modal');
   _confirmCallback = onOk;
+  // 取消回调也每次重置：与按钮文案/色调同一条规矩——上一个调用留下的东西
+  // 绝不能粘到下一个确认框（否则一次删除确认的取消会触发上一次备份的收尾）
+  _confirmCancelCallback = opts.onCancel || null;
   ok.focus();
 }
 function confirmCancel() {
   closeModal('confirm-modal');
   _confirmCallback = null;
+  const onCancel = _confirmCancelCallback;
+  _confirmCancelCallback = null;
+  if (onCancel) onCancel();
 }
 document.getElementById('confirm-ok-btn').addEventListener('click', () => {
   // 守卫窗内落到确认按钮上的 click 是抬手余波（用户并没有真点它），忽略
   if (__autoOpenedAt !== null && !ui.autoOpenGuard(performance.now() - __autoOpenedAt)) return;
   closeModal('confirm-modal');
+  _confirmCancelCallback = null; // 确认路径不触发取消回调
   if (_confirmCallback) { _confirmCallback(); _confirmCallback = null; }
 });
 

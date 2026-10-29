@@ -3654,3 +3654,47 @@ describe('UI 接线契约：排版细节（断行与中英混排）', () => {
     assert.match(body('body'), /text-autospace:/, 'body 需要 text-autospace');
   });
 });
+
+describe('UI 接线契约：月度快照提醒', () => {
+  test('设置里窗口三态各接线一次，天数在 change 时归一（逐键归一会让输入框没法清空）', () => {
+    for (const v of ['off', 'start', 'end']) {
+      assert.strictEqual(
+        html.split(`onclick="setSnapshotReminderWindow('${v}')"`).length - 1, 1,
+        `setSnapshotReminderWindow('${v}') 应恰好接线一次`);
+    }
+    assert.strictEqual(count(/id="snapshot-reminder-days"/g), 1, '天数只有一个输入框');
+    assert.match(html, /onchange="setSnapshotReminderDays\(this\.value\)"/, '天数在 change 时归一');
+    // 两个控件落到同一个写入点：分两处赋值迟早一边忘了归一（与 setBackupFreq 同一种收敛）
+    assert.match(fnSource('setSnapshotReminderWindow'), /setSnapshotReminder\(\{\s*window:/);
+    assert.match(fnSource('setSnapshotReminderDays'), /setSnapshotReminder\(\{\s*days:/);
+    assert.strictEqual(count(/state\.snapshotReminder\s*=/g), 1, 'state.snapshotReminder 只能有一个赋值点');
+    assert.match(fnSource('showSettings'), /syncSnapshotReminderControls\(\)/, '打开设置要回显当前配置');
+  });
+
+  test('提醒弹窗有名字、只有一个「知道了」出口（不跳转、不带入口）', () => {
+    const block = blockFrom(html, 'id="snapshot-reminder-modal"', '<!-- Expense Modal -->');
+    assert.match(block, /aria-labelledby="snapshot-reminder-title"/, '弹窗要有名字（aria-modal 只说明「这是一层」）');
+    assert.strictEqual((block.match(/id="snapshot-reminder-title"/g) || []).length, 1, '标题在同一個 modal-content 里');
+    assert.deepStrictEqual(
+      block.match(/onclick="[^"]*"/g) || [], ['onclick="closeSnapshotReminder()"'],
+      '提醒只是通知：唯一的出口是「知道了」；给入口等于替用户省门槛费');
+  });
+
+  test('备份优先：备份框收尾（取消 / 写入结束）之后才弹快照提醒', () => {
+    const src = fnSource('maybeAutoBackup');
+    assert.match(src, /onCancel:\s*settle/, '取消备份也要接上快照提醒（否则一次取消就吞掉当天的提醒）');
+    assert.match(src, /Promise\.resolve\([^)]*\)\.finally\(settle\)/, '写入 promise 收尾后才弹——系统文件窗口仍是模态');
+    // 本次启动没有备份要弹时，快照提醒自己走（延后一点，避开首屏入场）
+    assert.match(src, /const settle = \(\) => maybeSnapshotReminder\(\)/, 'settle 就是快照提醒');
+    assert.match(src, /if \(!backup\.shouldAutoBackup[\s\S]{0,240}setTimeout\(settle/, '没有备份就不必等那 4 秒');
+    // 不并存两层模态：备份分支里不直接调 maybeSnapshotReminder
+    assert.doesNotMatch(src.slice(src.indexOf('showConfirm(')), /maybeSnapshotReminder\(\)/,
+      '备份分支里只留 settle，不在框还开着时另弹一层');
+  });
+
+  test('确认框的取消回调每次调用都重置（不能粘到下一个确认框）', () => {
+    assert.match(fnSource('showConfirm'), /_confirmCancelCallback\s*=\s*opts\.onCancel/, '每次调用都要重置');
+    assert.match(fnSource('confirmCancel'), /_confirmCancelCallback\s*=\s*null/, '取消后清空');
+    assert.match(fnSource('confirmCancel'), /if \(onCancel\) onCancel\(\)|onCancel\(\)/, '取消要真的触发回调');
+  });
+});

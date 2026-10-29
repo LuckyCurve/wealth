@@ -95,6 +95,108 @@ describe('快照查询', () => {
   });
 });
 
+// ========== 月度快照提醒 ==========
+describe('月度快照提醒 shouldRemindSnapshot（窗口 / 已在档 / 当天已提醒）', () => {
+  // 一条资产是前提：没有资产时快照全是 0，提醒只会催人记一张空表
+  const withAssets = (extra = {}) =>
+    freshState(Object.assign({ assets: [{ amount: 100, currency: 'CNY' }] }, extra));
+
+  test('默认窗口：月末前 5 天（31 天月 = 27 日起）', () => {
+    const s = withAssets();
+    assert.strictEqual(L.snapshot.shouldRemindSnapshot(s, '2024-01-26'), false, '26 日离月末还有 5 天');
+    assert.strictEqual(L.snapshot.shouldRemindSnapshot(s, '2024-01-27'), true, '27 日起就是最后 5 天');
+    assert.strictEqual(L.snapshot.shouldRemindSnapshot(s, '2024-01-31'), true);
+  });
+
+  test('月初后 N 天：日号大于 N 才提醒', () => {
+    const s = withAssets({ snapshotReminder: { window: 'start', days: 20 } });
+    assert.strictEqual(L.snapshot.shouldRemindSnapshot(s, '2024-01-20'), false);
+    assert.strictEqual(L.snapshot.shouldRemindSnapshot(s, '2024-01-21'), true);
+  });
+
+  test('短月按当月实际天数算（2023 年 2 月 28 天 → 24 日起；闰年 2 月 29 天 → 25 日起）', () => {
+    const s = withAssets({ snapshotReminder: { window: 'end', days: 5 } });
+    assert.strictEqual(L.snapshot.shouldRemindSnapshot(s, '2023-02-23'), false);
+    assert.strictEqual(L.snapshot.shouldRemindSnapshot(s, '2023-02-24'), true);
+    assert.strictEqual(L.snapshot.shouldRemindSnapshot(s, '2024-02-24'), false, '闰年 2 月多一天，边界跟着推');
+    assert.strictEqual(L.snapshot.shouldRemindSnapshot(s, '2024-02-25'), true);
+  });
+
+  test('N=1 只提醒最后一天', () => {
+    const s = withAssets({ snapshotReminder: { window: 'end', days: 1 } });
+    assert.strictEqual(L.snapshot.shouldRemindSnapshot(s, '2024-01-30'), false);
+    assert.strictEqual(L.snapshot.shouldRemindSnapshot(s, '2024-01-31'), true);
+  });
+
+  test('关闭 / 无资产 / 本月已有快照 → 都不提醒', () => {
+    assert.strictEqual(
+      L.snapshot.shouldRemindSnapshot(withAssets({ snapshotReminder: { window: 'off', days: 5 } }), '2024-01-31'),
+      false, '关掉就是关掉');
+    assert.strictEqual(L.snapshot.shouldRemindSnapshot(freshState(), '2024-01-31'), false, '无资产不催');
+    const done = withAssets({ snapshots: [{ month: '2024-01' }] });
+    assert.strictEqual(L.snapshot.shouldRemindSnapshot(done, '2024-01-31'), false);
+    const prev = withAssets({ snapshots: [{ month: '2023-12' }] });
+    assert.strictEqual(L.snapshot.shouldRemindSnapshot(prev, '2024-01-31'), true, '上个月的快照不顶用');
+  });
+
+  test('当天已提醒过就不再弹，隔天恢复；脏日期不阻塞', () => {
+    const s = withAssets({ snapshotReminderLastPrompted: '2024-01-28' });
+    assert.strictEqual(L.snapshot.shouldRemindSnapshot(s, '2024-01-28'), false);
+    assert.strictEqual(L.snapshot.shouldRemindSnapshot(s, '2024-01-29'), true);
+    assert.strictEqual(
+      L.snapshot.shouldRemindSnapshot(withAssets({ snapshotReminderLastPrompted: 'garbage' }), '2024-01-31'),
+      true);
+  });
+
+  test('normalizeSnapshotReminder：非法窗口归 end，天数钳 1~28，非法归 5', () => {
+    assert.deepStrictEqual(L.snapshot.normalizeSnapshotReminder(), { window: 'end', days: 5 });
+    assert.deepStrictEqual(L.snapshot.normalizeSnapshotReminder({ window: 'monthly', days: 'x' }), { window: 'end', days: 5 });
+    assert.deepStrictEqual(L.snapshot.normalizeSnapshotReminder({ window: 'start', days: '0' }), { window: 'start', days: 1 });
+    assert.deepStrictEqual(L.snapshot.normalizeSnapshotReminder({ window: 'start', days: 99 }), { window: 'start', days: 28 });
+    assert.deepStrictEqual(L.snapshot.normalizeSnapshotReminder({ window: 'off', days: 7 }), { window: 'off', days: 7 });
+  });
+});
+
+describe('快照提醒文案 snapshotReminderText（报上次快照月份）', () => {
+  const withAssets = (extra = {}) => freshState(Object.assign({ assets: [{ amount: 1 }] }, extra));
+
+  test('带最近一次快照月份；从未记录时另说一句', () => {
+    const a = L.snapshot.snapshotReminderText(
+      withAssets({ snapshots: [{ month: '2024-01' }, { month: '2023-11' }] }));
+    assert.match(a.msg, /2024年1月/, '取最近一次（按月份排序，不靠数组次序）');
+    const b = L.snapshot.snapshotReminderText(withAssets());
+    assert.match(b.msg, /还没有/);
+    for (const x of [a, b]) {
+      assert.match(x.msg, /本月快照还没记/);
+      assert.match(x.msg, /历史净值/, '文案要告诉用户去哪儿记');
+      assert.doesNotMatch(x.msg, /undefined|NaN|\{p1\}/);
+    }
+  });
+});
+
+describe('快照提醒设置迁移兜底（migrateState）', () => {
+  test('缺失 → 默认（月末前 5 天）+ 无提醒日', () => {
+    globalThis.state = freshState({ assets: [{ amount: 1 }] });
+    L.migrate.migrateState();
+    assert.deepStrictEqual(globalThis.state.snapshotReminder, { window: 'end', days: 5 });
+    assert.strictEqual(globalThis.state.snapshotReminderLastPrompted, null);
+  });
+
+  test('非法窗口 / 越界天数 / 脏提醒日归位', () => {
+    globalThis.state = freshState({ snapshotReminder: { window: 'weekly', days: 400 }, snapshotReminderLastPrompted: '2024/01/01' });
+    L.migrate.migrateState();
+    assert.deepStrictEqual(globalThis.state.snapshotReminder, { window: 'end', days: 28 });
+    assert.strictEqual(globalThis.state.snapshotReminderLastPrompted, null);
+  });
+
+  test('合法值原样保留', () => {
+    globalThis.state = freshState({ snapshotReminder: { window: 'start', days: 20 }, snapshotReminderLastPrompted: '2024-01-05' });
+    L.migrate.migrateState();
+    assert.deepStrictEqual(globalThis.state.snapshotReminder, { window: 'start', days: 20 });
+    assert.strictEqual(globalThis.state.snapshotReminderLastPrompted, '2024-01-05');
+  });
+});
+
 describe('消费月度聚合 / 环比', () => {
   const expenses = [
     { date: '2024-01-15', amount: 100 },
