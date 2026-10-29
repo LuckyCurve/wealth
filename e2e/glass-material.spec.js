@@ -78,27 +78,29 @@ test.describe('卡片材质：液态玻璃的可测特征', () => {
   test('纸摊在桌上：卡片底色必须与紧邻的桌面分得开（两套主题）', async ({ page }) => {
     // 用户反馈「质感进步空间还很大」。亮色实测：卡内 0.970 vs 紧邻桌面 0.954，只差 0.016——
     // 桌光把桌面洗到接近卡面，卡片就退回「一块白板」，这是亮色整页「发淡」的根。
-    // 判据：同一高度上，卡内与桌外各取三个点的平均亮度差要 ≥0.025（亮/暗两套）。
-    // 取样点避让：桌外离缘 ≥6px（不进外阴影），卡内离缘 ≥8px（不进描边与两角柔光）。
-    // 阈值定在 0.025 而不是更高：取样点落在**桌面最亮处**（左上光池，也是用户当初
-    // 「分不开」的地方），透光材质在这里的天花板 = fill 的 alpha × 底色差 ≈ 0.42×0.09。
-    // 旧版在此实测 0.013（阈值下 2 倍），现版 0.033（阈值上 31%）——两侧都留得住余量。
+    //
+    // 取样点**必须避让阴影与受光边**，否则量的是「阴影 + 高光」而不是「卡面 vs 桌面」：
+    // 旧版取 x-6 / x+8（只离缘 6–8px），实测 -6px 落在卡片外阴影里（0.1224，隔壁桌面是 0.1495）、
+    // +8px 落在受光边上（0.1822，卡内平区是 0.1626）——两个贴边点把差抬到 0.030，
+    // 而真实面差只有 0.011（暗色）。于是桌面被洗到与卡面同色时，判据仍可能绿。
+    // 现取样：桌外离缘 16–66px（完全在外阴影之外）、卡内离缘 20–80px（完全在受光边之内），
+    // 同一高度、各四点平均。阈值维持 0.025（实测：亮色 0.046 / 暗色 0.033，阈值上 31%）。
     await open(page);
     const pts = await page.evaluate(() => {
       const el = [...document.querySelectorAll('.card')].filter((c) => c.getBoundingClientRect().width > 900)[0];
       const r = el.getBoundingClientRect();
       const y = Math.round(r.y + r.height * 0.55);
       return {
-        desk: [-6, -16, -26].map((d) => [Math.round(r.x + d), y]),
-        card: [8, 20, 40].map((d) => [Math.round(r.x + d), y]),
+        desk: [-16, -26, -36, -46, -66].map((d) => [Math.round(r.x + d), y]),
+        card: [20, 40, 60, 80].map((d) => [Math.round(r.x + d), y]),
       };
     });
     for (const theme of ['亮色', '暗色']) {
       if (theme === '暗色') await setDark(page);
       const px = await samplePixels(page, [...pts.desk, ...pts.card]);
       const avg = (a) => a.reduce((s, p) => s + pixelLum(p), 0) / a.length;
-      const desk = avg(px.slice(0, 3));
-      const card = avg(px.slice(3));
+      const desk = avg(px.slice(0, pts.desk.length));
+      const card = avg(px.slice(pts.desk.length));
       expect(
         card - desk,
         `【${theme}】卡内 ${card.toFixed(4)} vs 紧邻桌面 ${desk.toFixed(4)}：桌面被洗到与卡面同色，纸没摊在桌上`
