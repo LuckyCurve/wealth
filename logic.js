@@ -907,6 +907,186 @@
     return rem === 0 ? t('{y} 年', { y: years }) : t('{y} 年 {m} 个月', { y: years, m: rem });
   }
 
+  // ========== 压测（全局视图叠加：一组「某维度下各标签的跌幅」假设）==========
+  // 为什么是叠加而不是一个独立页面、为什么单维度、为什么账本与快照不动，见
+  // docs/adr/0004-stress-as-view-overlay.md。这里只落口径。
+  //
+  // 情景形如 { catId, drops: [{ tag, pct }] }——**只存跌幅**，不存任何金额：
+  // 金额一律现算（汇率会变、账本会改，存下来的金额第二天就是错的）。
+  // 单维度是硬约束：每笔资产在每个分类下恰好一个标签，若允许两个维度各给一个跌幅，
+  // 同一笔钱会被乘两次（-50% 与 -10% 变成 -55%），而用户根本预期不到那个数。
+
+  // 跌幅归一：非有限数 → null（该条丢弃，不是当成 0——「没填」和「填了个乱码」不是一回事）；
+  // 越界钳制 0~100（负跌幅是「看涨」，本页不做预测）；小数四舍五入成整数（滑块就是 step=1）。
+  function normalizeDropPct(raw) {
+    if (raw == null || raw === '') return null;
+    const v = Number(raw);
+    if (!isFinite(v)) return null;
+    return Math.min(100, Math.max(0, Math.round(v)));
+  }
+
+  // 情景归一（存档加载与导入共用，migrateState 调用）: 非法 / 指向已删分类标签 / 选了内置货币分类 /
+  // 剪完无有效跌幅 → null。**不弹提示**：静默失效每次开页面都提醒一次等于吵人，
+  // 而「条回到未启用」本身就是可见的交代。
+  // categories 传 null/undefined 时只做形状归一，不做存在性校验
+  //（「读不到分类」≠「分类已删」：失败即未知，不得据此丢弃用户设好的情景）。
+  function pruneStress(stress, categories) {
+    if (!stress || typeof stress !== 'object' || Array.isArray(stress)) return null;
+    const catId = typeof stress.catId === 'string' ? stress.catId : '';
+    if (!catId) return null;
+    const cats = Array.isArray(categories) ? categories : null;
+    // 内置分类（货币类型）不参与压测：汇率已经是一条真实在变的通道，
+    // 把它塞进「压测」会让人分不清哪一半是假设（与资产列表不重复展示货币 pill 同一处置）。
+    const cat = cats ? cats.find(c => c && c.id === catId) : null;
+    if (cats) {
+      if (!cat || cat.builtin) return null;
+    }
+    const raw = Array.isArray(stress.drops) ? stress.drops : [];
+    const validTags = new Set((cat && Array.isArray(cat.tags) ? cat.tags : []) || []);
+    const seen = new Set();
+    const drops = [];
+    raw.forEach(d => {
+      if (!d || typeof d !== 'object') return;
+      const tag = typeof d.tag === 'string' ? d.tag : '';
+      if (!tag || seen.has(tag)) return;
+      if (cat && !validTags.has(tag)) return;
+      const pct = normalizeDropPct(d.pct);
+      if (pct == null) return;
+      seen.add(tag);
+      drops.push({ tag, pct });
+    });
+    if (drops.length === 0) return null;
+    // 全 0 = 未启用，不留空壳在存档里（与 stressActive 同一判定）
+    if (!drops.some(d => d.pct > 0)) return null;
+    return { catId, drops };
+  }
+
+  // 情景是否生效: 有维度且至少一个非零跌幅。全 0 = 未启用（条回到未启用、读数回真实值）。
+  function stressActive(stress) {
+    if (!stress || typeof stress !== 'object') return false;
+    if (typeof stress.catId !== 'string' || !stress.catId) return false;
+    return (Array.isArray(stress.drops) ? stress.drops : [])
+      .some(d => d && Number(d.pct) > 0);
+  }
+
+  // 该资产在本情景下的跌幅（%）：未命中标签 / 未归类 / 情景非法 → 0（不打折）。
+  // 未归类恒为 0 是有意的：静默给它编一个跌幅等于替用户假设，条上会把「未归类 ¥X」报出来。
+  function stressPctOf(asset, stress) {
+    if (!asset || !stressActive(stress)) return 0;
+    const tagVal = asset.tags ? asset.tags[stress.catId] : undefined;
+    if (typeof tagVal !== 'string' || !tagVal) return 0;
+    const hit = (stress.drops || []).find(d => d && d.tag === tagVal);
+    return hit ? Number(hit.pct) || 0 : 0;
+  }
+
+  // 折算后的资产数组（**全局视图叠加的唯一入口**）——报头/收益/覆盖标尺/读数卡/分布图
+  // 都从这里取资产，而不是各自读 state.assets 再打折：口径分散到十几处必然漂移，
+  // 症状是同一页上「压测后的覆盖率」配着「压测前的月收益」。
+  // 未启用时**原样返回同一份数组**（连复制都不做）：让「没开压测」这条路径零开销、零风险。
+  // 启用时返回新数组，每项 {...a, amount: 打折后}；其余字段（利率/现金比例/标签/名称）不动
+  // ——利率是收益率不是金额，本金缩了收益在 calcAssetIncome 里自然跟着缩。
+  function effectiveAssets(assets, stress) {
+    if (!stressActive(stress)) return assets;
+    return (assets || []).map(a => {
+      if (!a || typeof a !== 'object') return a;
+      const pct = stressPctOf(a, stress);
+      if (pct <= 0) return a;
+      const amount = Number(a.amount) || 0;
+      return { ...a, amount: amount * (1 - pct / 100) };
+    });
+  }
+
+  // 条上的那句话（资产侧常驻条的唯一文案出口）——下沉到 logic.js 是为了**可单测**：
+  // 三态（无可用维度 / 未启用 / 生效）各自的文案与「未归类」那句尾巴都在这里，
+  // 页面只负责把它写进 DOM。分类名与标签名是账本内容，不翻译；其余经 t()。
+  function stressBarText(stress, categories, assets) {
+    if (stressDimensions(categories).length === 0) return t('压测：先在「分类管理」里建一个分类');
+    if (!stressActive(stress)) return t('压测：未启用');
+    const cat = stressDimensions(categories).find(c => c.id === stress.catId);
+    const parts = (stress.drops || [])
+      .filter(d => d && Number(d.pct) > 0)
+      .map(d => d.tag + ' -' + d.pct + '%');
+    const un = unclassifiedCNY(assets, stress, categories);
+    const unText = un.count > 0
+      ? t(' · 未归类 {p1} 按未打折计入', { p1: formatCNY(un.cny) })
+      : '';
+    return t('压测中：{p1}', { p1: (cat ? cat.name + '：' : '') + parts.join(' · ') }) + unText;
+  }
+
+  // 可压测的维度：排除内置分类（货币类型 —— 汇率是一条真实在变的通道，
+  // 混进来会让人分不清哪一半是假设）。也用于「没有可选维度」这条三态判定。
+  function stressDimensions(categories) {
+    return (Array.isArray(categories) ? categories : [])
+      .filter(c => c && typeof c.id === 'string' && c.id && !c.builtin);
+  }
+
+  // 弹窗里逐标签一行的数据（标签 / 该标签当前折算金额 / 当前跌幅）——页面只拼 HTML。
+  // 金额口径与分布图一致：命中该维度该标签的资产按当前汇率折算合计。
+  function stressDropRows(assets, stress, categories) {
+    const cat = (Array.isArray(categories) ? categories : []).find(c => c && c.id === (stress && stress.catId));
+    if (!cat) return [];
+    const rates = (typeof state !== 'undefined' && state && state.rates) || { CNY: 1 };
+    const pctOf = (tag) => {
+      const hit = ((stress && stress.drops) || []).find(d => d && d.tag === tag);
+      return hit ? Number(hit.pct) || 0 : 0;
+    };
+    return (cat.tags || []).map(tag => {
+      const amount = (assets || []).reduce((s, a) => {
+        if (!a || !a.tags || a.tags[cat.id] !== tag) return s;
+        return s + amountAtRates(a.amount, a.currency, rates);
+      }, 0);
+      return { tag, amount: amount, pct: pctOf(tag) };
+    });
+  }
+
+  // 该维度下「未归类」资产（缺 key / 空值 / 指向已删标签）的折算合计与条数——条上那句口径说明用。
+  // 未启用 / 分类列表读不到 → 全 0（失败即未知，不假装「全部未归类」）。
+  // 判据复用 expense.isUntaggedItem 的同一口径（三种失效写法都进不了分组统计）。
+  function unclassifiedCNY(assets, stress, categories) {
+    const zero = { cny: 0, count: 0 };
+    if (!stressActive(stress)) return zero;
+    const cats = Array.isArray(categories) ? categories : null;
+    const cat = cats && cats.find(c => c && c.id === stress.catId);
+    if (!cat) return zero;
+    let cny = 0, count = 0;
+    (assets || []).forEach(a => {
+      if (!a || !isUntaggedItem(a, stress.catId, cat.tags)) return;
+      count++;
+      cny += amountAtRates(a.amount, a.currency, (typeof state !== 'undefined' && state && state.rates) || { CNY: 1 });
+    });
+    return { cny, count };
+  }
+
+  // 加权平均跌幅（%，报头小字「压测 -Z%」用）: 折算后总额相对原总额的跌幅。
+  // 折扣是按每笔资产算的，这个数是它的加权结果——比列出每个标签的跌幅短，用户要看的是量级。
+  // 空表 / 原总额为 0 → 0（不产出 NaN）。
+  function weightedDrop(assets, stress, categories) {
+    if (!stressActive(stress)) return 0;
+    const rates = (typeof state !== 'undefined' && state && state.rates) || { CNY: 1 };
+    let before = 0, after = 0;
+    (assets || []).forEach(a => {
+      if (!a || typeof a !== 'object') return;
+      const orig = amountAtRates(a.amount, a.currency, rates);
+      const pct = stressPctOf(a, stress);
+      before += orig;
+      after += orig * (1 - pct / 100);
+    });
+    if (!(before > 0)) return 0;
+    return (before - after) / before * 100;
+  }
+
+  // 标签改名要迁移情景里的引用（与读数卡同一处置）: 走「旧名已失效」的清理会把设好的跌幅
+  // 静默丢掉，而用户只是改了个名。只迁移恰好命中「同分类 + 同名」的那条；不改入参。
+  function migrateStressTagRefs(stress, catId, from, to) {
+    if (!stress || typeof stress !== 'object') return stress;
+    if (stress.catId !== catId || !Array.isArray(stress.drops)) return stress;
+    return {
+      ...stress,
+      drops: stress.drops.map(d =>
+        d && typeof d === 'object' && d.tag === from ? { ...d, tag: to } : d),
+    };
+  }
+
   // ========== 本月预算消耗（趋势页进度读数卡）==========
   // 本月合计（CNY）: 复用 monthlyExpenseTotals 同一容错口径（缺 date / NaN 金额贡献 0）, 不另写一套
   function monthExpenseTotal(expenses, month) {
@@ -1032,6 +1212,9 @@
     if (!state.backup || typeof state.backup !== 'object') state.backup = {};
     state.backup.autoFreq = normalizeBackupFreq(state.backup.autoFreq);
     if (!state.backup.lastBackup) state.backup.lastBackup = null;
+    // 压测情景（旧数据/导入文件可能缺失或指向已删分类标签）：归一 + 剪枝，失效即 null。
+    // 只存跌幅不存金额——金额现算（汇率/账本都会变），存下来的数第二天就是错的
+    state.stress = pruneStress(state.stress, state.categories);
     // 快照提醒（旧数据/导入文件可能缺失）：窗口走白名单、天数钳 1~28；
     // 提醒日只认 'YYYY-MM-DD'——它只是「今天问过没有」的痕迹，脏值当没问过（不阻断提醒）
     state.snapshotReminder = normalizeSnapshotReminder(state.snapshotReminder);
@@ -1873,6 +2056,26 @@
     '与原句不一致，请重抄一遍': 'Not the same line — please copy it again',
     '不看': 'Not now',
     '进入': 'Enter',
+    // ===== 压测（全局视图叠加）=====
+    // 「压测」在英文里选 stress test 是金融业的通用说法（stress testing a portfolio），
+    // 不用 pressure / crash —— 前者是物理压力，后者是结果不是动作。
+    '压测': 'Stress test',
+    '压测情景': 'Stress scenario',
+    '压测如何计算': 'How the stress test is calculated',
+    '压测只是一组假设：只改页面上的读数，账本金额、快照与导出都不动，刷新即回到真实值。只按选中的这一个维度打折（一笔钱不会被打两次），未调的分类不参与。': 'A stress test is only a set of assumptions: it changes the figures on screen, nothing else — ledger amounts, snapshots and exports stay untouched, and a refresh returns to real values. Only the selected dimension is discounted (no amount is discounted twice); other categories are unaffected.',
+    '压测维度': 'Stress dimension',
+    '压测 {p1}': 'Stress test {p1}',
+    ' · 原值 ': ' · was ',
+    '压测中': 'Stress test on',
+    '压测：未启用': 'Stress test: off',
+    '压测中：{p1}': 'Stress test: {p1}',
+    '压测：先在「分类管理」里建一个分类': 'Stress test: create a category under Categories first',
+    '先在「分类管理」里建一个分类': 'Create a category under Categories first',
+    ' · 未归类 {p1} 按未打折计入': ' · unclassified {p1} counted undiscounted',
+    '{p1} 的跌幅（百分比）': 'Drop for {p1} (percent)',
+    '该维度下未归类的资产（{p1}，{p2} 项）按未打折计入。': 'Assets with no tag in this dimension ({p1}, {p2}) are counted undiscounted.',
+    '压测已启用': 'Stress test on',
+    '压测已清除': 'Stress test cleared',
     '未设置': 'Not set',
     ' · 现金 ': ' · Cash ',
     '调整排序，按上移或下移': 'Reorder: press up or down',
@@ -2285,6 +2488,19 @@
       backupDirNoteText,
       rateFallbackNotice,
       ratesFromApi,
+    },
+    stress: {
+      stressDimensions,
+      stressDropRows,
+      stressBarText,
+      normalizeDropPct,
+      pruneStress,
+      stressActive,
+      stressPctOf,
+      effectiveAssets,
+      unclassifiedCNY,
+      weightedDrop,
+      migrateStressTagRefs,
     },
     migrate: {
       migrateState,

@@ -41,7 +41,14 @@ const ROOT = path.join(__dirname, '..');
 // 抬之前的真实原因是注释——四档失效与「控件贴右」都得把 why 写在规则旁（否则下一个人
 // 会把档位挪回 .modal-content 前面、或把 margin-left:auto 又收进媒体查询里），
 // 这里没有可下沉的纯逻辑（全是级联与盒模型），内联样式也是收回而非新增。
-const INDEX_BUDGET = 409_000;
+// 2026-10-30 从 409,000 抬到 423,000：资产压测（全局视图叠加：条 + 印徽 + 情景弹窗 + 13 处派生
+// 读数改经同一入口 assetsInView()）。抬之前先做过的两步（AGENTS.md 的顺序）：
+// ① 纯逻辑下沉 —— 折算/归一/剪枝/未归类/加权跌幅，以及**条的三态文案**与**逐标签行的数据**
+//    全部在 logic.js stress 域（可单测）；页面只留 DOM 与草稿。② 合并重复结构 —— 跌幅行复用
+//    既有 .scale-input/.scale-reading（与安全边际同一套）与 tagPillHtml（胶囊模板只此一处），
+//    没有新增第二套控件或第二处胶囊标记。剩下的只能是条/印徽/弹窗的标记本身。
+// 本轮之后同方向的增改请先在这个文件里写「试过什么」。
+const INDEX_BUDGET = 423_000;
 
 function bytes(name) {
   return fs.statSync(path.join(ROOT, name)).size;

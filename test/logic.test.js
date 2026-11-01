@@ -3010,3 +3010,6 @@ describe('单复数：计数取自 vars.n 或 vars.p1，不拿金额当计数', 
     assert.strictEqual(L.i18n.t('{p1} 项资产', { p1: 5 }), '5 项资产');
   });
 });
+
+// 压测（stress）用例单独成文件：这一节读起来是一整件事（设计见 docs/adr/0004-stress-as-view-overlay.md）
+require('./stress-logic-cases.js');

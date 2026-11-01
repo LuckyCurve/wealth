@@ -69,6 +69,7 @@ interface AppState {
   snapshotReminder: { window: 'off' | 'start' | 'end'; days: number };  // 月度快照提醒窗口；days 1~28，默认 { end, 5 }
   snapshotReminderLastPrompted: string | null;  // 'YYYY-MM-DD'，只作「今天问过没有」的节流痕迹
   lang: 'en' | 'zh';             // 界面语言（用户设置），默认 en；分类/标签/备注是账本内容，不随它翻译
+  stress: { catId: string; drops: { tag: string; pct: number }[] } | null;  // 压测情景：只存跌幅不存金额；null = 未启用（全 0 也归 null）
   backup: {
     autoFreq: 'daily' | 'weekly' | 'off';
     lastBackup: string | null;      // 只在**确认写入成功**后更新；也是「今天要不要再问」的唯一依据

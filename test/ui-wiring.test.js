@@ -148,7 +148,8 @@ describe('UI 接线契约：共享层单一来源（防重复实现各自漂移�
     // 表格行/图表切片仍各自 calcAssetIncome，属合法用途不在此约束）
     assert.match(logic, /function (?:[A-Za-z_$][A-Za-z0-9_$]*\.)?sumAssetIncomes\(/);
     for (const fn of ['renderMasthead', 'renderIncomeTab']) {
-      assert.match(fnSource(fn), /(?:[A-Za-z_$][A-Za-z0-9_$]*\.)?sumAssetIncomes\(state\.assets\)/, `${fn} 应使用 sumAssetIncomes`);
+      // 压测叠加后经 assetsInView() 取资产（多一层是刻意的：派生读数不得各自读 state.assets）
+      assert.match(fnSource(fn), /(?:[A-Za-z_$][A-Za-z0-9_$]*\.)?sumAssetIncomes\(assetsInView\(\)\)/, `${fn} 应使用 sumAssetIncomes(assetsInView())`);
     }
   });
 
@@ -359,7 +360,7 @@ describe('UI 接线契约：logic.js 导出清单与筛选同步时序', () => {
     const domains = Object.keys(api);
     assert.deepStrictEqual(
       domains.slice().sort(),
-      ['backup', 'chartData', 'color', 'date', 'expense', 'i18n', 'income', 'migrate', 'money', 'snapshot', 'text', 'ui'],
+      ['backup', 'chartData', 'color', 'date', 'expense', 'i18n', 'income', 'migrate', 'money', 'snapshot', 'stress', 'text', 'ui'],
       '域清单：新增域要在这里显式登记（防编辑残留悄悄多一个袋子）'
     );
     const seen = new Map();
@@ -528,7 +529,7 @@ describe('UI 接线契约：收益覆盖标尺（分子口径可切换的预期�
   test('renderCoverageMeter 定义一次、renderIncomeTab 调用一次（骨架静态只同步宽度文案，自足计算两口径合计）', () => {
     assert.strictEqual(count(/\brenderCoverageMeter\(/g), 3, '定义一处 + renderIncomeTab 调用一处 + setCoverageMode 回调一处');
     assert.match(fnSource('renderIncomeTab'), /renderCoverageMeter\(\)/);
-    assert.match(fnSource('renderCoverageMeter'), /(?:[A-Za-z_$][A-Za-z0-9_$]*\.)?sumAssetIncomes\(state\.assets\)/, '两口径合计与报头同源，不重复聚合');
+    assert.match(fnSource('renderCoverageMeter'), /(?:[A-Za-z_$][A-Za-z0-9_$]*\.)?sumAssetIncomes\(assetsInView\(\)\)/, '两口径合计与报头同源（且同经压测叠加入口），不重复聚合');
   });
 
   test('分子口径切换：默认总收益、双按钮各接线一次、走 setSegMode 单一来源', () => {
@@ -566,7 +567,7 @@ describe('UI 接线契约：收益覆盖标尺（分子口径可切换的预期�
   test('有息本金单一来源 ratedPrincipalCNY：页脚加权平均利率与缺口外推同基地，内联不重复聚合', () => {
     assert.match(logic, /function (?:[A-Za-z_$][A-Za-z0-9_$]*\.)?ratedPrincipalCNY\(/, '决策纯函数在 logic.js');
     const src = fnSource('renderIncomeTab');
-    assert.match(src, /(?:[A-Za-z_$][A-Za-z0-9_$]*\.)?ratedPrincipalCNY\(state\.assets\)/, '页脚基地须走 logic.js 同一口径');
+    assert.match(src, /(?:[A-Za-z_$][A-Za-z0-9_$]*\.)?ratedPrincipalCNY\(assetsInView\(\)\)/, '页脚基地须走 logic.js 同一口径（经压测叠加入口）');
     // 内联 reduce 聚合有息本金是分家源头（改一处忘另一处 → 页脚均值与外推年化对不上）
     assert.doesNotMatch(src, /assets\.reduce\(\(s, a\) => s \+ toCNY/, '页脚不得内联重复聚合有息本金');
   });
@@ -1229,6 +1230,146 @@ describe('UI 接线契约：数据校验（缺标签一键/逐条补齐，资产
   });
 });
 
+/*
+ * 压测（全局视图叠加）的接线契约
+ * --------------------------------------------------------------------------
+ * 压测改的是「读数」，不是「账本」——这条界线整个功能都靠它。口径（单维度/不叠加/未归类按 0%）
+ * 在 logic.js stress 域（可单测，见 test/stress-logic-cases.js）；这里守的是**页面这一侧**：
+ *   ① 派生读数必须经 assetsInView()，不得自己读 state.assets 再打折（散到十几处必然漂移，
+ *      症状是同一页上「压测后的覆盖率」配着「压测前的月收益」）；
+ *   ② 账本侧必须**读原值**（列表/行内编辑/表单/快照/导出/示例数据）——反过来也要钉子，
+ *      否则日后有人「顺手统一」就把快照也打折了；
+ *   ③ 标签改名要迁移情景、分类删除要让情景失效（与读数卡同一处置）。
+ */
+describe('UI 接线契约：压测（读数走叠加入口，账本读原值）', () => {
+  const logic = fs.readFileSync(path.join(__dirname, '..', 'logic.js'), 'utf8');
+
+  test('口径在 logic.js：折算/归一/剪枝/未归类/加权跌幅/条文案都不在页面里重写', () => {
+    for (const fn of ['effectiveAssets', 'stressPctOf', 'stressActive', 'pruneStress',
+      'unclassifiedCNY', 'weightedDrop', 'normalizeDropPct', 'migrateStressTagRefs',
+      'stressDimensions', 'stressDropRows', 'stressBarText']) {
+      assert.match(logic, new RegExp('function ' + fn + '\\('), fn + ' 应在 logic.js');
+      assert.strictEqual(count(new RegExp('function ' + fn + '\\s*\\(', 'g')), 0, 'index.html 不应再定义 ' + fn);
+    }
+    const src = fnSource('renderStressChrome') + fnSource('renderStressDrops');
+    assert.doesNotMatch(src, /\*\s*\(1\s*-/, '跌幅折算不得在页面内改写（走 stress.effectiveAssets）');
+    assert.doesNotMatch(src, /Math\.min\(100, Math\.max\(0,/, '跌幅钳制不得在页面内重写（走 logic.js）');
+  });
+
+  test('assetsInView 是派生读数的唯一入口（页面不得自己读 state.assets 再折算）', () => {
+    assert.match(logic, /function effectiveAssets\(/, '叠加实现须在 logic.js');
+    assert.match(fnSource('assetsInView'), /stress\.effectiveAssets\(state\.assets, state\.stress\)/);
+    // 账本原值的读取也必须经名字：ledgerAssets() 就是「这里故意不打折」的判据
+    assert.match(fnSource('ledgerAssets'), /return state\.assets;/);
+    // 派生读数逐个点名：这些函数体内必须出现 assetsInView()
+    for (const fn of ['totalAssetsCNY', 'renderMasthead', 'renderIncomeTab', 'renderCoverageMeter',
+      'renderRunwayRow', 'renderRunwayPreview', 'renderChart', 'renderIncomeChart']) {
+      assert.match(fnSource(fn), /assetsInView\(\)/, fn + ' 的资产必须经 assetsInView() 取（压测叠加的唯一入口）');
+    }
+    // **按调用点数**把守：每处允许的 state.assets 都写在这里，多一处就红。
+    // 为什么不能只断言「出现过 assetsInView」：那样同一函数里改坏一处（收益表的加权利率基地）
+    // 仍会绿——真实发生过的假绿。
+    const allowed = {
+      // 只取「资产条数」与「有没有资产」（与金额无关，压测不改条数）
+      renderMasthead: 1,
+      renderChart: 1,
+      // 报头小字「原值 ¥Y」要的就是原账本金额
+      confirmSnapshot: 1,
+    };
+    for (const [fn, n] of Object.entries(allowed)) {
+      assert.strictEqual((fnSource(fn).match(/state\.assets/g) || []).length, n,
+        fn + ' 里 state.assets 的读取点应恰好 ' + n + ' 处（多一处就是漏接 assetsInView/ledgerAssets）');
+    }
+    for (const fn of ['totalAssetsCNY', 'renderIncomeTab', 'renderCoverageMeter',
+      'renderRunwayRow', 'renderRunwayPreview', 'renderIncomeChart']) {
+      assert.strictEqual((fnSource(fn).match(/state\.assets/g) || []).length, 0,
+        fn + ' 不得直接读 state.assets（压测叠加只在 assetsInView 一处发生）');
+    }
+    // 反向：金额派生不得绕过这两个入口
+    assert.strictEqual(
+      count(/money\.toCNY\(state\.assets|sumAssetIncomes\(state\.assets/g), 0,
+      '金额派生不得绕过 assetsInView()（旧入口回潮）');
+  });
+
+  test('账本侧读原值：列表/快照/导出/示例数据不得经 assetsInView（压测不写账本）', () => {
+    // 这几处是「账本事实」：打折了就是篡改数据，不是读数
+    for (const fn of ['renderAssets', 'openAssetModal', 'saveAsset']) {
+      const src = fnSource(fn);
+      assert.match(src, /state\.assets/, fn + ' 应读账本原值（压测只改读数）');
+      assert.doesNotMatch(src, /assetsInView\(\)/, fn + ' 不得经压测叠加（那是读数层的事）');
+    }
+    // 快照存的是当时的资产事实：金额与资产都要**原值**。
+    // 这条曾被 E2E 抓到：上一版只断言「不出现 assetsInView()」，而它经 totalAssetsCNY()
+    // **间接**叠加（快照 totalCNY 存成了 200k 而非 250k）——断言假绿。
+    const snap = fnSource('confirmSnapshot');
+    assert.match(snap, /JSON\.parse\(JSON\.stringify\(ledgerAssets\(\)\)\)/, '快照资产取原值');
+    assert.match(snap, /sumAmountCNY\(ledgerAssets\(\), state\.rates\)/, '快照金额取原值口径');
+    assert.doesNotMatch(snap, /totalAssetsCNY\(/,
+      '快照金额不得经 totalAssetsCNY（它已按压测叠加）');
+    assert.doesNotMatch(snap, /assetsInView\(\)/, '快照不得经压测叠加');
+  });
+
+  test('标签改名迁移情景、分类删除让情景失效（改名 ≠ 删除，与读数卡同一处置）', () => {
+    assert.match(fnSource('renameTag'), /stress\.migrateStressTagRefs\(state\.stress,/, '改名要迁移跌幅条目（否则情景静默失效）');
+    assert.match(fnSource('deleteCategory'), /stress\.pruneStress\(state\.stress,/, '分类删除后要重新归一');
+    // 与读数卡的迁移同处一行调用点（两件事都在「改名」这一个动作里收尾）
+    const src = fnSource('renameTag');
+    assert.match(src, /migrateRunwayTagRefs\(/, '读数卡与压测同处迁移（别只迁一个）');
+  });
+
+  test('落盘只存跌幅，不存任何金额（金额现算：汇率会变、账本会改）', () => {
+    const src = fnSource('saveStress');
+    assert.match(src, /stress\.pruneStress\(/, '保存走同一归一入口');
+    assert.doesNotMatch(src, /amount|cny|totalCNY/i, '情景里不得出现金额字段');
+    assert.match(fnSource('freshAppState'), /stress: null/, '新存档默认未启用');
+    assert.match(logic, /state\.stress = pruneStress\(state\.stress, state\.categories\)/, '迁移兜底与导入共用同一归一');
+  });
+
+  test('指示器两处同「生效」判据：资产侧条 + 页头印徽（后者保证消费模式下也看得见）', () => {
+    assert.strictEqual(count(/id="stress-bar"/g), 1);
+    assert.strictEqual(count(/id="stress-badge"/g), 1);
+    assert.match(html, /id="tabs-assets"[\s\S]{0,400}?id="stress-bar"/, '条横贯全部资产 Tab（不只放报头旁）');
+    assert.match(html, /id="stress-badge"[^>]*onclick="openStressModal\(/, '印徽点开同一弹窗');
+    const src = fnSource('renderStressChrome');
+    assert.match(src, /stress\.stressActive\(state\.stress\)/, '两处指示器共用同一「生效」判据');
+    assert.match(src, /stress\.stressBarText\(/, '条的三态文案在 logic.js');
+    assert.match(fnSource('renderAssets'), /renderStressChrome\(\)/, '资产重绘时同步指示器');
+  });
+
+  test('弹窗：草稿制（取消不落库）、跌幅行复用既有滑块与胶囊模板', () => {
+    assert.match(fnSource('openStressModal'), /_stressDraft = /, '打开只拷草稿');
+    assert.doesNotMatch(fnSource('openStressModal'), /state\.stress = /, '打开不得写状态');
+    assert.match(fnSource('saveStress'), /state\.stress = next/, '保存才落 state');
+    assert.match(fnSource('clearStress'), /state\.stress = null/, '清除立即回真实值');
+    // 复用：滑块与读数走既有 class（安全边际那套），胶囊走 tagPillHtml 唯一模板
+    const drops = fnSource('renderStressDrops');
+    assert.match(drops, /class="scale-input"/, '复用比例尺滑块（与安全边际同一套）');
+    assert.match(drops, /class="scale-reading"/, '复用等宽读数（--fill 与滑块同步）');
+    assert.match(drops, /tagPillHtml\(cat, r\.tag, catColor\)/, '胶囊走唯一模板 tagPillHtml');
+    assert.strictEqual(count(/class="tag-pill"/g), 1, '胶囊模板只允许一处');
+    assert.match(fnSource('onStressDropInput'), /setScaleValue\(/, '滑块填充走 setScaleValue 单一来源');
+    // 维度下拉：只列可压测分类（内置货币分类排除，汇率是另一条通道）
+    assert.match(fnSource('fillStressDimensionSelect'), /stress\.stressDimensions\(state\.categories\)/);
+  });
+
+  test('弹窗有名字、说明进 ? 气泡、口径句在条与弹窗各一处', () => {
+    assert.match(html, /id="stress-modal"[^>]*aria-labelledby="stress-modal-title"/);
+    assert.match(html, /id="stress-modal-title"/);
+    const modal = html.match(/id="stress-modal"[\s\S]*?id="stress-modal-title"/)[0];
+    assert.doesNotMatch(modal, /<p /, '标题之前不留说明段落');
+    assert.match(html, /aria-describedby="stress-tip"[\s\S]{0,120}?role="tooltip"/, '说明性文字进 ? 气泡（唯一一套 .tip）');
+    assert.match(html, /id="stress-unclassified"/, '弹窗里也有未归类口径句（填跌幅时先问这个）');
+  });
+
+  test('语言词条两条通道都覆盖（含可访问名与占位符）', () => {
+    for (const key of ['压测', '压测情景', '压测维度', '压测中', '压测：未启用',
+      '压测：先在「分类管理」里建一个分类', '{p1} 的跌幅（百分比）',
+      '该维度下未归类的资产（{p1}，{p2} 项）按未打折计入。', '压测已清除']) {
+      assert.ok(key in require('../logic.js').i18n.I18N_EN, '缺英文词条: ' + key);
+    }
+  });
+});
+
 describe('UI 接线契约：图表 tooltip 转义用户输入（防存储型 XSS）', () => {
   // ECharts tooltip 默认 renderMode:'html'，formatter 返回值直接 innerHTML 注入。
   // p.name / p.seriesName / treePathInfo 均来自用户输入（资产名、备注、标签名），
@@ -1768,7 +1909,7 @@ describe('UI 接线契约：所选标签的钱 ÷ 预期月消费（消费趋势
     assert.match(logic, /function (?:[A-Za-z_$][A-Za-z0-9_$]*\.)?runwayMonths\(/, '月数口径在 logic.js');
     assert.match(logic, /function (?:[A-Za-z_$][A-Za-z0-9_$]*\.)?runwayMonthsText\(/, '展示口径在 logic.js');
     const src = fnSource('renderRunwayRow');
-    assert.match(src, /(?:[A-Za-z_$][A-Za-z0-9_$]*\.)?runwayLiquidCNY\(state\.assets/, '渲染层从 logic.js 取分子');
+    assert.match(src, /(?:[A-Za-z_$][A-Za-z0-9_$]*\.)?runwayLiquidCNY\(assetsInView\(\)/, '渲染层从 logic.js 取分子（经压测叠加入口）');
     assert.match(src, /(?:[A-Za-z_$][A-Za-z0-9_$]*\.)?runwayMonths\(/);
     assert.match(src, /(?:[A-Za-z_$][A-Za-z0-9_$]*\.)?runwayMonthsText\(/);
     assert.doesNotMatch(src, /\/\s*expectation/, '月数算式不得在内联脚本重写');
@@ -1867,7 +2008,9 @@ describe('UI 接线契约：所选标签的钱 ÷ 预期月消费（消费趋势
   test('标签语义放 ? 悬停提示（正文不写说明），hover 与键盘 focus 都能看到', () => {
     // 文案现在既在 data-i18n 键里又在可见文本里，故数「可见的那一处」（>文本<）
     assert.strictEqual(count(/>同一分类内多选为「或」[^<]*</g), 1, '语义只出现一次——在提示气泡里');
-    const tip = html.match(/<span class="tip">[\s\S]*?<\/span>\s*<\/h3>/);
+    // 弹窗标题里的 ? 提示现在有两处（压测 + 读数卡），必须锚定到读数卡那一个：
+    // 非贪婪匹配会拿到文档里先出现的那个，断言就成了「验了另一个弹窗」
+    const tip = html.match(/id="runway-modal"[\s\S]*?<span class="tip">[\s\S]*?<\/span>\s*<\/h3>/);
     assert.ok(tip, '标题旁有 ? 提示结构');
     assert.match(tip[0], /class="tip-mark"[^>]*aria-describedby="runway-tip"/, '? 图标关联气泡（可访问性）');
     assert.match(tip[0], /role="tooltip"/);
@@ -1912,7 +2055,7 @@ describe('UI 接线契约：所选标签的钱 ÷ 预期月消费（消费趋势
   test('弹窗内实时预览：勾选即见结果，不用保存了才知道', () => {
     assert.strictEqual(count(/id="runway-preview"/g), 1, '预览行唯一');
     const src = fnSource('renderRunwayPreview');
-    assert.match(src, /(?:[A-Za-z_$][A-Za-z0-9_$]*\.)?runwayLiquidCNY\(state\.assets, _runwayDraft\)/, '预览按草稿算，与读数卡同一口径函数');
+    assert.match(src, /(?:[A-Za-z_$][A-Za-z0-9_$]*\.)?runwayLiquidCNY\(assetsInView\(\), _runwayDraft\)/, '预览按草稿算，与读数卡同一口径函数（同样经压测叠加）');
     assert.match(src, /(?:[A-Za-z_$][A-Za-z0-9_$]*\.)?runwayMonths\(/);
     assert.match(src, /(?:[A-Za-z_$][A-Za-z0-9_$]*\.)?runwayMonthsText\(/);
     assert.doesNotMatch(src, /innerHTML/, '只写 textContent');
@@ -2420,11 +2563,12 @@ describe('UI 接线契约：弹窗尺寸与筛选控件的档位', () => {
 
   test('筛选下拉统一 .select-field，搜索框宽度归 .search-wrap，都不再内联 min-width', () => {
     assert.strictEqual(count(/style="min-width:\d+px;"/g), 0, '筛选控件不再内联 min-width');
-    // 8 个工具条/图表筛选下拉 + 5 个对比弹窗下拉
-    assert.strictEqual(count(/class="select-field/g), 13, '13 个筛选下拉都挂同一类');
+    // 8 个工具条/图表筛选下拉 + 5 个对比弹窗下拉 + 压测弹窗的维度下拉（w-full）
+    assert.strictEqual(count(/class="select-field( |")/g), 14, '14 个下拉都挂同一类');
     assert.strictEqual(count(/class="select-field ml-2"/g), 5, '弹窗内下拉用既有 ml-2 工具类控制左间距');
     assert.match(html, /<input[^>]*id="expense-search"[^>]*class="t-body"/, '搜索框不再带内联宽度');
     assert.match(html, /\n  \.select-field \{ min-width: 160px; \}/, '下拉宽度只此一处');
+    assert.match(html, /id="stress-dimension"[^>]*class="select-field w-full"/, '压测维度下拉撑满弹窗宽度（表单字段，不是工具条筛选）');
     assert.match(html, /\n  \.search-wrap input \{[^}]*min-width: 180px/, '搜索框宽度只此一处');
   });
 

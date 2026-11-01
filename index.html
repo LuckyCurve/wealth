@@ -1109,7 +1109,28 @@ tailwind.config = {
     font-size: var(--fs-body); font-weight: var(--fw-strong); color: var(--accent-ink); letter-spacing: 0.02em;
     min-width: 3.4em; text-align: right;
   }
-  /* 统一空态（邀请行动） */
+  /* ===== 压测（账页边注式的情景标记）=====
+     条横贯全部资产 Tab（只放报头旁会在切到收益测算时看不见）；印徽在页头，
+     两种模式下都挂着——压测是**全局状态**，它的指示器不能挂在某个读数上。 */
+  .stress-bar {
+    display: flex; align-items: center; flex-wrap: wrap; gap: 10px;
+    padding: 7px 12px; margin-bottom: 12px;
+    border: 1px dashed var(--accent-soft); border-radius: 8px; background: var(--bg-2);
+    font-size: var(--fs-micro); /* 徽/条的文字都走这一档（与 .cov-label 同语言） */
+  }
+  .stress-mark {
+    width: 6px; height: 6px; border-radius: 50%; background: var(--down); flex-shrink: 0;
+  }
+  .stress-text { color: var(--fg); letter-spacing: 0.02em; }
+  .stress-actions { margin-left: auto; }
+  .stress-badge { color: var(--accent-ink); }
+  /* 跌幅行：标签名 + 当前金额（左）与滑块 + 读数（右）；窄屏整行换行 */
+  .drop-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; }
+  .drop-head { display: flex; align-items: baseline; gap: 8px; min-width: 0; flex: 1 1 180px; }
+  .drop-amount { font-size: var(--fs-micro); color: var(--muted); font-variant-numeric: tabular-nums; }
+  .drop-scale { display: inline-flex; align-items: center; gap: 10px; }
+  .drop-scale .scale-input { width: 130px; }
+    /* 统一空态（邀请行动） */
   .empty-state { text-align: center; padding: 56px 24px; }
   /* 空账本图标: 账页隐喻, 邀请开始记账 */
   .empty-state::before {
@@ -1386,6 +1407,7 @@ tailwind.config = {
   <symbol id="ic-tags" viewBox="0 0 24 24"><path d="M13.172 2a2 2 0 0 1 1.414.586l6.71 6.71a2.4 2.4 0 0 1 0 3.408l-4.592 4.592a2.4 2.4 0 0 1-3.408 0l-6.71-6.71A2 2 0 0 1 6 9.172V3a1 1 0 0 1 1-1z"/> <path d="M2 7v6.172a2 2 0 0 0 .586 1.414l6.71 6.71a2.4 2.4 0 0 0 3.191.193"/> <circle cx="10.5" cy="6.5" r=".5" fill="currentColor"/></symbol>
   <symbol id="ic-chart-pie" viewBox="0 0 24 24"><path d="M21 12c.552 0 1.005-.449.95-.998a10 10 0 0 0-8.953-8.951c-.55-.055-.998.398-.998.95v8a1 1 0 0 0 1 1z"/> <path d="M21.21 15.89A10 10 0 1 1 8 2.83"/></symbol>
   <symbol id="ic-chart-line" viewBox="0 0 24 24"><path d="M3 3v16a2 2 0 0 0 2 2h16"/> <path d="m19 9-5 5-4-4-3 3"/></symbol>
+  <symbol id="ic-trending-down" viewBox="0 0 24 24"><path d="M16 17h6v-6"/> <path d="m22 17-8.5-8.5-5 5L2 7"/></symbol>
   <symbol id="ic-percent" viewBox="0 0 24 24"><line x1="19" x2="5" y1="5" y2="19"/> <circle cx="6.5" cy="6.5" r="2.5"/> <circle cx="17.5" cy="17.5" r="2.5"/></symbol>
   <symbol id="ic-receipt-text" viewBox="0 0 24 24"><path d="M13 16H8"/> <path d="M14 8H8"/> <path d="M16 12H8"/> <path d="M4 3a1 1 0 0 1 1-1 1.3 1.3 0 0 1 .7.2l.933.6a1.3 1.3 0 0 0 1.4 0l.934-.6a1.3 1.3 0 0 1 1.4 0l.933.6a1.3 1.3 0 0 0 1.4 0l.933-.6a1.3 1.3 0 0 1 1.4 0l.934.6a1.3 1.3 0 0 0 1.4 0l.933-.6A1.3 1.3 0 0 1 19 2a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1 1.3 1.3 0 0 1-.7-.2l-.933-.6a1.3 1.3 0 0 0-1.4 0l-.934.6a1.3 1.3 0 0 1-1.4 0l-.933-.6a1.3 1.3 0 0 0-1.4 0l-.933.6a1.3 1.3 0 0 1-1.4 0l-.934-.6a1.3 1.3 0 0 0-1.4 0l-.933.6a1.3 1.3 0 0 1-.7.2 1 1 0 0 1-1-1z"/></symbol>
   <symbol id="ic-shapes" viewBox="0 0 24 24"><path d="M8.3 10a.7.7 0 0 1-.626-1.079L11.4 3a.7.7 0 0 1 1.198-.043L16.3 8.9a.7.7 0 0 1-.572 1.1Z"/> <rect x="3" y="14" width="7" height="7" rx="1"/> <circle cx="17.5" cy="17.5" r="3.5"/></symbol>
@@ -1427,6 +1449,7 @@ tailwind.config = {
       </div>
     </div>
     <div class="flex items-center gap-3">
+      <button type="button" id="stress-badge" onclick="openStressModal({fromHeader:true})" class="btn-ghost stress-badge" style="display:none;" aria-label="压测中" data-i18n-aria-label="压测中"><svg class="ico" aria-hidden="true"><use href="#ic-trending-down"/></svg><span data-i18n="压测">压测</span><span id="stress-badge-pct" class="tabular"></span></button>
       <button onclick="showSettings()" class="btn-ghost"><svg class="ico" aria-hidden="true"><use href="#ic-settings"/></svg><span data-i18n="设置">设置</span></button>
     </div>
   </div>
@@ -1434,6 +1457,15 @@ tailwind.config = {
 
 <!-- Tabs: Assets -->
 <div id="tabs-assets" class="content-column" style="display:none;">
+  <!-- 压测条：横贯全部资产 Tab（不只在报头旁）——切到收益测算/资产分布时也要看得见
+       「现在读的是打折的数」。口径说明句只在生效时出现。 -->
+  <div id="stress-bar" class="stress-bar" style="display:none;">
+    <span class="stress-mark" aria-hidden="true"></span>
+    <span id="stress-bar-text" class="stress-text"></span>
+    <span class="stress-actions">
+      <button type="button" onclick="openStressModal()" class="row-btn edit" data-i18n="压测情景">压测情景</button>
+    </span>
+  </div>
   <div class="tab-bar">
     <span class="tab-indicator" aria-hidden="true"></span>
     <button class="tab-btn active" data-tab="assets" onclick="tabClick(this)"><svg class="ico" aria-hidden="true"><use href="#ic-layers"/></svg><span data-i18n="资产管理">资产管理</span></button>
@@ -2154,6 +2186,25 @@ tailwind.config = {
   </div>
 </div>
 
+<!-- Stress Modal（压测情景：维度 + 逐标签跌幅；取消不落库） -->
+<div id="stress-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="stress-modal-title" style="display:none;">
+  <div class="modal-content modal-md">
+    <h3 class="font-display modal-title" id="stress-modal-title"><span data-i18n="压测情景">压测情景</span><span class="tip">
+      <button type="button" class="tip-mark" aria-describedby="stress-tip" aria-label="压测如何计算" data-i18n-aria-label="压测如何计算">?</button>
+      <span class="tip-bubble" id="stress-tip" role="tooltip" data-i18n="压测只是一组假设：只改页面上的读数，账本金额、快照与导出都不动，刷新即回到真实值。只按选中的这一个维度打折（一笔钱不会被打两次），未调的分类不参与。">压测只是一组假设：只改页面上的读数，账本金额、快照与导出都不动，刷新即回到真实值。只按选中的这一个维度打折（一笔钱不会被打两次），未调的分类不参与。</span>
+    </span></h3>
+    <label class="field-label" for="stress-dimension" data-i18n="压测维度">压测维度</label>
+    <select id="stress-dimension" class="select-field w-full" onchange="onStressDimensionChange()" aria-label="压测维度" data-i18n-aria-label="压测维度"></select>
+    <div id="stress-drops" class="space-y-3 scroll-cap" style="margin-top:16px;"></div>
+    <p id="stress-unclassified" class="t-micro muted" style="margin-top:10px;"></p>
+    <div class="modal-footer">
+      <button type="button" onclick="clearStress()" class="btn-danger btn-sm" data-i18n="清除">清除</button>
+      <button type="button" onclick="closeModal('stress-modal')" class="btn-ghost" data-i18n="取消">取消</button>
+      <button type="button" onclick="saveStress()" class="btn-gold" data-i18n="保存">保存</button>
+    </div>
+  </div>
+</div>
+
 <!-- Runway Modal（读数卡编辑：标签多选 + 月消费自定，取消不落库） -->
 <div id="runway-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="runway-modal-title" style="display:none;">
   <div class="modal-content modal-md">
@@ -2291,6 +2342,8 @@ function freshAppState() {
     // 界面语言（用户设置，随存档落盘）：默认英文
     lang: 'en',
     backup: { autoFreq: 'daily', lastBackup: null },
+    // 压测情景（只存跌幅，不存金额）: null = 未启用。为什么不落盘金额见 docs/adr/0004
+    stress: null,
   };
 }
 let state = freshAppState();
@@ -2888,6 +2941,7 @@ function renderAssets() {
 
   // 数据校验条跟随资产/分类变化（全局口径，不随排序变化）
   renderTagCheckBar('asset');
+  renderStressChrome();
 }
 
 // ===== Masthead / net-worth hero =====
@@ -2932,7 +2986,7 @@ function renderMasthead(total) {
 
   // currency composition
   const byCur = { CNY: 0, HKD: 0, USD: 0 };
-  state.assets.forEach(a => { byCur[a.currency] = (byCur[a.currency] || 0) + money.toCNY(a.amount, a.currency); });
+  assetsInView().forEach(a => { byCur[a.currency] = (byCur[a.currency] || 0) + money.toCNY(a.amount, a.currency); });
   const segs = [
     { key: 'CNY', cls: 'seg-cny' },
     { key: 'HKD', cls: 'seg-hkd' },
@@ -2983,17 +3037,24 @@ function renderMasthead(total) {
   // sub line: 资产数 + 月收益/现金 双口径平齐展示（任一资产设置利率后出现）
   // 覆盖率差额叙述已完整收归覆盖标尺, 报头只保留收入金额与预期锚点, 不再重复叙述
   const count = state.assets.length;
-  const hasRate = income.hasAnyRatedAsset(state.assets); // 纯函数在 logic.js（与收益 Tab 共用同一判定）
+  const hasRate = income.hasAnyRatedAsset(assetsInView()); // 纯函数在 logic.js（与收益 Tab 共用同一判定）
   const expectation = state.expenseExpectation || 0;
   let subText = `<span>${i18n.t('{p1} 项资产', { p1: count })}</span>`;
   if (hasRate) {
     // 两口径合计单一来源（logic.js income.sumAssetIncomes, 与收益摘要/覆盖标尺共用）
-    const { monthly, cashMonthly } = income.sumAssetIncomes(state.assets);
+    const { monthly, cashMonthly } = income.sumAssetIncomes(assetsInView());
     if (expectation > 0) {
       subText += ` · <span class="muted">${i18n.t('预期月消费 ')}<span class="tabular t-medium text-value">${money.formatCNY(expectation)}</span></span>`;
     }
     subText += ` · <span>${i18n.t('预估月收益 ')}<span class="tabular t-medium ink-up">${money.formatCNY(monthly)}</span></span>`;
     subText += ` · <span>${i18n.t('现金收益 ')}<span class="tabular t-medium ink-accent">${money.formatCNY(cashMonthly)}</span></span>`;
+  }
+  if (stress.stressActive(state.stress)) {
+    const origTotal = money.sumAmountCNY(ledgerAssets(), state.rates);
+    const drop = stress.weightedDrop(ledgerAssets(), state.stress, state.categories);
+    subText += ' · <span class="ink-accent">' +
+      i18n.t('压测 {p1}', { p1: '-' + drop.toFixed(1) + '%' }) +
+      i18n.t(' · 原值 ') + money.formatCNY(origTotal) + '</span>';
   }
   subEl.innerHTML = subText;
 }
@@ -3793,9 +3854,24 @@ function rateLabelText(a, digits) {
 
 // money.money2 在 logic.js（与 money.formatCNY/money.moneyStr 同族）
 
+// 压测叠加后「当前视图里的资产」（**派生读数的唯一入口**）:
+// 未启用时零开销原样返回 state.assets；启用时返回打折后的副本。
+// 报头/收益/覆盖标尺/读数卡/三张旭日图/加权利率都从这里取，不得各自读 state.assets 再打折
+// ——口径散到十几处必然漂移（症状是同一页上「压测后的覆盖率」配着「压测前的月收益」）。
+// 例外（**必须**读原值）：资产列表与其行内编辑、资产表单、分类 CRUD、快照保存、导出、示例数据。
+// 账本原值（**不叠加压测**）：列表/表单/快照/导出/示例数据，以及压测自己的
+// 「原值 ¥Y」「加权跌幅」「未归类」口径用。名字就是判据——看到它就知道这里故意不打折。
+function ledgerAssets() {
+  return state.assets;
+}
+
+function assetsInView() {
+  return stress.effectiveAssets(state.assets, state.stress);
+}
+
 // 总资产折算 CNY（资产/收益/报头多处复用同一公式，集中避免漂移）
 function totalAssetsCNY() {
-  return money.sumAmountCNY(state.assets, state.rates);
+  return money.sumAmountCNY(assetsInView(), state.rates);
 }
 
 // 统一的分类标签 pill 渲染（资产/消费/快照列表共用），避免六处重复的内联 HTML 漂移
@@ -4011,6 +4087,8 @@ function deleteCategory(side, id) {
     if (side === 'asset') state.categories = newCats; else state.expenseCategories = newCats;
     cfg.items().forEach(it => { delete it.tags[id]; });
     if (side === 'asset') state.runwayTags = income.pruneRunwayTags(state.runwayTags, state.categories);
+    // 压测情景指向的分类没了 → 整条作废（normalizeRunwayTags 同理：不留指向已删分类的跌幅）
+    if (side === 'asset') state.stress = stress.pruneStress(state.stress, state.categories);
     saveState();
     renderCategoryCards(side);
     cfg.renderItems();
@@ -4070,6 +4148,8 @@ function renameTag(side, catId, oldName, newName) {
   expense.migrateTagRefs(cfg.items(), catId, oldName, newName);
   // 读数卡所选标签同按「分类 + 名字」引用，改名要一并迁移，否则 prune 会把选择清掉
   if (side === 'asset') state.runwayTags = income.migrateRunwayTagRefs(state.runwayTags, catId, oldName, newName);
+  // 压测情景同按「分类 + 名字」引用跌幅条目，改名也要一并迁移（否则设好的情景会静默失效）
+  if (side === 'asset') state.stress = stress.migrateStressTagRefs(state.stress, catId, oldName, newName);
   saveState();
   renderCategoryCards(side);
   cfg.renderItems();
@@ -4334,7 +4414,7 @@ async function renderChart() {
   // group assets by the selected category's tags
   const groups = {};
   cat.tags.forEach(t => { groups[t] = []; });
-  state.assets.forEach(a => {
+  assetsInView().forEach(a => {
     const tagVal = a.tags[catId];
     if (tagVal && groups[tagVal]) groups[tagVal].push(a);
   });
@@ -4391,9 +4471,11 @@ function confirmSnapshot(overwrite) {
   const snap = {
     month,
     note: note || '',
-    totalCNY: totalAssetsCNY(),
+    // 快照存**原值**：它是历史事实，压测只是一组假设（见 docs/adr/0004）。
+    // 金额显式走 sumAmountCNY(state.assets, ...) 而不是报头那个合计（后者已按压测叠加）
+    totalCNY: money.sumAmountCNY(ledgerAssets(), state.rates),
     currencyRates: { ...state.rates },
-    assets: JSON.parse(JSON.stringify(state.assets)),
+    assets: JSON.parse(JSON.stringify(ledgerAssets())),
     updatedAt: new Date().toISOString(),
   };
 
@@ -4875,7 +4957,7 @@ function renderCoverageMeter() {
   section.style.display = '';
 
   // 两口径合计与报头同源（logic.js income.sumAssetIncomes; 年值供缺口外推用同一份, 不另算）
-  const { monthly, cashMonthly, annual, cashAnnual } = income.sumAssetIncomes(state.assets);
+  const { monthly, cashMonthly, annual, cashAnnual } = income.sumAssetIncomes(assetsInView());
   const numerator = coverageMode === 'total' ? monthly : cashMonthly;
   document.getElementById('cov-anchor-num').textContent = money.formatCNY(numerator);
   document.getElementById('cov-anchor-expense').textContent = money.formatCNY(expectation);
@@ -4900,7 +4982,7 @@ function renderCoverageMeter() {
   let shortfallTip = '';
   if (!ok) {
     const annualBase = coverageMode === 'total' ? annual : cashAnnual;
-    const principal = income.ratedPrincipalCNY(state.assets);
+    const principal = income.ratedPrincipalCNY(assetsInView());
     const { need, rate } = income.coverShortfallPrincipal(numerator, expectation, annualBase, principal);
     shortfallTip = shortfallTipHtml(need, rate);
   }
@@ -4931,6 +5013,139 @@ function setCoverageMode(mode) {
   setSegMode('cov-mode-cash', 'cov-mode-total', mode, 'cash', 'total', () => renderCoverageMeter());
 }
 
+// ========== 压测（情景编辑 + 条/印徽同步）==========
+// 为什么账本不动、为什么单维度、为什么不落盘金额见 docs/adr/0004-stress-as-view-overlay.md。
+// 口径（折算/归一/剪枝/未归类）全在 logic.js stress 域；这里只管 DOM 与草稿。
+//
+// 三处指示器同一个「生效」判据：
+//   ① 资产侧 Tab 栏之上的条（横贯全部资产 Tab）——生效时它是「为什么净资产变了」的唯一解释；
+//   ② 页头印徽——压测是**全局**状态，消费模式下也要看得见（那里还有跟着变的读数卡）；
+//   ③ 报头小字「压测 -Z% · 原值 ¥Y」——给一个量级，不必列出每个标签。
+//
+// 弹窗只改草稿，保存才落 state（与读数卡/预期消费同惯例: 取消不落库）。
+
+function renderStressChrome() {
+  const active = stress.stressActive(state.stress);
+  const bar = document.getElementById('stress-bar');
+  const text = document.getElementById('stress-bar-text');
+  const badge = document.getElementById('stress-badge');
+  const badgePct = document.getElementById('stress-badge-pct');
+  if (bar && text) {
+    // 三态（无可用维度 / 未启用 / 生效）与那句「未归类」尾巴的口径都在 logic.js.stress.stressBarText
+    // （可单测）；这里只决定「显示与否」——没有可压测维度时也显示条，否则用户找不到入口。
+    bar.style.display = stress.stressDimensions(state.categories).length > 0 || active ? '' : 'none';
+    text.textContent = stress.stressBarText(state.stress, state.categories, ledgerAssets());
+  }
+  if (badge && badgePct) {
+    badge.style.display = active ? '' : 'none';
+    if (active) badgePct.textContent = ' -' + stress.weightedDrop(ledgerAssets(), state.stress, state.categories).toFixed(1) + '%';
+  }
+}
+
+// 草稿： catId, drops: [{ tag, pct }] }。打开时从 state 拷一份，改完保存才写回（取消不落库）。
+let _stressDraft = null;
+
+function openStressModal() {
+  const dims = stress.stressDimensions(state.categories);
+  if (dims.length === 0) {
+    toast(i18n.t('先在「分类管理」里建一个分类'), 'error');
+    return;
+  }
+  const cur = stress.pruneStress(state.stress, state.categories);
+  const catId = cur && dims.some(c => c.id === cur.catId) ? cur.catId : dims[0].id;
+  _stressDraft = { catId, drops: cur && cur.catId === catId ? cur.drops.map(d => ({ tag: d.tag, pct: d.pct })) : [] };
+  fillStressDimensionSelect();
+  renderStressDrops();
+  openModal('stress-modal');
+}
+
+function fillStressDimensionSelect() {
+  const sel = document.getElementById('stress-dimension');
+  if (!sel) return;
+  const dims = stress.stressDimensions(state.categories);
+  setSelectOptions(sel, dims.map(c => `<option value="${text.esc(c.id)}">${text.esc(c.name)}</option>`).join(''));
+  if (_stressDraft && dims.some(c => c.id === _stressDraft.catId)) sel.value = _stressDraft.catId;
+}
+
+// 换维度 = 换一套标签：草稿里旧的跌幅条目一律作废（不同维度的标签不同名，留着只会误命中）
+function onStressDimensionChange() {
+  if (!_stressDraft) return;
+  _stressDraft = { catId: document.getElementById('stress-dimension').value, drops: [] };
+  renderStressDrops();
+}
+
+// 逐标签一行：标签名 + 该标签当前折算金额（帮助判断量级）+ 比例尺滑块 + 读数。
+// 复用安全边际那套 .scale-input/.scale-reading（--fill 由 setScaleValue 同步），step=1。
+// 行的数据（标签 / 当前折算金额 / 当前跌幅）由 logic.js 出（可单测，口径与分布图同源）。
+function renderStressDrops() {
+  const box = document.getElementById('stress-drops');
+  if (!box || !_stressDraft) return;
+  const cat = state.categories.find(c => c.id === _stressDraft.catId);
+  if (!cat) { box.innerHTML = ''; return; }
+  box.innerHTML = stress.stressDropRows(ledgerAssets(), _stressDraft, state.categories).map(r => {
+    const id = 'stress-drop-' + text.jsAttr(cat.id) + '-' + text.jsAttr(r.tag);
+    return `<div class="drop-row">
+      <span class="drop-head">
+        ${tagPillHtml(cat, r.tag, catColor)}
+        <span class="drop-amount">${money.formatCNY(r.amount)}</span>
+      </span>
+      <span class="drop-scale">
+        <input type="range" id="${id}" class="scale-input" min="0" max="100" step="1" value="${r.pct}" style="--fill:${r.pct}%">
+        <span class="scale-reading" id="${id}-readout">-${r.pct}%</span>
+      </span>
+    </div>`;
+  }).join('');
+  // 滑块的 oninput 与可访问名都要用到标签名；标签是账本内容（不翻译），
+  // 所以名字在渲染时按标签拼 —— 不能挂 data-i18n-aria-label（那要求键是静态中文原文）
+  box.querySelectorAll('input[type="range"]').forEach(el => {
+    const tag = el.id.slice(('stress-drop-' + cat.id + '-').length);
+    el.oninput = () => onStressDropInput(tag, el);
+    el.setAttribute('aria-label', i18n.t('{p1} 的跌幅（百分比）', { p1: tag }));
+  });
+  // 未归类口径说明：这里也必须写一句（用户填跌幅时会先问「没标签的那些算多少」）
+  const un = stress.unclassifiedCNY(ledgerAssets(), { catId: cat.id, drops: [{ tag: cat.tags[0], pct: 1 }] }, state.categories);
+  document.getElementById('stress-unclassified').textContent = un.count > 0
+    ? i18n.t('该维度下未归类的资产（{p1}，{p2} 项）按未打折计入。', { p1: money.formatCNY(un.cny), p2: un.count })
+    : '';
+}
+
+function onStressDropInput(tag, el) {
+  if (!_stressDraft) return;
+  setScaleValue(el, el.id + '-readout');
+  const pct = Math.min(100, Math.max(0, Math.round(Number(el.value) || 0)));
+  const at = _stressDraft.drops.findIndex(d => d.tag === tag);
+  if (at >= 0) _stressDraft.drops[at].pct = pct;
+  else _stressDraft.drops.push({ tag, pct });
+  const readout = document.getElementById(el.id + '-readout');
+  if (readout) readout.textContent = '-' + pct + '%';
+}
+
+function saveStress() {
+  if (!_stressDraft) { closeModal('stress-modal'); return; }
+  // 归一 + 剪枝走 logic.js（与存档加载/导入共用同一口径）；全 0 → null 即「未启用
+  const next = stress.pruneStress(_stressDraft, state.categories);
+  const before = JSON.stringify(state.stress);
+  state.stress = next;
+  closeModal('stress-modal');
+  if (JSON.stringify(next) === before) return;   // 没变就不重绘（空点击同理）
+  saveState();
+  renderAll();
+  refreshVisibleCharts();
+  if (document.getElementById('tab-income').style.display !== 'none') renderIncomeTab();
+  toast(next ? i18n.t('压测已启用') : i18n.t('压测已清除'), next ? 'info' : 'success');
+}
+
+function clearStress() {
+  _stressDraft = null;
+  state.stress = null;
+  saveState();
+  closeModal('stress-modal');
+  renderAll();
+  refreshVisibleCharts();
+  if (document.getElementById('tab-income').style.display !== 'none') renderIncomeTab();
+  toast(i18n.t('压测已清除'), 'success');
+}
+
 // ========== 所选标签的钱 ÷ 月消费（消费趋势的读数卡）==========
 // 依附「预期月消费」这条参考线（与收益测算无关）, 故落在消费趋势; 公式直呈现:
 // 标签摘要 ÷ 月消费, 锚点式数字与月数同一句话里给出。
@@ -4950,7 +5165,7 @@ function renderRunwayRow() {
   // 引用先过同一清理入口: 手改/损坏的数据里可能有畸形引用（不仅不计数, 也不能在标签摘要里渲染成 undefined）,
   // 且非数组时 refs.map 会直接抛错; 清理后的 refs 与 income.runwayLiquidCNY 的匹配集合必然一致
   const refs = income.pruneRunwayTags(state.runwayTags, state.categories);
-  const liquid = income.runwayLiquidCNY(state.assets, refs);
+  const liquid = income.runwayLiquidCNY(assetsInView(), refs);
   card.style.display = '';
   // 未选标签（null）与选了但无资产命中（0）区分开: 前者走指引句
   const chosen = liquid != null;
@@ -5064,7 +5279,7 @@ function renderRunwayPreview() {
   if (!el) return;
   const input = document.getElementById('runway-expectation').value;
   const expectation = income.runwayExpectationOf(income.normalizeRunwayExpectationInput(input, state.expenseExpectation), state.expenseExpectation);
-  const liquid = income.runwayLiquidCNY(state.assets, _runwayDraft);
+  const liquid = income.runwayLiquidCNY(assetsInView(), _runwayDraft);
   if (liquid == null) { el.textContent = i18n.t('勾选标签后这里显示结果'); return; }
   const months = income.runwayMonths(liquid, expectation);
   if (months == null) { el.textContent = i18n.t('先设定预期月消费，再回来看结果'); return; }
@@ -5095,10 +5310,10 @@ function renderIncomeTab() {
     setScaleValue(safetyEl, 'income-safety-readout');
   }
 
-  const hasAnyRate = income.hasAnyRatedAsset(state.assets); // 与 masthead 同一判定（logic.js）
+  const hasAnyRate = income.hasAnyRatedAsset(assetsInView()); // 与 masthead 同一判定（logic.js），同经压测叠加
   document.getElementById('income-mode-toggle').style.display = hasAnyRate ? '' : 'none';
 
-  const assets = state.assets.filter(a => income.getAssetRate(a) > 0);
+  const assets = assetsInView().filter(a => income.getAssetRate(a) > 0);
 
   if (assets.length === 0) {
     empty.style.display = '';
@@ -5114,7 +5329,7 @@ function renderIncomeTab() {
 
   // --- Summary ---
   // 两口径合计单一来源（logic.js income.sumAssetIncomes, 与报头副行/覆盖标尺共用）
-  const sums = income.sumAssetIncomes(state.assets);
+  const sums = income.sumAssetIncomes(assetsInView());
   const totalAnnual = sums.annual;
   const totalMonthly = sums.monthly;
   const totalDaily = sums.daily;
@@ -5140,7 +5355,7 @@ function renderIncomeTab() {
   }, 0);
   // 有息本金（CNY）单一来源（logic.js income.ratedPrincipalCNY）: 页脚加权平均利率与缺口外推的「还需本金」
   // 必须同基地 —— 两处各写一份 reduce 时, 改一处忘另一处会让页脚均值与外推年化对不上且不报错
-  const totalAssetCNY = income.ratedPrincipalCNY(state.assets);
+  const totalAssetCNY = income.ratedPrincipalCNY(assetsInView());
   const avgRate = totalAssetCNY > 0 ? (totalWeighted / totalAssetCNY).toFixed(2) : '0.00';
   const avgCashRate = totalAssetCNY > 0 ? (cashWeighted / totalAssetCNY).toFixed(2) : '0.00';
   const safetyPct = state.incomeSafetyFactor || 100;
@@ -5153,7 +5368,7 @@ function renderIncomeTab() {
   renderCoverageMeter();
 
   // --- Table ---
-  const sorted = [...state.assets].sort((a, b) => {
+  const sorted = [...assetsInView()].sort((a, b) => {
     return income.calcAssetIncome(b).monthly - income.calcAssetIncome(a).monthly;
   });
   const rows = document.getElementById('income-rows');
@@ -5204,7 +5419,7 @@ async function renderIncomeChart() {
 
   const el = document.getElementById('income-chart');
 
-  const rateAssets = state.assets.filter(a => income.getAssetRate(a) > 0);
+  const rateAssets = assetsInView().filter(a => income.getAssetRate(a) > 0);
   if (rateAssets.length === 0) {
     el.style.display = 'none';
     renderSunburstLegend('income-chart-legend', [], 0, null);
@@ -5249,7 +5464,8 @@ async function renderIncomeChart() {
     // ECharts 不会把 data 上的自定义字段展开到 params 顶层, 必须从 p.data 取
     const assetId = p.data && p.data._assetId;
     if (assetId) {
-      const a = state.assets.find(x => x.id === assetId);
+      // 从**视图资产**里找：扇区是压测后的数，tooltip 也必须是同一个数
+      const a = assetsInView().find(x => x.id === assetId);
       if (a) {
         const inc = income.calcAssetIncome(a);
         const rateRange = rateLabelText(a, 1) || i18n.t('未设置');
