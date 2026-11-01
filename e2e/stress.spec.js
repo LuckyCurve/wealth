@@ -8,6 +8,8 @@
  *   · 刷新后情景仍在（落盘的唯一守卫）；
  *   · 改名后情景跟着迁移（不静默失效）。
  *
+ * 滑块是**剩余比例**（拉满 100% = 没有亏损，拉到 50% = 跌一半）——存的是 keep，不是跌幅。
+ *
  * 走键盘通道进资产页（fixtures.gotoAssets），不依外网、不用 waitForTimeout。
  */
 const {
@@ -15,7 +17,7 @@ const {
 } = require('./fixtures');
 
 // 播种一份带分类的账本：类型（活期/权益）+ 风险（低/高）+ 一笔未归类资产。
-// 期望值便于心算：CNY 100k 活期 + 100k 权益 + 50k 未归类；权益 -50% → 净资产 200k。
+// 期望值便于心算：CNY 100k 活期 + 100k 权益 + 50k 未归类；权益剩 50% → 净资产 200k。
 const stressState = () => ({
   ...EMPTY_STATE,
   categories: [
@@ -46,13 +48,14 @@ async function openStressModal(page) {
   await expect(page.locator('#stress-modal')).toBeVisible();
 }
 
-/** 在弹窗里把「权益基金」的跌幅滑到 50% 并保存（权益基金是第二个标签） */
-async function setFundDropTo50(page) {
+/** 在弹窗里把「权益基金」拉到剩 60% 并保存（权益基金是第二个标签）
+ *  为什么不是 50%：那是「剩一半/跌一半」的对称点，语义写反也算出同一个数（用例会假绿）。 */
+async function setFundKeepTo60(page) {
   const slider = page.locator('#stress-modal input[type="range"]').nth(1);
   await expect(slider).toBeVisible();
-  await slider.fill('50');
+  await slider.fill('60');
   await slider.dispatchEvent('input');
-  await expect(page.locator('#stress-modal .scale-reading').nth(1)).toHaveText('-50%');
+  await expect(page.locator('#stress-modal .scale-reading').nth(1)).toHaveText('60%');
   await page.locator('#stress-modal .btn-gold').click();
   await expect(page.locator('#stress-modal')).toBeHidden();
 }
@@ -69,28 +72,28 @@ test.describe('压测：读数跟着变，账本不动', () => {
     await expect(page.locator('#masthead-whole')).toHaveText('250,000');
 
     await openStressModal(page);
-    await setFundDropTo50(page);
+    await setFundKeepTo60(page);
 
     // 生效：250,000 → 200,000（权益 100k 腰斩），条列出跌幅 + 未归类口径句
-    await expect(page.locator('#masthead-whole')).toHaveText('200,000');
-    await expect(page.locator('#stress-bar-text')).toContainText('权益基金 -50%');
+    await expect(page.locator('#masthead-whole')).toHaveText('210,000');
+    await expect(page.locator('#stress-bar-text')).toContainText('权益基金 60%');
     await expect(page.locator('#stress-bar-text')).toContainText('未归类 ¥50,000.00 按未打折计入');
     // 报头副行给出原值对照 + 加权跌幅（50k 未归类不打折 → 加权 20%）
-    await expect(page.locator('#masthead-sub')).toContainText('压测 -20.0%');
+    await expect(page.locator('#masthead-sub')).toContainText('压测 -16.0%');
     await expect(page.locator('#masthead-sub')).toContainText('原值 ¥250,000');
     // 页头印徽出现（消费模式下也看得见压测生效）
     await expect(page.locator('#stress-badge')).toBeVisible();
-    await expect(page.locator('#stress-badge-pct')).toHaveText(' -20.0%');
+    await expect(page.locator('#stress-badge-pct')).toHaveText(' -16.0%');
   });
 
   test('资产列表金额仍是原值（压测不写账本）', async ({ page }) => {
     await openStressPage(page);
     await gotoAssets(page);
     await openStressModal(page);
-    await setFundDropTo50(page);
+    await setFundKeepTo60(page);
 
     // 报头已是压测后的数，列表必须是账本原值——这是「只改读数」的核心断言
-    await expect(page.locator('#masthead-whole')).toHaveText('200,000');
+    await expect(page.locator('#masthead-whole')).toHaveText('210,000');
     const amounts = page.locator('#assets-rows .asset-row .amount-cell span');
     await expect(amounts.nth(0)).toHaveText('100,000.00');
     await expect(amounts.nth(1)).toHaveText('100,000.00');
@@ -102,7 +105,7 @@ test.describe('压测：读数跟着变，账本不动', () => {
     await openStressPage(page);
     await gotoAssets(page);
     await openStressModal(page);
-    await setFundDropTo50(page);
+    await setFundKeepTo60(page);
 
     // 压测生效下保存本月快照
     await page.locator('#tabs-assets .tab-btn[data-tab="history"]').click();
@@ -118,21 +121,21 @@ test.describe('压测：读数跟着变，账本不动', () => {
     });
     expect(snap.total).toBe(250000);
     expect(snap.amounts).toEqual([100000, 100000, 50000]);
-    expect(snap.stress).toEqual({ catId: 'cat-type', drops: [{ tag: '权益基金', pct: 50 }] });
+    expect(snap.stress).toEqual({ catId: 'cat-type', keeps: [{ tag: '权益基金', keep: 60 }] });
   });
 
   test('刷新后情景仍在（落盘），清除后回到真实值', async ({ page }) => {
     await openStressPage(page);
     await gotoAssets(page);
     await openStressModal(page);
-    await setFundDropTo50(page);
-    await expect(page.locator('#masthead-whole')).toHaveText('200,000');
+    await setFundKeepTo60(page);
+    await expect(page.locator('#masthead-whole')).toHaveText('210,000');
 
     await page.reload();
     await gotoAssets(page);
     // reload 后情景来自存档（不是重播）——这是「落盘」的唯一守卫
-    await expect(page.locator('#masthead-whole')).toHaveText('200,000');
-    await expect(page.locator('#stress-bar-text')).toContainText('权益基金 -50%');
+    await expect(page.locator('#masthead-whole')).toHaveText('210,000');
+    await expect(page.locator('#stress-bar-text')).toContainText('权益基金 60%');
 
     // 清除：立即回真实值，条回未启用
     await openStressModal(page);
@@ -146,7 +149,7 @@ test.describe('压测：读数跟着变，账本不动', () => {
     await openStressPage(page);
     await gotoAssets(page);
     await openStressModal(page);
-    await setFundDropTo50(page);
+    await setFundKeepTo60(page);
 
     // 长按分类卡片上的「权益基金」胶囊改名：键盘 Enter 直达改名
     await page.locator('#tabs-assets .tab-btn[data-tab="categories"]').click();
@@ -158,9 +161,9 @@ test.describe('压测：读数跟着变，账本不动', () => {
     await input.press('Enter');
 
     // 改名后情景仍在（也不该被剪枝清掉）：条上出现新名，报头维持 200,000
-    await expect(page.locator('#stress-bar-text')).toContainText('股票基金 -50%');
+    await expect(page.locator('#stress-bar-text')).toContainText('股票基金 60%');
     await page.locator('#tabs-assets .tab-btn[data-tab="assets"]').click();
-    await expect(page.locator('#masthead-whole')).toHaveText('200,000');
+    await expect(page.locator('#masthead-whole')).toHaveText('210,000');
   });
 });
 
@@ -169,14 +172,14 @@ test.describe('压测：派生读数跟着变', () => {
     await openStressPage(page);
     await gotoAssets(page);
     await openStressModal(page);
-    await setFundDropTo50(page);
+    await setFundKeepTo60(page);
 
     // 覆盖率（现金口径，默认「使用最低」利率档）：
-    //   活期 100k×1%×100% + 权益 50k×6%×20%（腰斩后本金）→ 年 1600 → 月 133.33；预期 5000 → 2.7%
+    //   活期 100k×1%×100% + 权益 60k×6%×20%（剩 60% 的本金）→ 年 1720 → 月 143.33；预期 5000 → 2.9%
     // 压测前的同口径是 100k×1% + 100k×6%×20% = 年 2200 → 月 183.33 → 3.7%（可与单测对照）
     await page.locator('#tabs-assets .tab-btn[data-tab="income"]').click();
     await page.locator('#cov-mode-cash').click();
-    await expect(page.locator('#cov-reading')).toContainText('覆盖 2.7%');
+    await expect(page.locator('#cov-reading')).toContainText('覆盖 2.9%');
 
     // 读数卡（消费趋势）：分子是「所选标签的钱」，压测生效时它同样打折。
     // 选「权益基金」这一个标签：原 100k → 腰斩 50k；÷ 月消费 5000 = 10 个月。
@@ -187,11 +190,11 @@ test.describe('压测：派生读数跟着变', () => {
     await expect(page.locator('#runway-modal')).toBeVisible();
     await page.locator('#runway-tag-groups .tag-choice', { hasText: '权益基金' }).click();
     await page.locator('#runway-modal .btn-gold').click();
-    await expect(page.locator('#runway-num')).toHaveText('¥50,000.00');
-    await expect(page.locator('#runway-months')).toHaveText('10 个月');
+    await expect(page.locator('#runway-num')).toHaveText('¥60,000.00');
+    await expect(page.locator('#runway-months')).toHaveText('1 年'); // 12 个月按既有口径写作「1 年」
   });
 
-  test('维度下拉排除内置「货币类型」；换维度清空旧跌幅', async ({ page }) => {
+  test('维度下拉排除内置「货币类型」；默认剩满，换维度清空旧比例', async ({ page }) => {
     await openStressPage(page);
     await gotoAssets(page);
     await openStressModal(page);
@@ -199,14 +202,19 @@ test.describe('压测：派生读数跟着变', () => {
     const options = await page.locator('#stress-dimension option').allTextContents();
     expect(options).toEqual(['资产类型', '风险等级']);
 
-    // 在「资产类型」下设跌幅，换到「风险等级」后滑块全部回 0（不同维度的标签不同名）
+    // 打开弹窗时滑块默认拉满 100% —— 「没有亏损」就是默认值（不必先教用户去清零）
+    const readings0 = page.locator('#stress-modal .scale-reading');
+    await expect(readings0.first()).toBeVisible();
+    for (const t of await readings0.allTextContents()) expect(t).toBe('100%');
+
+    // 在「资产类型」下设比例，换到「风险等级」后滑块全部回 100%（不同维度的标签不同名）
     const slider = page.locator('#stress-modal input[type="range"]').nth(1);
     await slider.fill('50');
     await slider.dispatchEvent('input');
     await page.locator('#stress-dimension').selectOption('cat-risk');
     const readings = page.locator('#stress-modal .scale-reading');
     await expect(readings.first()).toBeVisible();
-    for (const t of await readings.allTextContents()) expect(t).toBe('-0%');
+    for (const t of await readings.allTextContents()) expect(t).toBe('100%');
   });
 
   test('取消不落库（草稿制）', async ({ page }) => {

@@ -2195,7 +2195,7 @@ tailwind.config = {
     </span></h3>
     <label class="field-label" for="stress-dimension" data-i18n="压测维度">压测维度</label>
     <select id="stress-dimension" class="select-field w-full" onchange="onStressDimensionChange()" aria-label="压测维度" data-i18n-aria-label="压测维度"></select>
-    <div id="stress-drops" class="space-y-3 scroll-cap" style="margin-top:16px;"></div>
+    <div id="stress-keeps" class="space-y-3 scroll-cap" style="margin-top:16px;"></div>
     <p id="stress-unclassified" class="t-micro muted" style="margin-top:10px;"></p>
     <div class="modal-footer">
       <button type="button" onclick="clearStress()" class="btn-danger btn-sm" data-i18n="清除">清除</button>
@@ -5042,7 +5042,7 @@ function renderStressChrome() {
   }
 }
 
-// 草稿： catId, drops: [{ tag, pct }] }。打开时从 state 拷一份，改完保存才写回（取消不落库）。
+// 草稿：{ catId, keeps: [{ tag, keep }] }。打开时从 state 拷一份，改完保存才写回（取消不落库）。
 let _stressDraft = null;
 
 function openStressModal() {
@@ -5053,9 +5053,9 @@ function openStressModal() {
   }
   const cur = stress.pruneStress(state.stress, state.categories);
   const catId = cur && dims.some(c => c.id === cur.catId) ? cur.catId : dims[0].id;
-  _stressDraft = { catId, drops: cur && cur.catId === catId ? cur.drops.map(d => ({ tag: d.tag, pct: d.pct })) : [] };
+  _stressDraft = { catId, keeps: cur && cur.catId === catId ? cur.keeps.map(d => ({ tag: d.tag, keep: d.keep })) : [] };
   fillStressDimensionSelect();
-  renderStressDrops();
+  renderStressKeeps();
   openModal('stress-modal');
 }
 
@@ -5067,62 +5067,65 @@ function fillStressDimensionSelect() {
   if (_stressDraft && dims.some(c => c.id === _stressDraft.catId)) sel.value = _stressDraft.catId;
 }
 
-// 换维度 = 换一套标签：草稿里旧的跌幅条目一律作废（不同维度的标签不同名，留着只会误命中）
+// 换维度 = 换一套标签：草稿里旧的比例条目一律作废（不同维度的标签不同名，留着只会误命中）
 function onStressDimensionChange() {
   if (!_stressDraft) return;
-  _stressDraft = { catId: document.getElementById('stress-dimension').value, drops: [] };
-  renderStressDrops();
+  _stressDraft = { catId: document.getElementById('stress-dimension').value, keeps: [] };
+  renderStressKeeps();
 }
 
 // 逐标签一行：标签名 + 该标签当前折算金额（帮助判断量级）+ 比例尺滑块 + 读数。
+// 滑块就是「**还剩多少**」：拉满 100% = 没有亏损（默认值，最常用），拉到 66% = 跌了 34%。
+// 为什么存剩余而不是跌幅：用户的心智是「还剩多少」，让他先换算成跌幅再填纯属白付一道算术；
+// 展示层要跌幅时才取补数（stress.stressDropOf，单一来源，页面不再写 100-keep）。
 // 复用安全边际那套 .scale-input/.scale-reading（--fill 由 setScaleValue 同步），step=1。
-// 行的数据（标签 / 当前折算金额 / 当前跌幅）由 logic.js 出（可单测，口径与分布图同源）。
-function renderStressDrops() {
-  const box = document.getElementById('stress-drops');
+// 行的数据（标签 / 当前折算金额 / 当前剩余）由 logic.js 出（可单测，口径与分布图同源）。
+function renderStressKeeps() {
+  const box = document.getElementById('stress-keeps');
   if (!box || !_stressDraft) return;
   const cat = state.categories.find(c => c.id === _stressDraft.catId);
   if (!cat) { box.innerHTML = ''; return; }
-  box.innerHTML = stress.stressDropRows(ledgerAssets(), _stressDraft, state.categories).map(r => {
-    const id = 'stress-drop-' + text.jsAttr(cat.id) + '-' + text.jsAttr(r.tag);
+  box.innerHTML = stress.stressKeepRows(ledgerAssets(), _stressDraft, state.categories).map(r => {
+    const id = 'stress-keep-' + text.jsAttr(cat.id) + '-' + text.jsAttr(r.tag);
     return `<div class="drop-row">
       <span class="drop-head">
         ${tagPillHtml(cat, r.tag, catColor)}
         <span class="drop-amount">${money.formatCNY(r.amount)}</span>
       </span>
       <span class="drop-scale">
-        <input type="range" id="${id}" class="scale-input" min="0" max="100" step="1" value="${r.pct}" style="--fill:${r.pct}%">
-        <span class="scale-reading" id="${id}-readout">-${r.pct}%</span>
+        <input type="range" id="${id}" class="scale-input" min="0" max="100" step="1" value="${r.keep}" style="--fill:${r.keep}%">
+        <span class="scale-reading" id="${id}-readout">${r.keep}%</span>
       </span>
     </div>`;
   }).join('');
   // 滑块的 oninput 与可访问名都要用到标签名；标签是账本内容（不翻译），
   // 所以名字在渲染时按标签拼 —— 不能挂 data-i18n-aria-label（那要求键是静态中文原文）
   box.querySelectorAll('input[type="range"]').forEach(el => {
-    const tag = el.id.slice(('stress-drop-' + cat.id + '-').length);
-    el.oninput = () => onStressDropInput(tag, el);
-    el.setAttribute('aria-label', i18n.t('{p1} 的跌幅（百分比）', { p1: tag }));
+    const tag = el.id.slice(('stress-keep-' + cat.id + '-').length);
+    el.oninput = () => onStressKeepInput(tag, el);
+    el.setAttribute('aria-label', i18n.t('{p1} 的剩余比例（百分比）', { p1: tag }));
   });
-  // 未归类口径说明：这里也必须写一句（用户填跌幅时会先问「没标签的那些算多少」）
-  const un = stress.unclassifiedCNY(ledgerAssets(), { catId: cat.id, drops: [{ tag: cat.tags[0], pct: 1 }] }, state.categories);
+  // 未归类口径说明：这里也必须写一句（用户调比例时会先问「没标签的那些算多少」）
+  const un = stress.unclassifiedCNY(ledgerAssets(), { catId: cat.id, keeps: [{ tag: cat.tags[0], keep: 99 }] }, state.categories);
   document.getElementById('stress-unclassified').textContent = un.count > 0
     ? i18n.t('该维度下未归类的资产（{p1}，{p2} 项）按未打折计入。', { p1: money.formatCNY(un.cny), p2: un.count })
     : '';
 }
 
-function onStressDropInput(tag, el) {
+function onStressKeepInput(tag, el) {
   if (!_stressDraft) return;
   setScaleValue(el, el.id + '-readout');
-  const pct = Math.min(100, Math.max(0, Math.round(Number(el.value) || 0)));
-  const at = _stressDraft.drops.findIndex(d => d.tag === tag);
-  if (at >= 0) _stressDraft.drops[at].pct = pct;
-  else _stressDraft.drops.push({ tag, pct });
+  const keep = Math.min(100, Math.max(0, Math.round(Number(el.value) || 0)));
+  const at = _stressDraft.keeps.findIndex(d => d.tag === tag);
+  if (at >= 0) _stressDraft.keeps[at].keep = keep;
+  else _stressDraft.keeps.push({ tag, keep });
   const readout = document.getElementById(el.id + '-readout');
-  if (readout) readout.textContent = '-' + pct + '%';
+  if (readout) readout.textContent = keep + '%';
 }
 
 function saveStress() {
   if (!_stressDraft) { closeModal('stress-modal'); return; }
-  // 归一 + 剪枝走 logic.js（与存档加载/导入共用同一口径）；全 0 → null 即「未启用
+  // 归一 + 剪枝走 logic.js（与存档加载/导入共用同一口径）；全是「剩 100%」→ null 即「未启用
   const next = stress.pruneStress(_stressDraft, state.categories);
   const before = JSON.stringify(state.stress);
   state.stress = next;

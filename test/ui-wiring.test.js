@@ -1245,14 +1245,15 @@ describe('UI 接线契约：压测（读数走叠加入口，账本读原值）'
   const logic = fs.readFileSync(path.join(__dirname, '..', 'logic.js'), 'utf8');
 
   test('口径在 logic.js：折算/归一/剪枝/未归类/加权跌幅/条文案都不在页面里重写', () => {
-    for (const fn of ['effectiveAssets', 'stressPctOf', 'stressActive', 'pruneStress',
-      'unclassifiedCNY', 'weightedDrop', 'normalizeDropPct', 'migrateStressTagRefs',
-      'stressDimensions', 'stressDropRows', 'stressBarText']) {
+    for (const fn of ['effectiveAssets', 'stressKeepOf', 'stressDropOf', 'stressActive', 'pruneStress',
+      'unclassifiedCNY', 'weightedDrop', 'normalizeKeepPct', 'keepOfEntry', 'migrateStressTagRefs',
+      'stressDimensions', 'stressKeepRows', 'stressBarText']) {
       assert.match(logic, new RegExp('function ' + fn + '\\('), fn + ' 应在 logic.js');
       assert.strictEqual(count(new RegExp('function ' + fn + '\\s*\\(', 'g')), 0, 'index.html 不应再定义 ' + fn);
     }
-    const src = fnSource('renderStressChrome') + fnSource('renderStressDrops');
-    assert.doesNotMatch(src, /\*\s*\(1\s*-/, '跌幅折算不得在页面内改写（走 stress.effectiveAssets）');
+    const src = fnSource('renderStressChrome') + fnSource('renderStressKeeps');
+    assert.doesNotMatch(src, /\*\s*\(1\s*-/, '折算不得在页面内改写（走 stress.effectiveAssets）');
+    assert.doesNotMatch(src, /100\s*-\s*(keep|r\.keep)/, '跌幅是剩余比例的补数，换算只在 logic.js stressDropOf');
     assert.doesNotMatch(src, /Math\.min\(100, Math\.max\(0,/, '跌幅钳制不得在页面内重写（走 logic.js）');
   });
 
@@ -1321,8 +1322,10 @@ describe('UI 接线契约：压测（读数走叠加入口，账本读原值）'
     const src = fnSource('saveStress');
     assert.match(src, /stress\.pruneStress\(/, '保存走同一归一入口');
     assert.doesNotMatch(src, /amount|cny|totalCNY/i, '情景里不得出现金额字段');
+    assert.doesNotMatch(src, /pct/i, '存的是剩余比例（keep），不是跌幅（pct）——字段名必须说真话');
     assert.match(fnSource('freshAppState'), /stress: null/, '新存档默认未启用');
     assert.match(logic, /state\.stress = pruneStress\(state\.stress, state\.categories\)/, '迁移兜底与导入共用同一归一');
+    assert.match(logic, /function keepOfEntry\(/, '旧存档（跌幅语义 pct）的迁移只在 keepOfEntry 一处');
   });
 
   test('指示器两处同「生效」判据：资产侧条 + 页头印徽（后者保证消费模式下也看得见）', () => {
@@ -1338,16 +1341,17 @@ describe('UI 接线契约：压测（读数走叠加入口，账本读原值）'
 
   test('弹窗：草稿制（取消不落库）、跌幅行复用既有滑块与胶囊模板', () => {
     assert.match(fnSource('openStressModal'), /_stressDraft = /, '打开只拷草稿');
+    assert.match(fnSource('openStressModal'), /keeps: cur && cur\.catId === catId \? cur\.keeps/, '草稿拷的是剩余比例（存储与滑块同一语义）');
     assert.doesNotMatch(fnSource('openStressModal'), /state\.stress = /, '打开不得写状态');
     assert.match(fnSource('saveStress'), /state\.stress = next/, '保存才落 state');
     assert.match(fnSource('clearStress'), /state\.stress = null/, '清除立即回真实值');
     // 复用：滑块与读数走既有 class（安全边际那套），胶囊走 tagPillHtml 唯一模板
-    const drops = fnSource('renderStressDrops');
-    assert.match(drops, /class="scale-input"/, '复用比例尺滑块（与安全边际同一套）');
-    assert.match(drops, /class="scale-reading"/, '复用等宽读数（--fill 与滑块同步）');
-    assert.match(drops, /tagPillHtml\(cat, r\.tag, catColor\)/, '胶囊走唯一模板 tagPillHtml');
+    const keeps = fnSource('renderStressKeeps');
+    assert.match(keeps, /class="scale-input"/, '复用比例尺滑块（与安全边际同一套）');
+    assert.match(keeps, /class="scale-reading"/, '复用等宽读数（--fill 与滑块同步）');
+    assert.match(keeps, /tagPillHtml\(cat, r\.tag, catColor\)/, '胶囊走唯一模板 tagPillHtml');
     assert.strictEqual(count(/class="tag-pill"/g), 1, '胶囊模板只允许一处');
-    assert.match(fnSource('onStressDropInput'), /setScaleValue\(/, '滑块填充走 setScaleValue 单一来源');
+    assert.match(fnSource('onStressKeepInput'), /setScaleValue\(/, '滑块填充走 setScaleValue 单一来源');
     // 维度下拉：只列可压测分类（内置货币分类排除，汇率是另一条通道）
     assert.match(fnSource('fillStressDimensionSelect'), /stress\.stressDimensions\(state\.categories\)/);
   });
@@ -1363,7 +1367,7 @@ describe('UI 接线契约：压测（读数走叠加入口，账本读原值）'
 
   test('语言词条两条通道都覆盖（含可访问名与占位符）', () => {
     for (const key of ['压测', '压测情景', '压测维度', '压测中', '压测：未启用',
-      '压测：先在「分类管理」里建一个分类', '{p1} 的跌幅（百分比）',
+      '压测：先在「分类管理」里建一个分类', '{p1} 的剩余比例（百分比）',
       '该维度下未归类的资产（{p1}，{p2} 项）按未打折计入。', '压测已清除']) {
       assert.ok(key in require('../logic.js').i18n.I18N_EN, '缺英文词条: ' + key);
     }
