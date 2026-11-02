@@ -226,6 +226,7 @@
     - **关弹窗只有 `closeModal` 一条路**：ESC 与遮罩点击曾各自写 `style.display = 'none'`，**绕过**了焦点管理。凡「隐藏弹窗」都必须走 `closeModal`。
     - **叠放次序 = 打开次序**：15 个遮罩的 `z-index` 相同，谁在上层只由 DOM 次序决定，而确认框在 DOM 里排在好几个弹窗之前——它叠上去时会被整个盖住（真实浏览器里 Playwright 的点击被下层 `<form>` 拦截），ESC 也会关错层。故 `openModal` 把弹窗挪到 `body` 末尾，「最上层」统一由 `topModal()` 判定（ESC / Tab 陷阱共用），不要在别处重算。
     - 可聚焦元素用 `offsetParent === null` 过滤：CSS 藏起来的控件还在 DOM 里，`focus()` 上去等于把焦点丢出弹窗。
+    - **搬焦点必须 `focus({ preventScroll: true })`**：焦点一旦落在弹窗最底部的元素上（明细弹窗的页脚只有一个「关闭」按钮，没有表单控件时焦点就退到它），浏览器为了让焦点可见会把 `overflow-y:auto` 的正文滚到底——**长表一打开就停在最后一行，标题与摘要全被推出视野**（用户原话：「为什么弹出的这个弹窗，每次都是不是在最上边呢」）。别用「focus 完再 `scrollTop = 0`」代替：焦点仍在底部，一按 Tab 又被拽回去。
 - **便条播报档位** — 容器上留 `aria-live="polite"` 初值是对的（live region 要在加载时就存在，读屏器才会注册），但**每条便条都要按类型改写档位**：`error` → `assertive`（出错了要立刻打断朗读），其余 → `polite`。写死 `polite` 会把 22 处 error 全排到用户下次操作之后才念，等于把「现在就得知道」降级成「顺口提一句」。判据在 logic.js `toastLiveMode`。档位必须写在**容器**上——读屏器只认 live region 的档位，逐条设 `aria-live` 无效。
 
 ## 数据、备份与导入导出

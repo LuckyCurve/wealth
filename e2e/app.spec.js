@@ -1746,6 +1746,43 @@ test.describe('弹窗焦点管理（aria-modal 的兑现）', () => {
     expect(after.isBody, '关掉最上层后焦点不得掉到 body').toBe(false);
     expect(after.text).toContain('设置');
   });
+
+  test('弹窗打开时正文从顶部开始（长表不得一开就滚到底）', async ({ appPage: page }) => {
+    // 用户原话：「为什么弹出的这个弹窗，每次都是不是在最上边呢」——明细弹窗的内容比
+    // 85dvh 高时，一打开就停在最下面，标题与摘要都看不见。
+    // 根因：openModal 把焦点放到弹窗里第一个可聚焦元素，而这个元素在最底部
+    // （弹窗页脚只有一个「关闭」按钮，且没有表单控件时退到 list[0]）。
+    // 浏览器为让焦点可见会把它滚进视野，于是正文 scrollTop 直接跳到底。
+    // 修法是 preventScroll，不是「先滚到顶再聚焦」——后者焦点仍在底部，用户一按 Tab
+    // 就又被拽下去。判据是**正文真的停在顶部**，且焦点仍在弹窗内。
+    await page.evaluate(() => {
+      const base = state.expenses[0];
+      for (let i = 0; i < 18; i++) {
+        state.expenses.push({ id: 'x' + i, date: '2026-01-15', amount: 10 + i, note: '长表 ' + i, tags: { ...base.tags } });
+      }
+      saveState();
+      renderAll();
+    });
+    await page.locator('#tabs-expenses .tab-btn[data-tab="expense-trend"]').click();
+    const monthRow = page.locator('#expense-trend-list .row-hit').last();
+    await expect(monthRow).toBeVisible();
+    await monthRow.click();
+    await expect(page.locator('#snapshot-modal')).toBeVisible();
+
+    const g = await page.evaluate(() => {
+      const c = document.querySelector('#snapshot-modal .modal-content');
+      const title = document.getElementById('snapshot-modal-title');
+      return {
+        overflowed: c.scrollHeight > c.clientHeight + 8,
+        scrollTop: c.scrollTop,
+        titleTop: title.getBoundingClientRect().top,
+        focusInside: document.getElementById('snapshot-modal').contains(document.activeElement),
+      };
+    });
+    expect(g.overflowed, '这条用例需要一份真的会溢出的长表（否则断言无意义）').toBe(true);
+    expect(g.scrollTop, '弹窗正文必须停在顶部（标题与摘要在视野里）').toBe(0);
+    expect(g.focusInside, '不滚到顶不等于不搬焦点：焦点仍须在弹窗内').toBe(true);
+  });
 });
 
 test.describe('日期选择器与复制', () => {

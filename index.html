@@ -3760,7 +3760,12 @@ function openModal(id) {
   const isAutoFocusable = (el) => !isPickerHost(el) && !el.hasAttribute('data-no-autofocus');
   const firstField = list.find(el => el.matches('input, select, textarea') && isAutoFocusable(el));
   const target = firstField || list.find(isAutoFocusable) || list[0];
-  if (target) target.focus();
+  // **preventScroll 是必需的，不是优化**：弹窗正文自带 `overflow-y:auto`（max-height 85dvh），
+  // 而明细类弹窗的页脚只有一个「关闭」按钮，焦点退到它身上时它在最底部——浏览器为了让焦点
+  // 可见会把正文滚到底，于是长表一打开就停在最后一行、标题与摘要全被推出视野
+  // （用户原话：「为什么弹出的这个弹窗，每次都是不是在最上边呢」）。
+  // 不用「先 focus 再 scrollTop = 0」：那样焦点仍留在底部，一按 Tab 又被拽回去。
+  if (target) target.focus({ preventScroll: true });
 }
 
 // 旭日图标签截断：长名称以省略号收尾，完整内容 hover 时由 tooltip 展示

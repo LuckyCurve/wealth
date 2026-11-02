@@ -305,7 +305,11 @@ describe('UI 接线契约：弹窗焦点管理（aria-modal 的兑现）', () =>
   const closeSrc = fnSource('closeModal');
 
   test('打开弹窗必须把焦点搬进去（否则焦点还在背后的触发按钮上，首下 Tab 就走出弹窗）', () => {
-    assert.match(openSrc, /\.focus\(\)/, 'openModal 必须真的 focus 第一个可聚焦元素');
+    assert.match(openSrc, /\.focus\(/, 'openModal 必须真的 focus 第一个可聚焦元素');
+    // 搬焦点会顺带滚动：正文自带 overflow-y:auto，焦点落在页脚那个「关闭」按钮上时
+    // 长表一开就滚到底（标题被推出视野）。故必须带 preventScroll，且不能改成「先 focus 再滚回顶」。
+    assert.match(openSrc, /\.focus\(\{ preventScroll: true \}\)/, 'openModal 聚焦时必须 preventScroll（否则长表弹窗一开就停在最底部）');
+    assert.doesNotMatch(stripComments(openSrc), /scrollTop\s*=\s*0/, '不要用「聚焦后再滚回顶」代替 preventScroll：焦点仍在底部，一按 Tab 又被拽回去');
     assert.match(html, /function modalFocusables\(/, '「弹窗内可聚焦元素」须有单一实现（打开与陷阱共用一份）');
   });
 
