@@ -1295,7 +1295,14 @@ tailwind.config = {
      观感就是「图和右边的清单离得太远」（实测间隙 207px，其中 CSS gap 只占 16px）。 */
   /* 图纸 + 构成清单是**一整组**，在卡片里居中：卡面上方的合计本来就是居中的，
      整组再靠左就会与它错开轴线，右侧空出一大片（用户实拍：留白 309px）。 */
-  .chart-split { display: grid; grid-template-columns: auto minmax(0, max-content); gap: 16px; align-items: start; justify-content: center; }
+  /* 图纸 + 构成清单两栏。右栏**必须有上限**：原先 max-content 让列宽由最长名字决定，
+     超长标签把右栏撑到 500px+，配上 justify-content:center 就把**左边的图挤向左**
+     （实测图位移 153.9px）。上限收成 --legend-max，超长名在名称格里 ellipsis 收边。 */
+  .chart-split {
+    --legend-max: min(38%, 320px);
+    display: grid; grid-template-columns: auto minmax(0, var(--legend-max));
+    gap: 16px; align-items: start; justify-content: center;
+  }
   /* 图纸高度**由列宽推出来**（宽高比 + 上限），不写死像素：圆是正圆、尺寸由 ECharts 按容器算，
      而容器的像素高度一旦写死就与「这张卡实际有多少内容」脱钩——先前的 520px 让分类很少时
      整卡被空白撑起（右侧清单只有一行 35px）。
@@ -1316,10 +1323,11 @@ tailwind.config = {
   /* 构成清单：每行 = 色块 + 分类名 + 金额 + 占比（占比右侧对齐便于扫读） */
   .chart-legend { display: flex; flex-direction: column; gap: 2px; margin-top: 6px; }
   .chart-legend-row {
-    /* 名称列 max-content（不是 1fr）：1fr 会把它撑到几百 px 宽，名称与金额之间
-       隔着大片空白（实测 400px），「标签名—占比」没法一眼对上；max-content 让
-       行随内容收拢，金额与占比紧跟名称。超长名称仍由 minmax(0,…)+ellipsis 裁切。 */
+    /* 名称列 max-content：名称与金额必须贴着（1fr / min() 会把名称格拉满整列，
+       实测 CNY 文字 30px、格宽 304px，两段信息被空白拆散——有既有巡检把守）。
+       超长名靠**整行**只占内容宽且不越过右栏：width:fit-content + max-width:100%。 */
     display: grid; grid-template-columns: 10px minmax(0, max-content) auto auto;
+    width: fit-content; max-width: 100%;
     align-items: center; gap: 10px; padding: 7px 8px; border-radius: 6px;
     cursor: default; transition: background var(--mo-fast);
   }

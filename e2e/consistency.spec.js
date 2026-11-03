@@ -477,6 +477,56 @@ test.describe('版式一致性', () => {
     expect(bad, '名称格与文字之间的大片空白会把「名称—金额—占比」拆散：\n' + bad.join('\n')).toEqual([]);
   });
 
+  test('构成清单：超长名称不得把旭日图挤左（下钻时图的位置与宽度不随图例变长）', async ({ appPage: page }) => {
+    // 用户原话：「选中其中一个会下钻…如果此时图例的中文名非常长，那么会让左边的图整体向左移动」。
+    // 根因是 .chart-split 的右栏用了 max-content：列宽由最长名字决定，而
+    // justify-content:center 把整组重新居中 → 图被挤左（实测 153.9px）。
+    // 判据量「同一张图在短名维度 vs 长名维度的位置与宽度」——两者必须一致。
+    const LONG = '这是一个非常非常长的中文标签名称用来撑开右边图例把左边图整体挤左还有很多字';
+    await page.evaluate((longName) => {
+      const cat = state.categories.find((c) => c.name === '资产类型') || state.categories.find((c) => !c.builtin);
+      const oldTag = cat.tags[0];
+      cat.tags[0] = longName;
+      state.assets.forEach((a) => { if (a.tags[cat.id] === oldTag) a.tags[cat.id] = longName; });
+      saveState();
+      renderAll();
+    }, LONG);
+    await page.evaluate(() => { switchMode('assets'); switchTab('chart'); });
+    // 图例是同步重绘的：等「清单里真有顶层行」即可，不用固定睡眠
+    await expect(page.locator('#tab-chart .chart-legend-row').first()).toBeVisible();
+
+    const canvasBox = () => page.evaluate(() => {
+      const c = document.querySelector('#tab-chart .chart-split .chart-canvas');
+      const r = c.getBoundingClientRect();
+      return { x: +r.x.toFixed(1), w: +r.width.toFixed(1) };
+    });
+    const setDim = (val) => page.evaluate((v) => {
+      const sel = document.getElementById('chart-category-select');
+      sel.value = v;
+      sel.dispatchEvent(new Event('change'));
+    }, val);
+
+    // 货币类型维度 = 三个短名（CNY/HKD/USD）；资产类型维度 = 含超长名
+    await setDim('currency');
+    await expect(page.locator('#chart-legend .chart-legend-name').first()).toHaveText('CNY');
+    const short = await canvasBox();
+    await page.evaluate(() => {
+      const cat = state.categories.find((c) => c.name === '资产类型');
+      const sel = document.getElementById('chart-category-select');
+      sel.value = cat.id;
+      sel.dispatchEvent(new Event('change'));
+    });
+    // 换成资产类型后清单里出现那两个分类标签（其中一个是超长名）
+    await expect(page.locator('#chart-legend .chart-legend-name').first()).not.toHaveText('CNY');
+    const long = await canvasBox();
+
+    expect(long.w, '图的宽度不得随图例变长而变').toBe(short.w);
+    expect(
+      Math.abs(long.x - short.x),
+      `超长图例名把图挪了 ${(long.x - short.x).toFixed(1)}px（短名 x=${short.x}，长名 x=${long.x}）`
+    ).toBeLessThanOrEqual(1);
+  });
+
   test('所有表格：数值列一律右对齐，表头同步（含弹窗里的表）', async ({ appPage: page }) => {
     // 用户实测两轮才说清：「消费记录」页的表格有的列左对齐、有的右对齐。
     // 上一版巡检只扫了主列表（#assets-list / #income-rows），**把所有弹窗里的表都漏了**
