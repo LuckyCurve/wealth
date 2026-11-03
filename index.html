@@ -4724,62 +4724,14 @@ function loadDemoData() {
   doLoadDemoData();
 }
 function doLoadDemoData() {
-  if (!state.rates.fetchedAt || state.rates.HKD === 1) {
-    state.rates = { CNY: 1, HKD: 0.92, USD: 7.24, fetchedAt: new Date().toISOString() };
-  }
+  // 数据形状全在 logic.js demo.assetDemo（纯函数、可单测）；这里只留副作用四步：
+  // 取内置货币分类 → 赋值 → 落盘 → 重绘。汇率缺省/未取到真实值时用示例汇率兜底。
   const currencyCat = state.categories.find(c => c.id === 'currency');
-  const catAsset = { id: genId(), name: i18n.t('资产类型'), builtin: false, tags: [i18n.t('活期现金'), i18n.t('定期存款'), i18n.t('权益基金'), i18n.t('债券基金'), i18n.t('银行理财')] };
-  const catRisk = { id: genId(), name: i18n.t('风险等级'), builtin: false, tags: [i18n.t('低风险'), i18n.t('中风险'), i18n.t('高风险')] };
-  state.categories = [currencyCat, catAsset, catRisk];
-  const defs = [
-    { name: i18n.t('招商银行活期'), base: 50000, cur: 'CNY', type: i18n.t('活期现金'), risk: i18n.t('低风险'), rMin: 0.25, rMax: 0.35, cash: 100 },
-    { name: i18n.t('工商银行定期'), base: 200000, cur: 'CNY', type: i18n.t('定期存款'), risk: i18n.t('低风险'), rMin: 1.8, rMax: 2.2, cash: 100 },
-    { name: i18n.t('沪深300指数'), base: 80000, cur: 'CNY', type: i18n.t('权益基金'), risk: i18n.t('高风险'), rMin: 5, rMax: 8, cash: 20 },
-    { name: i18n.t('标普500ETF'), base: 10000, cur: 'USD', type: i18n.t('权益基金'), risk: i18n.t('高风险'), rMin: 0, rMax: 0, cash: 0 },
-    { name: i18n.t('纯债基金A'), base: 100000, cur: 'CNY', type: i18n.t('债券基金'), risk: i18n.t('中风险'), rMin: 3, rMax: 4.5, cash: 100 },
-    { name: i18n.t('招行理财'), base: 150000, cur: 'CNY', type: i18n.t('银行理财'), risk: i18n.t('中风险'), rMin: 2.5, rMax: 3.5, cash: 100 },
-    { name: i18n.t('汇丰香港储蓄'), base: 50000, cur: 'HKD', type: i18n.t('活期现金'), risk: i18n.t('低风险'), rMin: 0.1, rMax: 0.2, cash: 100 },
-  ];
-  state.assets = defs.map(d => ({
-    id: genId(), name: d.name, amount: d.base, currency: d.cur,
-    tags: { currency: d.cur, [catAsset.id]: d.type, [catRisk.id]: d.risk },
-    expectedRateMin: d.rMin, expectedRateMax: d.rMax, cashRatio: d.cash,
-  }));
-  // 快照内资产 id 跨月保持稳定（与真实记录流程一致），快照对比才能按 id 关联出差异
-  const assetIds = state.assets.map(a => a.id);
-  const now = new Date();
-  const months = [];
-  for (let i = 5; i >= 0; i--) {
-    months.push(date.getLocalMonthStr(new Date(now.getFullYear(), now.getMonth() - i, 1)));
-  }
-  const notes = [i18n.t('初始配置'), i18n.t('小幅加仓'), i18n.t('市场波动'), i18n.t('补仓操作'), i18n.t('分红再投'), i18n.t('季度调整')];
-  const monthlyChanges = [
-    [0, 0, 0, 0, 0, 0, 0],
-    [3000, 0, 5000, 0, 0, 0, 0],
-    [0, 0, -5000, -500, 1000, 0, 0],
-    [2000, 0, 8000, 0, 0, 0, 0],
-    [0, 0, 3000, 200, 0, 0, 0],
-    [3000, 0, -2000, 300, 0, -10000, 0],
-  ];
-  state.snapshots = months.map((month, mi) => {
-    const snapAssets = defs.map((d, ai) => {
-      let amount = d.base;
-      for (let j = 0; j <= mi; j++) amount += monthlyChanges[j][ai];
-      const marketJitter = [0, 0.02, -0.06, 0.03, 0.01, 0.04];
-      if (d.type === i18n.t('权益基金')) amount = Math.round(amount * (1 + marketJitter[mi]));
-      if (d.type === i18n.t('债券基金')) amount = Math.round(amount * (1 + marketJitter[mi] * 0.3));
-      if (d.name === i18n.t('招行理财')) amount = Math.round(amount * (1 + marketJitter[mi] * 0.2));
-      return {
-        id: assetIds[ai], name: d.name, amount, currency: d.cur,
-        tags: { currency: d.cur, [catAsset.id]: d.type, [catRisk.id]: d.risk },
-        expectedRateMin: d.rMin, expectedRateMax: d.rMax, cashRatio: d.cash,
-      };
-    });
-    const totalCNY = snapAssets.reduce((s, a) => s + money.amountAtRates(a.amount, a.currency, state.rates), 0);
-    return { month, note: notes[mi], totalCNY, currencyRates: { ...state.rates }, assets: snapAssets, updatedAt: month + '-15T12:00:00.000Z' };
-  });
-  const latest = state.snapshots[state.snapshots.length - 1];
-  state.assets = JSON.parse(JSON.stringify(latest.assets));
+  const data = demo.assetDemo({ now: new Date(), genId, currencyCat });
+  state.rates = data.rates;
+  state.categories = data.categories;
+  state.assets = data.assets;
+  state.snapshots = data.snapshots;
   saveState();
   renderAll();
   toast(i18n.t('示例数据已导入（6个月快照）'), 'success');
@@ -7061,62 +7013,16 @@ function loadExpenseDemoData() {
   doLoadExpenseDemoData();
 }
 function doLoadExpenseDemoData() {
-  if (!state.expenseCategories.find(c => c.id === 'expense-type')) {
-    state.expenseCategories.unshift({ id: 'expense-type', name: i18n.t('消费类别'), builtin: false, tags: [i18n.t('餐饮'), i18n.t('交通'), i18n.t('购物'), i18n.t('住房'), i18n.t('娱乐'), i18n.t('医疗'), i18n.t('教育'), i18n.t('其他')] });
-  }
-  const catPay = { id: genId(), name: i18n.t('支付方式'), builtin: false, tags: [i18n.t('微信'), i18n.t('支付宝'), i18n.t('现金'), i18n.t('银行卡')] };
-  const catFreq = { id: genId(), name: i18n.t('消费频率'), builtin: false, tags: [i18n.t('日常'), i18n.t('偶尔'), i18n.t('一次性')] };
+  // 数据形状在 logic.js demo.expenseDemo（纯函数、可单测）；这里只留赋值 → 落盘 → 重绘。
+  // 已有内置「消费类别」原样沿用（不新建第二份），由纯函数按传入的分类决定。
   const expenseTypeCat = state.expenseCategories.find(c => c.id === 'expense-type');
-  state.expenseCategories = [expenseTypeCat, catPay, catFreq];
-
-  const now = new Date();
-  const monthOffsets = [5, 4, 3, 2, 1, 0];
-  const seed = [
-    { note: i18n.t('午餐外卖'), amt: 35, type: i18n.t('餐饮'), pay: i18n.t('微信'), freq: i18n.t('日常') },
-    { note: i18n.t('地铁通勤'), amt: 12, type: i18n.t('交通'), pay: i18n.t('支付宝'), freq: i18n.t('日常') },
-    { note: i18n.t('超市采购'), amt: 156, type: i18n.t('购物'), pay: i18n.t('微信'), freq: i18n.t('偶尔') },
-    { note: i18n.t('房租'), amt: 3500, type: i18n.t('住房'), pay: i18n.t('银行卡'), freq: i18n.t('一次性') },
-    { note: i18n.t('电影票'), amt: 78, type: i18n.t('娱乐'), pay: i18n.t('支付宝'), freq: i18n.t('偶尔') },
-    { note: i18n.t('药房买药'), amt: 45, type: i18n.t('医疗'), pay: i18n.t('现金'), freq: i18n.t('偶尔') },
-    { note: i18n.t('网课订阅'), amt: 299, type: i18n.t('教育'), pay: i18n.t('微信'), freq: i18n.t('一次性') },
-    { note: i18n.t('咖啡'), amt: 28, type: i18n.t('餐饮'), pay: i18n.t('微信'), freq: i18n.t('日常') },
-    { note: i18n.t('打车'), amt: 42, type: i18n.t('交通'), pay: i18n.t('支付宝'), freq: i18n.t('日常') },
-    { note: i18n.t('衣服'), amt: 238, type: i18n.t('购物'), pay: i18n.t('银行卡'), freq: i18n.t('偶尔') },
-    { note: i18n.t('水电费'), amt: 186, type: i18n.t('住房'), pay: i18n.t('微信'), freq: i18n.t('一次性') },
-    { note: i18n.t('游戏充值'), amt: 68, type: i18n.t('娱乐'), pay: i18n.t('支付宝'), freq: i18n.t('偶尔') },
-    { note: i18n.t('理发'), amt: 58, type: i18n.t('其他'), pay: i18n.t('现金'), freq: i18n.t('偶尔') },
-  ];
-
-  const jitter = [0, 0.05, -0.1, 0.03, 0.08, -0.02];
-
-  state.expenses = [];
-  monthOffsets.forEach((off, mi) => {
-    const year = now.getFullYear();
-    const month = now.getMonth() - off;
-    const d = new Date(year, month, 1);
-    const monthStr = date.getLocalMonthStr(d);
-    const factor = 1 + jitter[mi];
-    const daysInMonth = date.daysInMonthOf(monthStr);
-
-    seed.forEach((s, si) => {
-      const day = Math.min(1 + (si * 3 + mi * 5) % 28, daysInMonth);
-      const dayStr = String(day).padStart(2, '0');
-      if (s.type === i18n.t('住房') || s.type === i18n.t('一次性') || si % 3 === mi % 3) {
-        state.expenses.push({
-          id: genId(),
-          date: `${monthStr}-${dayStr}`,
-          amount: Math.round(s.amt * factor * 100) / 100,
-          note: s.note,
-          tags: { [expenseTypeCat.id]: s.type, [catPay.id]: s.pay, [catFreq.id]: s.freq },
-        });
-      }
-    });
-  });
-
+  const data = demo.expenseDemo({ now: new Date(), genId, expenseTypeCat });
+  state.expenseCategories = data.expenseCategories;
+  state.expenses = data.expenses;
   saveState();
   renderExpenses();
   renderCategoryCards('expense');
-  toast(i18n.t('示例消费数据已导入（') + monthOffsets.length + i18n.t('个月）'), 'success');
+  toast(i18n.t('示例消费数据已导入（') + 6 + i18n.t('个月）'), 'success');
 }
 
 </script>

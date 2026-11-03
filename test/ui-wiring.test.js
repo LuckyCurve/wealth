@@ -364,7 +364,7 @@ describe('UI 接线契约：logic.js 导出清单与筛选同步时序', () => {
     const domains = Object.keys(api);
     assert.deepStrictEqual(
       domains.slice().sort(),
-      ['backup', 'chartData', 'color', 'date', 'expense', 'i18n', 'income', 'migrate', 'money', 'snapshot', 'stress', 'text', 'ui'],
+      ['backup', 'chartData', 'color', 'date', 'demo', 'expense', 'i18n', 'income', 'migrate', 'money', 'snapshot', 'stress', 'text', 'ui'],
       '域清单：新增域要在这里显式登记（防编辑残留悄悄多一个袋子）'
     );
     const seen = new Map();

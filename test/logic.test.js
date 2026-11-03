@@ -3011,5 +3011,97 @@ describe('单复数：计数取自 vars.n 或 vars.p1，不拿金额当计数', 
   });
 });
 
+describe('示例数据（纯逻辑：只产数据，不碰 DOM 与 state）', () => {
+  const fixedNow = new Date(2026, 10, 15); // 2026-11-15，避开月末
+
+  test('资产示例：6 个月快照，月份连续且以当月收尾', () => {
+    globalThis.state = freshState({ lang: 'zh' });
+    const out = L.demo.assetDemo({ now: fixedNow, genId: (() => { let i = 0; return () => 'id' + (++i); })() });
+    assert.strictEqual(out.snapshots.length, 6);
+    assert.deepStrictEqual(out.snapshots.map((s) => s.month), ['2026-06', '2026-07', '2026-08', '2026-09', '2026-10', '2026-11']);
+    // 快照内资产 id 跨月稳定，对比才能按 id 关联
+    const ids = out.snapshots[0].assets.map((a) => a.id);
+    for (const s of out.snapshots) assert.deepStrictEqual(s.assets.map((a) => a.id), ids);
+    // 账本取最后一个月（最新事实），不是别的月
+    assert.deepStrictEqual(out.assets.map((a) => a.id), ids);
+    assert.deepStrictEqual(out.assets.map((a) => a.amount), out.snapshots[5].assets.map((a) => a.amount));
+  });
+
+  test('资产示例：分类顺序为 内置货币 → 资产类型 → 风险等级，且不改写内置分类', () => {
+    globalThis.state = freshState({ lang: 'zh' });
+    const currency = { id: 'currency', name: '货币类型', builtin: true, tags: ['CNY', 'HKD', 'USD'] };
+    const out = L.demo.assetDemo({ now: fixedNow, genId: () => 'x', currencyCat: currency });
+    assert.deepStrictEqual(out.categories[0], currency, '内置分类原样带入（不复制、不改名）');
+    assert.strictEqual(out.categories.length, 3);
+    assert.deepStrictEqual(out.categories[1].tags, ['活期现金', '定期存款', '权益基金', '债券基金', '银行理财']);
+    assert.deepStrictEqual(out.categories[2].tags, ['低风险', '中风险', '高风险']);
+    // 每笔资产在每个分类下恰好一个标签（压测单维度的前提）
+    for (const a of out.assets) {
+      assert.strictEqual(a.tags[out.categories[1].id] !== undefined, true);
+      assert.strictEqual(a.tags[out.categories[2].id] !== undefined, true);
+      assert.strictEqual(a.tags.currency, a.currency);
+    }
+  });
+
+  test('资产示例：金额非负、汇率齐全、快照 totalCNY 与资产同口径', () => {
+    globalThis.state = freshState({ lang: 'zh' });
+    const out = L.demo.assetDemo({ now: fixedNow, genId: () => 'x' });
+    assert.deepStrictEqual(out.rates, { CNY: 1, HKD: 0.92, USD: 7.24, fetchedAt: out.rates.fetchedAt });
+    for (const s of out.snapshots) {
+      for (const a of s.assets) assert.ok(a.amount >= 0, '金额不得为负');
+      const recomputed = L.money.sumAmountCNY(s.assets, s.currencyRates);
+      assert.ok(Math.abs(s.totalCNY - recomputed) < 1e-9, `快照 ${s.month} 的 totalCNY 必须与资产同口径`);
+      assert.deepStrictEqual(s.currencyRates, out.rates);
+    }
+  });
+
+  test('资产示例：语言取创建那一刻（英文界面产出英文分类名）', () => {
+    globalThis.state = freshState({ lang: 'en' });
+    const currency = { id: 'currency', name: 'Currency', builtin: true, tags: ['CNY'] };
+    const out = L.demo.assetDemo({ now: fixedNow, genId: () => 'x', currencyCat: currency });
+    assert.strictEqual(out.categories[1].name, L.i18n.I18N_EN['资产类型']);
+    assert.strictEqual(out.categories[2].name, L.i18n.I18N_EN['风险等级']);
+  });
+
+  test('消费示例：分类顺序为 消费类别 → 支付方式 → 消费频率，且沿用已有的 expense-type', () => {
+    globalThis.state = freshState({ lang: 'zh' });
+    const existing = { id: 'expense-type', name: '消费类别', builtin: false, tags: ['餐饮'] };
+    const out = L.demo.expenseDemo({ now: fixedNow, genId: (() => { let i = 0; return () => 'e' + (++i); })() , expenseTypeCat: existing });
+    assert.deepStrictEqual(out.expenseCategories[0], existing, '已有的消费类别原样沿用（不新建第二份）');
+    assert.strictEqual(out.expenseCategories.length, 3);
+    assert.deepStrictEqual(out.expenseCategories[1].tags, ['微信', '支付宝', '现金', '银行卡']);
+    assert.deepStrictEqual(out.expenseCategories[2].tags, ['日常', '偶尔', '一次性']);
+  });
+
+  test('消费示例：日期合法、金额为正、每笔都带齐三个分类的标签', () => {
+    globalThis.state = freshState({ lang: 'zh' });
+    const out = L.demo.expenseDemo({ now: fixedNow, genId: (() => { let i = 0; return () => 'e' + (++i); })() });
+    assert.ok(out.expenses.length > 0);
+    const [typeCat, payCat, freqCat] = out.expenseCategories;
+    for (const e of out.expenses) {
+      assert.match(e.date, /^\d{4}-\d{2}-\d{2}$/, '日期是 ISO 形状');
+      assert.ok(L.date.daysInMonthOf(e.date.slice(0, 7)) >= Number(e.date.slice(8)), '日期落在当月天数内');
+      assert.ok(e.amount > 0, '金额为正');
+      assert.strictEqual(typeof e.note, 'string');
+      assert.ok(e.tags[typeCat.id] && e.tags[payCat.id] && e.tags[freqCat.id], '三个分类都要有标签');
+    }
+    // 覆盖最近 6 个月，且不含未来月份
+    const months = [...new Set(out.expenses.map((e) => e.date.slice(0, 7)))].sort();
+    assert.deepStrictEqual(months, ['2026-06', '2026-07', '2026-08', '2026-09', '2026-10', '2026-11']);
+    assert.ok(out.expenses.every((e) => e.date.slice(0, 7) <= '2026-11'), '不得产出未来月份');
+  });
+
+  test('消费示例：金额保留两位小数（不产生浮点尾巴）', () => {
+    globalThis.state = freshState({ lang: 'zh' });
+    const out = L.demo.expenseDemo({ now: fixedNow, genId: () => 'x' });
+    for (const e of out.expenses) {
+      // 用四舍五入到分再比较：浮点乘法会留下 81.9 → 8190.000000000001 这类尾巴，
+      // 判据要的是「两位小数就够」，不是「二进制里恰好可表示」
+      assert.strictEqual(Math.round(e.amount * 100) / 100, e.amount, `${e.amount} 应恰好两位小数`);
+      assert.ok(Number.isInteger(Math.round(e.amount * 100)), `${e.amount} 到分是整数`);
+    }
+  });
+});
+
 // 压测（stress）用例单独成文件：这一节读起来是一整件事（设计见 docs/adr/0004-stress-as-view-overlay.md）
 require('./stress-logic-cases.js');

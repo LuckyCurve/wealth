@@ -53,6 +53,170 @@
     return String(str).replace(/\{(\w+)\}/g, (m, k) => (vars[k] == null ? m : String(vars[k])));
   }
 
+  // ========== 示例数据（纯：只产数据，不碰 DOM / 不写 state）==========
+  // 为什么下沉：两个示例加载器各占 ~4KB 的内联脚本，而它们**全是数据形状**（分类/资产/快照/
+  // 消费怎么摆、月份怎么推、金额怎么抖），没有一行 DOM。留在 index.html 里既占预算、又测不到
+  // （「示例数据的金额非负」「快照 totalCNY 与资产同口径」这类判据只有下沉后才能单测）。
+  // 页面侧只剩「确认 → 赋值 → 落盘 → 重绘」这四步副作用。
+  //
+  // 三个入参各自解掉一件事：
+  //   now        —— 时间是入参而不是 new Date()，否则「6 个月以当月收尾」永远测不准
+  //   genId      —— id 生成器由调用方给（页面用 genId()，测试用递增桩）
+  //   currencyCat / expenseTypeCat —— 内置分类**原样带入**，不在这里复制或改名
+  const DEMO_RATES = { CNY: 1, HKD: 0.92, USD: 7.24 };
+
+  function demoRates(now) {
+    return Object.assign({}, DEMO_RATES, { fetchedAt: now.toISOString() });
+  }
+
+  // 最近 n 个月（含当月），升序。用 date.addMonths 走同一条月份算术，
+  // 不另写一份「减 i 个月」——月末（31 号）与闰年那两处会各错各的。
+  function recentMonths(now, n) {
+    const cur = getLocalMonthStr(now);
+    const out = [];
+    for (let i = n - 1; i >= 0; i--) out.push(addMonths(cur, -i));
+    return out;
+  }
+
+  // 资产侧示例：3 个分类 + 7 笔资产 + 6 个月快照；账本取最新一个月。
+  // 快照里的资产 id 跨月稳定：快照对比按 id 关联差异，每月换一套 id 就永远对不上。
+  function assetDemo(opts) {
+    const o = opts || {};
+    const now = o.now || new Date();
+    const genId = o.genId || (() => String(Math.random()).slice(2));
+    const rates = demoRates(now);
+    const catAsset = {
+      id: genId(), name: t('资产类型'), builtin: false,
+      tags: [t('活期现金'), t('定期存款'), t('权益基金'), t('债券基金'), t('银行理财')],
+    };
+    const catRisk = {
+      id: genId(), name: t('风险等级'), builtin: false,
+      tags: [t('低风险'), t('中风险'), t('高风险')],
+    };
+    const categories = o.currencyCat ? [o.currencyCat, catAsset, catRisk] : [catAsset, catRisk];
+
+    const defs = [
+      { name: t('招商银行活期'), base: 50000, cur: 'CNY', type: t('活期现金'), risk: t('低风险'), rMin: 0.25, rMax: 0.35, cash: 100 },
+      { name: t('工商银行定期'), base: 200000, cur: 'CNY', type: t('定期存款'), risk: t('低风险'), rMin: 1.8, rMax: 2.2, cash: 100 },
+      { name: t('沪深300指数'), base: 80000, cur: 'CNY', type: t('权益基金'), risk: t('高风险'), rMin: 5, rMax: 8, cash: 20 },
+      { name: t('标普500ETF'), base: 10000, cur: 'USD', type: t('权益基金'), risk: t('高风险'), rMin: 0, rMax: 0, cash: 0 },
+      { name: t('纯债基金A'), base: 100000, cur: 'CNY', type: t('债券基金'), risk: t('中风险'), rMin: 3, rMax: 4.5, cash: 100 },
+      { name: t('招行理财'), base: 150000, cur: 'CNY', type: t('银行理财'), risk: t('中风险'), rMin: 2.5, rMax: 3.5, cash: 100 },
+      { name: t('汇丰香港储蓄'), base: 50000, cur: 'HKD', type: t('活期现金'), risk: t('低风险'), rMin: 0.1, rMax: 0.2, cash: 100 },
+    ];
+    // 分类 id 是现生成的，标签表必须按**这一组** id 组装（不能读全局 state.categories）
+    const tagOf = (d) => ({ currency: d.cur, [catAsset.id]: d.type, [catRisk.id]: d.risk });
+
+    const months = recentMonths(now, 6);
+    const notes = [t('初始配置'), t('小幅加仓'), t('市场波动'), t('补仓操作'), t('分红再投'), t('季度调整')];
+    const monthlyChanges = [
+      [0, 0, 0, 0, 0, 0, 0],
+      [3000, 0, 5000, 0, 0, 0, 0],
+      [0, 0, -5000, -500, 1000, 0, 0],
+      [2000, 0, 8000, 0, 0, 0, 0],
+      [0, 0, 3000, 200, 0, 0, 0],
+      [3000, 0, -2000, 300, 0, -10000, 0],
+    ];
+    const marketJitter = [0, 0.02, -0.06, 0.03, 0.01, 0.04];
+    // 权益按整幅抖动、债券与理财按三成/两成折算：三类资产的风险量级要能一眼看出来
+    const jitterOf = (d, mi) => {
+      if (d.type === t('权益基金')) return marketJitter[mi];
+      if (d.type === t('债券基金')) return marketJitter[mi] * 0.3;
+      if (d.name === t('招行理财')) return marketJitter[mi] * 0.2;
+      return 0;
+    };
+
+    const assetIds = defs.map(() => genId());
+    const snapshots = months.map((month, mi) => {
+      const snapAssets = defs.map((d, ai) => {
+        let amount = d.base;
+        for (let j = 0; j <= mi; j++) amount += monthlyChanges[j][ai];
+        amount = Math.round(amount * (1 + jitterOf(d, mi)));
+        return {
+          id: assetIds[ai], name: d.name, amount, currency: d.cur,
+          tags: tagOf(d), expectedRateMin: d.rMin, expectedRateMax: d.rMax, cashRatio: d.cash,
+        };
+      });
+      return {
+        month, note: notes[mi],
+        totalCNY: sumAmountCNY(snapAssets, rates),
+        currencyRates: Object.assign({}, rates),
+        assets: snapAssets,
+        updatedAt: month + '-15T12:00:00.000Z',
+      };
+    });
+    // 账本 = 最新一个月的快照（与真实记账流程一致：快照是那天的资产事实）
+    const latest = snapshots[snapshots.length - 1];
+    return {
+      rates,
+      categories,
+      assets: JSON.parse(JSON.stringify(latest.assets)),
+      snapshots,
+    };
+  }
+
+  // 消费侧示例：3 个分类 + 最近 6 个月的消费流水。
+  // 月份用相对偏移推（不要用「当月 1 号减 i 个月」的字面量），
+  // 日期落在当月天数内（2 月 30 号这类越界日期会静默变成下个月）。
+  function expenseDemo(opts) {
+    const o = opts || {};
+    const now = o.now || new Date();
+    const genId = o.genId || (() => String(Math.random()).slice(2));
+    const catPay = {
+      id: genId(), name: t('支付方式'), builtin: false,
+      tags: [t('微信'), t('支付宝'), t('现金'), t('银行卡')],
+    };
+    const catFreq = {
+      id: genId(), name: t('消费频率'), builtin: false,
+      tags: [t('日常'), t('偶尔'), t('一次性')],
+    };
+    // 已有内置「消费类别」就原样沿用；没有才新建（新建的那一刻取当前语言）
+    const expenseTypeCat = o.expenseTypeCat || {
+      id: 'expense-type', name: t('消费类别'), builtin: false,
+      tags: [t('餐饮'), t('交通'), t('购物'), t('住房'), t('娱乐'), t('医疗'), t('教育'), t('其他')],
+    };
+    const expenseCategories = [expenseTypeCat, catPay, catFreq];
+
+    const seedRows = [
+      { note: t('午餐外卖'), amt: 35, type: t('餐饮'), pay: t('微信'), freq: t('日常') },
+      { note: t('地铁通勤'), amt: 12, type: t('交通'), pay: t('支付宝'), freq: t('日常') },
+      { note: t('超市采购'), amt: 156, type: t('购物'), pay: t('微信'), freq: t('偶尔') },
+      { note: t('房租'), amt: 3500, type: t('住房'), pay: t('银行卡'), freq: t('一次性') },
+      { note: t('电影票'), amt: 78, type: t('娱乐'), pay: t('支付宝'), freq: t('偶尔') },
+      { note: t('药房买药'), amt: 45, type: t('医疗'), pay: t('现金'), freq: t('偶尔') },
+      { note: t('网课订阅'), amt: 299, type: t('教育'), pay: t('微信'), freq: t('一次性') },
+      { note: t('咖啡'), amt: 28, type: t('餐饮'), pay: t('微信'), freq: t('日常') },
+      { note: t('打车'), amt: 42, type: t('交通'), pay: t('支付宝'), freq: t('日常') },
+      { note: t('衣服'), amt: 238, type: t('购物'), pay: t('银行卡'), freq: t('偶尔') },
+      { note: t('水电费'), amt: 186, type: t('住房'), pay: t('微信'), freq: t('一次性') },
+      { note: t('游戏充值'), amt: 68, type: t('娱乐'), pay: t('支付宝'), freq: t('偶尔') },
+      { note: t('理发'), amt: 58, type: t('其他'), pay: t('现金'), freq: t('偶尔') },
+    ];
+    const jitter = [0, 0.05, -0.1, 0.03, 0.08, -0.02];
+    const months = recentMonths(now, 6);
+
+    const expenses = [];
+    months.forEach((monthStr, mi) => {
+      const factor = 1 + jitter[mi];
+      const daysInMonth = daysInMonthOf(monthStr);
+      seedRows.forEach((s, si) => {
+        // 固定支出（房租）与一次性消费每月都在，其余按偏移轮换——让趋势图有起伏但不杂乱
+        if (s.type === t('住房') || s.freq === t('一次性') || si % 3 === mi % 3) {
+          const day = Math.min(1 + (si * 3 + mi * 5) % 28, daysInMonth);
+          expenses.push({
+            id: genId(),
+            date: monthStr + '-' + String(day).padStart(2, '0'),
+            amount: Math.round(s.amt * factor * 100) / 100,
+            note: s.note,
+            tags: { [expenseTypeCat.id]: s.type, [catPay.id]: s.pay, [catFreq.id]: s.freq },
+          });
+        }
+      });
+    });
+
+    return { expenseCategories, expenses };
+  }
+
   // ========== 货币换算 ==========
   function toCNY(amount, currency) {
     return amount * (state.rates[currency] || 1);
@@ -2536,6 +2700,10 @@
     },
     migrate: {
       migrateState,
+    },
+    demo: {
+      assetDemo,
+      expenseDemo,
     },
     ui: {
       nextSortState,
