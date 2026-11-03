@@ -155,3 +155,83 @@ test.describe('主题色一致性', () => {
     }
   });
 });
+
+/**
+ * 打印形态：账本是最该能打印的东西，而浏览器默认**不打印背景色**。
+ * 暗色主题下 --fg 是 #ece4d0，印在白纸上只有 1.27:1 —— 等于印出一张白纸。
+ * 判据不写死色值，而是「打印媒体下的前景色对白纸的对比度」与「玻璃材质是否退场」，
+ * 两者都从页面自身求值，改 token 时不需要改测试。
+ */
+test.describe('打印形态：暗色主题也要印得出、印得清', () => {
+  const lin = (v) => (v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4));
+  const lum = (c) => 0.2126 * lin(c.r / 255) + 0.7152 * lin(c.g / 255) + 0.0722 * lin(c.b / 255);
+  const ratio = (a, b) => {
+    const x = lum(a), y = lum(b);
+    return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
+  };
+  const rgb = (s) => {
+    const n = (s.match(/[\d.]+/g) || []).map(Number);
+    return { r: n[0] || 0, g: n[1] || 0, b: n[2] || 0, a: n.length > 3 ? n[3] : 1 };
+  };
+  const WHITE = { r: 255, g: 255, b: 255 };
+
+  // 暗色主题 + 打印媒体：这是最坏的一格，也是这条的真身
+  test('暗色主题打印：正文与次要文字对白纸都达 AA（4.5:1）', async ({ appPage: page }) => {
+    await switchToDark(page);
+    await page.emulateMedia({ media: 'print' });
+
+    const colors = await page.evaluate(() => {
+      const pick = (el) => (el ? getComputedStyle(el).color : null);
+      return {
+        body: pick(document.body),
+        muted: pick(document.querySelector('.muted') || document.querySelector('.setting-desc')),
+        subtitle: pick(document.querySelector('.section-head .sub')),
+      };
+    });
+    for (const [name, c] of Object.entries(colors)) {
+      expect(c, `${name} 在打印媒体下取不到颜色`).toBeTruthy();
+      const r = ratio(rgb(c), WHITE);
+      expect(r, `${name} 打印在白纸上只有 ${r.toFixed(2)}:1（需 ≥4.5:1）`).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  test('暗色主题打印：玻璃材质退场（不印成一块半透明色块）', async ({ appPage: page }) => {
+    await switchToDark(page);
+    await page.emulateMedia({ media: 'print' });
+    const glass = await page.evaluate(() => {
+      const card = document.querySelector('.card');
+      const cs = getComputedStyle(card);
+      return { backdrop: cs.backdropFilter || cs.webkitBackdropFilter, bg: cs.backgroundColor };
+    });
+    expect(glass.backdrop, '打印时 backdrop-filter 必须关掉（纸张印不出模糊）').toMatch(/none/);
+    // 打印时卡片底色必须不透明：半透明压在纸上就是一片脏灰
+    expect(rgb(glass.bg).a, '打印时卡片底色必须不透明').toBe(1);
+  });
+
+  test('打印：装饰层与操作面不进纸（灯层 / 便条 / 页签栏 / 操作行）', async ({ appPage: page }) => {
+    await page.emulateMedia({ media: 'print' });
+    const hidden = await page.evaluate(() => {
+      const disp = (sel) => {
+        const el = document.querySelector(sel);
+        if (!el) return 'missing';
+        const cs = getComputedStyle(el);
+        return cs.display === 'none' || cs.visibility === 'hidden' ? 'hidden' : 'visible';
+      };
+      return {
+        lamp: disp('.lamp-layer'),
+        toasts: disp('#toast-area'),
+        tabBar: disp('.tab-bar'),
+        toolbar: disp('.toolbar'),
+      };
+    });
+    for (const [name, state] of Object.entries(hidden)) {
+      expect(state, `打印时 ${name} 仍在纸面上（应为 hidden）`).toBe('hidden');
+    }
+  });
+
+  test('打印：真的能出一份非空 PDF（不是只改了计算样式）', async ({ appPage: page }) => {
+    await page.emulateMedia({ media: 'print' });
+    const pdf = await page.pdf({ format: 'A4', printBackground: false });
+    expect(pdf.length, 'PDF 内容为空').toBeGreaterThan(1000);
+  });
+});

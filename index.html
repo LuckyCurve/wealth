@@ -1388,6 +1388,39 @@ tailwind.config = {
      窄屏上 390px 实测会挤成「按钮变 56×123 的字柱」——那正是工具类在这儿帮不上忙的证明。
      对齐用 center，控件高度差 1–2px 时两端不会各自错位。 */
   .toolbar { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 12px; }
+  /* ===== 打印：账本是最该能印出来的东西 =====
+     为什么必须单独一段：浏览器打印**默认不印背景色**，而本页的配色全部建立在
+     「底色在、文字压在上面」之上。暗色主题下 --fg 是 #ece4d0，印在白纸上只有 1.27:1
+     —— 用户拿到的是一张白纸（实测 page.pdf + 解压内容流，暗色 token 确实原样进了纸面）。
+     故打印形态不沿用当前主题，而是**强制回落到亮色那套纸墨**：
+       ① 前景/次要色重绑到亮色 token（不写死色值，主题变量仍是单一来源）；
+       ② 玻璃材质退场（backdrop-filter 关掉、底色改不透明 --card）——
+          纸张印不出模糊，半透明压在纸上只是一片脏灰；
+       ③ 装饰层与操作面不进纸（灯层/便条/页签栏/筛选操作行/报头底纹）。
+     只处理「印出来读不读得清」，不改屏幕上的任何形态。 */
+  @media print {
+    :root, :root.dark {
+      --bg: #fff; --bg-2: #fff; --fg: #211b10; --muted: #5e5034; --card: #fff; --card-2: #fff;
+      --border: #b9a87e; --rule: #b9a87e; --accent-ink: #7f5c0e; --accent: #8f6713;
+      --accent-soft: #d9b25e; --on-accent: #211b10;
+    }
+    html, body { background: #fff !important; color: var(--fg); }
+    /* 纸张不印背景图/阴影：纸纹、桌光、台灯三层全撤 */
+    body::before, body::after, .lamp-layer { display: none !important; }
+    .card, .modal-content {
+      background: #fff !important;
+      backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
+      box-shadow: none !important; border: 1px solid var(--border) !important;
+    }
+    /* 操作面与装饰进不了纸：页签栏、筛选行、便条、导入导出按钮、报头底纹 */
+    .tab-bar, .toolbar, #toast-area, .masthead::before, .masthead::after,
+    .no-print { display: none !important; }
+    .app-header { background: #fff !important; border-bottom: 1px solid var(--border); }
+    /* 表格跨页时不要把一个资产拆成两半 */
+    .asset-row { break-inside: avoid; }
+    a[href]::after { content: ''; } /* 不打印 URL 后缀（本页没有可点外链，留着只会脏） */
+    @page { margin: 14mm; }
+  }
 </style>
 </head>
 <body class="min-h-screen">
