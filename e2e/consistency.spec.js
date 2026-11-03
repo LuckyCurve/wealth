@@ -1463,3 +1463,113 @@ test.describe('版式：设置行的标签列 / 控件列', () => {
     await page.setViewportSize({ width: 1280, height: 800 });
   });
 });
+
+/**
+ * 焦点指示、选中态与滚动条：三者都是「浏览器/系统画的那一圈」，文字 AA 巡检照不到它们，
+ * 而它们的可见度全靠对比度——故判据一律是「该元素与其邻近底色」的实测对比度。
+ * 1.4.11（非文字对比度）要求 3:1；选中态与滚动条不是文字，同用 3:1 作下限。
+ */
+test.describe('可读性：焦点环 / 选中态 / 滚动条', () => {
+  const lin = (v) => (v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4));
+  const lum = (c) => 0.2126 * lin(c.r / 255) + 0.7152 * lin(c.g / 255) + 0.0722 * lin(c.b / 255);
+  const ratio = (a, b) => {
+    const x = lum(a), y = lum(b);
+    return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
+  };
+  const rgb = (s) => {
+    const n = (s.match(/[\d.]+/g) || []).map(Number);
+    return { r: n[0] || 0, g: n[1] || 0, b: n[2] || 0, a: n.length > 3 ? n[3] : 1 };
+  };
+  // 半透明色压在给定底色上，得到真实呈现色
+  const over = (f, b) => ({ r: f.r * f.a + b.r * (1 - f.a), g: f.g * f.a + b.g * (1 - f.a), b: f.b * f.a + b.b * (1 - f.a) });
+
+  // 全站可聚焦控件：焦点环色对「它紧邻的底色」必须 ≥3:1（亮暗两套都查）
+  for (const theme of ['light', 'dark']) {
+    test(`${theme === 'light' ? '亮' : '暗'}色：每个可聚焦控件的焦点环对邻近底色 ≥3:1`, async ({ appPage: page }) => {
+      if (theme === 'dark') {
+        // setTheme 是同步的（classList + 变量翻转），不需要睡眠等渲染
+        await page.evaluate(() => setTheme(true));
+      }
+
+      const rows = await page.evaluate(() => {
+        const out = [];
+        const seen = new Set();
+        // 先把页面滚到有内容的地方（默认视图顶端之外还有整张表格）
+        window.scrollTo(0, 0);
+        for (const el of document.querySelectorAll('button, input, select, textarea, [tabindex="0"], [role="button"]')) {
+          const r = el.getBoundingClientRect();
+          if (r.width < 4 || r.height < 4 || r.top < 0 || r.top > innerHeight - 4) continue;
+          const cs = getComputedStyle(el);
+          if (cs.display === 'none' || cs.visibility === 'hidden') continue;
+          el.focus();
+          const fs = getComputedStyle(el);
+          if (fs.outlineStyle === 'none' || parseFloat(fs.outlineWidth) === 0) continue;
+          const key = el.tagName + '.' + String(el.className).split(' ')[0] + '#' + (el.id || '');
+          if (seen.has(key)) continue;
+          seen.add(key);
+          // 环带中心：负 offset 时在盒内，正 offset 时在盒外
+          const off = parseFloat(fs.outlineOffset) || 0;
+          const w = parseFloat(fs.outlineWidth) || 0;
+          const dy = off >= 0 ? -(off + w / 2) : -(off + w / 2);
+          const cx = Math.round(r.left + Math.min(r.width / 2, 40));
+          const y = Math.round(r.top + dy);
+          // 邻近底色 = 环带外再 6px 处那一点所属元素的**有效**背景（沿祖先链取第一个不透明的）
+          const probe = document.elementFromPoint(cx, Math.max(0, y - 6));
+          let bg = null;
+          for (let n = probe; n; n = n.parentElement) {
+            const c = getComputedStyle(n).backgroundColor;
+            const p = c.match(/[\d.]+/g);
+            if (p && (p.length === 3 || Number(p[3]) > 0.9)) { bg = c; break; }
+          }
+          out.push({ key, ring: fs.outlineColor, bg: bg || getComputedStyle(document.body).backgroundColor, x: cx, y });
+        }
+        return out;
+      });
+
+      expect(rows.length, '没有扫到任何可聚焦控件').toBeGreaterThan(3);
+      for (const row of rows) {
+        const ring = rgb(row.ring);
+        const bg = rgb(row.bg);
+        const r = ratio(ring, bg);
+        expect(r, `${row.key} 的焦点环 ${row.ring} 压在 ${row.bg} 上只有 ${r.toFixed(2)}:1（需 ≥3:1）`).toBeGreaterThanOrEqual(3);
+      }
+    });
+  }
+
+  test('选中态：选中底与未选中底 ≥3:1（亮/暗两套）', async ({ appPage: page }) => {
+    for (const dark of [false, true]) {
+      await page.evaluate((d) => setTheme(d), dark);
+      const info = await page.evaluate(() => {
+        const sel = getComputedStyle(document.documentElement, '::selection');
+        const bg = getComputedStyle(document.body).backgroundColor;
+        return { selBg: sel.backgroundColor, selColor: sel.color, bodyBg: bg };
+      });
+      // 选中态必须自带不透明底色（半透明压在纸纹上会随位置变色）
+      expect(rgb(info.selBg).a, `选中底色不得半透明（实得 ${info.selBg}）`).toBe(1);
+      const r = ratio(rgb(info.selBg), rgb(info.bodyBg));
+      expect(r, `选中底 ${info.selBg} 对底色 ${info.bodyBg} 只有 ${r.toFixed(2)}:1（需 ≥3:1）`).toBeGreaterThanOrEqual(3);
+    }
+  });
+
+  test('滚动条：标准属性已声明，且拇指对轨道 ≥3:1（亮/暗两套）', async ({ appPage: page }) => {
+    for (const dark of [false, true]) {
+      await page.evaluate((d) => setTheme(d), dark);
+      const info = await page.evaluate(() => {
+        const cs = getComputedStyle(document.documentElement);
+        return {
+          scrollbarColor: cs.scrollbarColor,
+          scrollbarWidth: cs.scrollbarWidth,
+          bg: cs.getPropertyValue('--bg').trim(),
+        };
+      });
+      // 只写 -webkit- 一套时 Firefox/Safari 完全走 UA 默认（暗色下是一道亮条）
+      expect(info.scrollbarWidth, '标准 scrollbar-width 未声明').not.toBe('auto');
+      expect(info.scrollbarColor, '标准 scrollbar-color 未声明').not.toBe('auto');
+      const parts = info.scrollbarColor.match(/[\d.]+/g).map(Number);
+      const thumb = { r: parts[0], g: parts[1], b: parts[2] };
+      const track = parts.length >= 6 ? { r: parts[3], g: parts[4], b: parts[5] } : rgb(info.bg);
+      const r = ratio(thumb, track);
+      expect(r, `滚动条拇指对轨道只有 ${r.toFixed(2)}:1（需 ≥3:1）`).toBeGreaterThanOrEqual(3);
+    }
+  });
+});

@@ -131,6 +131,23 @@ tailwind.config = {
        关掉 appearance 之后箭头就是我们自己的一张图，位置、颜色、留白全由页面决定。
        色值走变量：写死则暗色下箭头仍是亮色的墨，且会被 theme 巡检判为越界。 */
     --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 4.5 6 8l3.5-3.5' fill='none' stroke='%236b5c3a' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    /* 焦点环单独一枚色：原先直接借 --accent（#b4841a），压在纸底上实测 2.63:1，
+       低于 WCAG 1.4.11 对非文字元素要求的 3:1 —— 键盘走查时几乎看不见自己在哪。
+       --accent-ink（#7f5c0e）对纸底 4.78:1、对卡面 5.95:1，是同一色相里足够深的那一档。
+       为什么不直接把 --accent 压深：它是金色**文字**与装饰线的色，压深会连累报头与读数。 */
+    /* 选中态：**不透明**的深金底 + 墨字。
+       原先只有 background: rgba(180,132,26,.28)——压在纸纹与桌光上实测只让整片区域
+       变化 1.15:1（亮）/1.29:1（暗），框选一行金额几乎看不出选中了哪里；半透明还会
+       随背后底色深浅变色。
+       色值必须**不透明且够深**：--accent-soft(#d9b25e) 对纸底只有 1.57:1（比原来的
+       半透明还淡），--accent(#b4841a) 2.63:1 也不够；--select(#8f6713) 对纸底 3.99:1、
+       对卡面 4.97:1，而墨字压在上面仍有 3.35:1，两头都达标。 */
+    --select: #8f6713;
+    /* 焦点环单独一枚色：原先直接借 --accent（#b4841a），压在纸底上实测 2.63:1，
+       低于 WCAG 1.4.11 对非文字元素要求的 3:1 —— 键盘走查时几乎看不见自己在哪。
+       --accent-ink（#7f5c0e）对纸底 4.78:1、对卡面 5.95:1，是同一色相里足够深的那一档。
+       为什么不直接把 --accent 压深：它是金色**文字**与装饰线的色，压深会连累报头与读数。 */
+    --focus-ring: #7f5c0e;
   }
   :root.dark {
     color-scheme: dark;
@@ -179,6 +196,10 @@ tailwind.config = {
     --desk-fall: rgba(0, 0, 0, 0.44);
     /* 暗色下箭头改用 muted 的亮版（#b0a078）：沿用亮色的深墨会在深棕底上看不见 */
     --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 4.5 6 8l3.5-3.5' fill='none' stroke='%23b0a078' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    /* 暗色下金环本身就够亮（#d9b25e 对 #15110a 是 9.39:1），不必换色 */
+    --focus-ring: #d9b25e;
+    /* 暗色选中底：亮金压深纸（9.39:1），墨字压在上面 8.53:1 */
+    --select: #d9b25e;
   }
   /* 卡片的边缘色不再另设一套（原先 .dark .card 改回 --border，等于材质的边缘有两处定义） */
   /* ===== 排版 token（字号 / 字重 / 字体族）=====
@@ -345,7 +366,7 @@ tailwind.config = {
   /* 焦点环只画环，**不改元素自身的形状**：曾在这里写 border-radius: 4px，于是控件一聚焦
      圆角就从 6px 跳成 4px、失焦再跳回来——焦点本不该改变控件的外观，只该在它外面加一圈。
      环的形状由浏览器跟随元素自己的 border-radius，无需在此声明。 */
-  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  :focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
   /* 视觉隐藏但仍留在 Tab 序 / 可被脚本点击。
      为什么不能用 display:none：它会把元素从 Tab 序里摘掉——文件选择框正是这样
      让键盘用户整块够不到「导入数据」的（label 不可聚焦 + input display:none = 无路可走）。 */
@@ -355,10 +376,11 @@ tailwind.config = {
   }
   /* 包住隐藏 input 的 label：焦点在里面的 input 上，环要画在能看见的 label 上。
      用 :focus-within 而不是给 label 加 tabindex——那会多出一个空的 Tab 停靠点。 */
-  .file-label:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .file-label:focus-within { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
   /* 超长列表的滚动上限：用 dvh，vh 在移动端地址栏收缩时会把底部按钮顶出屏幕 */
   .scroll-cap { max-height: 44dvh; overflow-y: auto; }
-  ::selection { background: rgba(180, 132, 26, 0.28); }
+  /* 选中态：见 --select 的注释（不透明深金 + 墨字，两头都过 3:1） */
+  ::selection { background: var(--select); color: var(--on-accent); }
   button:focus-visible, .btn-gold:focus-visible, .btn-ghost:focus-visible, .btn-danger:focus-visible { outline-offset: 2px; }
   @media (prefers-reduced-motion: reduce) {
     /* 延迟也要归零：只关时长的话，带 delay 的入场会先停在「还没出来」的状态（延迟仍生效） */
@@ -1165,10 +1187,15 @@ tailwind.config = {
       border-top: 1px solid var(--rule);
     }
   }
+  /* 滚动条：两套属性都要写。
+     -webkit- 那套只有 Blink 认，Firefox/Safari 完全走 UA 默认（暗色页面上是一道亮条）；
+     标准 scrollbar-color 两处都认，故它才是真正的来源，-webkit- 只作 Blink 的细调。
+     拇指原先用 --rule（对纸底 1.34:1，几乎看不见），换成 --muted（5.11:1 / 暗色 7.30:1）。 */
+  html { scrollbar-color: var(--muted) transparent; scrollbar-width: thin; }
   ::-webkit-scrollbar { width: 8px; height: 8px; }
   ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: var(--rule); border-radius: 4px; }
-  ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+  ::-webkit-scrollbar-thumb { background: var(--muted); border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--fg); }
 
   /* ===== Masthead / net-worth hero =====
      签名语言是报头底纹（::before，阴阳纹/机器雕版）+ 四角裁切标记（::after）——
@@ -1279,7 +1306,7 @@ tailwind.config = {
      （样式在、路不在，正是「以为做了键盘可达、其实没做」留下的化石）。
      焦点环用负 offset：行是整幅宽，正的会顶出卡片边缘。 */
   .row-hit { cursor: pointer; }
-  .row-hit:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .row-hit:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
   .chart-legend-row[data-top] .chart-legend-name { font-weight: var(--fw-strong); }
   /* 分布图总数（资产/消费旭日图共用）：旭日图只给各部分占比，卡片上方补一个合计。
      与扇区同源、随右上角筛选联动；字号沿用主读数档，颜色走 fg（不抢报头的主角）。 */
