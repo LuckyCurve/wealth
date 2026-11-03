@@ -48,7 +48,15 @@ const ROOT = path.join(__dirname, '..');
 //    既有 .scale-input/.scale-reading（与安全边际同一套）与 tagPillHtml（胶囊模板只此一处），
 //    没有新增第二套控件或第二处胶囊标记。剩下的只能是条/印徽/弹窗的标记本身。
 // 本轮之后同方向的增改请先在这个文件里写「试过什么」。
-const INDEX_BUDGET = 423_000;
+// 2026-11-03 从 423,000 抬到 424,000：节奏收口（12 个时长档收成 3 档 + 3 枚例外 token，
+// 并让图表动画进系统）。抬之前先做过的两步（AGENTS.md 的顺序）：
+// ① 纯逻辑下沉 —— 图表动画的决策（给不给、给多少、减动效怎么处置）下沉到 logic.js
+//    chart.chartMotion（可单测，含「绝不等于库默认 1000ms」这条）；页面只剩「把 CSS token
+//    读成数值」这一件不可测的事。本轮之前还先把两个示例加载器整体下沉 demo 域（-6,303 字节）。
+// ② 合并重复结构 —— 时长/缓动不新增任何规则，只是把**既有**的 12 个档位与 19 处静默 `ease`
+//    改写成 token 引用；新增的 CSS 只有 6 行 `--mo-*` 声明本身。
+// 本轮之后同方向的增改请先在这个文件里写「试过什么」。
+const INDEX_BUDGET = 424_000;
 
 function bytes(name) {
   return fs.statSync(path.join(ROOT, name)).size;

@@ -1573,3 +1573,92 @@ test.describe('可读性：焦点环 / 选中态 / 滚动条', () => {
     }
   });
 });
+
+/**
+ * 节奏：同一页上并存多个近似时长说不出哪里错，只觉得「飘」。
+ * 判据不写死具体毫秒数（那会随设计漂移），而是两条结构约束：
+ *   ① 页面用到的过渡/动画时长只能来自**一套 token**，不允许散落字面量；
+ *   ② 图表的入场动画必须进这套系统，并且认 prefers-reduced-motion。
+ */
+test.describe('节奏：时长出自同一套 token，图表动画也进系统', () => {
+  test('CSS 里的 transition/animation 时长一律走 token，不写字面量', async ({ appPage: page }) => {
+    const literal = await page.evaluate(() => {
+      const bad = [];
+      for (const sheet of document.styleSheets) {
+        let rules;
+        try { rules = sheet.cssRules; } catch (e) { continue; }
+        for (const r of rules) {
+          if (!r.style) continue;
+          for (const p of ['transition', 'transition-duration', 'animation', 'animation-duration']) {
+            const v = r.style.getPropertyValue(p);
+            if (!v) continue;
+            // 允许 var(--mo-*) 与 0s/0ms（减动效归零）；其余字面量时长算违规
+            const times = v.match(/(?<![\w-])(\d*\.?\d+)(ms|s)\b/g) || [];
+            const stripped = v.replace(/var\(--mo-[a-z]+(?:,\s*[^)]*)?\)/g, '');
+            const leftovers = stripped.match(/(?<![\w-])(\d*\.?\d+)(ms|s)\b/g) || [];
+            const zeros = leftovers.filter((t) => parseFloat(t) === 0);
+            if (leftovers.length > zeros.length) {
+              bad.push(`${(r.selectorText || r.name || '?').slice(0, 50)} { ${p}: ${v.slice(0, 60)} }`);
+            }
+          }
+        }
+      }
+      return bad;
+    });
+    expect(literal, `这些时长是字面量，应改用 --mo-* token：\n  ${literal.join('\n  ')}`).toEqual([]);
+  });
+
+  test('token 表存在且被真正消费（不是定义完就没人用）', async ({ appPage: page }) => {
+    const info = await page.evaluate(() => {
+      const cs = getComputedStyle(document.documentElement);
+      const tokens = ['--mo-fast', '--mo-mid', '--mo-slow'].map((n) => ({ n, v: cs.getPropertyValue(n).trim() }));
+      let uses = 0;
+      for (const sheet of document.styleSheets) {
+        let rules;
+        try { rules = sheet.cssRules; } catch (e) { continue; }
+        for (const r of rules) {
+          if (!r.style) continue;
+          for (const p of ['transition', 'transition-duration', 'animation', 'animation-duration']) {
+            const v = r.style.getPropertyValue(p);
+            if (v && /var\(--mo-/.test(v)) uses++;
+          }
+        }
+      }
+      return { tokens, uses };
+    });
+    for (const t of info.tokens) expect(t.v, `${t.n} 未定义`).toMatch(/^\d/);
+    expect(info.uses, 'token 定义了却没人用').toBeGreaterThan(3);
+  });
+
+  test('图表动画进系统：页面送到库里的时长是 mid 档，不是库默认 1000ms', async ({ appPage: page }) => {
+    // 用替身记录「页面送了哪些动画参数」。不连外网拿真库（e2e 卫生铁律），
+    // 而这条要验的正是「页面有没有显式给参数」——替身看得见，真库的默认值看不见。
+    await page.evaluate(() => switchTab('expense-chart'));
+    await page.waitForFunction(() => window.__echartsCalls && window.__echartsCalls.lastAnimation, null, { timeout: 10000 });
+    const info = await page.evaluate(() => ({
+      sent: window.__echartsCalls.lastAnimation,
+      mid: getComputedStyle(document.documentElement).getPropertyValue('--mo-mid').trim(),
+    }));
+    // 减动效（appPage 夹具默认开）→ 页面必须显式关掉
+    expect(info.sent.animation, 'reduced-motion 下图表动画必须关掉').toBe(false);
+    // 正常动效下时长必须来自 --mo-mid
+    expect(info.mid, '--mo-mid 未定义').toMatch(/^\d/);
+  });
+
+  test('正常动效下：图表时长 = --mo-mid 换算的毫秒数（两侧同一节奏）', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
+    await stubCdn(page);
+    await seed(page, sampleState());
+    await page.goto('index.html');
+    await waitReady(page);
+    await page.evaluate(() => switchTab('expense-chart'));
+    await page.waitForFunction(() => window.__echartsCalls && window.__echartsCalls.lastAnimation, null, { timeout: 10000 });
+    const info = await page.evaluate(() => ({
+      sent: window.__echartsCalls.lastAnimation,
+      mid: getComputedStyle(document.documentElement).getPropertyValue('--mo-mid').trim(),
+    }));
+    expect(info.sent.animation, '正常动效下图表动画应开着').toBe(true);
+    expect(info.sent.animationDuration, '图表时长应等于 --mo-mid（250ms）').toBe(Math.round(parseFloat(info.mid) * 1000));
+    expect(info.sent.animationDuration, '不得沿用库默认 1000ms').not.toBe(1000);
+  });
+});

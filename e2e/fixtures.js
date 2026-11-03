@@ -122,6 +122,14 @@ async function stubCdn(page, rates) {
         }
         FakeChart.prototype.setOption = function (opt, notMerge) {
           window.__echartsCalls.setOption.push({ id: this._dom && this._dom.id, notMerge: !!notMerge, seriesCount: (opt && opt.series || []).length });
+          // 记录动画参数：图表动画是不是「进了节奏系统」只能从这里看。
+          // 替身不建 canvas、也不跑动画，但它能证明页面**送了**什么给库——
+          // 这正是这条契约要验的（真库的默认值是 1000ms/cubicInOut，页面不传就等于沿用它）。
+          window.__echartsCalls.lastAnimation = {
+            animation: opt && opt.animation,
+            animationDuration: opt && opt.animationDuration,
+            animationEasing: opt && opt.animationEasing,
+          };
           // 记录旭日图实际喂进去的数据节点名（顶层）。这是「图本身下没下钻」唯一可观察的证据：
           // 下钻 = 只喂选中那一个分类，返回 = 又喂回全量。不记录就只能验清单、验不到图。
           const series = (opt && opt.series) || [];

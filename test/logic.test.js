@@ -3103,5 +3103,29 @@ describe('示例数据（纯逻辑：只产数据，不碰 DOM 与 state）', ()
   });
 });
 
+describe('图表动画参数（节奏系统的一部分：不沿用库默认 1000ms）', () => {
+  test('正常动效：时长取 --mo-mid 的秒数换算成毫秒', () => {
+    assert.deepStrictEqual(L.motion.chartMotion(0.25, false), {
+      animation: true, animationDuration: 250, animationEasing: 'cubicOut',
+    });
+  });
+
+  test('减动效：直接关掉（不是把时长改成 1ms）', () => {
+    assert.deepStrictEqual(L.motion.chartMotion(0.25, true), { animation: false });
+  });
+
+  test('缺省/非法 mid 秒数回落 250ms，不产出 NaN', () => {
+    for (const bad of [undefined, null, NaN, '', 'abc']) {
+      const r = L.motion.chartMotion(bad, false);
+      assert.strictEqual(r.animationDuration, 250, `${String(bad)} 应回落 250`);
+      assert.ok(Number.isFinite(r.animationDuration));
+    }
+  });
+
+  test('绝不等于库默认的 1000ms（那正是要修的那个值）', () => {
+    assert.notStrictEqual(L.motion.chartMotion(0.25, false).animationDuration, 1000);
+  });
+});
+
 // 压测（stress）用例单独成文件：这一节读起来是一整件事（设计见 docs/adr/0004-stress-as-view-overlay.md）
 require('./stress-logic-cases.js');

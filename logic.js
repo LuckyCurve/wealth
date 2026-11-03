@@ -217,6 +217,20 @@
     return { expenseCategories, expenses };
   }
 
+  // ========== 图表动画参数（节奏系统的一部分）==========
+  // ECharts 默认 1000ms / cubicInOut，是**全站最长的一档**（比任何 CSS 过渡都长），
+  // 且不认 prefers-reduced-motion：真库实测 reducedMotion: reduce 下 animationDuration 仍是 1000。
+  // 故页面必须显式给参数。为什么下沉：这是纯决策（「给不给、给多少、减动效怎么处置」），
+  // 可单测；而页面侧只剩「把 CSS token 读成数值」这一件不可测的事。
+  // midSec 是 --mo-mid 的秒数（CSS token 是节奏的唯一来源，这里不另写一份毫秒数）。
+  function chartMotion(midSec, reduceMotion) {
+    if (reduceMotion) return { animation: false };
+    const ms = Math.round((Number(midSec) || 0.25) * 1000);
+    // 缓动跟随全站那一枚：CSS 侧是 cubic-bezier(.22,.61,.36,1)，ECharts 只认命名曲线，
+    // cubicOut 是最近似的一条（快出慢收）。两侧不必逐点相同，但必须同向。
+    return { animation: true, animationDuration: ms, animationEasing: 'cubicOut' };
+  }
+
   // ========== 货币换算 ==========
   function toCNY(amount, currency) {
     return amount * (state.rates[currency] || 1);
@@ -2704,6 +2718,11 @@
     demo: {
       assetDemo,
       expenseDemo,
+    },
+    // 域名就叫 motion，不叫 chart：页面里 `chart` 是 ECharts 实例的变量名，
+    // 同名域会被局部变量遮蔽（`chart.motion(...)` 会在实例上找方法——实翻过，整页图表全灭）。
+    motion: {
+      chartMotion,
     },
     ui: {
       nextSortState,
