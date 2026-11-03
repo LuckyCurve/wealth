@@ -64,7 +64,12 @@ const ROOT = path.join(__dirname, '..');
 //    与 1 处 tooltip 阴影全部改走 --shadow-soft/--shadow-lift（亮暗各一套）。
 // 净增只有 2 行变量声明 + 1 条 ::before 规则 + 1 条抬层规则——纤维要显影就得有一层。
 // 本轮之后同方向的增改请先在这个文件里写「试过什么」。
-const INDEX_BUDGET = 426_000;
+// 2026-11-03 从 426,000 抬到 427,000：修「长标签名撑破弹窗」（.tag-pill / .tag-choice /
+// .tag-key / .tag-val 补 max-width:100% + min-width:0 + ellipsis）。
+// 抬之前先做的：可沉逻辑无（纯 CSS 收缩约束）；把四段注释压到最短仍差 273 字节。
+// 净增只有 4 条声明 —— 每一条都是「内容必须能收窄」这个不变量本身，删哪条都会复发溢出。
+// 本轮之后同方向的增改请先在这个文件里写「试过什么」。
+const INDEX_BUDGET = 427_000;
 
 function bytes(name) {
   return fs.statSync(path.join(ROOT, name)).size;

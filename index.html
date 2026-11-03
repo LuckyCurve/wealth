@@ -833,14 +833,19 @@ tailwind.config = {
     border-left: 3px solid var(--border);
     /* 不能含 box-shadow：长按进度是每帧写内联 box-shadow，补间会让墨线拖在手指后面 */
     transition: filter var(--mo-fast), border-color var(--mo-fast); white-space: nowrap; line-height: 1.5;
+    /* 长标签名要能在容器里收窄并省略，否则把胶囊、金额、整行推出弹窗右缘（实测 77px）。
+       父容器 min-width:0 是前提，胶囊自身也要 max-width:100% + min-width:0 才真被约束。 */
+    max-width: 100%; min-width: 0;
   }
   /* 分类名（key）与标签值（val）同字号，层级只靠字重区分：
      曾用 opacity .55 把 key 压淡，实测对比掉到 1.6–2.1:1 —— 分类名恰恰是用户要读的信息。 */
   .tag-pill .tag-key {
     font-size: var(--fs-micro); font-weight: var(--fw-medium);
     letter-spacing: 0.02em; margin-right: 4px;
+    /* 长分类名/长标签名在胶囊里收窄并省略，而不是把胶囊撑开 */
+    min-width: 0; overflow: hidden; text-overflow: ellipsis;
   }
-  .tag-pill .tag-val { font-weight: var(--fw-strong); }
+  .tag-pill .tag-val { font-weight: var(--fw-strong); min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   .tag-pill.active { border-color: var(--accent); border-left-color: var(--accent); }
   /* 长按改名：按住期间给一条金墨进度线（进度比例来自 logic.js ui.pressProgress，宽度由 JS 写内联 box-shadow）。
      为什么必须有：长按是**无声的**手势——不给进度，用户按到一半就放手，永远学不会这个入口。
@@ -892,6 +897,9 @@ tailwind.config = {
     background: transparent; color: var(--muted);
     border: 1px dashed var(--border);
     transition: background var(--mo-fast), border-color var(--mo-fast), box-shadow var(--mo-fast), color var(--mo-fast);
+    /* 与 .tag-pill 同一处病因：单个选项没有宽度上限，超长名比一行还宽、溢出右缘（实测 19px） */
+    max-width: 100%; min-width: 0;
+    overflow: hidden; text-overflow: ellipsis;
   }
   .tag-choice:hover { color: var(--fg); border-color: var(--accent-soft); }
   /* 已选态 = 实心盖印：浅 tint 底 + **分类字色**的实线描边。

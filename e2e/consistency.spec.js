@@ -527,6 +527,39 @@ test.describe('版式一致性', () => {
     ).toBeLessThanOrEqual(1);
   });
 
+  test('弹窗里的长标签名不得溢出弹窗右缘（压测 / 读数卡）', async ({ appPage: page }) => {
+    // 用户原话：「有没有类似的这种问题」。这是上一轮「超长图例挤图」的同族：
+    // 长内容没有 shrink 约束 → 撑破容器。判据量「弹窗内有没有元素越过右内边距」。
+    const LONG = '这是一个非常非常长的中文标签名称用来测试会不会撑破弹窗右边缘还有很多字';
+    await page.evaluate((long) => {
+      state.categories.forEach((c) => { if (!c.builtin) c.tags = c.tags.map(() => long); });
+      saveState();
+      renderAll();
+    }, LONG);
+
+    for (const [id, openFn] of [['stress-modal', 'openStressModal'], ['runway-modal', 'openRunwayModal']]) {
+      await page.evaluate((fn) => window[fn](), openFn);
+      await expect(page.locator('#' + id)).toBeVisible();
+      const bad = await page.evaluate((mid) => {
+        const content = document.querySelector(`#${mid} .modal-content`);
+        const cs = getComputedStyle(content);
+        const cr = content.getBoundingClientRect();
+        const innerRight = cr.right - parseFloat(cs.paddingRight);
+        const out = [];
+        for (const el of content.querySelectorAll('*')) {
+          const r = el.getBoundingClientRect();
+          if (r.width === 0) continue;
+          if (r.right > innerRight + 2) {
+            out.push({ el: el.tagName.toLowerCase() + '.' + String(el.className).split(' ')[0], over: Math.round(r.right - innerRight) });
+          }
+        }
+        return out;
+      }, id);
+      expect(bad, `#${id} 里有元素溢出弹窗右内边距：${JSON.stringify(bad.slice(0, 6))}`).toEqual([]);
+      await page.evaluate((mid) => closeModal(mid), id);
+    }
+  });
+
   test('所有表格：数值列一律右对齐，表头同步（含弹窗里的表）', async ({ appPage: page }) => {
     // 用户实测两轮才说清：「消费记录」页的表格有的列左对齐、有的右对齐。
     // 上一版巡检只扫了主列表（#assets-list / #income-rows），**把所有弹窗里的表都漏了**
