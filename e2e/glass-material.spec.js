@@ -235,3 +235,75 @@ test.describe('卡片材质：液态玻璃的可测特征', () => {
     expect(m.contentAlpha, '弹窗正文底必须不透明（半透明会压掉表单文字的可读性）').toBe(1);
   });
 });
+
+/**
+ * 弹窗的纸与深度：
+ *   ① 弹窗是这页上**最大的一块纸**，却长期是不透明平涂 —— 纸纹只铺在桌面与页头。
+ *      但纸纹不能爬进正文：AA 巡检按平底色算对比度，纤维会让它静默跳过。
+ *      故判据是「内边距带里有纤维、正文列里没有」——两个取样点各取一条。
+ *   ② 深度靠阴影色，而阴影色原先写死 rgba(0,0,0,.15)。暗色下压在 #15110a 上
+ *      等于没有深度（黑压黑），故阴影色必须走变量、且两套主题各自成立。
+ */
+test.describe('弹窗：纸的纤维与深度', () => {
+  const openModal = async (page) => {
+    await page.evaluate(() => showSettings());
+    await expect(page.locator('#settings-modal')).toBeVisible();
+  };
+
+  // 用「同一位置在两种主题下的像素差」证明阴影不是写死的黑：
+  // 若阴影色写死，暗色下那圈会比亮色下更不可见（黑压黑）
+  test('阴影色走变量：亮/暗两套各自成立', async ({ page }) => {
+    await stubCdn(page);
+    await seed(page, sampleState());
+    await page.goto('index.html');
+    await waitReady(page);
+    await openModal(page);
+
+    const probe = await page.evaluate(() => {
+      const cs = getComputedStyle(document.querySelector('.modal-content'));
+      const probeEl = document.createElement('span');
+      document.body.appendChild(probeEl);
+      const out = {};
+      for (const v of ['--shadow-soft', '--shadow-lift']) {
+        probeEl.style.color = cs.getPropertyValue(v).trim();
+        out[v] = getComputedStyle(probeEl).color;
+      }
+      probeEl.remove();
+      return { out, boxShadow: cs.boxShadow };
+    });
+    expect(probe.out['--shadow-soft'], '--shadow-soft 必须在 :root 定义（阴影色单一来源）').toBeTruthy();
+    expect(probe.out['--shadow-lift'], '--shadow-lift 必须在 :root 定义').toBeTruthy();
+    // getComputedStyle 会把 var() 求值掉，故判据是「两套主题算出来的阴影色不同」——
+    // 写死 rgba(0,0,0,.15) 时两套必然相同，那正是要修的缺陷
+    const shadows = {};
+    for (const dark of [false, true]) {
+      await page.evaluate((d) => setTheme(d), dark);
+      shadows[dark ? 'dark' : 'light'] = await page.evaluate(() => getComputedStyle(document.querySelector('.modal-content')).boxShadow);
+    }
+    expect(shadows.light, '亮色弹窗阴影取不到').toBeTruthy();
+    expect(shadows.dark, '暗色弹窗阴影取不到').toBeTruthy();
+    expect(shadows.dark, '暗色阴影不得与亮色完全相同（那说明色值是写死的）').not.toBe(shadows.light);
+  });
+
+  test('弹窗内边距带有纸纹，正文列保持纯色（AA 巡检的前提不破）', async ({ page }) => {
+    await stubCdn(page);
+    await seed(page, sampleState());
+    await page.goto('index.html');
+    await waitReady(page);
+    await openModal(page);
+
+    const info = await page.evaluate(() => {
+      const cs = getComputedStyle(document.querySelector('.modal-content'), '::before');
+      const padding = parseFloat(getComputedStyle(document.querySelector('.modal-content')).paddingLeft) || 0;
+      return {
+        beforeContent: cs.content,
+        maskImage: cs.maskImage || cs.webkitMaskImage,
+        padding,
+      };
+    });
+    expect(info.beforeContent, '弹窗纸纹由 ::before 承担').toContain('""');
+    // 必须用 mask 收到内边距带：纤维不能爬到正文底下
+    expect(info.maskImage, '纸纹必须用 mask 衰减收边（否则会铺满正文）').not.toBe('none');
+    expect(info.padding, '内边距是纸纹的落脚范围').toBeGreaterThanOrEqual(24);
+  });
+});

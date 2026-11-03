@@ -75,6 +75,11 @@ tailwind.config = {
     --border: #ded2b4;
     --rule: #d3c5a3;
     --shadow: rgba(33, 27, 16, 0.10);
+    /* 浮层（弹窗/便条/日期选择器/tooltip）的阴影色：原先 4 处各写 rgba(0,0,0,.15)，
+       暗色下黑压黑等于没有深度（那张浮层就贴回纸面了）。收成两枚变量，亮暗各自成句。
+       soft = 近影（浮层与纸之间的那一线接触）；lift = 远影（环境遮蔽，给出「浮在上面」）。 */
+    --shadow-soft: rgba(33, 27, 16, 0.10);
+    --shadow-lift: rgba(33, 27, 16, 0.15);
     --card-edge: rgba(255, 255, 255, 0.55);
     --tick: rgba(33, 27, 16, 0.22);
     /* 弹窗遮罩（压暗 + 磨砂）：原先写死 rgba(13,11,8,0.5)，亮暗同步全靠手动。
@@ -167,6 +172,10 @@ tailwind.config = {
     --border: #3a301d;
     --rule: #473b28;
     --shadow: rgba(0, 0, 0, 0.4);
+    /* 暗色浮层阴影：不能是纯黑（黑压深棕等于没有），也不能沿用亮色那套浅墨。
+       用更实的黑 + 略高的不透明度，浮层才「浮」得起来。 */
+    --shadow-soft: rgba(0, 0, 0, 0.45);
+    --shadow-lift: rgba(0, 0, 0, 0.6);
     --card-edge: rgba(255, 255, 255, 0.04);
     --tick: rgba(236, 228, 208, 0.22);
     /* 暗色纸面本来就暗，遮罩要压得更实一点；再罩一层浅墨等于没压 */
@@ -570,7 +579,7 @@ tailwind.config = {
     font-family: var(--font-body) !important;
     border-radius: 10px !important;
     border: 1px solid var(--border) !important;
-    box-shadow: 0 8px 32px var(--shadow), 0 2px 8px rgba(0,0,0,0.06) !important;
+    box-shadow: 0 8px 32px var(--shadow-lift), 0 2px 8px var(--shadow-soft) !important;
     background: var(--card) !important;
     overflow: hidden;
   }
@@ -673,7 +682,7 @@ tailwind.config = {
   /* 暗色模式微调 */
   .dark .flatpickr-calendar {
     border-color: var(--border) !important;
-    box-shadow: 0 8px 32px rgba(0,0,0,0.5), 0 2px 8px rgba(0,0,0,0.3) !important;
+    box-shadow: 0 8px 32px var(--shadow-lift), 0 2px 8px var(--shadow-soft) !important;
   }
   .dark .flatpickr-day.selected, .dark .flatpickr-day.selected:hover {
     color: var(--bg) !important;
@@ -718,9 +727,23 @@ tailwind.config = {
     /* 弹窗正文是**自己的**滚动上下文，滚到头的滚轮/触摸不得冒泡给页面（否则在弹窗里
        滚到底，背后的账页会接着滚——这正是「背景冻住」最容易被漏掉的一条路径） */
     overscroll-behavior: contain;
-    box-shadow: 0 20px 60px rgba(0,0,0,0.15); animation: slideUp var(--mo-mid) var(--mo-ease);
+    box-shadow: 0 20px 60px var(--shadow-lift), 0 2px 8px var(--shadow-soft); animation: slideUp var(--mo-mid) var(--mo-ease);
     border: 1px solid var(--border);
+    /* 弹窗是这页上最大的一块纸，却一直是不透明平涂（纸纹只铺在桌面与页头）。
+       这里把同一张纤维髹回**内边距带**，让它重新「是一张纸」。
+       为什么必须用 mask 收到内边距带：纤维会改变局部底色，而 AA 巡检按平底色算
+       文字对比度——纤维爬到正文底下，那块字会被巡检静默跳过（页头曾这么漏检）。 */
+    position: relative;
   }
+  .modal-content::before {
+    content: ''; position: absolute; inset: 0; z-index: 0; pointer-events: none;
+    border-radius: inherit; background-image: var(--grain); opacity: 0.5;
+    /* 中心挖空、只留四边带（正文列保持纯色） */
+    -webkit-mask-image: radial-gradient(120% 120% at 50% 50%, transparent 0 62%, #000 88%);
+    mask-image: radial-gradient(120% 120% at 50% 50%, transparent 0 62%, #000 88%);
+  }
+  /* 正文抬到纤维之上（纤维是绝对定位的同级层，流子元素默认比它先画） */
+  .modal-content > * { position: relative; z-index: 1; }
   /* 弹窗宽度四档（默认 560px）: 尺寸语汇收在这里, 弹窗结构里不再逐个内联 max-width。
      **必须定义在 .modal-content 之后**：两边的特异性都是单类，同特异性下后写者胜——
      写在前面的时候四档全部阵亡、所有弹窗恒为 560px（实测 17 个弹窗无一例外）。
@@ -993,7 +1016,7 @@ tailwind.config = {
   .toast {
     position: static; max-width: min(360px, calc(100vw - 48px));
     padding: 12px 24px; border-radius: 8px; font-size: var(--fs-body);
-    animation: slideUp var(--mo-mid) var(--mo-ease); box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+    animation: slideUp var(--mo-mid) var(--mo-ease); box-shadow: 0 4px 20px var(--shadow-lift), 0 1px 3px var(--shadow-soft);
     font-family: var(--font-body); border: 1px solid;
     pointer-events: auto; transition: transform var(--mo-slow) var(--mo-ease), visibility 0s var(--mo-slow);
   }
@@ -3450,7 +3473,7 @@ function deleteAsset(id) {
 
 // 图表文字/线条随主题取色（ECharts canvas 不识别 CSS 变量, 需读取计算后的值）
 // 注：color.CATEGORY_PALETTE（旭日图 / 堆叠柱调色板）已迁移至 logic.js，浏览器下由全局注入，逻辑与单测共用同一份。
-const TOOLTIP_CSS = 'border-radius:6px;padding:10px 14px;box-shadow:0 6px 18px rgba(33,27,16,0.14);';
+const TOOLTIP_CSS = 'border-radius:6px;padding:10px 14px;box-shadow:0 6px 18px var(--shadow-lift);';
 // ECharts canvas 不认 CSS 变量，字体族只能以字面量传给各图；集中一处，改字族只改这里。
 const CHART_FONT = '"IBM Plex Mono", monospace';
 
