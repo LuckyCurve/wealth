@@ -137,9 +137,20 @@ test.describe('压测：读数跟着变，账本不动', () => {
     await expect(page.locator('#masthead-whole')).toHaveText('210,000');
     await expect(page.locator('#stress-bar-text')).toContainText('权益基金 60%');
 
-    // 清除：立即回真实值，条回未启用
+    // 清除要先确认：取消 = 什么都没发生（情景仍在、读数仍是压测后的）
     await openStressModal(page);
     await page.locator('#stress-modal .btn-danger').click();
+    await expect(page.locator('#confirm-modal')).toBeVisible();
+    await page.locator('#confirm-modal').getByRole('button', { name: '取消' }).click();
+    await expect(page.locator('#confirm-modal')).toBeHidden();
+    await expect(page.locator('#masthead-whole')).toHaveText('210,000');
+    expect(await page.evaluate(() => state.stress)).toEqual({ catId: 'cat-type', keeps: [{ tag: '权益基金', keep: 60 }] });
+    await expect(page.locator('#stress-modal')).toBeVisible();
+
+    // 确认：立即回真实值，条回未启用
+    await page.locator('#stress-modal .btn-danger').click();
+    await expect(page.locator('#confirm-modal')).toBeVisible();
+    await page.locator('#confirm-ok-btn').click();
     await expect(page.locator('#masthead-whole')).toHaveText('250,000');
     await expect(page.locator('#stress-bar-text')).toHaveText('压测：未启用');
     await expect(page.locator('#stress-badge')).toBeHidden();

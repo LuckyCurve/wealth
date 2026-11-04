@@ -684,8 +684,11 @@ describe('UI 接线契约：备份文件夹', () => {
 
   test('onclick 只挂同步入口，异步实现单独命名（内联名收集器不认 async function）', () => {
     assert.match(html, /function chooseBackupDir\(\) \{ chooseBackupDirAsync\(\); \}/);
-    assert.match(html, /function clearBackupDir\(\) \{ clearBackupDirAsync\(\); \}/);
     assert.match(html, /function exportData\(\) \{\n {2}syncBackupControls\(\);[\s\S]*?exportDataAsync\(\);/);
+    // 清除目录先经确认框，异步实现仍单独命名、只在确认回调里调用
+    const clearDir = fnSource('clearBackupDir');
+    assert.match(clearDir, /showConfirm\(/, '清除备份文件夹也要二次确认');
+    assert.match(clearDir, /clearBackupDirAsync\(\)/, '确认后才走异步实现');
     assert.strictEqual(count(/onclick="chooseBackupDirAsync/g), 0);
     assert.strictEqual(count(/onclick="clearBackupDirAsync/g), 0);
     assert.strictEqual(count(/onclick="exportDataAsync/g), 0);
@@ -3848,5 +3851,49 @@ describe('UI 接线契约：月度快照提醒', () => {
     assert.match(fnSource('showConfirm'), /_confirmCancelCallback\s*=\s*opts\.onCancel/, '每次调用都要重置');
     assert.match(fnSource('confirmCancel'), /_confirmCancelCallback\s*=\s*null/, '取消后清空');
     assert.match(fnSource('confirmCancel'), /if \(onCancel\) onCancel\(\)|onCancel\(\)/, '取消要真的触发回调');
+  });
+});
+
+/*
+ * 清空/删除/覆盖一律二次确认：用户原话「清空或者删除操作需要二次确认」。
+ * 判据从页面自身求值，不写死函数清单——新增同类按钮会自动纳入这条巡检。
+ * 行为层（取消后内存/存档是否真的没动）由 e2e/confirm-destructive.spec.js 在真实浏览器里验。
+ */
+describe('UI 接线契约：破坏性入口一律二次确认', () => {
+  // 单文件 SPA 没有组件引用可查，内联接线就是入口清单本身。
+  // 扫全部 on* 属性的**处理体里所有调用**（不只 onclick/onchange）：ESC 里的清空、
+  // 表单提交里的删除同样会落盘，漏一个事件类型就是一道暗门。
+  const handlerNames = [...new Set(
+    [...html.matchAll(/\son[a-z]+="([^"]*)"/g)]
+      .flatMap((m) => [...m[1].matchAll(/([A-Za-z_$][\w$]*)\s*\(/g)].map((c) => c[1]))
+  )];
+  const destructive = handlerNames.filter((n) => /^(clear|delete|remove|import)/.test(n));
+
+  // 豁免：只清视图态（筛选 / 搜索），不落盘、不删账本内容，弹确认只会添堵。
+  const VIEW_ONLY = ['clearExpenseSearch', 'clearExpenseFilters'];
+
+  test('入口收集器本身有效（扫不到入口就会假绿）', () => {
+    assert.ok(destructive.length >= 10, `应扫到一批破坏性入口（实得 ${destructive.length}）`);
+    for (const n of VIEW_ONLY) assert.ok(destructive.includes(n), `${n} 应仍在清单里，否则豁免名单已失效`);
+  });
+
+  test('所有清空/删除/覆盖入口都经 showConfirm（取消即什么都没发生）', () => {
+    const missing = destructive.filter(
+      (n) => !VIEW_ONLY.includes(n) && !/showConfirm\(/.test(stripComments(fnSource(n)))
+    );
+    assert.deepStrictEqual(missing, [], '未二次确认的破坏性入口：' + missing.join(', '));
+  });
+
+  test('豁免的确实只动视图态（不得写 state / 落盘）', () => {
+    for (const n of VIEW_ONLY) {
+      const src = stripComments(fnSource(n));
+      assert.doesNotMatch(src, /saveState\(|state\.\w+\s*=/, `${n} 一旦落盘就不能再豁免`);
+    }
+  });
+
+  test('既有的确认框不回潮（快照覆盖 / 两处示例数据 / 编辑框里清空引用）', () => {
+    for (const fn of ['promptOverwrite', 'loadDemoData', 'loadExpenseDemoData', 'saveCategory']) {
+      assert.match(stripComments(fnSource(fn)), /showConfirm\(/, `${fn} 的确认不得被摘掉`);
+    }
   });
 });

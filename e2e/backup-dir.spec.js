@@ -93,6 +93,13 @@ test('设置里选择/清除备份文件夹：边注说清它是「文件窗口�
   expect(keys).toEqual(['backupDir']);
 
   await page.click('#backup-dir-clear');
+  await expect(confirmBox(page)).toBeVisible();
+  await page.locator('#confirm-modal').getByRole('button', { name: '取消' }).click();
+  await expect(confirmBox(page)).toBeHidden();
+  await expect(page.locator('#backup-dir-clear')).toBeVisible(); // 取消 = 句柄还在
+  await page.click('#backup-dir-clear');
+  await expect(confirmBox(page)).toBeVisible();
+  await confirmOk(page);
   await expect(page.locator('#settings-backup-dir-note')).toHaveText('未选择，文件窗口默认打开上次的目录');
   await expect(page.locator('#backup-dir-clear')).toBeHidden();
 });

@@ -3190,11 +3190,13 @@ function saveTarget() {
   toast(hadTarget ? i18n.t('目标已更新') : i18n.t('目标已设置'), 'success');
 }
 function clearTarget() {
-  state.netWorthTarget = 0;
-  saveState();
-  closeModal('target-modal');
-  renderAssets();
-  toast(i18n.t('目标已清除'), 'success');
+  showConfirm(i18n.t('确认清除目标净资产？'), () => {
+    state.netWorthTarget = 0;
+    saveState();
+    closeModal('target-modal');
+    renderAssets();
+    toast(i18n.t('目标已清除'), 'success');
+  });
 }
 
 function renderCategories() {
@@ -4251,13 +4253,16 @@ function removeTag(side, catId, tagName) {
   if (!cat) return;
   if (cat.builtin) { toast(i18n.t('内置分类不可修改'), 'error'); return; }
   if (cat.tags.length <= 1) { toast(i18n.t('至少保留一个标签'), 'error'); return; }
-  cat.tags = cat.tags.filter(t => t !== tagName);
-  cfg.items().forEach(it => { if (it.tags[catId] === tagName) delete it.tags[catId]; });
-  if (side === 'asset') state.runwayTags = income.pruneRunwayTags(state.runwayTags, state.categories);
-  saveState();
-  renderCategoryCards(side);
-  cfg.renderItems();
-  toast(i18n.t('标签已移除'), 'success');
+  const refs = expense.countTagRefs(cfg.items(), catId, [tagName]);
+  showConfirm(i18n.t('确认移除标签「{p1}」？{p2} 条记录上的归类也会被清空。', { p1: tagName, p2: refs }), () => {
+    cat.tags = cat.tags.filter(t => t !== tagName);
+    cfg.items().forEach(it => { if (it.tags[catId] === tagName) delete it.tags[catId]; });
+    if (side === 'asset') state.runwayTags = income.pruneRunwayTags(state.runwayTags, state.categories);
+    saveState();
+    renderCategoryCards(side);
+    cfg.renderItems();
+    toast(i18n.t('标签已移除'), 'success');
+  });
 }
 
 // 标签改名（长按胶囊）：**迁移引用**而不是删除重建——旧名若走「已失效引用」清理，
@@ -5221,14 +5226,16 @@ function saveStress() {
 }
 
 function clearStress() {
-  _stressDraft = null;
-  state.stress = null;
-  saveState();
-  closeModal('stress-modal');
-  renderAll();
-  refreshVisibleCharts();
-  if (document.getElementById('tab-income').style.display !== 'none') renderIncomeTab();
-  toast(i18n.t('压测已清除'), 'success');
+  showConfirm(i18n.t('确认清除压测情景？'), () => {
+    _stressDraft = null;
+    state.stress = null;
+    saveState();
+    closeModal('stress-modal');
+    renderAll();
+    refreshVisibleCharts();
+    if (document.getElementById('tab-income').style.display !== 'none') renderIncomeTab();
+    toast(i18n.t('压测已清除'), 'success');
+  });
 }
 
 // ========== 所选标签的钱 ÷ 月消费（消费趋势的读数卡）==========
@@ -5854,7 +5861,9 @@ async function chooseBackupDirAsync() {
 }
 
 // 只忘句柄与持久化记录，不删除任何文件
-function clearBackupDir() { clearBackupDirAsync(); }
+function clearBackupDir() {
+  showConfirm(i18n.t('确认清除备份文件夹？'), () => clearBackupDirAsync());
+}
 
 async function clearBackupDirAsync() {
   backupDirTouched = true;
@@ -6072,13 +6081,15 @@ function importData(e) {
     try {
       const data = JSON.parse(ev.target.result);
       if (data && Array.isArray(data.categories) && Array.isArray(data.assets)) {
-        state = { ...state, ...data };
-        // 与 loadState 共用同一套迁移/兜底逻辑（旧版 expectedRate、快照格式、孤儿标签等）
-        migrate.migrateState();
-        saveState();
-        renderAll();
-        closeModal('io-modal');
-        toast(i18n.t('数据已导入'), 'success');
+        showConfirm(i18n.t('导入将覆盖当前所有数据，确认继续？'), () => {
+          state = { ...state, ...data };
+          // 与 loadState 共用同一套迁移/兜底逻辑（旧版 expectedRate、快照格式、孤儿标签等）
+          migrate.migrateState();
+          saveState();
+          renderAll();
+          closeModal('io-modal');
+          toast(i18n.t('数据已导入'), 'success');
+        }, null, { onCancel: () => { document.getElementById('import-file-name').textContent = ''; } });
       } else {
         toast(i18n.t('文件格式不正确'), 'error');
       }
@@ -6177,7 +6188,7 @@ function closeModal(id) {
   if (back && document.contains(back) && back.focus) back.focus();
 }
 
-// custom confirm dialog
+// custom confirm dialog —— 清空 / 删除 / 覆盖落盘前唯一的二次确认出口（ui-wiring 巡检把守）
 let _confirmCallback = null;
 let _confirmCancelCallback = null;
 function showConfirm(msg, onOk, title, opts) {
@@ -6829,14 +6840,16 @@ function saveExpectation() {
   toast(hadValue ? i18n.t('预期消费已更新') : i18n.t('预期消费已设置'), 'success');
 }
 function clearExpectation() {
-  state.expenseExpectation = 0;
-  saveState();
-  closeModal('expectation-modal');
-  // 可见性守卫同 saveExpectation（防隐藏容器 echarts 0 尺寸初始化）
-  if (document.getElementById('tab-expense-trend').style.display !== 'none') renderExpenseTrendChart();
-  renderAssets();
-  if (document.getElementById('tab-income').style.display !== 'none') renderIncomeTab();
-  toast(i18n.t('已清除预期消费'), 'success');
+  showConfirm(i18n.t('确认清除预期月消费？'), () => {
+    state.expenseExpectation = 0;
+    saveState();
+    closeModal('expectation-modal');
+    // 可见性守卫同 saveExpectation（防隐藏容器 echarts 0 尺寸初始化）
+    if (document.getElementById('tab-expense-trend').style.display !== 'none') renderExpenseTrendChart();
+    renderAssets();
+    if (document.getElementById('tab-income').style.display !== 'none') renderIncomeTab();
+    toast(i18n.t('已清除预期消费'), 'success');
+  });
 }
 
 async function renderExpenseTrendChart() {
