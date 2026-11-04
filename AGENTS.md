@@ -213,3 +213,7 @@ CI 的单元测试只跑 **ubuntu + windows** 两平台：macOS 与 ubuntu 同�
 
 commit 是给下一个 AI 看的，不是给 changelog 看的。**不写运行记录，视为没跑。**
 提交前 `node --test` 必须全绿；大改动再跑一遍 `npm run test:e2e`，并在正文写明。
+
+**提交后直接 `git push`，不询问、不等确认。** push 失败按基础设施处理：先查凭据与
+[GitHub 状态页](https://www.githubstatus.com)、自动重试（5xx 常是间歇性的）；确实推不上去
+才如实写进回复，不把「要不要推」抛回给用户。
