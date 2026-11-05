@@ -2614,9 +2614,8 @@ async function fetchRates() {
     if (!next) throw new Error(i18n.t('汇率响应缺少有效币种'));
     state.rates = next;
     saveState();
+    // 汇率变了 → 资产列表与所有派生读数（含需要换算的图表）一起重算；收尾在 renderAssets → syncDerivedReads
     renderAssets();
-    // 资产分布/收益测算等使用当前汇率换算的图表需要同步重绘（历史净值用快照时点汇率不受影响, 消费均为 CNY）
-    refreshVisibleCharts();
     // 与其他操作提示统一走右下角便条；info=系统中性知会（金墨边注），不打断当前操作
     toast(i18n.t('汇率已更新'), 'info');
   } catch(e) {
@@ -3050,21 +3049,23 @@ function renderAssets() {
     }).join('');
   }
 
-  // masthead: net worth + currency composition + income hint
-  const total = totalAssetsCNY();
-  renderMasthead(total);
-
   // 数据校验条跟随资产/分类变化（全局口径，不随排序变化）
   renderTagCheckBar('asset');
-  renderStressChrome();
+  syncDerivedReads(); // 收尾：报头/压测指示器/可见图表一起重算（头部是唯一刷新口）
 }
 
 // ===== Masthead / net-worth hero =====
 let _mastheadRaf = null;
 let _mastheadPrev = 0;
+// 当前「应有的目标值」：相等就不重启动画。列表重绘很频繁（消费搜索每敲一个字符都会走到这里），
+// 无脑重启动画会让计数停在半路、数字被拽回起点。
+let _mastheadTarget = null;
 // _reduceMotion 定义在台灯一节（文件顶部）：两处都读同一个信号，此处不得再声明一次
 
-function renderMasthead(total) {
+// 报头是唯一写入点，总资产也在这里现算（经 assetsInView，含压测叠加）：调用方传数就是一个
+// 「谁算的谁负责」的漏更新口子。
+function renderMasthead() {
+  const total = totalAssetsCNY();
   const wholeEl = document.getElementById('masthead-whole');
   const centsEl = document.getElementById('masthead-cents');
   const dateEl = document.getElementById('masthead-date');
@@ -3081,7 +3082,9 @@ function renderMasthead(total) {
 
   if (_reduceMotion) {
     paintAmount(total);
-  } else {
+    _mastheadPrev = total;
+    _mastheadTarget = total;
+  } else if (total !== _mastheadTarget) {
     cancelAnimationFrame(_mastheadRaf);
     const from = _mastheadPrev;
     const dur = 650;
@@ -3093,7 +3096,7 @@ function renderMasthead(total) {
       if (p < 1) _mastheadRaf = requestAnimationFrame(step);
       else _mastheadPrev = total;
     };
-    _mastheadPrev = total;
+    _mastheadTarget = total;
     _mastheadRaf = requestAnimationFrame(step);
   }
 
@@ -3319,12 +3322,11 @@ function commitInlineEdit(doRender) {
       // 排序激活: 行位置需重排, 走完整重绘（blur 后立即点按钮的 click 可能丢失, 排序状态下少见）
       renderAssets();
     } else {
-      // 用户主动提交（blur/Enter/Tab）: 不整表重绘, 手动同步 cell/报头/图表,
-      // 保证 blur 后正在点击的按钮（编辑/删除）DOM 不被替换、click 正常触发
+      // 用户主动提交（blur/Enter/Tab）: 不整表重绘, 只同步该格与全部派生读数
+      // ——压测条/页头副行/可见图表都靠 syncDerivedReads 一处跟上，不再在这里挑几处补
       cell.innerHTML = money.money2(a.amount);
-      renderMasthead(totalAssetsCNY());
+      syncDerivedReads();
     }
-    refreshVisibleCharts();
   }
   // doRender=false: renderAssets 重绘正在进行, 由渲染输出新值
   return true;
@@ -5014,14 +5016,16 @@ function onIncomeSafetyInput() {
   if (v !== state.incomeSafetyFactor) {
     state.incomeSafetyFactor = v;
     saveState();
-    renderIncomeTab();
-    renderMasthead(totalAssetsCNY());
+    // 安全边际同时作用于收益两口径与报头副行，走同一收尾口（不自己挑重绘谁）
+    syncDerivedReads();
   }
 }
 
+// 收益口径（最低/最高）是全局读数：收益表、覆盖标尺、报头副行都用同一档。
+// 切换后走同一收尾口重算，而不是只刷收益页（曾经报头副行停在上一个口径）。
 function setIncomeMode(mode) {
   incomeMode = mode;
-  setSegMode('income-mode-min', 'income-mode-max', mode, 'min', 'max', renderIncomeTab);
+  setSegMode('income-mode-min', 'income-mode-max', mode, 'min', 'max', () => syncDerivedReads());
 }
 
 // ========== 覆盖标尺（月收益对预期月消费的覆盖率）==========
@@ -5219,9 +5223,8 @@ function saveStress() {
   closeModal('stress-modal');
   if (JSON.stringify(next) === before) return;   // 没变就不重绘（空点击同理）
   saveState();
+  // 压测是全局叠加：重绘列表 + 行内收尾 syncDerivedReads 就把报头/条/印徽/全部可见读数一起更新了
   renderAll();
-  refreshVisibleCharts();
-  if (document.getElementById('tab-income').style.display !== 'none') renderIncomeTab();
   toast(next ? i18n.t('压测已启用') : i18n.t('压测已清除'), next ? 'info' : 'success');
 }
 
@@ -5232,8 +5235,6 @@ function clearStress() {
     saveState();
     closeModal('stress-modal');
     renderAll();
-    refreshVisibleCharts();
-    if (document.getElementById('tab-income').style.display !== 'none') renderIncomeTab();
     toast(i18n.t('压测已清除'), 'success');
   });
 }
@@ -5697,8 +5698,7 @@ function setLang(lang) {
   applyI18nDom();
   syncLangSeg();
   syncFlatpickrLocale();
-  renderAll();
-  refreshVisibleCharts();
+  renderAll(); // 收尾 syncDerivedReads 把可见图表也按新语言重绘一次
 }
 
 // ========== THEME (日间/夜间，入口唯一：设置弹窗「外观」) ==========
@@ -5732,8 +5732,7 @@ function setTheme(dark) {
   localStorage.setItem('dark-mode', dark ? '1' : '');
   applyThemeChrome(); // 状态栏跟纸色，不留一块上白下褐
   syncThemeSeg(); // 回显 seg 状态
-  renderAll();
-  refreshVisibleCharts();
+  renderAll(); // 收尾 syncDerivedReads 把可见图表也按新主题重绘（canvas 不认 CSS 变量）
 }
 
 // 设置弹窗入口：打开前回显主题 seg、语言 seg 与备份控件
@@ -5752,6 +5751,18 @@ function refreshVisibleCharts() {
   if (document.getElementById('tab-income').style.display !== 'none') renderIncomeTab();
   if (document.getElementById('tab-expense-chart').style.display !== 'none') renderExpenseChart();
   if (document.getElementById('tab-expense-trend').style.display !== 'none') renderExpenseTrendChart();
+}
+
+// ===== 派生读数的唯一刷新口 =====
+// 账本一变，所有从它派生的读数就在这里重算：报头（净资产/构成/目标/收益副行/压测小字）、
+// 压测条与印徽、当前可见的图表与收益页（守卫在 refreshVisibleCharts，隐藏时零开销）。
+// 为什么必须是一个口：各写入点自己报几处重绘时，漏一处不报错、只在特定顺序下显形——
+// 「报头已是新值」配着「压测条还是旧值」、换了收益口径报头还停在上一个口径。
+// 新增派生读数就把重绘挂在这里；数值一律现算（调用方不传数）。
+function syncDerivedReads() {
+  renderMasthead();
+  renderStressChrome();
+  refreshVisibleCharts();
 }
 
 // ========== IMPORT/EXPORT ==========
@@ -6487,6 +6498,7 @@ function renderExpenses() {
 
   // 数据校验条跟随记录/分类变化（全局口径，不随列表筛选缩小）
   renderTagCheckBar('expense');
+  syncDerivedReads(); // 与资产侧同一收尾口（趋势/预算/读数卡随之重算）
 }
 
 function openExpenseModal(editId, prefillId) {
@@ -6831,12 +6843,8 @@ function saveExpectation() {
   state.expenseExpectation = v;
   saveState();
   closeModal('expectation-modal');
-  // 可见性守卫同 renderIncomeTab：防隐藏容器 echarts 0×0 初始化（隐藏时进入 Tab 由 switchTab 重渲染）
-  if (document.getElementById('tab-expense-trend').style.display !== 'none') renderExpenseTrendChart();
-  renderAssets(); // 报头收益 vs 预期消费徽章依赖该值
-  // 收益 Tab 可见时才同步刷新覆盖标尺（必须带可见性守卫: renderIncomeTab 尾部会 renderIncomeChart,
-  // 对从未显示过的容器 echarts.init 会缓存 0×0 实例, 之后进 Tab 图表空白; 与 refreshVisibleCharts 同惯例)
-  if (document.getElementById('tab-income').style.display !== 'none') renderIncomeTab();
+  // 预期月消费被覆盖标尺/读数卡/预算卡/趋势线共用：重绘列表即重算全部派生读数
+  renderAssets();
   toast(hadValue ? i18n.t('预期消费已更新') : i18n.t('预期消费已设置'), 'success');
 }
 function clearExpectation() {
@@ -6844,10 +6852,7 @@ function clearExpectation() {
     state.expenseExpectation = 0;
     saveState();
     closeModal('expectation-modal');
-    // 可见性守卫同 saveExpectation（防隐藏容器 echarts 0 尺寸初始化）
-    if (document.getElementById('tab-expense-trend').style.display !== 'none') renderExpenseTrendChart();
-    renderAssets();
-    if (document.getElementById('tab-income').style.display !== 'none') renderIncomeTab();
+    renderAssets(); // 同上：收尾在 syncDerivedReads
     toast(i18n.t('已清除预期消费'), 'success');
   });
 }

@@ -28,6 +28,7 @@
 | 可访问名、对比度 AA、原生控件外观、数字列右对齐、同类元素样式一致、弹窗有可见标题 | `e2e/consistency.spec.js` 六个 describe，判据从页面求值 |
 | 存档/导入字段一律 `esc`，含 `id` 与 `data-*` | `ui-wiring`「图表 tooltip 转义用户输入」+ `e2e/app` 的 id/日期两条 |
 | 迁移只有一个入口 `migrateState()` | `ui-wiring`「导入/导出（纯原始格式 + 迁移兜底共用一套）」 |
+| 派生读数只有一个刷新口 `syncDerivedReads`（写入点不得各挑几处重绘） | `ui-wiring`「账本一变，所有派生读数就重算」+ `e2e/app` 同名 describe + `e2e/stress`「行内改金额：条与报头副行当场重算」 |
 | 改名 ≠ 删除（迁移引用，不是清空） | `logic`「标签改名（引用迁移，不是删除重建）」+ `ui-wiring` + `e2e/app` 同名 describe |
 | 不篡改历史（快照不随补） | `e2e/app`「资产侧数据校验（快照按当时数据保留，不随补）」 |
 | 行级可点元素键盘可达、拖拽有键盘替代 | `ui-wiring`「行级可点元素必须键盘可达」+ `e2e/app`「指针与键盘两条路都要给」 |

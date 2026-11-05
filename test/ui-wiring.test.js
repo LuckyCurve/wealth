@@ -546,14 +546,14 @@ describe('UI 接线契约：收益覆盖标尺（分子口径可切换的预期�
     assert.match(fnSource('renderCoverageMeter'), /coverageMode === 'cash' && cashMonthly <= 0/);
   });
 
-  test('预期保存/清除仅在收益 Tab 可见时刷新（守卫防隐藏容器 echarts 0 尺寸初始化）', () => {
+  test('预期保存/清除只重绘列表（图表与报头的收尾交给 syncDerivedReads）', () => {
+    // 可见性守卫不再在每个写入点各写一遍：它只在 refreshVisibleCharts 一处
+    //（有专属契约守着）。写入点只负责「数值变了就重绘列表」，其余派生读数自动跟上。
     for (const fn of ['saveExpectation', 'clearExpectation']) {
       const src = fnSource(fn);
-      // 调用语法正则锁定完整守卫形态，裸关键词计数会把注释字样也算进去
-      assert.match(
-        src,
-        /tab-income'\)\.style\.display !== 'none'\) renderIncomeTab\(\)/,
-        `${fn} 必须带可见性守卫调 renderIncomeTab（与 refreshVisibleCharts 同惯例）`);
+      assert.match(src, /renderAssets\(\)/, `${fn} 重绘列表（收尾走 syncDerivedReads）`);
+      assert.doesNotMatch(src, /renderIncomeTab\(|renderExpenseTrendChart\(/,
+        `${fn} 不得自己挑图表重绘（收尾在 syncDerivedReads → refreshVisibleCharts）`);
     }
   });
 
@@ -754,7 +754,10 @@ describe('UI 接线契约：汇率刷新链路（绕过 CDN 缓存 / 恢复可�
       assert.match(src, new RegExp(`getElementById\\('${tab}'\\)\\.style\\.display !== 'none'\\) render`),
         `${tab} 的重绘分支必须带可见性守卫（隐藏容器 echarts 0 尺寸初始化，进去就是空白）`);
     }
-    assert.match(stripComments(fnSource('fetchRates')), /refreshVisibleCharts\(\)/, '汇率刷新后图表跟随重绘');
+    // 汇率刷新后的图表重绘不再由 fetchRates 自己接：重绘列表即收尾 syncDerivedReads
+    assert.match(stripComments(fnSource('fetchRates')), /renderAssets\(\)/, '汇率刷新后资产与派生读数一起重算');
+    assert.doesNotMatch(stripComments(fnSource('fetchRates')), /refreshVisibleCharts\(\)/,
+      '不重复拉图表（renderAssets 收尾已经做过，多拉一次就是两遍 setOption）');
   });
 
   test('图表懒渲染排下一帧并验可见性（固定 setTimeout 会把图画进已隐藏的容器）', () => {
@@ -771,7 +774,7 @@ describe('UI 接线契约：汇率刷新链路（绕过 CDN 缓存 / 恢复可�
     for (const fn of ['confirmSnapshot', 'deleteSnapshot']) {
       assert.match(fnSource(fn), /afterTabPaint\('history'/, `${fn} 重绘历史净值也要走同一入口`);
     }
-    assert.match(stripComments(fnSource('setTheme')), /refreshVisibleCharts\(\)/, '主题切换与汇率刷新共用同一入口');
+    assert.match(stripComments(fnSource('setTheme')), /renderAll\(\)/, '主题切换重绘（收尾 syncDerivedReads 把可见图表也按新主题重绘）');
   });
 });
 
@@ -1343,7 +1346,9 @@ describe('UI 接线契约：压测（读数走叠加入口，账本读原值）'
     const src = fnSource('renderStressChrome');
     assert.match(src, /stress\.stressActive\(state\.stress\)/, '两处指示器共用同一「生效」判据');
     assert.match(src, /stress\.stressBarText\(/, '条的三态文案在 logic.js');
-    assert.match(fnSource('renderAssets'), /renderStressChrome\(\)/, '资产重绘时同步指示器');
+    // 资产重绘时同步指示器：不再由 renderAssets 各挑一处重绘，收尾一律交给 syncDerivedReads
+    // （它内部调 renderStressChrome，见「实时联动」那一组契约）
+    assert.match(fnSource('renderAssets'), /syncDerivedReads\(\)/, '资产重绘时同步指示器');
   });
 
   test('弹窗：草稿制（取消不落库）、跌幅行复用既有滑块与胶囊模板', () => {
@@ -1378,6 +1383,48 @@ describe('UI 接线契约：压测（读数走叠加入口，账本读原值）'
       '该维度下未归类的资产（{p1}，{p2} 项）按未打折计入。', '压测已清除']) {
       assert.ok(key in require('../logic.js').i18n.I18N_EN, '缺英文词条: ' + key);
     }
+  });
+});
+
+/*
+ * 实时联动：账本一变，**所有**从它派生的读数就都重算一次
+ * --------------------------------------------------------------------------
+ * 此前每个写入点各自挑几处重绘（行内编辑只刷报头 + 可见图表、表单只刷列表、导入只 renderAll、
+ * 切收益口径只刷收益页），于是同一屏上会出现：
+ *   · 报头副行已是「原值 ¥290,000 / -13.8%」，压测条还写着「未归类 ¥50,000」；
+ *   · 收益页换了 min→max，报头「预估月收益」还停在上一个口径；
+ *   · 收益页开着时导入数据，整页数字不动（只有报头变了）。
+ * 散点接线必然漏一处，且漏了不报错、只在特定顺序下显形。故收敛成**一个刷新口**：
+ * 列表重绘（两侧）、行内编辑、口径切换的收尾都只调它。
+ */
+describe('UI 接线契约：账本一变，所有派生读数就重算（实时联动）', () => {
+  test('syncDerivedReads 是派生读数的唯一刷新口（报头 + 压测指示器 + 可见图表）', () => {
+    const src = fnSource('syncDerivedReads');
+    assert.match(src, /renderMasthead\(\)/, '报头净资产/构成/副行/目标进度');
+    assert.match(src, /renderStressChrome\(\)/, '压测条与页头印徽');
+    assert.match(src, /refreshVisibleCharts\(\)/, '收益/分布/历史/消费图表（各自带可见性守卫，隐藏时为零开销）');
+  });
+
+  test('列表重绘与行内编辑的收尾都走它（不在各写入点各挑几处重绘）', () => {
+    for (const fn of ['renderAssets', 'renderExpenses', 'commitInlineEdit', 'setIncomeMode']) {
+      assert.match(fnSource(fn), /syncDerivedReads\(\)/, fn + ' 收尾必须重算派生读数');
+    }
+    // 反向：renderAssets 不得再各自挑选重绘谁（多头接线正是漏刷的源头）
+    const src = fnSource('renderAssets');
+    assert.doesNotMatch(src, /renderMasthead\(/, '报头不由列表渲染器单独刷（走 syncDerivedReads）');
+    assert.doesNotMatch(src, /renderStressChrome\(/, '指示器不由列表渲染器单独刷（走 syncDerivedReads）');
+  });
+
+  test('报头总数自己算，不接受调用方传入的数（防「谁算的谁负责」漏更新）', () => {
+    const src = fnSource('renderMasthead');
+    assert.match(html, /function renderMasthead\(\)/, '签名无参：总数由报头自己现算');
+    assert.match(src, /const total = totalAssetsCNY\(\)/, '总资产在报头内部现算（经 assetsInView，含压测叠加）');
+  });
+
+  test('报头同一目标不重启动画（重复重绘不得把计数动画拽回起点）', () => {
+    const src = fnSource('renderMasthead');
+    assert.match(src, /_mastheadTarget/, '以「当前应有目标」判定是否需要新动画');
+    assert.match(src, /total !== _mastheadTarget/, '目标未变就不重启动画');
   });
 });
 
@@ -1432,21 +1479,17 @@ describe('UI 接线契约：图表 tooltip 转义用户输入（防存储型 XSS
   });
 });
 
-describe('UI 接线契约：预期保存/清除守卫隐藏容器（消费趋势图）', () => {
-  test('saveExpectation/clearExpectation 调 renderExpenseTrendChart 须带消费趋势 Tab 可见性守卫', () => {
+describe('UI 接线契约：预期保存/清除不自己碰图表（隐藏容器 echarts 0 尺寸初始化）', () => {
+  test('写入点只重绘列表，图表重绘一律经 syncDerivedReads（守卫只在一处）', () => {
     // 覆盖标尺的「修改」入口位于资产模式收益 Tab，此时 #tab-expense-trend 隐藏；
-    // 无守卫会在隐藏容器上 echarts.init 出 0×0 实例（与 renderIncomeTab 同一种坑），
-    // 之后进入趋势页图表空白，直到窗口 resize。
+    // 无守卫会在隐藏容器上 echarts.init 出 0×0 实例，之后进入趋势页图表空白。
+    // 现在两个写入点都不碰图表：收尾是 renderAssets → syncDerivedReads → refreshVisibleCharts
+    //（它五个分支各带可见性守卫，由上一组契约守着），故这里反向钉死。
     for (const fn of ['saveExpectation', 'clearExpectation']) {
       const src = fnSource(fn);
-      assert.match(
-        src,
-        /tab-expense-trend'\)\.style\.display !== 'none'\) renderExpenseTrendChart\(\)/,
-        `${fn} 必须带可见性守卫调 renderExpenseTrendChart`);
-      assert.doesNotMatch(
-        src,
-        /^\s*renderExpenseTrendChart\(\);/m,
-        `${fn} 不应再无守卫裸调 renderExpenseTrendChart`);
+      assert.match(src, /renderAssets\(\)/, `${fn} 重绘列表`);
+      assert.doesNotMatch(src, /renderExpenseTrendChart\(/, `${fn} 不得直接画图（隐藏容器 0×0）`);
+      assert.doesNotMatch(src, /renderIncomeTab\(/, `${fn} 不得直接画图（隐藏容器 0×0）`);
     }
   });
 });

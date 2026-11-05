@@ -179,6 +179,29 @@ test.describe('压测：读数跟着变，账本不动', () => {
 });
 
 test.describe('压测：派生读数跟着变', () => {
+  test('行内改金额：条与报头副行当场重算（不是只有净资产动）', async ({ page }) => {
+    await openStressPage(page);
+    await gotoAssets(page);
+    await openStressModal(page);
+    await setFundKeepTo60(page);
+    await expect(page.locator('#masthead-whole')).toHaveText('210,000');
+    await expect(page.locator('#stress-bar-text')).toContainText('未归类 ¥50,000.00');
+
+    // 把「未归类」（不在压测维度里，恒不打折）从 50k 改成 90k：
+    // 净资产 210k→250k、条的未归类口径句、报头副行的原值与加权跌幅必须**同一拍**跟上。
+    // 旧接线只刷了净资产与可见图表，于是同一屏上「原值 ¥290,000 / -13.8%」配着「未归类 ¥50,000」。
+    const cell = page.locator('#assets-rows .asset-row[data-id="a-untagged"] .amount-cell');
+    await cell.click();
+    await cell.locator('input').fill('90000');
+    await cell.locator('input').press('Enter');
+
+    await expect(page.locator('#masthead-whole')).toHaveText('250,000');
+    await expect(page.locator('#stress-bar-text')).toContainText('未归类 ¥90,000.00');
+    await expect(page.locator('#masthead-sub')).toContainText('原值 ¥290,000');
+    await expect(page.locator('#masthead-sub')).toContainText('压测 -13.8%');
+    await expect(page.locator('#stress-badge-pct')).toHaveText(' -13.8%');
+  });
+
   test('覆盖率与「能撑多久」都按压测后算', async ({ page }) => {
     await openStressPage(page);
     await gotoAssets(page);

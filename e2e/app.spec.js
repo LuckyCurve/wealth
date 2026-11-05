@@ -540,6 +540,67 @@ test.describe('资产增删改', () => {
   });
 });
 
+test.describe('改账本：所有派生读数立刻重算（实时联动）', () => {
+  test('切收益口径（最低↔最高）：报头副行的月收益跟着换（不在收益页也要同步）', async ({ appPage: page }) => {
+    await gotoAssets(page, 'income');
+    // 收益页在 next frame 才渲染（afterTabPaint），先等它就位再读基准值
+    await expect(page.locator('#income-monthly')).toHaveText('¥348.28');
+    const minReading = await page.locator('#income-monthly').textContent();
+
+    await page.locator('#income-mode-max').click();
+    await expect(page.locator('#income-monthly')).not.toHaveText(minReading);
+    // 收益口径是全局读数（报头副行、覆盖标尺、收益表用同一档）：换了档，报头必须同一拍跟上。
+    // 旧接线只重绘了收益页，于是同一屏上「收益摘要 ¥555.58」配着报头「预估月收益 ¥347.58」。
+    const maxReading = await page.locator('#income-monthly').textContent();
+    await expect(page.locator('#masthead-sub')).toContainText(maxReading);
+  });
+
+  test('导入数据：正开着的收益页也重算（不只报头变）', async ({ appPage: page }) => {
+    await gotoAssets(page, 'income');
+    // 先等收益页渲染到位（afterTabPaint 排下一帧），否则读到的是占位的 ¥0
+    await expect(page.locator('#income-monthly')).toHaveText('¥348.28');
+    const before = await page.locator('#income-monthly').textContent();
+    expect(before).not.toBe('¥0');
+
+    // 导入一份只有一笔 100 万 @12% 的账本：月收益应为 1,000,000 × 12% ÷ 12 = ¥10,000
+    const payload = {
+      ...sampleState(),
+      stress: null,
+      assets: [
+        { id: 'x', name: '唯一资产', amount: 1000000, currency: 'CNY', tags: { currency: 'CNY' }, expectedRateMin: 12, expectedRateMax: 12, cashRatio: 100 },
+      ],
+    };
+    await page.locator('#import-file').setInputFiles({
+      name: 'backup.json',
+      mimeType: 'application/json',
+      buffer: Buffer.from(JSON.stringify(payload)),
+    });
+    await page.locator('#confirm-ok-btn').click();
+    await expect(page.locator('#confirm-modal')).toBeHidden();
+
+    // 导入后重绘的是「全部派生读数」，不是只有报头：收益摘要/报头/分布图同一份账本
+    await expect(page.locator('#masthead-whole')).toHaveText('1,000,000');
+    await expect(page.locator('#income-monthly')).toHaveText('¥10,000.00');
+    await expect(page.locator('#income-summary-footer')).toContainText('总资产 ¥1,000,000.00');
+  });
+
+  test('改资产金额：报头副行的收益与总资产同一拍跟上（不需切页）', async ({ appPage: page }) => {
+    await gotoAssets(page);
+    await expect(page.locator('#masthead-sub')).toContainText('预估月收益');
+
+    // 行内把「沪深300指数」（8 万 @最低 5%）改成 16 万：预估月收益 348.28 → 681.61
+    // 旧接线只刷了净资产 + 可见图表（资产页没有图表），收益读数要到切页才重算
+    const cell = page.locator('#assets-rows .asset-row[data-id="a-fund"] .amount-cell');
+    await cell.click();
+    await cell.locator('input').fill('160000');
+    await cell.locator('input').press('Enter');
+
+    // 改完后立即在资产页上核：报头副行必须已是新值（净资产 50k + 160k + 54,347.83 = 264,347.83）
+    await expect(page.locator('#masthead-whole')).toHaveText('264,347');
+    await expect(page.locator('#masthead-sub')).toContainText('¥681.61');
+  });
+});
+
 test.describe('净资产目标', () => {
   test('未设目标：报头里是一行「名称 + 动作」的设置行，不是一个不知道填什么的空框', async ({ appPage: page }) => {
     // 用户视角：空态原是一个整行的大框里塞一枚小按钮——看着像输入框，框里没有名字。

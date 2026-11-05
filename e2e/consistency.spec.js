@@ -1091,7 +1091,7 @@ test.describe('分布图总数：随筛选联动且与扇区同源', () => {
     await page.evaluate(() => {
       state.assets.push({ id: 'a-x', name: '未归类', amount: 9999, currency: 'CNY', tags: {}, expectedRateMin: 0, expectedRateMax: 0, cashRatio: 100 });
       renderChart();
-      renderMasthead(totalAssetsCNY());
+      renderMasthead(); // 报头自己现算总资产（不接参数）
     });
     await expect(page.locator('#chart-total'), '未归类资产也计入总数（与分毋同源）').toHaveText('¥194,346.83');
     await expect(page.locator('#masthead-whole')).toHaveText('194,346');
