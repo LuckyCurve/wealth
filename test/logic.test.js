@@ -3223,5 +3223,5 @@ describe('图表动画参数（节奏系统的一部分：不沿用库默认 100
   });
 });
 
-// 压测（stress）用例单独成文件：这一节读起来是一整件事（设计见 docs/adr/0004-stress-as-view-overlay.md）
+// 压测（stress）用例单独成文件：这一节读起来是一整件事（设计见 DECISIONS.md）
 require('./stress-logic-cases.js');
