@@ -13,6 +13,25 @@
 
 - **文档与注释别缓存可变数字** — `playwright.config.js` 曾写着「串行约 31s，并行约 20s」，而某天实测整轮 78s：注释停在两代之前，还挡住了「配置本身可能是瓶颈」这条怀疑。耗时、字节数、行数是**环境的状态**，不是约束：写进注释就是一份会烂的缓存，而且没人会因为改了用例数量去改它。判据留在测试里（`size-budget` 卡字节、`--reporter=json` 出耗时），数字留在 commit 正文与当次输出里；注释只写「拐点在哪、为什么这么选」。同理适用于「当前 X 条用例」这类计数。
 
+## 测试与装置（单测 / E2E）
+
+- **断网可跑，不放行外网** — 汇率 / echarts / tailwind / flatpickr / 字体全部 `page.route` 替身（`e2e/fixtures.js`）。放行外网既慢又脆，`e2e-hygiene` 扫 `route.continue` / `unroute` 把守。要验真库行为就从 `node_modules` 读（flatpickr 就是这样喂进去的），不要开外网。
+- **兜底替身要先注册** — 「拦掉一切外网」的兜底 route 先注册，具体 CDN 替身后注册才能覆盖它（route 后注册者优先）。次序写反不报错，只表现为一串莫名失败。
+- **Tailwind 在 E2E 里是空壳**（`window.tailwind = {}`）：工具类不生效、截图不能验收 Tailwind 布局——版式规格必须写在自有 CSS 里。
+- **先关动效再断言数字** — masthead 是计数动画，等收敛会让每条数字断言吃满超时；`fixtures` 统一 `reducedMotion: 'reduce'`。
+- **固定定时器用 `page.clock` 快进**（便条退场、备份确认框、开屏看门狗），且时钟要在定时器注册之前接管。
+- **seed 只在首次导航生效** — `addInitScript` 每次导航（含 reload）都会重跑；不设 once 标记，reload 会把存档洗回种子值，持久化用例「永远绿」（假通过）。标记放 sessionStorage。
+- **读内存态 vs 读存档** — `migrateState()` 只修内存态、不回写 localStorage：验「已落盘」读 localStorage，验「迁移/兜底生效」读 `state`。
+- **进资产的入口只有 `fixtures.gotoAssets()`** — 它走键盘通道再抄箴言（合成 click 只抬闸），幂等；长按手势本身由 `app.spec.js` 用真实鼠标覆盖。
+- **播种显式选中文** — 既有断言写的都是中文文案；默认英文与切换由 `i18n.spec.js` 覆盖。
+- **巡检驱动 Tab 用 `page.evaluate` 里的 `btn.click()`** — `locator.click()` 每枚要走 actionability + 一次轮询，九枚就是近 1s；真实点击路径由导航用例覆盖。
+- **判据从页面自身求值**（`consistency.spec.js`）：同类元素样式集合、列宽、对比度 AA——新增同类结构自动纳入，所以不必改测试；但点对点的 `fnSource` 断言只钉住当前几处，当成全覆盖就会留洞。
+- **临时探针 `e2e/_probe.spec.js`**（`e2e/_*.spec.js` 已 ignore）：量几何、抓 DOM 比读 CSS 猜快；慢用例用 `--reporter=json` 按 duration 排序定位。
+- **OPFS 句柄不能跨 reload 读回** — headless Chromium 从 IndexedDB 反序列化 `navigator.storage.getDirectory()` 的句柄会让渲染进程崩，目录用例只断言记录已写入。
+- **静态服务器验明正身** — `webServer.url` 指向 `/__e2e_health__`（只本服务器提供）：`reuseExistingServer` 只看端口，端口被别的服务占用会静默连错。不用 `file://`（localStorage 在 file origin 下不可靠）。
+- **单测的状态注入** — 依赖全局 `state` / `incomeMode` 的函数经 `globalThis` 注入；`freshState()` 固定 `lang: 'zh'`。
+- **内联脚本要真解析** — 单文件没有构建步骤，一个顶层声明重名就让整段脚本死在解析期（症状是「页面在、但没数字」，且 `renderAll` 之后的接线全不存在）；`ui-wiring` 用 `new Function` 把守。
+
 ## 多语言（界面语言）
 
 - **两条通道，缺一条就有中英混排**：静态文案挂 `data-i18n`（属性挂 `data-i18n-<attr>`），动态模板一律 `i18n.t('中文原文')`；词条键就是中文原文，英文表在 `logic.js`（为什么这么选见 [ADR 0002](docs/adr/0002-interface-language-source-keys.md)）。漏译不报错、不影响功能，只在英文界面上露出一句中文——所以由三条契约测试把守：静态文本节点必须挂标记、脚本里不许有游离中文字面量、用到的键必须有英文词条。
