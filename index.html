@@ -14,7 +14,6 @@
   // 也得自己放行——开屏出问题是小事，页面空白是大事。
   document.documentElement.classList.add('booting');
   setTimeout(function () { document.documentElement.classList.add('ready'); }, 1500);
-  // 首次访问跟随系统主题；显式切换后以存储值为准（'1'=暗色, ''=亮色）
   (function () {
     var stored = localStorage.getItem('dark-mode');
     var systemDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -41,7 +40,6 @@ tailwind.config = {
       // 排版规格（字号/字重/字体族）一律写在 <style> 的 :root, :root.dark token 与 .t-* 档位类里，
       // 不在这里声明 fontFamily：CDN 空壳下这些类不生效，真机里又会和自有档位各算一套。
       colors: {
-        // Parchment ledger — warm paper, deep ink, gilded accent, a single verdigris for live/income.
         ink: { 50: '#f6f1e4', 100: '#ece4d0', 200: '#d8cbab', 300: '#b9a87e', 400: '#9a8758', 500: '#7c6b43', 600: '#5e5034', 700: '#473b28', 800: '#2f281b', 900: '#211b10', 950: '#15110a' },
         gold: { 300: '#e6c982', 400: '#d9b25e', 500: '#b4841a', 600: '#8f6713' },
         verdigris: { 400: '#7ba995', 500: '#4f7d6a', 600: '#3a5f50' },
@@ -75,15 +73,10 @@ tailwind.config = {
     --border: #ded2b4;
     --rule: #d3c5a3;
     --shadow: rgba(33, 27, 16, 0.10);
-    /* 浮层（弹窗/便条/日期选择器/tooltip）的阴影色：原先 4 处各写 rgba(0,0,0,.15)，
-       暗色下黑压黑等于没有深度（那张浮层就贴回纸面了）。收成两枚变量，亮暗各自成句。
-       soft = 近影（浮层与纸之间的那一线接触）；lift = 远影（环境遮蔽，给出「浮在上面」）。 */
     --shadow-soft: rgba(33, 27, 16, 0.10);
     --shadow-lift: rgba(33, 27, 16, 0.15);
     --card-edge: rgba(255, 255, 255, 0.55);
     --tick: rgba(33, 27, 16, 0.22);
-    /* 弹窗遮罩（压暗 + 磨砂）：原先写死 rgba(13,11,8,0.5)，亮暗同步全靠手动。
-       走变量后两套主题各自成句，也离开主题巡检的「写死色值」清理清单。 */
     --scrim: rgba(13, 11, 8, 0.5);
     /* 台灯（纸面掠光）: 一盏斜射的灯——两条平行光带随指针位置横扫纸面，
        正落在指针处的一小枚圆芯是灯的中心。不用大圆霍：半径一大就变成「一圈发光背景」，
@@ -178,7 +171,6 @@ tailwind.config = {
     --shadow-lift: rgba(0, 0, 0, 0.6);
     --card-edge: rgba(255, 255, 255, 0.04);
     --tick: rgba(236, 228, 208, 0.22);
-    /* 暗色纸面本来就暗，遮罩要压得更实一点；再罩一层浅墨等于没压 */
     --scrim: rgba(6, 5, 3, 0.6);
     /* 暗色纸是深棕，光要更弱、更黄：否则在漆黑夜纸上是一片刺眼的白斑 */
     --lamp-tint: rgba(255, 240, 200, 0.08);
@@ -207,7 +199,6 @@ tailwind.config = {
     --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 4.5 6 8l3.5-3.5' fill='none' stroke='%23b0a078' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
     /* 暗色下金环本身就够亮（#d9b25e 对 #15110a 是 9.39:1），不必换色 */
     --focus-ring: #d9b25e;
-    /* 暗色选中底：亮金压深纸（9.39:1），墨字压在上面 8.53:1 */
     --select: #d9b25e;
   }
   /* 卡片的边缘色不再另设一套（原先 .dark .card 改回 --border，等于材质的边缘有两处定义） */
@@ -225,7 +216,6 @@ tailwind.config = {
     --font-body: 'IBM Plex Mono', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', monospace;
     --font-display: 'Noto Serif SC', 'Songti SC', serif;
     --font-numeric: 'Cormorant Garamond', 'Noto Serif SC', serif;
-    /* 文字只两档字号：微操作（表头/边注/徽章/微按钮）与正文（表格/说明/按钮） */
     --fs-micro: 12px;
     --fs-body: 14px;
     /* 展示档：卡片内小标题 / 卡片标题 / 区块标题 / 弹窗标题 / 卡片主读数——
@@ -276,9 +266,7 @@ tailwind.config = {
   .ink-accent { color: var(--accent-ink); }
   .ink-up { color: var(--verdigris); }
   .text-value { color: var(--fg); opacity: 0.85; }
-  /* 读数卡里的加粗数值（标签钱数 / 月数）: 加粗只此一处, 颜色由 .ink-accent / 默认文字色承担 */
   .readout-strong { font-weight: var(--fw-strong); }
-  /* 行内小字注记（未设置利率等）: 字号只此一处 */
   .hint-xs { font-size: var(--fs-micro); }
   /* 表单字段标签唯一写法（原 13 处内联 block text-xs font-medium mb-1.5 的收敛处）。
      .tight: 与右侧读数同排的标签（如现金比例那一行），下间距由父行承担，标签自身不留白，
@@ -289,13 +277,11 @@ tailwind.config = {
   .select-field { min-width: 160px; }
   /* 小号元信息标签（收益摘要口径名 / 对比弹窗筛选标签）: 字号+字距只此一处 */
   .meta-label { font-size: var(--fs-body); font-weight: var(--fw-medium); letter-spacing: 0.06em; }
-  /* 对比弹窗读数行（快照/消费共用）: 大字与右侧上下文同一种排法 */
   .compare-hero-row {
     display: flex; align-items: flex-end; justify-content: space-between;
     gap: 16px; flex-wrap: wrap; padding-bottom: 20px; margin-bottom: 20px;
     border-bottom: 1px solid var(--rule);
   }
-  /* hr 的 border-color 走 var(--border)，但 color 仍是 UA 灰；一并归到主题色 */
   hr { color: var(--border); border: none; border-top: 1px solid var(--border); }
   .sort-indicator { margin-left: 2px; font-size: var(--fs-micro); color: var(--muted); }
   .sort-indicator.active { color: var(--accent-ink); }
@@ -413,7 +399,6 @@ tailwind.config = {
     color: var(--on-accent); border: 1px solid #8f6713; border-radius: 6px; padding: 8px 20px;
     font-weight: var(--fw-strong); cursor: pointer; transition: filter var(--mo-fast), box-shadow var(--mo-fast), transform var(--mo-press);
     font-family: var(--font-body); font-size: var(--fs-body); letter-spacing: 0.01em;
-    /* 压印金属感: 顶部受光 + 底部内阴影, 取代模板式外发光 */
     box-shadow: inset 0 1px 0 rgba(255,255,255,0.4), inset 0 -1px 0 rgba(33,27,16,0.22), 0 1px 2px var(--shadow);
   }
   .btn-gold:hover { filter: brightness(1.04); box-shadow: inset 0 1px 0 rgba(255,255,255,0.45), inset 0 -1px 0 rgba(33,27,16,0.22), 0 2px 10px rgba(180,132,26,0.22); }
@@ -422,7 +407,6 @@ tailwind.config = {
      用 transform 而不是 padding/margin：按压不该推动邻居，也不该产生一次重排。
      下沉量比主按钮小（0.5px vs 1px）——主按钮是「盖章」，次级控件只是「被指尖按了一下」。 */
   .btn-ghost:active, .btn-danger:active, .row-btn:active, .seg-btn:active { transform: translateY(0.5px); }
-  /* 次级按钮同一种骨：只差颜色/内边距/字号，共用部分写一次 */
   .btn-ghost, .btn-danger {
     background: transparent; border-radius: 6px; cursor: pointer; font-family: var(--font-body);
     transition: background var(--mo-fast), border-color var(--mo-fast), color var(--mo-fast);
@@ -454,8 +438,6 @@ tailwind.config = {
       inset 14px 14px 22px -14px var(--glass-sheen),
       inset -14px -14px 22px -14px var(--glass-shade),
       inset 0 0 0 1px var(--glass-inner);
-    /* 外阴影（深度）与材质分开打包：材质只有 --glass-shadow 一处定义，:hover 只换深度。
-       三层影各有职责：接触影（贴地的一线）+ 近影 + 远影（环境遮蔽）——只有一层时卡片像贴纸。 */
     --glass-depth: 0 1px 1px -1px var(--glass-shade), 0 2px 4px -2px var(--shadow), 0 18px 34px -20px var(--shadow);
     --glass-depth-lift: 0 1px 1px -1px var(--glass-shade), 0 4px 8px -2px var(--shadow), 0 26px 46px -22px var(--shadow);
     background: var(--glass-fill);
@@ -467,14 +449,10 @@ tailwind.config = {
        没有周期上限；但模糊半径远超斑点尺度时，透上来的就只剩一层匀色。 */
     backdrop-filter: blur(14px) saturate(1.8);
     -webkit-backdrop-filter: blur(14px) saturate(1.8);
-    /* 外阴影分三层：接触影（贴地的一线）+ 近影 + 远影（环境遮蔽）。
-       只有一层时卡片像贴纸，三层才有「压在某物上」的深度。 */
     box-shadow: var(--glass-shadow), var(--glass-depth);
     padding: 24px;
     transition: box-shadow var(--mo-mid), border-color var(--mo-mid);
   }
-  /* 页头：底色走变量（原来是内联 linear-gradient——渐变底无法校对比度，
-     于是页头里每一行字都被巡检默默跳过了） */
   .app-header { background: var(--bg); border-bottom: 1px solid var(--border); position: relative; }
   /* 页头必须是**同一张纸**：页头底面为了 AA 巡检是不透明纯色，它把 body::before 的纸纹遮住了，
      于是那里是一块平色、下沿横着一条台阶（实测 4.5/255）。故把同一张纹再髹一遍。 */
@@ -503,7 +481,6 @@ tailwind.config = {
     line-height: 1.5;
     border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px;
     background: var(--card); color: var(--fg); transition: border-color var(--mo-fast), box-shadow var(--mo-fast);
-    /* 插入符与原生控件的强调色跟主题 */
     caret-color: var(--accent); accent-color: var(--accent);
     outline: none;
   }
@@ -574,7 +551,6 @@ tailwind.config = {
      none——暗色下箭头会凭空消失（实测 bgImg: none）。这类「简写吃掉长写」的坑在主题覆盖里
      最常见，凡是别处有 background-image 的元素，覆盖时一律只写 background-color。 */
   .dark input, .dark select { background-color: var(--bg-2); }
-  /* Flatpickr 日期选择器 — 账本主题定制 */
   .flatpickr-calendar {
     font-family: var(--font-body) !important;
     border-radius: 10px !important;
@@ -679,7 +655,6 @@ tailwind.config = {
     width: 14px !important;
     height: 14px !important;
   }
-  /* 暗色模式微调 */
   .dark .flatpickr-calendar {
     border-color: var(--border) !important;
     box-shadow: 0 8px 32px var(--shadow-lift), 0 2px 8px var(--shadow-soft) !important;
@@ -691,13 +666,10 @@ tailwind.config = {
   .dark .flatpickr-day.inRange {
     background: rgba(230,201,130,0.15) !important;
   }
-  /* 搜索框: 放大镜以墨色线条内嵌, 同表单控件的账页语言 */
   .search-wrap { position: relative; display: inline-block; }
-  /* 搜索框比筛选下拉宽一点（要容下 placeholder），宽度同样只此一处 */
   .search-wrap svg { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); width: 13px; height: 13px; color: var(--muted); pointer-events: none; }
   .search-wrap input { padding-left: 30px; min-width: 180px; }
   .search-wrap input.has-clear { padding-right: 30px; }
-  /* 行内清除: 墨色 ×, 悬停转金 */
   .search-clear {
     position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
     width: 22px; height: 22px; border: none; background: transparent; border-radius: 4px;
@@ -738,11 +710,9 @@ tailwind.config = {
   .modal-content::before {
     content: ''; position: absolute; inset: 0; z-index: 0; pointer-events: none;
     border-radius: inherit; background-image: var(--grain); opacity: 0.5;
-    /* 中心挖空、只留四边带（正文列保持纯色） */
     -webkit-mask-image: radial-gradient(120% 120% at 50% 50%, transparent 0 62%, #000 88%);
     mask-image: radial-gradient(120% 120% at 50% 50%, transparent 0 62%, #000 88%);
   }
-  /* 正文抬到纤维之上（纤维是绝对定位的同级层，流子元素默认比它先画） */
   .modal-content > * { position: relative; z-index: 1; }
   /* 弹窗宽度四档（默认 560px）: 尺寸语汇收在这里, 弹窗结构里不再逐个内联 max-width。
      **必须定义在 .modal-content 之后**：两边的特异性都是单类，同特异性下后写者胜——
@@ -757,7 +727,6 @@ tailwind.config = {
   .modal-title { font-size: var(--fs-modal); font-weight: var(--fw-bold); margin-bottom: 24px; text-wrap: balance; }
   .modal-footer { display: flex; align-items: center; justify-content: flex-end; gap: 12px; margin-top: 32px; }
   .modal-footer.between { justify-content: space-between; }
-  /* 章节线: 与 section-head/empty-rule 同一结构语言, 每个弹窗如账页新起一章 */
   .modal-title::before {
     content: ''; display: block; width: 28px; height: 2px; border-radius: 1px;
     background: var(--accent-soft); margin-bottom: 12px;
@@ -914,7 +883,6 @@ tailwind.config = {
     box-shadow: 0 0 0 1.5px var(--chip-ring);
   }
 
-  /* 数据校验（缺标签补齐）：虚线 = 待处理，与标签 chips 空栏同一语言 */
   .tagcheck-bar {
     display: flex; align-items: center; justify-content: space-between;
     gap: 12px; flex-wrap: wrap; margin-bottom: 16px; padding: 9px 14px;
@@ -980,7 +948,6 @@ tailwind.config = {
        名称列是短中文（实测最长 6 字 ≈ 90px），不必与标签列争宽。 */
     grid-template-columns: 28px 1.1fr 0.85fr 62px 0.9fr 1.05fr 2.1fr 92px;
   }
-  /* 未设利率的收益行淡出：原为逐行内联 opacity, 归到类 */
   .asset-row.is-unrated { opacity: 0.4; }
   .drag-handle { user-select: none; -webkit-user-select: none; cursor: grab; display: inline-flex; align-items: center; justify-content: center; color: var(--muted); font-size: var(--fs-body); }
   .asset-row.dragging { opacity: 0.35; background: var(--border); border-radius: 6px; }
@@ -996,7 +963,6 @@ tailwind.config = {
      资产/消费两侧的标签录入共用这一套（两侧行为必须一致）。 */
   .new-tag-row { display: flex; gap: 8px; max-width: 320px; }
   .new-tag-row input { flex: 1 1 auto; min-width: 0; padding: 6px 10px; }
-  /* 行内金额快速编辑: 账页「铅笔批注」——悬停金线+铅笔示意可改, 编辑态由 input 接管 */
   .amount-cell { position: relative; padding-left: 16px; display: flex; justify-content: flex-end; align-items: center; cursor: pointer; border-bottom: 1px dashed transparent; transition: border-bottom-color var(--mo-fast); }
   /* 编辑态 input 要占满整格（整格右靠之后，inline 宽度会让光标停在半空） */
   .amount-cell .inline-edit-input { width: 100%; }
@@ -1009,11 +975,8 @@ tailwind.config = {
   .inline-edit-input { width: 100%; padding: 2px 6px; font-size: var(--fs-body); user-select: text; -webkit-user-select: text; }
   .asset-row:hover { background: var(--card-2); }
   .asset-row:last-child { border-bottom: none; }
-  /* 编辑中的行: 极淡金色微光（置于 :hover 之后, 编辑态优先于 hover 行色）; Tab 连续编辑时光带跟随 */
   .asset-row.editing { background: rgba(217, 178, 94, 0.12); }
   .dark .asset-row.editing { background: rgba(230, 201, 130, 0.08); }
-  /* 表格列头: 账本收尾双线规则（粗于内容行细线），列头文字加字距。
-     字号/字重/底色一并收在这里：原先是每处内联 text-xs font-medium + color, 改一次要改八处 */
   .list-head {
     border-bottom: 2px solid var(--rule); letter-spacing: 0.05em;
     font-size: var(--fs-micro); font-weight: var(--fw-medium); color: var(--muted);
@@ -1083,7 +1046,6 @@ tailwind.config = {
     height: 2px; background: var(--accent); z-index: 1;
     transition: left var(--mo-mid) var(--mo-ease), width var(--mo-mid) var(--mo-ease);
   }
-  /* Segmented control（模式/视图切换器） */
   .seg-control { display: inline-flex; padding: 3px; border-radius: 8px; background: var(--bg-2); border: 1px solid var(--border); gap: 2px; }
   .seg-btn { border: none; background: transparent; color: var(--muted); font-size: var(--fs-micro); font-family: var(--font-body); padding: 5px 18px; border-radius: 6px; cursor: pointer; transition: background var(--mo-fast), color var(--mo-fast); white-space: nowrap; }
   .seg-btn:hover { color: var(--fg); }
@@ -1102,8 +1064,6 @@ tailwind.config = {
   }
   .mode-press::after {
     content: ''; position: absolute; left: 0; bottom: 0; height: 2px; border-radius: 0 2px 2px 0;
-    /* 墨线用 --accent-ink 而非 --accent：按住时按钮底是 card-2，--accent 在亮色下只有 3.0:1
-       （卡在非图形元素 3:1 的下限上，动一点色板就掉出去），accent-ink 有 5.5:1 */
     width: calc(var(--mode-press, 0) * 100%); background: var(--accent-ink);
   }
   .mode-press.pressing { color: var(--fg); background: var(--card-2); }
@@ -1120,16 +1080,12 @@ tailwind.config = {
   .setting-info { flex: 1 1 260px; min-width: 0; }
   .setting-label { font-size: var(--fs-body); font-weight: var(--fw-strong); }
   .setting-desc { font-size: var(--fs-body); color: var(--muted); margin-top: 4px; line-height: 1.7; }
-  /* 边注状态行: 金墨点引导, 与 masthead live-dot / 章节线同语言 */
   .setting-note { display: inline-flex; align-items: center; gap: 7px; margin-top: 10px; font-size: var(--fs-micro); letter-spacing: 0.04em; color: var(--muted); }
   .setting-note::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: var(--accent-soft); flex-shrink: 0; }
-  /* 设置行右侧的操作按钮组（如备份文件夹的选择/清除），窄屏可换行 */
   .setting-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
-  /* 安全边际因子: 与 seg-control 同语言的参数条, 账页边注式 */
   .safety-control { display: inline-flex; align-items: center; gap: 10px; padding: 5px 10px; border-radius: 8px; background: var(--bg-2); border: 1px solid var(--border); }
   .safety-label { font-family: var(--font-body); font-size: var(--fs-micro); color: var(--muted); letter-spacing: 0.08em; }
   .safety-control .scale-input { width: 150px; }
-  /* 快照提醒的天数：与安全边际因子同一种「参数条」语言（段控件旁的一个数） */
   .snap-days { display: inline-flex; align-items: center; gap: 6px; }
   .snap-days input { width: 58px; text-align: center; }
   /* ===== 比例尺滑块: 账页刻度量尺 =====
@@ -1191,15 +1147,12 @@ tailwind.config = {
   .stress-text { color: var(--fg); letter-spacing: 0.02em; }
   .stress-actions { margin-left: auto; }
   .stress-badge { color: var(--accent-ink); }
-  /* 跌幅行：标签名 + 当前金额（左）与滑块 + 读数（右）；窄屏整行换行 */
   .drop-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; }
   .drop-head { display: flex; align-items: baseline; gap: 8px; min-width: 0; flex: 1 1 180px; }
   .drop-amount { font-size: var(--fs-micro); color: var(--muted); font-variant-numeric: tabular-nums; }
   .drop-scale { display: inline-flex; align-items: center; gap: 10px; }
   .drop-scale .scale-input { width: 130px; }
-    /* 统一空态（邀请行动） */
   .empty-state { text-align: center; padding: 56px 24px; }
-  /* 空账本图标: 账页隐喻, 邀请开始记账 */
   .empty-state::before {
     content: ''; display: block; width: 36px; height: 36px; margin: 0 auto 14px;
     color: var(--accent); opacity: 0.55;
@@ -1209,7 +1162,6 @@ tailwind.config = {
   .empty-state .empty-title { color: var(--muted); font-size: var(--fs-card); font-weight: var(--fw-strong); }
   .empty-state .empty-sub { color: var(--muted); font-size: var(--fs-body); margin-top: 6px; }
   .empty-state .empty-action { margin-top: 22px; }
-  /* 窄屏表格横向滚动（保列对齐） */
   @media (max-width: 900px) {
     #assets-list { overflow-x: auto; }
     #assets-list .asset-row { min-width: 780px; }
@@ -1258,7 +1210,6 @@ tailwind.config = {
     -webkit-mask-image: radial-gradient(140% 180% at 155% 52%, #000 0%, transparent 72%);
     mask-image: radial-gradient(140% 180% at 155% 52%, #000 0%, transparent 72%);
   }
-  /* 内容抬到底纹之上（底纹是绝对定位的同级层，在流子元素默认比它先画） */
   .masthead > * { position: relative; z-index: 1; }
   .masthead-eyebrow {
     font-family: var(--font-body); font-size: var(--fs-micro); letter-spacing: 0.22em;
@@ -1323,12 +1274,10 @@ tailwind.config = {
     width: 520px; max-width: 100%;
   }
   .chart-split > .chart-canvas > div { width: 100%; height: 100%; }
-  /* 收益分布是小图（同一张卡里还有收益摘要），比例压扁一点 */
   .chart-canvas.chart-canvas-compact { aspect-ratio: 16 / 9; max-height: 300px; }
   @media (max-width: 900px) {
     .chart-split { grid-template-columns: minmax(0, 1fr); gap: 12px; }
   }
-  /* 构成清单：每行 = 色块 + 分类名 + 金额 + 占比（占比右侧对齐便于扫读） */
   .chart-legend { display: flex; flex-direction: column; gap: 2px; margin-top: 6px; }
   .chart-legend-row {
     /* 名称列 max-content：名称与金额必须贴着（1fr / min() 会把名称格拉满整列，
@@ -1371,9 +1320,7 @@ tailwind.config = {
     line-height: 1.1; font-weight: var(--fw-medium);
     font-variant-numeric: tabular-nums; color: var(--fg);
   }
-  /* Tri-color composition rule: a literal ledger ruling, segments proportional to CNY/HKD/USD */
   .composition-rule { margin-top: 18px; display: flex; height: 5px; border-radius: 3px; overflow: hidden; gap: 2px; position: relative; }
-  /* 25/50/75% 刻度墨线: 构成条本身即比例尺, 刻度给眼睛以测量参照 */
   .composition-rule::before {
     content: ''; position: absolute; inset: 0; z-index: 1; pointer-events: none;
     background:
@@ -1435,7 +1382,6 @@ tailwind.config = {
   .pace-meter .cov-track { flex: 1; }
   .pace-pct { min-width: 3.8em; text-align: right; font-size: var(--fs-micro); font-weight: var(--fw-strong); color: var(--accent-ink); }
   @media (prefers-reduced-motion: reduce) { .cov-fill, .cov-marker { transition: none; } }
-  /* 快照对比：每行变动量条（账本刻度语言, 一眼看出谁推动了净值变化） */
   .cmp-bar-track { height: 3px; border-radius: 2px; background: var(--bg-2); margin-top: 4px; overflow: hidden; }
   .cmp-bar { height: 100%; border-radius: 2px; }
   @media (max-width: 640px) {
@@ -1445,24 +1391,19 @@ tailwind.config = {
     .tab-btn { padding: 10px 13px; }
   }
 
-  /* 卡片内标题层级: 卡片主标题 / 弹窗内分组标题各一档（原为逐处内联 17px/15px） */
   .card-title { font-family: var(--font-display); font-size: var(--fs-card); font-weight: var(--fw-bold); letter-spacing: -0.005em; }
   .card-title-sm { font-family: var(--font-display); font-size: var(--fs-card-sm); font-weight: var(--fw-bold); }
-  /* 卡片主读数: 收益摘要 / 对比弹窗 hero 同一种大字（原为内联 30px 与 36px 两种） */
   .hero-figure { font-size: var(--fs-hero); line-height: 1.1; font-weight: var(--fw-medium); }
 
   /* ===== Section headers (eyebrow + title) =====
      布局（左标题组 / 右操作区、窄屏换行）归 CSS: 原先每处复制一遍类串, 还漏过一处 */
   .section-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
   .section-head h2 { font-size: var(--fs-section); font-weight: var(--fw-bold); letter-spacing: -0.005em; text-wrap: balance; }
-  /* 眉标（eyebrow）: 全站同一支——品牌副标、区块眉标、报头眉标共用，
-     字号/字距/大写/颜色只此一处（原品牌副标单独写了一套 0.2em + Tailwind tracking 类） */
   .eyebrow, .section-head .eyebrow {
     font-family: var(--font-body); font-size: var(--fs-micro); letter-spacing: 0.22em;
     text-transform: uppercase; color: var(--muted); display: block;
   }
   .section-head .eyebrow { margin-bottom: 4px; }
-  /* 品牌题名：与区块标题同档，字距单独收紧（-0.005em 与 .card-title/.section-head h2 同源） */
   .brand-title { font-family: var(--font-display); font-size: var(--fs-section); font-weight: var(--fw-bold); letter-spacing: -0.005em; line-height: 1; }
   .section-head .sub { font-size: var(--fs-body); color: var(--muted); margin-top: 2px; }
   /* 章节头右侧的操作行（筛选下拉 / 搜索 / 主操作按钮）：放不下时整组换行。
@@ -2452,12 +2393,10 @@ function freshAppState() {
     rates: { CNY: 1, HKD: 1, USD: 1, fetchedAt: null },
     expenseExpectation: 0, netWorthTarget: 0, incomeSafetyFactor: 100,
     runwayTags: [], runwayExpectation: 0,
-    // 月度快照提醒（用户设置）：窗口三选一 + 天数；lastPrompted 只是「今天问过没有」的痕迹
     snapshotReminder: { window: 'end', days: 5 }, snapshotReminderLastPrompted: null,
-    // 界面语言（用户设置，随存档落盘）：默认英文
     lang: 'en',
     backup: { autoFreq: 'daily', lastBackup: null },
-    // 压测情景（只存跌幅，不存金额）: null = 未启用。为什么不落盘金额见 docs/adr/0004
+    // 压测情景（只存跌幅，不存金额）: null = 未启用。为什么不落盘金额见 DECISIONS.md
     stress: null,
   };
 }
@@ -2496,10 +2435,8 @@ function syncChartSize(chart) {
   if (!w || !h) return; // 隐藏/未布局：等它可见
   if (chart.getWidth() !== w || chart.getHeight() !== h) chart.resize();
 }
-// 每张图只在自己的 init 分支里登记一次（5 个图表面各一处）
 function observeChartSize(chart) {
   if (!chart) return;
-  // 老 WebView 没有 ResizeObserver 时退回窗口级监听：至少覆盖窗口缩放这一种变化
   if (typeof ResizeObserver === 'undefined') {
     window.addEventListener('resize', () => syncChartSize(chart));
     return;
@@ -2514,7 +2451,6 @@ function observeChartSize(chart) {
     // 否则英文用户会先看见一闪而过的中文
     applyI18nDom();
     syncLangSeg();
-    // 状态栏颜色在首帧就定下来（launch 时主题已由 <head> 的内联脚本定好）
     applyThemeChrome();
     // 捕获本次启动的汇率拉取 promise，交给 maybeAutoBackup 复用同一笔请求、
     // 等汇率更新完毕后再导出，避免备份拿到过期汇率（见 maybeAutoBackup）
@@ -2525,7 +2461,6 @@ function observeChartSize(chart) {
     freezeSelectWidths();
     // 指示条初始对位（首屏 active tab）——不只靠 switchTab，直接刷新也会进这里
     moveTabIndicator('#tabs-expenses', 'expenses');
-    // 初始化 Flatpickr 日期选择器（消费表单）
     if (typeof flatpickr !== 'undefined') {
       flatpickr('#expense-date', {
         locale: i18n.normalizeLang(state.lang) === 'zh' && flatpickr.l10ns && flatpickr.l10ns.zh ? flatpickr.l10ns.zh : 'default',
@@ -2545,8 +2480,6 @@ function observeChartSize(chart) {
     if (document.fonts && document.fonts.ready) {
       document.fonts.ready.then(() => { freezeSelectWidths(); refreshVisibleCharts(); });
     }
-    // 备份守护：先进新鲜度提醒（方案 C），再按需触发当日自动备份（方案 A）；
-    // 自动备份在 maybeAutoBackup 内部延迟数秒，避开首屏渲染高峰
     checkBackupStale();
     backupDirReady = restoreBackupDir(); // 句柄从 IndexedDB 恢复；自动备份写盘前会 await
     maybeAutoBackup(ratePromise);
@@ -2575,12 +2508,9 @@ function observeChartSize(chart) {
     }
   });
 
-// 迁移/兜底逻辑：本地加载（loadState）与 JSON 导入（importData）共用，
-// 保证旧版导出（单值 expectedRate、旧快照格式、内置 expense-type 分类等）导入后行为一致
 function loadState() {
   try {
     const raw = localStorage.getItem(LS_KEY);
-    // 有存档：用存档字段覆盖初始状态；无存档：直接用初始状态（currency 分类由 migrate.migrateState 保证）
     state = raw ? { ...freshAppState(), ...JSON.parse(raw) } : freshAppState();
     migrate.migrateState();
   } catch(e) {
@@ -2608,12 +2538,10 @@ async function fetchRates() {
     if (!next) throw new Error(i18n.t('汇率响应缺少有效币种'));
     state.rates = next;
     saveState();
-    // 汇率变了 → 列表与派生读数一起重算（收尾见 syncDerivedReads）
     renderAssets();
     // 与其他操作提示统一走右下角便条；info=系统中性知会（金墨边注），不打断当前操作
     toast(i18n.t('汇率已更新'), 'info');
   } catch(e) {
-    // use saved rates if available（文案与类型由 logic.js 纯函数决策）
     const n = backup.rateFallbackNotice(!!state.rates.fetchedAt);
     toast(n.msg, n.type);
   }
@@ -2624,7 +2552,6 @@ function switchMode(mode) {
   // 已经在这个模式里：再点一次是空点击。整块重绘 + 重播入场只是把同样的东西再画一遍，
   // 而且内层 switchTab 会把子 Tab 拽回第一个（在「消费趋势」上看一眼再点「消费」会被弹回消费记录）。
   if (mode === currentMode) return;
-  // 方向感：模式按钮的次序即「翻页」方向（消费在左、资产在右），与子 Tab 共用同一份判定
   const prevBtn = document.querySelector('#mode-assets.active, #mode-expenses.active');
   const nextBtn = document.getElementById('mode-' + mode);
   const shift = ui.paneEnterShift(prevBtn ? prevBtn.offsetLeft : null, nextBtn ? nextBtn.offsetLeft : null);
@@ -2640,7 +2567,6 @@ function switchMode(mode) {
   // 注意：入场动画只挂在会动画的内层面板上（CSS 选择器 [id^="tab-"]）；content-* 只是外壳，
   // 对它调 enterTab 是一条没人消费的死接线（契约与 E2E 都断言了真实路径，别再加回来）。
 
-  // 内层子 Tab 透传同一方向：一次「翻页」只有一个方向
   if (mode === 'assets') {
     switchTab('assets', shift);
   } else {
@@ -2738,7 +2664,6 @@ function switchTab(tab, shift) {
   }
   document.querySelectorAll(tabBar + ' .tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
   moveTabIndicator(tabBar, tab);
-  // 显示目标面板、隐藏其余（资产/消费两套子 Tab 共用同一份清单）
   ['assets', 'categories', 'chart', 'history', 'income',
     'expenses', 'expense-categories', 'expense-chart', 'expense-trend']
     .forEach(id => { document.getElementById('tab-' + id).style.display = tab === id ? '' : 'none'; });
@@ -2757,7 +2682,6 @@ function switchTab(tab, shift) {
   if (tab === 'income') {
     afterTabPaint(tab, renderIncomeTab);
   }
-  // expense tabs
   enterTab(document.getElementById('tab-' + tab), shift);
   if (tab === 'expense-categories') {
     renderCategoryCards('expense');
@@ -2882,7 +2806,6 @@ function assetGateKey(e) {
 
 // 提交即判：抄对就进门（不再要第二次点击，那只会教人连点）；抄错原地重试——原句不换、输入清空。
 function submitAssetGate() {
-  // 守卫窗内落到按钮上的 click 是抬手余波（用户并没有真点它）
   if (__autoOpenedAt !== null && !ui.autoOpenGuard(performance.now() - __autoOpenedAt)) return;
   if (!assetsEntryOpen()) { cancelAssetGate(); return; }
   const input = document.getElementById('asset-gate-input');
@@ -2961,7 +2884,6 @@ function flushLamp() {
 // resize 后旧百分比对应的是新尺寸上的另一个位置（灯会偏离指针），依最后一枚坐标重算
 window.addEventListener('resize', () => { if (_lampLast) setLampAt(_lampLast.x, _lampLast.y); });
 document.addEventListener('pointermove', updateLamp);
-// 切回标签页/减动效设置改变时重判（matchMedia 变化在移动端很常见：接上鼠标/压下系统开关）
 document.addEventListener('visibilitychange', syncLamp);
 if (_reduceMotionQuery && _reduceMotionQuery.addEventListener) {
   _reduceMotionQuery.addEventListener('change', (ev) => { _reduceMotion = ev.matches; syncLamp(); });
@@ -2996,7 +2918,6 @@ function renderAssets() {
   } else {
     empty.style.display = 'none';
     list.style.display = '';
-    // sort
     let sorted = [...state.assets];
     if (sortBy) {
       const getVal = sortBy === 'cny' ? (x) => money.toCNY(x.amount, x.currency) : null;
@@ -3015,7 +2936,6 @@ function renderAssets() {
         ? `<span class="ink-accent hint-xs">${i18n.t(' · 现金 ')}${income.cashRatioPct(a)}%</span>`
         : '';
       const cnyVal = money.toCNY(a.amount, a.currency);
-      // 把手可聚焦：拖拽是指针手势，键盘用户靠 ↑/↓ 完成同一件事（moveAsset 与 drop 走同一套收尾）。
       return `<div class="asset-row grid-wide" data-id="${text.esc(a.id)}">
         <div class="drag-handle" role="button" tabindex="0" aria-label="${i18n.t('调整排序，按上移或下移')}"
           title="${i18n.t('拖动排序（键盘：聚焦后按 ↑/↓）')}" draggable="true"
@@ -3060,7 +2980,6 @@ function renderMasthead() {
   const legendEl = document.getElementById('composition-legend');
   const subEl = document.getElementById('masthead-sub');
 
-  // 整/小数分开渲染（报头的大数字与美分两档字号）：两处调用共用这一处换算
   const paintAmount = (v) => {
     const [whole, cents] = v.toFixed(2).split('.');
     wholeEl.textContent = (parseInt(whole, 10) || 0).toLocaleString('zh-CN');
@@ -3089,7 +3008,6 @@ function renderMasthead() {
 
   dateEl.textContent = date.getLocalDateStr().replace(/-/g, '/');
 
-  // currency composition
   const byCur = { CNY: 0, HKD: 0, USD: 0 };
   assetsInView().forEach(a => { byCur[a.currency] = (byCur[a.currency] || 0) + money.toCNY(a.amount, a.currency); });
   const segs = [
@@ -3202,9 +3120,6 @@ function tagChipHtml(catId, tag, pressed, attrs, colorFn) {
     style="--chip-bg:${c.bg};--chip-fg:${c.fg};--chip-ring:${color.hexToRgba(c.fg, 0.28)};">${text.esc(tag)}</button>`;
 }
 
-// 分类标签从下拉框改为平铺 chips: 「虚线空栏 = 待选, 实心盖印 = 已选」。
-// 选中值写入同 id 的 hidden input, saveAsset/saveExpense 读取逻辑与旧下拉完全一致。
-// 返回 HTML 字符串由调用方写入容器；opts.hideLabel 省略分类名标签（校验面板分组头已给出分类名）
 function tagPickerHtml(cats, selectedFor, idPrefix, colorFn, opts) {
   const withLabel = !(opts && opts.hideLabel);
   return cats.map(cat => {
@@ -3225,7 +3140,6 @@ function tagPickerHtml(cats, selectedFor, idPrefix, colorFn, opts) {
   }).join('');
 }
 
-// chips 单选切换: 写入同组 hidden input; 再点已选中项 = 取消选择（对应旧下拉的「请选择」）
 function selectTagChoice(btn) {
   const picker = btn.closest('.tag-picker');
   const input = picker && document.getElementById(picker.dataset.target);
@@ -3253,7 +3167,6 @@ function collectPickedTags(cats, idPrefix) {
   return { tags, complete };
 }
 
-// color.hexToRgba / money.money2 已下沉 logic.js（颜色数学与金额格式化归位），此处直接用全局
 
 // ========== ASSET CRUD ==========
 
@@ -3272,7 +3185,6 @@ function startInlineEdit(id) {
   _inlineEditId = id;
   const row = cell.closest('.asset-row');
   if (row) row.classList.add('editing');
-  // 编辑态 title 改为键位教学（非编辑态 hover 提示「点击快速更新金额」）; dataset 备份退出时恢复
   cell.dataset.title = cell.title;
   cell.title = i18n.t('Enter 保存 · 小键盘 Enter/Tab 下一行 · Esc 取消');
   cell.innerHTML = `<input type="text" class="inline-edit-input" value="${money.moneyStr(a.amount)}" inputmode="decimal" autocomplete="off" oninput="formatMoneyInput(this)" onkeydown="onInlineEditKey(event,'${text.jsAttr(id)}')" onblur="commitInlineEdit()">`;
@@ -3315,7 +3227,6 @@ function commitInlineEdit(doRender) {
       syncDerivedReads();
     }
   }
-  // doRender=false: renderAssets 重绘正在进行, 由渲染输出新值
   return true;
 }
 
@@ -3346,7 +3257,6 @@ function onInlineEditKey(e, id) {
     e.stopPropagation();
     // 值非法时 commit 已恢复原值并返回 false: 立即重回编辑态, 不打断流式录入
     if (!commitInlineEdit(true)) { startInlineEdit(id); return; }
-    // 按渲染顺序跳转（DOM 顺序即视觉顺序, 排序激活/整表重绘后仍准确）
     const rows = document.querySelectorAll('#assets-rows .asset-row');
     let cur = null;
     for (const r of rows) { if (r.dataset.id === id) { cur = r; break; } }
@@ -3377,14 +3287,12 @@ function openAssetModal(editId) {
     title.textContent = i18n.t('登记资产');
   }
 
-  // render tag selectors (skip currency - auto-synced from the currency dropdown)
   const asset = editId ? state.assets.find(x => x.id === editId) : null;
   document.getElementById('asset-tags-section').innerHTML = tagPickerHtml(
     state.categories.filter(cat => cat.id !== 'currency'),
     cat => asset ? (asset.tags[cat.id] || '') : '',
     'asset-tag-', catColor);
 
-  // 现金比例滑块初始同步（读数与填充段，新建=reset 后的 100，编辑=资产值）
   setScaleValue(document.getElementById('asset-cash-ratio'), 'asset-cash-ratio-readout');
 
   openModal('asset-modal');
@@ -3414,14 +3322,12 @@ function saveAsset(e) {
     return;
   }
 
-  // 现金比例: 空值视为 100（全额现金）；非法/越界钳制 0~100
   const cashRatioStr = document.getElementById('asset-cash-ratio').value.trim();
   let cashRatio = cashRatioStr === '' ? 100 : parseFloat(cashRatioStr);
   if (!isFinite(cashRatio)) cashRatio = 100;
   cashRatio = Math.min(100, Math.max(0, cashRatio));
 
   const tags = { currency };
-  // auto-assign currency tag from the currency dropdown
   const picked = collectPickedTags(
     state.categories.filter(cat => cat.id !== 'currency'), 'asset-tag-');
   Object.assign(tags, picked.tags);
@@ -3452,14 +3358,12 @@ function editAsset(id) {
   openAssetModal(id);
 }
 
-// 资产弹窗「现金比例」快捷预设: 滑块跳值并同步读数/填充段
 function setCashRatioPreset(v) {
   const el = document.getElementById('asset-cash-ratio');
   el.value = String(v);
   setScaleValue(el, 'asset-cash-ratio-readout');
 }
 
-// 现金比例滑块拖动: 实时同步读数/填充段（保存时 saveAsset 读取滑块值）
 function onCashRatioInput() {
   setScaleValue(document.getElementById('asset-cash-ratio'), 'asset-cash-ratio-readout');
 }
@@ -3533,7 +3437,6 @@ async function chartApply(spec) {
 }
 
 
-// 图表/空态显隐切换：show=true 显示图表、隐藏空态；反之显示空态
 function showChartOrEmpty(chartEl, emptyEl, show) {
   chartEl.style.display = show ? '' : 'none';
   emptyEl.style.display = show ? 'none' : '';
@@ -3570,7 +3473,6 @@ function renderSunburstLegend(elId, data, total, chartObj) {
     return (n && n.itemStyle && n.itemStyle.color) || 'transparent';
   };
   el.innerHTML = rows.map((r) => {
-    // data-flat 是**扁平树下标**（供图上高亮定位），path 是 [分类名, 序] 或 null（与图上同序）
     const flat = chartData.sunburstNodePath(data, atTop ? r.idx : data.findIndex(n => n && n.name === r.path[0]), atTop ? null : r.idx);
     // 只有顶层行会带你去别处（下钻），故只有它给可点语义。
     // 明细行随鼠标高亮扇区是「看着这里」而不是导航，不必占 Tab 序——
@@ -3634,7 +3536,6 @@ function wireSunburstDrill(chartObj, elId) {
   if (!chartObj) return;
   chartObj.on('click', (p) => {
     const path = p.treePathInfo || [];
-    // path 形如 [虚拟根, 顶层分类, (条目…)]；长度 2 = 点在顶层分类上
     const node = path[1];
     if (path.length !== 2 || !node) return;
     drillSunburst(elId, node.name === sunburstLegendSel[elId] ? null : node.name);
@@ -3667,7 +3568,6 @@ function chartTheme() {
   };
 }
 
-// tooltip 账本卡片底座（五张图共用：三旭日 + 两堆叠柱）；formatter/position 等由各图自带
 function chartTooltipBase(th) {
   return {
     trigger: 'item',
@@ -3751,7 +3651,6 @@ function cmpPctCell(d, p, colorFn) {
     : `<span class="tabular" style="color:${colorFn(d)};">${s}${p.toFixed(1)}%</span>`;
 }
 
-// 对比表变动列下的迷你量条（宽度按两表内最大 |变动| 归一，最小 3% 保证可见）
 function cmpBar(d, maxAbs, colorFn) {
   if (d === 0) return '';
   return `<div class="cmp-bar-track"><div class="cmp-bar" style="width:${Math.max(3, Math.abs(d) / maxAbs * 100).toFixed(1)}%;background:${colorFn(d)};"></div></div>`;
@@ -3807,7 +3706,6 @@ function syncScrollLock() {
   [...document.body.children].forEach(el => {
     el.inert = open.length > 0 && !isActiveLayer(el);
   });
-  // 灯也一起收：背景既已磨砂，光在底下逐帧重算只是白烧一层全屏渐变（判定在 logic.js lampEnabled）
   syncLamp();
 }
 
@@ -3817,7 +3715,6 @@ function openModal(id) {
   // 已经开着就别再入栈：入了就成了「两层」，而关的时候只出一次——栈越积越深，
   // 之后关别的弹窗弹出的都成了过期的那一格，返回焦点整个错位。
   if (modal.style.display === 'none') __modalReturnFocus.push(document.activeElement);
-  // 挪到 body 末尾 = 叠在最上层（见 openModalStack 的注释）
   document.body.appendChild(modal);
   modal.style.display = '';
   syncScrollLock();
@@ -3839,8 +3736,6 @@ function openModal(id) {
   if (target) target.focus({ preventScroll: true });
 }
 
-// 旭日图标签截断：长名称以省略号收尾，完整内容 hover 时由 tooltip 展示
-// 标签字体为等宽体（IBM Plex Mono + CJK 回退），按字符像素宽度估算：拉丁 0.6em、CJK 1em
 
 // ========== SHARED HELPERS ==========
 // 旭日图 tooltip 内容单一来源（三图共用）：名称与标签路径来自用户输入，必须 text.esc（renderMode 是 html）。
@@ -3908,7 +3803,6 @@ function catColorImpl(cats, catId, tagName) {
   return color.pillColors(base, ti / (cat.tags.length - 1), dark);
 }
 
-// 利率标签: 有利率返回 "min%-max%" 或单值 "x%", 无利率返回 null; digits 控制小数位
 function rateLabelText(a, digits) {
   digits = digits || 0;
   const min = a.expectedRateMin || 0;
@@ -3918,7 +3812,6 @@ function rateLabelText(a, digits) {
   return min === max ? `${f(min)}%` : `${f(min)}-${f(max)}%`;
 }
 
-// money.money2 在 logic.js（与 money.formatCNY/money.moneyStr 同族）
 
 // 压测叠加后「当前视图里的资产」（派生读数的唯一入口）；账本原值走 ledgerAssets()，名字就是判据。
 function ledgerAssets() {
@@ -3951,7 +3844,6 @@ function tagPillHtml(cat, tagVal, colorFn, opts) {
   return `<span class="tag-pill"${ren} style="background:${c.bg};color:${c.fg};border-left-color:${c.border};">${key}${val}${del}</span>`;
 }
 
-// 比例尺滑块：同步填充段与等宽读数（现金比例/安全边际两处共用）
 function setScaleValue(el, readoutId) {
   el.style.setProperty('--fill', el.value + '%');
   const readout = document.getElementById(readoutId);
@@ -3989,7 +3881,6 @@ const CAT_SIDES = {
     listId: 'expense-categories-list',
     noun: () => i18n.t('消费记录'),
     savedUpdated: () => i18n.t('消费分类已更新'), savedCreated: () => i18n.t('消费分类已创建'),
-    // 消费侧接数据校验：卡片提示条 + 新建分类后自动打开面板
     tagCheck: true,
     tagCheckBar: 'tagcheck-bar-expense',
     tagCheckHint: () => i18n.t('下面这些记录在某个分类下还没有标签。组内顶部可一键补齐，也可以在每条记录上逐个点选，点一下即保存。'),
@@ -4013,7 +3904,6 @@ const CAT_SIDES = {
 function renderCategoryCards(side) {
   const cfg = CAT_SIDES[side];
   const container = document.getElementById(cfg.listId);
-  // 数据校验入口（仅 cfg.tagCheck=true 的一侧）：卡片尾部提示「N 条记录未归到本分类」
   const gaps = cfg.tagCheck ? expense.missingTagGroups(cfg.items(), cfg.cats()) : [];
   const gapOf = id => gaps.find(g => g.catId === id);
   container.innerHTML = cfg.cats().map(cat => {
@@ -4102,7 +3992,6 @@ function saveCategory(side, e) {
       cats.push(created);
       createdId = created.id;
     }
-    // 清理被移除标签的引用（只处理真正的删除）
     cfg.items().forEach(it => {
       if (it.tags[editId] && !tags.includes(it.tags[editId])) delete it.tags[editId];
     });
@@ -4113,7 +4002,6 @@ function saveCategory(side, e) {
     cfg.renderItems();
     closeModal(m.id);
     toast(editId ? cfg.savedUpdated() : cfg.savedCreated(), 'success');
-    // 新建分类后立刻补历史数据（资产/消费两侧都接数据校验）
     if (createdId && cfg.tagCheck) {
       const gap = expense.missingTagGroups(cfg.items(), cfg.cats()).find(g => g.catId === createdId);
       if (gap) openTagCheck(side, createdId);
@@ -4165,7 +4053,6 @@ function addTag(side, catId) {
   saveState();
   renderCategoryCards(side);
   cfg.renderItems();
-  // 列表已整体重绘, 旧 input 已脱离文档；把焦点交回同分类的新输入框, 便于回车连续添加
   const next = document.getElementById(cfg.newTagPrefix + catId);
   if (next) next.focus();
   toast(i18n.t('标签已添加'), 'success');
@@ -4244,7 +4131,6 @@ function startTagPress(e, pill) {
     if (!tagPress || tagPress.el !== pill) return;
     const held = performance.now() - tagPress.start;
     const progress = ui.pressProgress(held, ui.TAG_PRESS_MS);
-    // 进度条宽度按胶囊实宽算：box-shadow 的 inset 宽度无法用百分比表达
     pill.style.boxShadow = `inset ${Math.round(progress * pill.offsetWidth)}px 0 0 0 rgba(180, 132, 26, 0.22), inset 0 -2px 0 0 var(--accent)`;
     if (ui.pressDecision(held, ui.TAG_PRESS_MS) !== 'done') { tagPress.raf = requestAnimationFrame(tick); return; }
     // 满时长**直接进编辑态**（不再等松手）：墨线涨满的那一瞬输入框就在原地出现——与
@@ -4330,7 +4216,6 @@ function startTagRename(pill, side, catId, oldName) {
   input.select();
 }
 
-// 通用排序比较器: getVal 用于非字段值(如换算 CNY), secondary 提供主键相同时的次级排序(如 id)
 function compareBy(a, b, field, dir, getVal, secondary) {
   let va = getVal ? getVal(a, field) : a[field];
   let vb = getVal ? getVal(b, field) : b[field];
@@ -4342,7 +4227,6 @@ function compareBy(a, b, field, dir, getVal, secondary) {
   return 0;
 }
 
-// 更新排序列头指示器(▲/▼ 与 active 态)
 function updateSortIndicators(prefix, fields, sortBy, sortDir) {
   fields.forEach(f => {
     const el = document.getElementById(prefix + f);
@@ -4366,7 +4250,6 @@ function setSelectOptions(sel, html) {
   if (sel.dataset.optionsHtml === html) return;
   sel.innerHTML = html;
   sel.dataset.optionsHtml = html;
-  // 选项变了，原先钉住的固有宽度就过期了：重新量（见 freezeSelectWidths）
   freezeSelectWidth(sel);
 }
 
@@ -4443,7 +4326,6 @@ async function renderChart() {
   const cat = state.categories.find(c => c.id === catId);
   if (!cat) { hideChartTotal(totalEl); return; }
 
-  // group assets by the selected category's tags
   const groups = {};
   cat.tags.forEach(t => { groups[t] = []; });
   assetsInView().forEach(a => {
@@ -4503,7 +4385,7 @@ function confirmSnapshot(overwrite) {
   const snap = {
     month,
     note: note || '',
-    // 快照存**原值**：它是历史事实，压测只是一组假设（见 docs/adr/0004）。
+    // 快照存**原值**：它是历史事实，压测只是一组假设（见 DECISIONS.md）。
     // 金额显式走 sumAmountCNY(state.assets, ...) 而不是报头那个合计（后者已按压测叠加）
     totalCNY: money.sumAmountCNY(ledgerAssets(), state.rates),
     currencyRates: { ...state.rates },
@@ -4711,7 +4593,6 @@ function renderCompareTable() {
 
   const baseMap = new Map((baseSnap.assets || []).map(a => [a.id, a]));
   const compMap = new Map((compSnap.assets || []).map(a => [a.id, a]));
-  // 行序对齐起始月快照的记录顺序（拖拽调整的资产顺序在对比中保持一致），新增资产按结束月顺序追加在末尾
   const orderedIds = [...baseMap.keys(), ...[...compMap.keys()].filter(id => !baseMap.has(id))];
   const rows = orderedIds.map(id => {
     const a = baseMap.get(id), b = compMap.get(id);
@@ -4748,8 +4629,6 @@ function loadDemoData() {
   doLoadDemoData();
 }
 function doLoadDemoData() {
-  // 数据形状全在 logic.js demo.assetDemo（纯函数、可单测）；这里只留副作用四步：
-  // 取内置货币分类 → 赋值 → 落盘 → 重绘。汇率缺省/未取到真实值时用示例汇率兜底。
   const currencyCat = state.categories.find(c => c.id === 'currency');
   const data = demo.assetDemo({ now: new Date(), genId, currencyCat });
   state.rates = data.rates;
@@ -4796,7 +4675,6 @@ async function renderHistoryChart() {
   });
   const sortedTags = chartData.sortTagsByTotal(cat, monthTagValues);
 
-  // 下钻上下文：click 事件据 seriesIndex/dataIndex 反查「月份 × 标签」
   histDrillMeta = {
     catId: catId,
     months: sorted.map(s => s.month),
@@ -4848,7 +4726,6 @@ async function renderHistoryChart() {
     wire: c => {
       // 图例选中态记忆：用户点击图例隐藏/显示系列时保存，重绘后回灌（切模式/切主题不丢）
       c.on('legendselectchanged', p => { histLegendSel = p.selected; });
-      // 点击色块下钻：展开该月该标签的资产构成明细
       wireStackedBarDrill(c, () => histDrillMeta, viewHistorySegment);
     },
     option: option,
@@ -4871,8 +4748,6 @@ function momCompareHtml(curr, prev, goodWhenUp) {
   return { badge: badge, diffLine: diffLine };
 }
 
-// 对比涨跌配色（资产快照对比 / 消费两月对比共用）：
-// goodWhenUp=true 时「上涨=好=绿」（资产净值），false 时「上涨=坏=红」（消费支出）；持平=静灰
 function compareColor(v, goodWhenUp) {
   if (v === 0) return 'var(--muted)';
   const good = goodWhenUp ? v > 0 : v < 0;
@@ -4900,7 +4775,6 @@ function renderHistoryTab() {
   }).join('');
 }
 
-// 比例尺滑块: 同步填充段 (--fill) 与等宽读数
 function onIncomeSafetyInput() {
   const el = document.getElementById('income-safety-input');
   const v = parseFloat(el.value);
@@ -4993,7 +4867,7 @@ function setCoverageMode(mode) {
 }
 
 // ========== 压测（情景编辑 + 条/印徽同步）==========
-// 决策见 ADR 0004，口径在 logic.js stress 域；条/印徽/报头小字共用同一个「生效」判据，弹窗只改草稿。
+// 决策见 DECISIONS.md，口径在 logic.js stress 域；条/印徽/报头小字共用同一个「生效」判据，弹窗只改草稿。
 
 function renderStressChrome() {
   const active = stress.stressActive(state.stress);
@@ -5099,7 +4973,6 @@ function saveStress() {
   closeModal('stress-modal');
   if (JSON.stringify(next) === before) return;   // 没变就不重绘（空点击同理）
   saveState();
-  // 压测是全局叠加：重绘列表 + 行内收尾 syncDerivedReads 就把报头/条/印徽/全部可见读数一起更新了
   renderAll();
   toast(next ? i18n.t('压测已启用') : i18n.t('压测已清除'), next ? 'info' : 'success');
 }
@@ -5180,8 +5053,6 @@ function renderMonthPace() {
   const spent = expense.monthExpenseTotal(state.expenses, date.getLocalMonthStr(now));
   const reading = expense.monthBudgetReading(spent, expectation, now);
   card.style.display = '';
-  // 尺子宽度物理封顶（右端就是整月预算）, 真实百分比在右侧读数里呈现。
-  // 三态与目标净资产面板同语言: 未超支 verdigris / 预算将尽(≥90%) 转金 / 超支转红
   const fill = document.getElementById('pace-fill');
   fill.style.width = Math.min(100, Math.max(0, reading.pctOfMonth)) + '%';
   fill.style.background = reading.over ? 'var(--down)' : (reading.pctOfMonth >= 90 ? 'var(--accent)' : 'var(--verdigris)');
@@ -5202,7 +5073,6 @@ function renderMonthPace() {
 function renderRunwayTagGroups() {
   const box = document.getElementById('runway-tag-groups');
   if (!box) return;
-  // 内置货币分类照样列出: 币种本身就是合法的筛法（只看 HKD 能撑多久）, 且与其它分类是「且」关系
   const cats = state.categories.filter(c => c && Array.isArray(c.tags));
   if (cats.length === 0) {
     box.innerHTML = '<p class="t-body muted">' + i18n.t('先去「分类管理」建一个资产分类和标签。') + '</p>';
@@ -5326,7 +5196,6 @@ function renderIncomeTab() {
   // 覆盖标尺（覆盖率/差额口径在 logic.js income.coveragePct/income.incomeGap）
   renderCoverageMeter();
 
-  // --- Table ---
   const sorted = [...assetsInView()].sort((a, b) => {
     return income.calcAssetIncome(b).monthly - income.calcAssetIncome(a).monthly;
   });
@@ -5353,12 +5222,10 @@ function renderIncomeTab() {
     }).join('')
   ].join('');
 
-  // 安全边际折算表注（账页星注）
   const noteEl = document.getElementById('income-table-note');
   noteEl.style.display = discounted ? '' : 'none';
   noteEl.textContent = discounted ? i18n.t('* 已按 {p1}% 安全边际折算', { p1: safetyPct }) : '';
 
-  // --- Chart ---
   fillCategorySelect('income-chart-category-select', state.categories);
   renderIncomeChart();
 }
@@ -5389,7 +5256,6 @@ async function renderIncomeChart() {
   const cat = state.categories.find(c => c.id === catId);
   if (!cat) return;
 
-  // group by selected category's tags（子项携带 asset 引用与 _assetId 透传）
   const groups = {};
   cat.tags.forEach(t => { groups[t] = []; });
   rateAssets.forEach(a => {
@@ -5499,14 +5365,12 @@ function moveAsset(id, dir) {
   sortDir = 'asc';
   saveState();
   renderAssets();
-  // 焦点跟着被移动的行走（重绘后 DOM 是新的，按 data-id 找回同一枚把手）
   const fresh = document.querySelector('#assets-rows .asset-row[data-id="' + CSS.escape(id) + '"] .drag-handle');
   if (fresh) fresh.focus();
 }
 
 // ========== SORT ==========
 function toggleSort(field) {
-  // 三态循环: 升序 → 降序 → 取消排序（恢复自然/拖拽顺序）；状态机纯函数在 logic.js，与消费侧共用
   const r = ui.nextSortState(sortBy, sortDir, field, false);
   sortBy = r.by;
   sortDir = r.dir;
@@ -5530,7 +5394,6 @@ function applyI18nDom() {
   });
 }
 
-// 设置弹窗内的语言 seg 回显（与主题 seg 同一套写法）
 function syncLangSeg() {
   const lang = i18n.normalizeLang(state.lang);
   ['en', 'zh'].forEach(l => {
@@ -5541,7 +5404,6 @@ function syncLangSeg() {
   });
 }
 
-// 日期选择器的 locale 跟着语言走（zh 需要 CDN 的 l10n/zh.js，未就绪时用默认英文）
 function syncFlatpickrLocale() {
   const el = document.getElementById('expense-date');
   const fp = el && el._flatpickr;
@@ -5594,7 +5456,6 @@ function setTheme(dark) {
   renderAll(); // 收尾 syncDerivedReads 把可见图表也按新主题重绘（canvas 不认 CSS 变量）
 }
 
-// 设置弹窗入口：打开前回显主题 seg、语言 seg 与备份控件
 function showSettings() {
   syncThemeSeg();
   syncLangSeg();
@@ -5603,7 +5464,6 @@ function showSettings() {
   openModal('settings-modal');
 }
 
-// 重绘当前可见的图表（汇率刷新、暗色切换共用）
 function refreshVisibleCharts() {
   if (document.getElementById('tab-chart').style.display !== 'none') renderChart();
   if (document.getElementById('tab-history').style.display !== 'none') renderHistoryChart();
@@ -5816,7 +5676,7 @@ async function maybeAutoBackup(ratePromise) {
 
 // ========== 月度快照提醒（DOM 副作用）==========
 // 决策全在 logic.js snapshot.shouldRemindSnapshot；这里只写 DOM、记「今天问过」。
-// 提醒只是通知：不跳转、不过闸、不带入口按钮——门槛（ADR 0003）保护的是「看数字」，
+// 提醒只是通知：不跳转、不过闸、不带入口按钮——门槛（DECISIONS.md）保护的是「看数字」，
 // 提醒不替用户省这笔钱；文案又只报月份、不报金额（不变成一条旁路读数）。
 function maybeSnapshotReminder() {
   const today = date.getLocalDateStr();
@@ -5836,8 +5696,6 @@ function closeSnapshotReminder() {
   closeModal('snapshot-reminder-modal');
 }
 
-// 方案 C：超期未备份提醒（toast 略延迟弹出，避开首屏渲染瞬间）；
-// 是否提醒/超期天数由 logic.js 的 backup.backupStaleDays 判定
 function checkBackupStale() {
   const staleDays = backup.backupStaleDays(state, date.getLocalDateStr());
   if (staleDays != null) {
@@ -5845,8 +5703,6 @@ function checkBackupStale() {
   }
 }
 
-// 统一同步备份控件：设置弹窗（频率 seg + 边注 + 文件夹状态）与 io-modal 的上次备份文案。
-// 打开任一弹窗、setBackupFreq、选择/清除文件夹、手动导出后调用——单一入口，杜绝多 UI 失同步
 function syncBackupControls() {
   const freq = backup.normalizeBackupFreq(state.backup.autoFreq);       // 白名单归一，单一来源
   const noteText = backup.backupNoteText(state.backup.lastBackup, date.getLocalDateStr()); // 文案纯函数在 logic.js
@@ -5875,8 +5731,6 @@ function setBackupFreq(v) {
   toast(state.backup.autoFreq === 'off' ? i18n.t('已关闭自动备份') : i18n.t('自动备份：{p1}', { p1: i18n.t(state.backup.autoFreq === 'daily' ? '每天' : '每周') }), 'success');
 }
 
-// 快照提醒的两个控件（窗口 seg + 天数）落到**同一个写入点**：改的是同一个对象，
-// 分两处赋值迟早一边忘了归一（与 setBackupFreq 同一种收敛）。归一在 logic.js。
 function setSnapshotReminder(patch) {
   state.snapshotReminder = snapshot.normalizeSnapshotReminder(Object.assign({}, state.snapshotReminder, patch));
   saveState();
@@ -5932,7 +5786,6 @@ function importData(e) {
       if (data && Array.isArray(data.categories) && Array.isArray(data.assets)) {
         showConfirm(i18n.t('导入将覆盖当前所有数据，确认继续？'), () => {
           state = { ...state, ...data };
-          // 与 loadState 共用同一套迁移/兜底逻辑（旧版 expectedRate、快照格式、孤儿标签等）
           migrate.migrateState();
           saveState();
           renderAll();
@@ -5980,7 +5833,6 @@ function dropDetachedBubbles() {
   document.querySelectorAll('body > .tip-bubble').forEach(b => b.remove());
 }
 
-// 收起时把气泡还回原处（原处是 `<span class="tip">` 里，紧随 ? 图标）
 function unplaceTipBubble(tip) {
   if (!tip || !tip.__bubble) return;
   const b = tip.__bubble;
@@ -6060,14 +5912,12 @@ function confirmCancel() {
   if (onCancel) onCancel();
 }
 document.getElementById('confirm-ok-btn').addEventListener('click', () => {
-  // 守卫窗内落到确认按钮上的 click 是抬手余波（用户并没有真点它），忽略
   if (__autoOpenedAt !== null && !ui.autoOpenGuard(performance.now() - __autoOpenedAt)) return;
   closeModal('confirm-modal');
   _confirmCancelCallback = null; // 确认路径不触发取消回调
   if (_confirmCallback) { _confirmCallback(); _confirmCallback = null; }
 });
 
-// close modal on overlay click (only if the click actually started on the overlay, not dragged from a child like a number input spinner)
 let __modalMouseDownTarget = null;
 document.addEventListener('mousedown', e => { __modalMouseDownTarget = e.target; });
 document.addEventListener('click', e => {
@@ -6101,7 +5951,6 @@ document.addEventListener('keydown', e => {
   list[r.index].focus();
 });
 
-// ESC 关闭当前最上层弹窗（确认框走 confirmCancel 以清空回调）
 document.addEventListener('keydown', e => {
   if (e.key !== 'Escape') return;
   const top = topModal();
@@ -6115,11 +5964,9 @@ function genId() {
   return 'id_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7);
 }
 
-// 金额输入实时千分位格式化（保留光标位置）
 function formatMoneyInput(el) {
   const sel = el.selectionStart;
   const raw = el.value;
-  // 清理: 去除非数字/小数点, 仅保留第一个小数点
   let clean = raw.replace(/[^\d.]/g, '');
   const dot = clean.indexOf('.');
   if (dot !== -1) clean = clean.slice(0, dot + 1) + clean.slice(dot + 1).replace(/\./g, '');
@@ -6128,7 +5975,6 @@ function formatMoneyInput(el) {
   const formatted = parts.length > 1 ? intFmt + '.' + parts[1] : intFmt;
   if (formatted !== raw) {
     el.value = formatted;
-    // 光标位置映射: 光标前内容清理并格式化后的长度
     let before = raw.slice(0, sel).replace(/[^\d.]/g, '');
     const bd = before.indexOf('.');
     if (bd !== -1) before = before.slice(0, bd + 1) + before.slice(bd + 1).replace(/\./g, '');
@@ -6205,7 +6051,6 @@ function syncExpenseControls() {
   set('expense-search', expenseFilters.query);
 }
 
-// 消费月份下拉：选项从数据自动生成（倒序）；选中值由 syncExpenseControls 回写
 function populateExpenseMonthFilter() {
   fillMonthSelect('expense-month-filter', expense.expenseMonths(state.expenses));
 }
@@ -6226,12 +6071,10 @@ function populateExpenseTagFilter() {
   setSelectOptions(sel, opts);
 }
 
-// 空态「清除筛选」: 月份 / 标签 / 搜索一起归零
 function clearExpenseFilters() {
   setExpenseFilter({ month: '', tag: '', query: '' });
 }
 
-// 输入框内 × / ESC: 仅清除搜索词, 保留月份与标签筛选
 function clearExpenseSearch() {
   setExpenseFilter({ query: '' });
   const el = document.getElementById('expense-search');
@@ -6272,7 +6115,6 @@ function renderExpenses() {
       subEl.textContent = i18n.t('点击「记录消费」或导入示例数据开始');
       demoBtn.style.display = '';
     } else {
-      // 按生效维度拼接提示：搜索 > 标签 > 月份
       const filterParts = [];
       if (view.active.query) filterParts.push(i18n.t('匹配「{p1}」', { p1: view.active.query }));
       if (view.active.tag) filterParts.push(view.active.tag);
@@ -6291,8 +6133,6 @@ function renderExpenses() {
     document.getElementById('expenses-empty-clear').style.display = 'none';
     let sorted = [...filtered];
     if (expenseSortBy) {
-      // 主键相同（如同一天）时，按 id 次级排序：降序时新记录在上，升序时旧记录在上
-      // genId() 以 Date.now() 为前缀，id 字典序即创建顺序
       const secondary = (a, b) => a.id < b.id ? (expenseSortDir === 'asc' ? -1 : 1)
         : a.id > b.id ? (expenseSortDir === 'asc' ? 1 : -1) : 0;
       sorted.sort((a, b) => compareBy(a, b, expenseSortBy, expenseSortDir, null, secondary));
@@ -6317,7 +6157,6 @@ function renderExpenses() {
     }).join('');
   }
 
-  // 合计跟随筛选变化：多筛选维度拼接标签名
   const total = filtered.reduce((s, e) => s + e.amount, 0);
   const parts = [];
   if (view.active.month) parts.push(date.monthLabel(view.active.month));
@@ -6340,7 +6179,6 @@ function openExpenseModal(editId, prefillId) {
   document.getElementById('expense-edit-id').value = editId || '';
   setExpenseDate(date.getLocalDateStr());
 
-  // 数据来源: 编辑取原记录（含原日期）; 复制取源记录但日期改为今天
   const source = editId
     ? state.expenses.find(x => x.id === editId)
     : (prefillId ? state.expenses.find(x => x.id === prefillId) : null);
@@ -6402,7 +6240,6 @@ function editExpense(id) {
   openExpenseModal(id);
 }
 
-// 复制消费: 打开新增窗口, 预填金额/备注/标签, 日期改为今天
 function duplicateExpense(id) {
   openExpenseModal('', id);
 }
@@ -6467,7 +6304,6 @@ function renderTagCheckBar(side) {
     `<b class="ink-accent">${total}</b>${i18n.t(' 条记录分类不完整 · 缺 ')}${groups.map(g => `「${text.esc(g.name)}」`).join('')}`;
 }
 
-// 分组卡片：头部计数/✓徽章 + 一键补齐 chips + 逐条记录行（均复用 tagPickerHtml）
 function tagCheckGroupHtml(g) {
   const cfg = CAT_SIDES[tagCheckSide];
   const cat = cfg.cats().find(c => c.id === g.catId);
@@ -6579,7 +6415,6 @@ function populateExpenseChartSelects() {
 
   const months = expense.expenseMonths(state.expenses);
   const monthSel = fillMonthSelect('expense-chart-month-select', months);
-  // 无当前选择时默认取最近月份(与消费月份筛选「全部时间」的差异, 保持原行为)
   if (monthSel && !monthSel.value && months.length > 0) monthSel.value = months[0];
 }
 
@@ -6674,7 +6509,6 @@ function saveExpectation() {
   state.expenseExpectation = v;
   saveState();
   closeModal('expectation-modal');
-  // 预期月消费被覆盖标尺/读数卡/预算卡/趋势线共用：重绘列表即重算全部派生读数
   renderAssets();
   toast(hadValue ? i18n.t('预期消费已更新') : i18n.t('预期消费已设置'), 'success');
 }
@@ -6692,7 +6526,6 @@ async function renderExpenseTrendChart() {
   // 读数卡跟着「预期月消费」走: 放在早退之前, 无消费记录时也照样同步（口径与本页记录无关）
   renderRunwayRow();
   renderMonthPace();
-  // 预期消费按钮状态化: 未设置 →「设定预期」, 已设置 → 显示当前值
   const expBtn = document.getElementById('expense-expectation-btn');
   if (expBtn) {
     const exp = state.expenseExpectation || 0;
@@ -6736,7 +6569,6 @@ async function renderExpenseTrendChart() {
   // 标签顺序按跨月合计降序（大的放堆叠柱底部，小的在上），口径与历史净值同源
   const sortedTags = chartData.sortTagsByTotal(cat, sorted.map(m => monthMap[m]));
 
-  // 下钻上下文：click 事件据 seriesIndex/dataIndex 反查「月份 × 标签」
   trendDrillMeta = {
     catId: catId,
     months: sorted,
@@ -6844,7 +6676,6 @@ async function renderExpenseTrendChart() {
     wire: c => {
       // 图例选中态记忆：用户点击图例隐藏/显示系列时保存，重绘后回灌（切模式/切主题不丢）
       c.on('legendselectchanged', p => { trendLegendSel = p.selected; });
-      // 点击色块下钻：展开该月该标签的消费记录构成明细
       wireStackedBarDrill(c, () => trendDrillMeta, viewExpenseSegment);
     },
     option: option,
@@ -6854,11 +6685,9 @@ async function renderExpenseTrendChart() {
 
 function renderExpenseTrendList() {
   const list = document.getElementById('expense-trend-list');
-  // 按月聚合（升序）并取「此前最近的有数据月份」做环比，逻辑对齐资产快照列表
   const months = expense.monthlyExpenseTotals(state.expenses);
   if (months.length === 0) { list.innerHTML = ''; return; }
   list.innerHTML = [...months].reverse().map(({ month, total, count }) => {
-    // 环比：取此前最近一个有数据的月份（自动跳过空月份），徽章/对比行与资产快照共用 momCompareHtml
     const prevMonth = expense.prevExpenseMonthOf(month, months);
     const prevTotal = prevMonth ? months.find(x => x.month === prevMonth).total : null;
     const { badge, diffLine } = momCompareHtml(total, prevTotal, false);
@@ -6875,7 +6704,6 @@ function renderExpenseTrendList() {
   }).join('');
 }
 
-// 消费两月对比弹窗：选起始月/结束月 + 维度（消费分类），按所选维度逐标签拆分两月消费并 diff
 function openExpenseCompareModal() {
   const months = expense.monthlyExpenseTotals(state.expenses);
   if (months.length < 2) { toast(i18n.t('至少需要两个月的消费记录才能对比'), 'error'); return; }
@@ -6956,7 +6784,6 @@ function viewExpenseMonth(month) {
     empty: i18n.t('该月没有消费记录'),
   });
 }
-// 某分类某标签在某月的消费记录构成（消费趋势图点击色块下钻）
 function viewExpenseSegment(month, catId, tag) {
   const cat = state.expenseCategories.find(c => c.id === catId);
   if (!cat) return;

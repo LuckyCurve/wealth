@@ -129,7 +129,6 @@
         updatedAt: month + '-15T12:00:00.000Z',
       };
     });
-    // 账本 = 最新一个月的快照（与真实记账流程一致：快照是那天的资产事实）
     const latest = snapshots[snapshots.length - 1];
     return {
       rates,
@@ -351,7 +350,6 @@
     return Math.min(1, heldMs / t);
   }
 
-  // 松手处置：'done' = 动作成立；'short' = 短按（教学/无动作）；'ignore' = 没按
   function pressDecision(heldMs, threshold) {
     const t = pressThreshold(threshold);
     if (!(heldMs > 0)) return 'ignore';
@@ -540,7 +538,7 @@
 
   // ========== 月度快照提醒（纯决策）==========
   // 快照是**某个月的资产事实**：只提醒当月，绝不催促补记历史月份（补记只能拿今天的数贴上一个月的标签）。
-  // 提醒只是通知，不跳转、不带入口按钮——门槛（ADR 0003）保护的是「看数字」，提醒不替用户省这笔钱。
+  // 提醒只是通知，不跳转、不带入口按钮——门槛（DECISIONS.md）保护的是「看数字」，提醒不替用户省这笔钱。
   const SNAPSHOT_REMINDER_DEFAULT_DAYS = 5;
   const SNAPSHOT_REMINDER_MAX_DAYS = 28; // 2 月只有 28 天，「月末前 30 天」等于整月
 
@@ -605,8 +603,6 @@
     return Object.keys(map).sort().map(m => map[m]);
   }
 
-  // 取指定月份之前、最近一个有数据的月份（自动跳过空月份，等价于资产快照的 getPrevSnapshot）
-  // months: monthlyExpenseTotals 的升序输出；无更早月份时返回 null
   function prevExpenseMonthOf(month, months) {
     const prevs = (months || []).filter(x => x.month < month).map(x => x.month);
     return prevs.length ? prevs.sort().pop() : null;
@@ -621,7 +617,6 @@
     return { diff, pct, up };
   }
 
-  // 按「分类维度 + 标签」聚合某月消费（CNY），返回 { tag: total }；用于消费两月对比弹窗的逐标签拆分
   function expenseMonthTagTotals(month, catId, expenses) {
     const map = {};
     (expenses || []).forEach(e => {
@@ -641,7 +636,6 @@
     return String(catId == null ? '' : catId) + TAG_FILTER_SEP + String(tag == null ? '' : tag);
   }
 
-  // 空值 / 缺分隔符 / 空分类 id（分隔符在首位）/ 空标签 → null，视作未筛选
   function parseTagFilter(value) {
     const v = String(value == null ? '' : value);
     const i = v.indexOf(TAG_FILTER_SEP);
@@ -651,7 +645,6 @@
     return { catId: v.slice(0, i), tag: tag };
   }
 
-  // 分类列表 → 下拉分组结构（保持分类顺序；tags 缺失归空数组），index.html 据此渲染 optgroup
   function expenseTagFilterGroups(categories) {
     return (categories || []).map(c => ({
       id: c.id,
@@ -660,7 +653,6 @@
     }));
   }
 
-  // 选中值仍是有效选项吗：分类被删 / 标签被改名或移出后据此回落「全部标签」
   function hasTagFilterOption(groups, value) {
     const p = parseTagFilter(value);
     if (!p) return false;
@@ -690,7 +682,6 @@
     });
   }
 
-  // 三段互相独立、可叠加；顺序保持入参原序（排序由调用方决定）
   function applyExpenseFilters(expenses, filters, categories) {
     const f = filters || {};
     const q = String(f.query == null ? '' : f.query).trim().toLowerCase();
@@ -1020,7 +1011,7 @@
   }
 
   // ========== 压测（全局视图叠加：某维度下各标签还剩多少）==========
-  // 决策见 ADR 0004。keep 是剩余比例（不是跌幅），只存比例不存金额；
+  // 决策见 DECISIONS.md。keep 是剩余比例（不是跌幅），只存比例不存金额；
   // 单维度是硬约束——两个维度会把同一笔钱乘两次（剩 50% 与 90% 变成 45%）。
 
   // 剩余比例归一：非有限数 → null（该条丢弃，不是当成 100——「没填」和「填了个乱码」不是一回事）；
@@ -1291,7 +1282,6 @@
     });
     if (!Array.isArray(state.snapshots)) state.snapshots = [];
     state.snapshots = state.snapshots.filter(s => s && typeof s === 'object' && !Array.isArray(s));
-    // migrate old snapshot format (with 'id') to new monthly format
     if (state.snapshots.length > 0 && state.snapshots.some(s => s && s.date && !s.month)) {
       const oldSnaps = state.snapshots.filter(s => s && s.date && !s.month);
       const newSnaps = state.snapshots.filter(s => !(s && s.date && !s.month));
@@ -1314,25 +1304,20 @@
         })),
       ];
     }
-    // 补全快照加工字段：新版导出已剥离 totalCNY（纯原始数据）, 导入时按快照时点
-    // 汇率重算（与 confirmSnapshot 保存时算法一致）, 保证历史净值图表/详情可用
     state.snapshots.forEach(s => {
       if (s && s.totalCNY == null) {
         // 与图表聚合共用同一折算口径（amountAtRates 的容错），不在此另写一份 reduce
         s.totalCNY = sumAmountCNY(s.assets, s.currencyRates || state.rates);
       }
     });
-    // ensure categories/assets arrays
     if (!Array.isArray(state.categories)) state.categories = [];
     if (!Array.isArray(state.assets)) state.assets = [];
     // 记录同样只留对象（导入的数组里混进 null / 字符串会让渲染期 throw）
     state.assets = state.assets.filter(a => a && typeof a === 'object' && !Array.isArray(a));
-    // ensure currency category exists
     if (!state.categories.find(c => c.id === 'currency')) {
       // 名称只在**创建那一刻**取当前语言：分类名是用户数据，之后不随语言切换改写
       state.categories.unshift({ id: 'currency', name: t('货币类型'), builtin: true, tags: ['CNY', 'HKD', 'USD'] });
     }
-    // ensure rates object（导入数据可能缺失或损坏）
     if (!state.rates || typeof state.rates !== 'object' || state.rates.CNY == null) {
       state.rates = { CNY: 1, HKD: 1, USD: 1, fetchedAt: null };
     } else {
@@ -1361,7 +1346,6 @@
     state.netWorthTarget = Number(state.netWorthTarget) || 0;
     if (state.incomeSafetyFactor == null) state.incomeSafetyFactor = 100;
     state.incomeSafetyFactor = Math.min(100, Math.max(1, Number(state.incomeSafetyFactor) || 100));
-    // migrate expectedRate -> expectedRateMin/Max (only if new fields not present)
     state.assets.forEach(a => {
       if (a.expectedRate != null && a.expectedRateMin == null) {
         a.expectedRateMin = a.expectedRate;
@@ -1373,7 +1357,6 @@
       // 防御: 导入数据中利率可能是字符串, 统一转为数字
       a.expectedRateMin = Number(a.expectedRateMin) || 0;
       a.expectedRateMax = Number(a.expectedRateMax) || 0;
-      // 现金比例: 缺失默认 100（全额现金，旧版「全部收益视为收入」行为）；越界钳制 0~100
       if (a.cashRatio == null) a.cashRatio = 100;
       a.cashRatio = Math.min(100, Math.max(0, Number(a.cashRatio) || 0));
       // 防御: 导入数据中 amount 可能是字符串, 统一转为数字
@@ -1390,7 +1373,6 @@
     // 0 = 未自定, 回落全局「预期月消费」; 只接受正有限数（严格同注释: 非法的归 0, 不留 Infinity/-1 在存档里）
     const customExpectation = Number(state.runwayExpectation);
     state.runwayExpectation = isFinite(customExpectation) && customExpectation > 0 ? customExpectation : 0;
-    // init expense data
     if (!Array.isArray(state.expenses)) state.expenses = [];
     state.expenses = state.expenses.filter(e => e && typeof e === 'object' && !Array.isArray(e));
     state.expenses.forEach(e => {
@@ -1404,9 +1386,7 @@
     if (!Array.isArray(state.expenseCategories)) {
       state.expenseCategories = [];
     } else {
-      // migrate: remove old builtin expense categories
       state.expenseCategories = state.expenseCategories.filter(c => c.id !== 'expense-type' || !c.builtin);
-      // clean up orphaned tag references
       const validCatIds = new Set(state.expenseCategories.map(c => c.id));
       state.expenses.forEach(e => {
         if (e && e.tags) {
@@ -1421,8 +1401,6 @@
   // ========== 文本 / 金额工具 ==========
   let _escDiv = null;
   function esc(str) {
-    // 与浏览器行为对齐：浏览器走 DOM textContent 序列化（& < >），再手动补引号转义；
-    // Node 无 document 时用等价正则兜底，保证单测确定性。
     str = String(str == null ? '' : str);
     if (typeof document === 'undefined') {
       return str
@@ -1450,7 +1428,6 @@
     }
   }
 
-  // 数字 → 千分位字符串（回填输入框用）
   function moneyStr(v) {
     if (v == null || v === '') return '';
     const num = Number(String(v).replace(/,/g, ''));
@@ -1474,8 +1451,6 @@
     return n.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
 
-  // 用于行内事件属性（onclick="fn('...')"）里的 JS 字符串参数：
-  // 先 JS 字符串转义（\\ → \\, ' → \'），再做 HTML 属性转义（& "）。
   function jsAttr(str) {
     return String(str)
       .replace(/\\/g, '\\\\')
@@ -1579,7 +1554,6 @@
     };
   }
 
-  // 单标签/无标签时取分类基色；暗色下转为同色相深底浅字
   function basePill(base, dark) {
     return dark ? pillColors(base, 0, true) : { ...base };
   }
@@ -1636,7 +1610,6 @@
     return { data: [sel], total: nodeValue(sel) };
   }
 
-  // 占比百分比字符串（1 位小数），用于图表 tooltip / 标签；分母为 0 时返回 '0.0'
   function pctStr(value, total) {
     return total > 0 ? ((value / total) * 100).toFixed(1) : '0.0';
   }
@@ -1652,7 +1625,6 @@
     return 0;
   }
 
-  // 扁平树下标换算：点内环分类返回 dataIndex = 顶层下标 + 1（虚拟根占 0），条目 = 2 + N + k；越界一律 null。
   function sunburstNodePath(data, catIdx, childIdx) {
     const list = data || [];
     if (!Number.isInteger(catIdx) || catIdx < 0 || catIdx >= list.length) return null;
@@ -1671,8 +1643,6 @@
     return (node && Array.isArray(node.children)) ? node.children.length : 0;
   }
 
-  // 右侧清单：未选中列顶层分类，选中某分类列它的条目（分母是该分类合计，条目加起来 100%）。
-  // selected 指向已删分类 → 回落顶层列表；每条的 idx/path 供「清单 → 扇区」高亮。
   function sunburstLegendRows(data, total, selected) {
     const list = data || [];
     const sel = list.find(n => n && n.name === selected);
@@ -1719,7 +1689,6 @@
     return tags.slice().sort((a, b) => totals[b] - totals[a]);
   }
 
-  // 堆叠柱状图「占比模式」数据转换：保留原始金额(raw) 的同时给出百分比数值
   function percentSeriesData(raw, totals) {
     return raw.map((v, vi) => ({
       value: totals[vi] > 0 ? +(v / totals[vi] * 100).toFixed(1) : 0,
@@ -1731,7 +1700,6 @@
   // 提醒阈值：距上次备份超过该天数视为「久未备份」
   const BACKUP_STALE_DAYS = 7;
 
-  // 是否有值得备份的数据（assets/expenses/snapshots 任一非空；字段缺失按空处理）
   function hasAnyBackupWorthyData(s) {
     s = s || {};
     return (s.assets || []).length > 0 ||
@@ -1739,8 +1707,6 @@
            (s.snapshots || []).length > 0;
   }
 
-  // 频率白名单归一：合法值原样返回，其余（含 undefined/null/非法字符串）归 'daily'。
-  // migrateState 兑底与弹窗 setBackupFreq 共用，保证单一数据来源
   function normalizeBackupFreq(v) {
     return ['daily', 'weekly', 'off'].includes(v) ? v : 'daily';
   }

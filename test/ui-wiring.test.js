@@ -1292,16 +1292,17 @@ describe('UI 接线契约：压测（读数走叠加入口，账本读原值）'
       // 只取「资产条数」与「有没有资产」（与金额无关，压测不改条数）
       renderMasthead: 1,
       renderChart: 1,
-      // 报头小字「原值 ¥Y」要的就是原账本金额
-      confirmSnapshot: 1,
     };
+    // 数的是**剥掉注释后**的代码：注释里提一句 state.assets 不应让一条漏接的断言变绿
     for (const [fn, n] of Object.entries(allowed)) {
-      assert.strictEqual((fnSource(fn).match(/state\.assets/g) || []).length, n,
+      assert.strictEqual((stripComments(fnSource(fn)).match(/state\.assets/g) || []).length, n,
         fn + ' 里 state.assets 的读取点应恰好 ' + n + ' 处（多一处就是漏接 assetsInView/ledgerAssets）');
     }
     for (const fn of ['totalAssetsCNY', 'renderIncomeTab', 'renderCoverageMeter',
-      'renderRunwayRow', 'renderRunwayPreview', 'renderIncomeChart']) {
-      assert.strictEqual((fnSource(fn).match(/state\.assets/g) || []).length, 0,
+      'renderRunwayRow', 'renderRunwayPreview', 'renderIncomeChart',
+      // 快照存原值，但它经 ledgerAssets() 取——名字就是「这里故意不打折」的判据
+      'confirmSnapshot']) {
+      assert.strictEqual((stripComments(fnSource(fn)).match(/state\.assets/g) || []).length, 0,
         fn + ' 不得直接读 state.assets（压测叠加只在 assetsInView 一处发生）');
     }
     // 反向：金额派生不得绕过这两个入口
