@@ -2614,7 +2614,7 @@ async function fetchRates() {
     if (!next) throw new Error(i18n.t('汇率响应缺少有效币种'));
     state.rates = next;
     saveState();
-    // 汇率变了 → 资产列表与所有派生读数（含需要换算的图表）一起重算；收尾在 renderAssets → syncDerivedReads
+    // 汇率变了 → 列表与派生读数一起重算（收尾见 syncDerivedReads）
     renderAssets();
     // 与其他操作提示统一走右下角便条；info=系统中性知会（金墨边注），不打断当前操作
     toast(i18n.t('汇率已更新'), 'info');
@@ -2987,12 +2987,20 @@ if (_reduceMotionQuery && _reduceMotionQuery.addEventListener) {
 }
 
 // ========== RENDER ==========
+// 全量重绘：四个列表各刷一遍，收尾只重算一次派生读数。
+// 不括起来的话两个列表渲染器各收尾一次，同一张图会被画两遍（setOption ×2）。
 function renderAll() {
-  renderAssets();
-  renderCategories();
-  renderHistoryTab();
-  renderExpenses();
-  renderCategoryCards('expense');
+  _renderBatch++;
+  try {
+    renderAssets();
+    renderCategories();
+    renderHistoryTab();
+    renderExpenses();
+    renderCategoryCards('expense');
+  } finally {
+    _renderBatch--;
+  }
+  syncDerivedReads();
 }
 
 function renderAssets() {
@@ -3051,19 +3059,17 @@ function renderAssets() {
 
   // 数据校验条跟随资产/分类变化（全局口径，不随排序变化）
   renderTagCheckBar('asset');
-  syncDerivedReads(); // 收尾：报头/压测指示器/可见图表一起重算（头部是唯一刷新口）
+  syncDerivedReads(); // 收尾：报头/压测指示器/可见图表一起重算
 }
 
 // ===== Masthead / net-worth hero =====
 let _mastheadRaf = null;
 let _mastheadPrev = 0;
-// 当前「应有的目标值」：相等就不重启动画。列表重绘很频繁（消费搜索每敲一个字符都会走到这里），
-// 无脑重启动画会让计数停在半路、数字被拽回起点。
+// 当前应有的目标值：相等就不重启动画（列表重绘很频繁，否则计数动画会被拽回起点）
 let _mastheadTarget = null;
 // _reduceMotion 定义在台灯一节（文件顶部）：两处都读同一个信号，此处不得再声明一次
 
-// 报头是唯一写入点，总资产也在这里现算（经 assetsInView，含压测叠加）：调用方传数就是一个
-// 「谁算的谁负责」的漏更新口子。
+// 报头是唯一写入点，总资产也在这里现算：调用方传数就是「谁算的谁负责」的漏更新口子。
 function renderMasthead() {
   const total = totalAssetsCNY();
   const wholeEl = document.getElementById('masthead-whole');
@@ -5016,7 +5022,7 @@ function onIncomeSafetyInput() {
   if (v !== state.incomeSafetyFactor) {
     state.incomeSafetyFactor = v;
     saveState();
-    // 安全边际同时作用于收益两口径与报头副行，走同一收尾口（不自己挑重绘谁）
+    // 安全边际同时作用于两口径与报头副行 → 同一收尾口
     syncDerivedReads();
   }
 }
@@ -5755,11 +5761,13 @@ function refreshVisibleCharts() {
 
 // ===== 派生读数的唯一刷新口 =====
 // 账本一变，所有从它派生的读数就在这里重算：报头（净资产/构成/目标/收益副行/压测小字）、
-// 压测条与印徽、当前可见的图表与收益页（守卫在 refreshVisibleCharts，隐藏时零开销）。
-// 为什么必须是一个口：各写入点自己报几处重绘时，漏一处不报错、只在特定顺序下显形——
+// 压测条与印徽、当前可见图表与收益页（守卫在 refreshVisibleCharts，隐藏时零开销）。
+// 各写入点自己报几处重绘必漏：
 // 「报头已是新值」配着「压测条还是旧值」、换了收益口径报头还停在上一个口径。
 // 新增派生读数就把重绘挂在这里；数值一律现算（调用方不传数）。
+let _renderBatch = 0; // 批量重绘期间先攒着（两侧列表各收一次会把同一张图画两遍）
 function syncDerivedReads() {
+  if (_renderBatch) return;
   renderMasthead();
   renderStressChrome();
   refreshVisibleCharts();
@@ -6498,7 +6506,7 @@ function renderExpenses() {
 
   // 数据校验条跟随记录/分类变化（全局口径，不随列表筛选缩小）
   renderTagCheckBar('expense');
-  syncDerivedReads(); // 与资产侧同一收尾口（趋势/预算/读数卡随之重算）
+  syncDerivedReads(); // 与资产侧同一收尾口
 }
 
 function openExpenseModal(editId, prefillId) {

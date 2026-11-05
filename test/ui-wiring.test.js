@@ -1426,6 +1426,13 @@ describe('UI 接线契约：账本一变，所有派生读数就重算（实时�
     assert.match(src, /_mastheadTarget/, '以「当前应有目标」判定是否需要新动画');
     assert.match(src, /total !== _mastheadTarget/, '目标未变就不重启动画');
   });
+
+  test('批量重绘只收尾一次（renderAll 不得把同一张图画两遍）', () => {
+    // 两侧列表各收尾一次就是两次 setOption；renderAll 括起来，收尾只跑一次。
+    assert.match(fnSource('renderAll'), /_renderBatch\+\+/, 'renderAll 括住整个批量');
+    assert.match(fnSource('renderAll'), /syncDerivedReads\(\)/, '批量结束后再刷一次');
+    assert.match(fnSource('syncDerivedReads'), /if \(_renderBatch\) return;/, '批量期间先攒着');
+  });
 });
 
 describe('UI 接线契约：图表 tooltip 转义用户输入（防存储型 XSS）', () => {

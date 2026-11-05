@@ -599,6 +599,16 @@ test.describe('改账本：所有派生读数立刻重算（实时联动）', ()
     await expect(page.locator('#masthead-whole')).toHaveText('264,347');
     await expect(page.locator('#masthead-sub')).toContainText('¥681.61');
   });
+  test('整页重绘只把可见图表画一遍（批量收尾一次，不重复 setOption）', async ({ appPage: page }) => {
+    await gotoAssets(page, 'income');
+    await expect(page.locator('#income-monthly')).toHaveText('¥348.28');
+
+    // renderAll 里两个列表渲染器各有一个收尾口：不括起来就是同一张图两遍
+    const before = await page.evaluate(() => window.__echartsCalls.setOption.length);
+    await page.evaluate(() => renderAll());
+    const after = await page.evaluate(() => window.__echartsCalls.setOption.length);
+    expect(after - before).toBe(1);
+  });
 });
 
 test.describe('净资产目标', () => {
