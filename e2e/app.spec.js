@@ -1193,6 +1193,22 @@ test.describe('分类标签改名（迁移引用，不是清空）', () => {
   });
 });
 
+test.describe('分类编辑框的标签输入（逗号分隔）', () => {
+  test('粘贴一串重复名字只留一枚（同名胶囊/同名图表分组不出现）', async ({ appPage: page }) => {
+    await gotoAssetsTab(page, 'categories');
+    await page.locator('#categories-list .card', { hasText: '资产类型' }).getByRole('button', { name: '编辑' }).click();
+    await expect(page.locator('#category-modal')).toBeVisible();
+    // 真实入口：一串重复名字，且没有新增引用（不弹「清空引用」确认框）
+    await page.fill('#cat-tags', '权益基金, 活期现金，权益基金');
+    await page.locator('#category-form button:has-text("保存")').click();
+    await expect(page.locator('#category-modal')).toBeHidden();
+
+    expect((await readStored(page)).categories.find((c) => c.id === 'cat-type').tags).toEqual(['权益基金', '活期现金']);
+    const pills = page.locator('#categories-list .card', { hasText: '资产类型' }).locator('.tag-pill');
+    await expect(pills).toHaveCount(2);
+  });
+});
+
 test.describe('资产侧数据校验（快照按当时数据保留，不随补）', () => {
   test('新增分类后出现校验条；一键补齐只改当前资产，快照与另一侧不受影响', async ({ page }) => {
     const base = sampleState();

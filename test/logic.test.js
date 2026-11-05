@@ -553,6 +553,26 @@ describe('migrateState：脏分类 / 脏记录不得把整页渲染弄死', () =
   });
 });
 
+// ========== 分类编辑框的标签输入（逗号分隔）==========
+// 输入串 → 标签数组的唯一解析处：原先内联在 saveCategory，两个问题都在那里发生——
+// 「甲, 甲」原样存进分类（列表里两枚同名胶囊、图表里两份同名分组），
+// 删掉其中一个还会被「另一个同名项」挡住（改名判重用的是 includes）。
+describe('标签输入解析 parseTagInput', () => {
+  test('中英文逗号都认，去空白', () => {
+    assert.deepStrictEqual(L.category.parseTagInput('现金, 股票，债权'), ['现金', '股票', '债权']);
+    assert.deepStrictEqual(L.category.parseTagInput('  甲  ,乙  '), ['甲', '乙']);
+  });
+  test('去重保序（重复标签会让同名胶囊与同名分组各出现两份）', () => {
+    assert.deepStrictEqual(L.category.parseTagInput('甲, 乙, 甲'), ['甲', '乙']);
+  });
+  test('空项与空串 → []', () => {
+    assert.deepStrictEqual(L.category.parseTagInput('甲,,  ,乙'), ['甲', '乙']);
+    assert.deepStrictEqual(L.category.parseTagInput(''), []);
+    assert.deepStrictEqual(L.category.parseTagInput(null), []);
+    assert.deepStrictEqual(L.category.parseTagInput(' , ，'), []);
+  });
+});
+
 // ========== 文本 / 金额工具 ==========
 describe('文本与金额工具', () => {
   test('esc 转义 & < > " \'', () => {

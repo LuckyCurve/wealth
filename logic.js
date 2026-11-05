@@ -845,10 +845,10 @@
     return (items || []).filter(it => it && it.tags && set.has(it.tags[catId])).length;
   }
 
-  // ========== 分类标签集合归一 ==========
-  // 存档里的 tags 数组与分类编辑框的输入共用一个形状：去空白、去空项、去重保序。
-  // 去重就在此处做：重复项在列表里是两枚同名胶囊、在图表里是两份同名分组，
-  // 而改名判重（includes）会被其中一个挡住——界面自己清不掉。
+  // ========== 分类标签输入（逗号分隔）==========
+  // 分类编辑框里的「标签（逗号分隔）」→ 标签数组：中英文逗号都认、去空白、去空项、去重保序。
+  // 去重就在这里做：重复项在列表里是两枚同名胶囊、在图表里是两份同名分组，
+  // 而改名判重（includes）会被其中一个挡住——留着也不会被清掉。
   function normalizeTagArray(v) {
     const out = [];
     const seen = new Set();
@@ -857,6 +857,11 @@
       if (s && !seen.has(s)) { seen.add(s); out.push(s); }
     });
     return out;
+  }
+
+  // 存档里的 tags 数组与编辑框里的输入是同一个形状，解析只此一处（页面不得再写一份 split）
+  function parseTagInput(raw) {
+    return normalizeTagArray(String(raw == null ? '' : raw).split(/[,，]/));
   }
 
   // ========== 收益测算（依赖 incomeMode / state）==========
@@ -2755,6 +2760,9 @@
     },
     migrate: {
       migrateState,
+    },
+    category: {
+      parseTagInput,
     },
     demo: {
       assetDemo,

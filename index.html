@@ -4164,7 +4164,7 @@ function saveCategory(side, e) {
   const editId = document.getElementById(m.editId).value;
   const name = document.getElementById(m.name).value.trim();
   const tagsStr = document.getElementById(m.tags).value.trim();
-  const tags = tagsStr.split(/[,，]/).map(s => s.trim()).filter(Boolean);
+  const tags = category.parseTagInput(tagsStr);
 
   if (tags.length === 0) {
     toast(i18n.t('至少需要一个标签'), 'error');

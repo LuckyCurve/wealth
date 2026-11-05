@@ -364,7 +364,7 @@ describe('UI 接线契约：logic.js 导出清单与筛选同步时序', () => {
     const domains = Object.keys(api);
     assert.deepStrictEqual(
       domains.slice().sort(),
-      ['backup', 'chartData', 'color', 'date', 'demo', 'expense', 'i18n', 'income', 'migrate', 'money', 'motion', 'snapshot', 'stress', 'text', 'ui'],
+      ['backup', 'category', 'chartData', 'color', 'date', 'demo', 'expense', 'i18n', 'income', 'migrate', 'money', 'motion', 'snapshot', 'stress', 'text', 'ui'],
       '域清单：新增域要在这里显式登记（防编辑残留悄悄多一个袋子）'
     );
     const seen = new Map();
@@ -981,6 +981,14 @@ describe('UI 接线契约：分类管理回车添加标签', () => {
     assert.strictEqual(count(/function addTag\(/g), 1, '只有一处实现');
     assert.strictEqual(count(/addTag\('\$\{(?:[A-Za-z_$][A-Za-z0-9_$]*\.)?jsAttr\(side\)\}'/g), 1, '两侧共用同一调用表达式（侧别在生成期拼）');
     assert.doesNotMatch(html, /addExpenseTag|addTagGeneric/, '孪生与一级转发不回潮');
+  });
+
+  test('标签（逗号分隔）由 category.parseTagInput 解析，页面不另写一份 split', () => {
+    // 去重只能在解析处：「甲, 甲」存进分类后，列表里是两枚同名胶囊、图表里两份同名分组，
+    // 而改名判重（includes）会被其中一个挡住——界面自己清不掉。
+    const src = fnSource('saveCategory');
+    assert.match(src, /const tags = category\.parseTagInput\(tagsStr\)/, '唯一解析入口');
+    assert.doesNotMatch(src, /split\(\/\[,\uff0c\]\//, '逗号解析不得在页面里重写一份（去重会跟着漏）');
   });
 });
 
