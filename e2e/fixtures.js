@@ -1,33 +1,12 @@
 /*
- * e2e/fixtures.js — E2E 的公共装置（test 扩展 + 网络 stub + 数据播种）
- * --------------------------------------------------------------------------
- * 三件事，都是为了「测试只验证应用自身行为」：
- *
- * 1. stubCdn(page) —— 拦掉所有外部请求。
- *    页面依赖 5 个 CDN：tailwind、echarts、flatpickr(css+js+l10n)、Google 字体、汇率 API。
- *    真实网络下任何一个抖动都会让 E2E 变红，而我们要测的不是 CDN。这里给出最小可用替身：
- *      - 汇率 API 返回固定的 { cny: { hkd, usd } }（1 CNY = X 外币），页面自己取倒数；
- *      - echarts 替身记录 init/setOption/on 调用，让「图表是否被正确初始化、点击下钻是否接线」
- *        这类断言不依赖真实 canvas 渲染；
- *      - tailwind / flatpickr / 字体 返回空壳（页面对它们做了 typeof 守卫，见 index.html）。
- *
- * 2. seed(page, state) —— 直接往 localStorage 写 AppState，再导航（只在首次导航生效）。
- *    比「点表单建数据」快得多，也让每个用例的起点是确定的。
- *    字段走 migrateState() 兼容，故只写业务字段即可（见 EMPTY_STATE / sampleState）。
- *
- * 3. exported test —— 预置 ready（已 stub + 已播种 + 已等首屏就绪）；
- *    另有主题色巡检（collectOffThemeColors）与全 Tab 遍历（visitAllTabs）供 theme.spec.js 用。
+ * e2e/fixtures.js — E2E 装置：网络替身（stubCdn）、播种（seed）、入口（test 扩展 / gotoAssets / visitAllTabs）。
+ * 一切外部请求都被拦掉：要测的是应用自身行为，不是 CDN 可用性，断网也能跑。
  */
 const { test: base, expect } = require('@playwright/test');
 
 const LS_KEY = 'wealth-manager-data';
 const INDEX_URL = 'index.html';
 
-/**
- * 空存档；seed 时按需覆盖。字段集与 logic.js freshAppState() 一致，
- * 但 rates 给的是「已折算好的」非 1 缓存值（freshAppState 是 1:1），
- * 供「拉取失败沿用缓存」类用例直接断言数值——口径与 state.rates 同向：1 外币 = X CNY。
- */
 const EMPTY_STATE = {
   categories: [],
   assets: [],
@@ -39,21 +18,14 @@ const EMPTY_STATE = {
   netWorthTarget: 0,
   incomeSafetyFactor: 100,
   runwayTags: [], runwayExpectation: 0,
-  // 月度快照提醒在 E2E 里默认关掉：它是「月末那几天」才弹的模态，
-  // 若跟着真实日期走，整套用例会在每个月末那几天集体变红（弹窗拦住点击）。
-  // 提醒本身的行为由 snapshot-reminder.spec.js 自己打开（那里用 page.clock 固定日期）。
+  // 提醒默认关：跟真实日期走的话，每个月末那几天整套用例会集体被弹窗拦住
   snapshotReminder: { window: 'off', days: 5 },
   snapshotReminderLastPrompted: null,
   backup: { autoFreq: 'off', lastBackup: null, lastAutoDownload: null },
-  // 既有用例断言的都是中文文案：语言是用户设置（默认英文），播种时显式选中文。
-  // 默认英文与切换行为由 i18n.spec.js 单独验证。
+  // 既有断言写的都是中文文案；默认英文与切换由 i18n.spec.js 自己验
   lang: 'zh',
 };
 
-/**
- * 一份够用的示例数据：2 个资产分类（+内置货币）、3 笔资产、2 个消费分类、2 个月共 3 笔消费。
- * 汇率固定（stubCdn 默认 1 HKD = 0.92 CNY / 1 USD = 7.24 CNY），折算结果可预期。
- */
 const sampleState = () => ({
   ...EMPTY_STATE,
   categories: [
@@ -89,10 +61,8 @@ const sampleState = () => ({
  */
 async function stubCdn(page, rates) {
   const r = { hkd: 0.92, usd: 7.24, ...(rates || {}) };
-  // 兜底：一切非本机请求一律空响应，测试绝不依赖外网
   await page.route(/^https?:\/\/(?!127\.0\.0\.1|localhost)/, (route) => route.fulfill({ status: 200, body: '' }));
 
-  // 汇率 API：固定值，页面按「1 CNY = X 外币」取倒数 => HKD→CNY = 1/hkd
   await page.route('**/currency-api@latest/**', (route) =>
     route.fulfill({
       status: 200,
@@ -166,8 +136,6 @@ async function stubCdn(page, rates) {
     })
   );
 
-  // Tailwind / flatpickr：空壳。页面对两者都做了存在性守卫（typeof flatpickr !== 'undefined'），
-  // Tailwind 只影响观感不影响行为，故给一个能接受 config 赋值的空对象即可。
   await page.route('**/cdn.tailwindcss.com**', (route) =>
     route.fulfill({ status: 200, contentType: 'text/javascript', body: 'window.tailwind = {};' })
   );
@@ -175,7 +143,6 @@ async function stubCdn(page, rates) {
     route.fulfill({ status: 200, contentType: 'text/javascript', body: '/* flatpickr stub */' })
   );
 
-  // 字体：CSS 给空样式、字体文件直接断（页面不依赖它们才渲染）
   await page.route('**/fonts.googleapis.cn/**', (route) => route.fulfill({ status: 200, contentType: 'text/css', body: '' }));
   await page.route('**/fonts.gstatic.cn/**', (route) => route.abort());
 }
@@ -194,20 +161,17 @@ async function seed(page, state) {
   await page.addInitScript(
     ([key, value]) => {
       try {
-        // 已播种过就不再覆盖：保留应用在上一轮导航中写入的存档
         if (sessionStorage.getItem('__e2e_seeded__')) return;
         sessionStorage.setItem('__e2e_seeded__', '1');
         if (value === null) localStorage.removeItem(key);
         else localStorage.setItem(key, value);
       } catch (e) {
-        /* 隐私模式下 localStorage 不可写：忽略，页面会退化为内存态 */
       }
     },
     [LS_KEY, state === null ? null : JSON.stringify(state)]
   );
 }
 
-/** 首屏就绪信号：DOMContentLoaded 里 renderAll() 完成后 masthead 日期已填充 */
 async function waitReady(page) {
   await page.waitForFunction(() => {
     const d = document.getElementById('masthead-date');
@@ -223,22 +187,15 @@ async function waitReady(page) {
 const readAppState = (page) => page.evaluate(() => state);
 
 const test = base.extend({
-  /**
-   * 全新用户：无存档，CDN 全 stub，首屏已就绪。
-   */
   blankPage: async ({ page }, use) => {
     await disableMotion(page);
     await stubCdn(page);
-    // 空存档 ≠ 无存档：只写语言字段，其余由 migrateState 兜底（与真实「全新用户」同一路径）
     await seed(page, { lang: 'zh' });
     await page.goto(INDEX_URL);
     await waitReady(page);
     await use(page);
   },
 
-  /**
-   * 有数据用户：sampleState() 播种，CDN 全 stub，首屏已就绪。
-   */
   appPage: async ({ page }, use) => {
     await disableMotion(page);
     await stubCdn(page);
@@ -249,30 +206,15 @@ const test = base.extend({
   },
 });
 
-/**
- * 关掉动效后再导航：masthead 净资产是 650ms 计数动画（renderMasthead 逐帧 rAF），
- * 断言数字文本时会被它拖到轮询超时。不是「等动画结束」，而是让页面直接跳过动画
- * （prefers-reduced-motion 分支同步赋值）——省掉每个用例的等待。
- */
 async function disableMotion(page) {
   await page.emulateMedia({ reducedMotion: 'reduce' });
 }
 
-/**
- * 进入资产模式（E2E 的单一入口，两个 spec 共用）。
- * 资产入口有长按门槛（见 index.html 的长按门槛一处），这里走**键盘激活**：
- * 合成的 click 的 detail 为 0，直通确认框——既不必等满按住时长（logic.js 的 MODE_PRESS_MS），
- * 也顺带护住「不用鼠标的人不该被挡在门外」这条路径。
- * 长按手势本身由 app.spec.js 的专测用真实鼠标/触摸覆盖。
- *
- * @param {string} [tab] 进入后再切到的资产子 Tab（默认停在「资产管理」）
- */
 async function gotoAssets(page, tab) {
   // 幂等：已在资产模式就别再走一次门（门上本来就有「已在里面就失效」这道闸）
   if (!(await page.locator('#tabs-assets').isVisible())) {
     await page.locator('#mode-assets').focus();
     await page.keyboard.press('Enter');
-    // 合成 click 只抬闸、不进门：抄写那一句才放行（门槛对键盘与鼠标同价）
     await expect(page.locator('#asset-gate-modal')).toBeVisible();
     const phrase = await page.locator('#asset-gate-phrase').textContent();
     await page.locator('#asset-gate-input').fill(String(phrase).trim());
@@ -313,7 +255,6 @@ async function visitAllTabs(page) {
   for (const t of ['assets', 'categories', 'chart', 'history', 'income']) await showPanel('#tabs-assets', t);
   await page.locator('#mode-expenses').click();
   for (const t of ['expenses', 'expense-categories', 'expense-chart', 'expense-trend']) await showPanel('#tabs-expenses', t);
-  // 消费弹窗（chips / 按钮）：需先把面板切回 expenses（遍历结束时停在 expense-trend 上）
   await showPanel('#tabs-expenses', 'expenses');
   await page.locator('#tab-expenses button:has-text("记录消费")').click();
   await expect(page.locator('#expense-modal')).toBeVisible();
@@ -332,16 +273,6 @@ async function visitAllTabs(page) {
   await expect(page.locator('#toast-area .toast')).toHaveCount(3);
 }
 
-/**
- * 收集当前 DOM 里所有「不来自主题」的计算色。
- *
- * 允许集 = 当前主题的 CSS 变量（:root / :root.dark，按当前模式取一套）
- *          ∪ 分类 pill 调色板（按真实分类×标签逐个求值，暗色分支另算）
- *          ∪ 图表调色板 CATEGORY_PALETTE
- * 不在允许集里的即为「写死色值」或「漏设样式的 UA 默认值」。
- *
- * 返回 { allowedN, offenders: [{ color, where }] }。
- */
 async function collectOffThemeColors(page) {
   return page.evaluate(() => {
     const probe = document.createElement('span');
@@ -415,18 +346,14 @@ async function collectOffThemeColors(page) {
 const chartSize = (page, id) =>
   page.evaluate((domId) => {
     const el = document.getElementById(domId);
-    // 图表库按需加载：还没进过任何图表 Tab 时 __echartsCalls 尚不存在，
-    // 这里按「图还没初始化」处理，而不是让轮询抛 TypeError 直接失败。
     const calls = window.__echartsCalls;
     const inst = calls && calls.instances ? calls.instances[domId] : null;
     return { container: [el.clientWidth, el.clientHeight], chart: inst ? [inst.getWidth(), inst.getHeight()] : null };
   }, id);
 
-/** 等某张图被初始化出来（切 Tab 渲染有刻意延时） */
 const waitChart = (page, id) =>
   expect.poll(() => chartSize(page, id).then((s) => !!s.chart), { message: `${id} 应已初始化` }).toBe(true);
 
-/** 等它对齐（尺寸同步由 ResizeObserver 驱动，异步到下一帧）；失败时把两个尺寸都打出来 */
 const expectChartFit = (page, id, label) =>
   expect
     .poll(

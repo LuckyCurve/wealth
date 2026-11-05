@@ -32,8 +32,6 @@ async function setup(page, opts = {}) {
     };
     if (cfg.noFsa) { delete window.showDirectoryPicker; delete window.showSaveFilePicker; }
   }, opts);
-  // 自动备份的确认框在 4 秒后才弹（Backup prompt delay）。作者要的是「打开几秒后问一次」，
-  // 但测试没必要真等：`page.clock` 让这个定时器可以被快进，断言的内容一模一样。
   if (opts.clock) await page.clock.install();
   await page.goto(INDEX_URL);
   await waitReady(page);
@@ -144,7 +142,6 @@ test('不支持文件 API 时回退下载：中性提示，不虚报已备份', 
 
 test('自动备份先弹确认框（写清文件名与目录），点确认才落盘、才记「已备份」', async ({ page }) => {
   await setup(page, { autoFreq: 'daily', clock: true });
-  // 4 秒定时器读的是当前句柄：加载后立刻选文件夹，确认框就会写上这个目录名
   await page.evaluate(() => showSettings());
   await page.click('#backup-dir-choose');
   await expect.poll(() => page.evaluate(() => !!backupDirHandle), { timeout: 5000 }).toBe(true);
@@ -164,7 +161,6 @@ test('自动备份先弹确认框（写清文件名与目录），点确认才�
   await expect.poll(async () => (await listRoot(page)).includes(base), { timeout: 5000 }).toBe(true);
   expect(await page.evaluate(() => window.__fs.startInSameHandle)).toBe(true);
   expect(await readBackup(page)).toEqual({ autoFreq: 'daily', lastBackup: today() });
-  // 已经确认写入 → 今天不再问
   expect(await page.evaluate(() => backup.shouldAutoBackup(state, date.getLocalDateStr()))).toBe(false);
 });
 

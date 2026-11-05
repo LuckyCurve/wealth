@@ -19,8 +19,6 @@ const path = require('path');
 const E2E_DIR = path.join(__dirname, '..', 'e2e');
 const NL = String.fromCharCode(10);
 
-// 剥掉注释：解释这条规则的注释本身不算违规。
-// 行注释用 (^|[^:\w]) 前缀规避 URL 里的 `//`（https://…）。
 const stripComments = (src) =>
   src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:\w])\/\/.*$/gm, '$1');
 
@@ -65,7 +63,6 @@ describe('E2E 卫生：不放行外网', () => {
     for (const name of files) {
       const lines = stripComments(fs.readFileSync(path.join(E2E_DIR, name), 'utf8')).split(NL);
       lines.forEach((line, i) => {
-        // .continue( / .unroute( 都是「把请求交还真实网络」（参数名 r / route / routeHandler 都见过）
         if (/\.\s*(?:continue|unroute)\s*\(/.test(line)) {
           offenders.push(`${name}:${i + 1}  ${line.trim()}`);
         }

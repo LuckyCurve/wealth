@@ -16,13 +16,11 @@ const path = require('path');
 
 const SERVER = path.join(__dirname, '..', 'e2e', 'server.js');
 
-/** 起一个临时服务，返回 { port, get(urlPath), close } */
 async function startServer() {
   const child = spawn('node', [SERVER, '0'], { stdio: ['ignore', 'pipe', 'pipe'] });
   const port = await new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error('服务器启动超时')), 5000);
     child.stdout.on('data', (d) => {
-      // server.js 监听后会打印 e2e static server: http://127.0.0.1:PORT/
       const m = String(d).match(/127\.0\.0\.1:(\d+)/);
       if (m) { clearTimeout(timer); resolve(Number(m[1])); }
     });
@@ -55,7 +53,6 @@ describe('E2E 静态服务器', () => {
 
   test('畸形 URL 不杀死进程（后续请求仍可用）', async () => {
     const s = await startServer();
-    // 单个 '%' 会让 decodeURIComponent 抛 URIError；未捕获会让进程退出
     const bad = await s.get('/%');
     assert.strictEqual(bad.status, 400, '畸形 URL 应返回 400 而不是崩掉');
     assert.ok(s.alive(), '服务器必须仍然存活');

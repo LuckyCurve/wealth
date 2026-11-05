@@ -25,7 +25,6 @@ const open = async (page) => {
   await waitReady(page);
 };
 
-// 五个图表面：资产侧三个 + 消费侧两个（容器 id 与所在 Tab 一一对应）
 const SURFACES = [
   { mode: 'assets', tab: 'chart', id: 'sunburst-chart', name: '资产分布' },
   { mode: 'assets', tab: 'history', id: 'history-chart', name: '历史净值' },
@@ -45,7 +44,6 @@ const showSurface = async (page, s) => {
   await waitChart(page, s.id);
 };
 
-/** 切到消费记录（一个没有图的 Tab）：图被 display:none 收起来 */
 const hideAllCharts = async (page) => {
   await page.locator('#mode-expenses').click();
   await page.locator('#tabs-expenses .tab-btn[data-tab="expenses"]').click();
@@ -55,10 +53,8 @@ const hideAllCharts = async (page) => {
 test.describe('图表尺寸：容器的可见尺寸是唯一来源', () => {
   test('在别的 Tab 上缩放窗口，不得把那个 Tab 的图做废（回到该 Tab 时尺寸必须等于容器）', async ({ page }) => {
     await open(page);
-    // 先进一次消费趋势：图在可见容器里初始化，此后它一直存在
     await showSurface(page, TREND);
     await expectChartFit(page, 'expense-trend-chart', '初次显示');
-    // 切走 → 缩放窗口（全屏/退出全屏、最大化/还原都是这一条路径）
     await hideAllCharts(page);
     await page.setViewportSize({ width: 1000, height: 700 });
     // 回到消费趋势：渲染函数只 setOption，尺寸必须由「盯住容器」那条路自己对齐
@@ -68,15 +64,12 @@ test.describe('图表尺寸：容器的可见尺寸是唯一来源', () => {
 
   test('五个图表面逐个扫：切走 → 缩放 → 回来，尺寸都要等于容器', async ({ page }) => {
     await open(page);
-    // 历史净值的图要至少两个快照才出（种子数据里没有快照；与 consistency.spec 同一手法：
-    // 直接补内存态，不动存档），其余四个面种子数据已够出图
     await page.evaluate(() => {
       const snap = (month, amount) => ({ month, note: '', totalCNY: 0, currencyRates: { ...state.rates }, assets: state.assets.map((a) => ({ ...a, amount })) });
       state.snapshots = [snap('2026-01', 1000), snap('2026-02', 2000)];
       renderHistoryTab();
     });
     for (const s of SURFACES) {
-      // 每个面各走一遍「先显示一次 → 切走 → 缩放 → 回来」
       await showSurface(page, s);
       await expectChartFit(page, s.id, `${s.name} 初次显示`);
       await hideAllCharts(page);

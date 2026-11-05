@@ -16,8 +16,6 @@ const fs = require('fs');
 const path = require('path');
 const ROOT = path.join(__dirname, '..');
 
-// 预算跟现实走，不跟历史最高走：注释两轮瘦身后 394,539，留 1.5KB 给下一次小幅增改。
-// 抬之前先做 AGENTS.md 的两步（下沉 / 合并），抬的时候在同一 commit 里写理由。
 const INDEX_BUDGET = 396_000;
 
 function bytes(name) {

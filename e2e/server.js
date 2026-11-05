@@ -60,7 +60,6 @@ const server = http.createServer((req, res) => {
     }
     res.writeHead(200, {
       'Content-Type': MIME[path.extname(filePath).toLowerCase()] || 'application/octet-stream',
-      // 测试要看到最新改动，禁掉一切缓存
       'Cache-Control': 'no-store',
     }).end(buf);
   });

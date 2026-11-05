@@ -17,7 +17,6 @@
  */
 const { test, expect, sampleState, seed, stubCdn, waitReady, disableMotion, samplePixels, pixelLum } = require('./fixtures');
 
-/** 页面里最宽的那张卡片（表格卡），并给出它四条边中点的取样坐标 */
 const cardEdges = (page) =>
   page.evaluate(() => {
     const el = [...document.querySelectorAll('.card')].filter((c) => c.getBoundingClientRect().width > 900).pop();
@@ -58,7 +57,6 @@ const open = async (page) => {
   await waitReady(page);
 };
 
-/** 切到暗色（入口唯一在设置弹窗里，与其余 spec 一致） */
 const setDark = async (page) => {
   await page.getByRole('button', { name: '设置' }).click();
   await page.locator('#theme-seg-dark').click();
@@ -128,10 +126,6 @@ test.describe('卡片材质：液态玻璃的可测特征', () => {
   });
 
   test('玻璃要有可感的厚度：两角柔光的明暗差达到可感知量级（两套主题）', async ({ page }) => {
-    // 用户反馈「太浅淡」。原先 sheen/shade 的柔光被压在 ±8px/13px、alpha 0.34/0.10，
-    // 渲染后卡内左上 vs 右下的亮度差只有 ~0.01（亮色）——等于没有。
-    // 「厚度」的可测特征：卡内受光角（左上）与背光角（右下）存在可感知的亮度坡度。
-    // 取样点在**内边距带**（25% 宽、10px 高内），不进正文——柔光爬进正文会被 AA 巡检跳过。
     await open(page);
     for (const theme of ['亮色', '暗色']) {
       if (theme === '暗色') await setDark(page);
@@ -184,7 +178,6 @@ test.describe('卡片材质：液态玻璃的可测特征', () => {
     expect(Number(desk.zIndex), '要落在纸纹之后（纸是铺在桌上的）').toBeLessThan(-1);
     expect(desk.bg, '桌面光照要有明暗层次，不能是空的').toMatch(/gradient\(/);
     expect(desk.bg, '桌面光照不得跟指针走（那就成了第二盏灯）').not.toMatch(/lamp/);
-    // 不只是「声明了」：真的渲染出明暗（左上受光 → 右下退光）
     const [tl, br] = await samplePixels(page, [[16, 200], [page.viewportSize().width - 16, page.viewportSize().height - 20]]);
     expect(pixelLum(tl) - pixelLum(br), `桌面看不出退光：左上 ${pixelLum(tl).toFixed(3)} vs 右下 ${pixelLum(br).toFixed(3)}`)
       .toBeGreaterThan(0.02);
@@ -250,8 +243,6 @@ test.describe('弹窗：纸的纤维与深度', () => {
     await expect(page.locator('#settings-modal')).toBeVisible();
   };
 
-  // 用「同一位置在两种主题下的像素差」证明阴影不是写死的黑：
-  // 若阴影色写死，暗色下那圈会比亮色下更不可见（黑压黑）
   test('阴影色走变量：亮/暗两套各自成立', async ({ page }) => {
     await stubCdn(page);
     await seed(page, sampleState());
@@ -273,8 +264,6 @@ test.describe('弹窗：纸的纤维与深度', () => {
     });
     expect(probe.out['--shadow-soft'], '--shadow-soft 必须在 :root 定义（阴影色单一来源）').toBeTruthy();
     expect(probe.out['--shadow-lift'], '--shadow-lift 必须在 :root 定义').toBeTruthy();
-    // getComputedStyle 会把 var() 求值掉，故判据是「两套主题算出来的阴影色不同」——
-    // 写死 rgba(0,0,0,.15) 时两套必然相同，那正是要修的缺陷
     const shadows = {};
     for (const dark of [false, true]) {
       await page.evaluate((d) => setTheme(d), dark);

@@ -1,20 +1,5 @@
-/*
- * e2e/consistency.spec.js — 版式一致性巡检
- * --------------------------------------------------------------------------
- * AGENTS.md 的版式约定：「同类结构共用同一套 class（章节头 / 表格 / 按钮 / 弹窗页脚 /
- * 字段标签 / 下拉框），页面不内联重复样式」。单测（test/ui-wiring.test.js）守的是
- * 「HTML 文本里有没有内联样式」；这里守的是另一半——**同类元素在真实浏览器里算出来的
- * 样式是否真的一致**（写对了 class 但 CSS 被覆盖、或漏挂 class，单测看不出来）。
- *
- * 判据统一为「同类元素的计算样式集合大小 == 1」，集合里直接打印越界值，失败信息可读。
- * 与主题巡检（theme.spec.js）同思路：不写死期望值，从页面自身求值。
- */
 const { test, expect, visitAllTabs, gotoAssets, sampleState, seed, waitReady, stubCdn, samplePixels, INDEX_URL } = require('./fixtures');
 
-/**
- * 本文件要按「指定存档」打开页面（fixtures 只导出工厂，组合放在这里）。
- * seed 只在首次导航生效，故每次 openWith 都用新 page，不会互相污染。
- */
 async function openWith(page, state) {
   await stubCdn(page);
   await seed(page, state);
@@ -22,11 +7,8 @@ async function openWith(page, state) {
   await waitReady(page);
 }
 
-// 进入资产侧的入口统一用 fixtures.gotoAssets（长按门槛的键盘通道），
-// 原先 app.spec / consistency.spec 各写一份同样的动作，改门槛时两边都要改
 const gotoAssetsTab = (page, tab) => gotoAssets(page, tab === 'assets' ? undefined : tab);
 
-/** 收集当前 DOM 里同类元素的指定计算样式，返回去重后的列表（>1 即为不一致） */
 const uniqStyles = (page, selector, props) =>
   page.evaluate(
     ([sel, list]) => {
@@ -46,17 +28,11 @@ test.describe('版式一致性', () => {
   test('章节头 / 表头 / 字段标签 / 下拉框：同类元素计算样式完全一致', async ({ appPage: page }) => {
     await visitAllTabs(page);
 
-    // 章节头：布局（flex + 两端对齐 + 换行 + 下间距）
     await once(await uniqStyles(page, '.section-head', ['display', 'justifyContent', 'alignItems', 'gap', 'flexWrap', 'marginBottom']));
-    // 表头：字号/字重/底色（原先每处内联 text-xs font-medium + color）
     await once(await uniqStyles(page, '.list-head', ['fontSize', 'fontWeight', 'color']));
-    // 下拉框：宽度只此一处
     await once(await uniqStyles(page, '.select-field', ['minWidth']));
-    // 次要文字：唯一 muted 出口
     await once(await uniqStyles(page, '.muted', ['color']));
-    // 加粗读数：字重只此一处
     await once(await uniqStyles(page, '.readout-strong', ['fontWeight']));
-    // 文字色角色：金色读数 / 正向收益各自唯一
     await once(await uniqStyles(page, '.ink-accent', ['color']));
     await once(await uniqStyles(page, '.ink-up', ['color']));
     await once(await uniqStyles(page, '.text-value', ['color', 'opacity']));
@@ -68,6 +44,8 @@ test.describe('版式一致性', () => {
     // 搜索框 23px、下拉框 22px，紧挨着的金色按钮 39px，一行里三种高度。
     // 这里**替身复刻那一条真实规则**（只复刻会伤到规格的那部分，不引真实 CDN），
     // 判据是「同一行内等高」而不是写死像素值。
+    // 量内边距而不是像素高度：stub 下字体不加载，字形度量天然差 1–2px（真机 0–1px），
+    // 拿高度当判据全是噪声；而缺陷本身是「内边距整片变 0」。
     await stubCdn(page);
     await page.route('**/cdn.tailwindcss.com**', (route) =>
       route.fulfill({
@@ -76,8 +54,6 @@ test.describe('版式一致性', () => {
         body: 'window.tailwind = {};',
       })
     );
-    // preflight 的注入面：<style> 由 CDN 在运行时插到页头末尾。规则照抄 Tailwind 的原文
-    // （逐条声明，不是 font 简写——简写会连 font-variant 一起重置，量出来的高度与真身不同）。
     await page.addInitScript(() => {
       document.addEventListener('DOMContentLoaded', () => {
         const s = document.createElement('style');
@@ -91,9 +67,6 @@ test.describe('版式一致性', () => {
     await page.goto(INDEX_URL);
     await waitReady(page);
 
-    // 判据用**内边距与描边**而不是像素高度：stub 下字体不加载，按钮与输入框的字形度量
-    // 天然差 1–2px（真机里也只差 0–1px），拿高度当判据会得到与缺陷无关的噪声。
-    // 缺陷本身是「内边距整片变成 0」——量它，既精确又与字体无关。
     const boxes = await page.evaluate(() =>
       ['#expense-search', '#expense-month-filter', '#expense-tag-filter', '#tab-expenses .btn-gold']
         .map((sel) => {
@@ -209,7 +182,6 @@ test.describe('版式一致性', () => {
           if (bd !== wantBd) out.push(`select#${el.id} 弹层描边 ${bd} ≠ --border ${wantBd}`);
           if (pk.borderTopWidth === '0px') out.push(`select#${el.id} 弹层没有描边（会糊在纸面上）`);
           if (parseFloat(pk.borderTopLeftRadius) < 4) out.push(`select#${el.id} 弹层圆角 ${pk.borderTopLeftRadius} 太方`);
-          // UA 会画第二枚箭头，页面已用自绘 --chevron——两枚并存就看得出「重复的箭头」
           if (getComputedStyle(el, '::picker-icon').display !== 'none') {
             out.push(`select#${el.id} 多了一枚 UA 箭头（::picker-icon 未隐）`);
           }
@@ -284,7 +256,6 @@ test.describe('版式一致性', () => {
 
   test('表格：每张表的表头与数据行列宽一致（模板不是各写一遍）', async ({ appPage: page }) => {
     await visitAllTabs(page);
-    // 种子数据里没有快照：直接写内存态补齐，再开对比弹窗（弹窗内两张表也要检）
     await page.evaluate(() => {
       const snap = (month, amount) => ({
         month, note: '', totalCNY: 0, currencyRates: { ...state.rates },
@@ -306,7 +277,6 @@ test.describe('版式一致性', () => {
     await page.getByRole('button', { name: '对比快照' }).click();            // 快照对比（cols-compare）
     await expect(page.locator('#compare-modal')).toBeVisible();
 
-    /** 扫当前 DOM 里所有表头，比对它与首条数据行的列宽 */
     const tableChecks = () =>
       page.evaluate(() =>
         [...document.querySelectorAll('.list-head')].map((h) => {
@@ -320,13 +290,11 @@ test.describe('版式一致性', () => {
       );
     const checks = await tableChecks();
     await page.keyboard.press('Escape');
-    // 两张「构成明细」表只能由图表色块下钻打开（弹窗正文互斥，逐个渲染逐个验）
     await page.evaluate(() => viewHistorySegment('2026-01', 'cat-type', '活期现金'));
     checks.push(...(await tableChecks()));
     await page.evaluate(() => viewExpenseSegment('2026-02', 'ec-type', '餐饮'));
     checks.push(...(await tableChecks()));
 
-    // 六套列宽模板都要被表头实例覆盖到（漏一张表说明用例没覆盖到，不是通过）
     expect(checks.length).toBeGreaterThanOrEqual(7);
     for (const c of checks) {
       expect(c.same, `「${c.head}」表头与数据行列宽不一致：\n  表头 ${c.headCols}\n  数据行 ${c.rowCols}`).toBe(true);
@@ -339,7 +307,6 @@ test.describe('版式一致性', () => {
     // 表头连成「金额货币」「金额 (CNY)预期年化」。巡检当时只比对列宽是否相等，量不到这件事。
     await visitAllTabs(page);
     await gotoAssets(page);
-    /** 每张表：相邻文本单元格之间的间隙（用 Range 取真实字形边缘，不是盒模型） */
     const gaps = await page.evaluate(() => {
       const out = [];
       for (const head of document.querySelectorAll('.list-head')) {
@@ -351,7 +318,6 @@ test.describe('版式一致性', () => {
         const cells = [...row.children].filter((c) => c.textContent.trim());
         for (let i = 1; i < cells.length; i++) {
           const prev = cells[i - 1], cur = cells[i];
-          // 单元格自己的盒子可能带 flex 容器，取里面最右侧的文字节点
           const range = document.createRange();
           const textOf = (el) => {
             const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
@@ -378,10 +344,7 @@ test.describe('版式一致性', () => {
   });
 
   test('收益测算表：六列数字全部右对齐（与其它表同一套账本对齐）', async ({ appPage: page }) => {
-    // 收益表原先只有「现金比例」一列挂了 tabular，其余五列既不对齐也不等宽；
-    // 而它上面那张汇总卡是居中的——同一页里数字的横向规则各说各话。
     await gotoAssets(page, 'income');
-    // 收益表由 renderIncomeTab 按「有设利率的资产」决定是否渲染；种子数据里有，但需显式触发一次
     await page.evaluate(() => renderIncomeTab());
     const cols = await page.evaluate(() => {
       const head = document.querySelector('#income-rows .list-head');
@@ -425,8 +388,6 @@ test.describe('版式一致性', () => {
   });
 
   test('图纸与构成清单这一组在卡片里居中（不许只在右边空出一大片）', async ({ appPage: page }) => {
-    // 用户实拍：左边一张 520 的图 + 一小列清单，整组靠左，右侧空出 ~300px；
-    // 而卡面上方的合计是居中的——两者轴线不重合，卡片看着像没排完。
     await gotoAssets(page, 'chart');
     await expect(page.locator('#chart-legend .chart-legend-row').first()).toBeVisible();
     const gaps = await page.evaluate(() => {
@@ -492,7 +453,6 @@ test.describe('版式一致性', () => {
       renderAll();
     }, LONG);
     await page.evaluate(() => { switchMode('assets'); switchTab('chart'); });
-    // 图例是同步重绘的：等「清单里真有顶层行」即可，不用固定睡眠
     await expect(page.locator('#tab-chart .chart-legend-row').first()).toBeVisible();
 
     const canvasBox = () => page.evaluate(() => {
@@ -506,7 +466,6 @@ test.describe('版式一致性', () => {
       sel.dispatchEvent(new Event('change'));
     }, val);
 
-    // 货币类型维度 = 三个短名（CNY/HKD/USD）；资产类型维度 = 含超长名
     await setDim('currency');
     await expect(page.locator('#chart-legend .chart-legend-name').first()).toHaveText('CNY');
     const short = await canvasBox();
@@ -516,7 +475,6 @@ test.describe('版式一致性', () => {
       sel.value = cat.id;
       sel.dispatchEvent(new Event('change'));
     });
-    // 换成资产类型后清单里出现那两个分类标签（其中一个是超长名）
     await expect(page.locator('#chart-legend .chart-legend-name').first()).not.toHaveText('CNY');
     const long = await canvasBox();
 
@@ -528,8 +486,6 @@ test.describe('版式一致性', () => {
   });
 
   test('弹窗里的长标签名不得溢出弹窗右缘（压测 / 读数卡）', async ({ appPage: page }) => {
-    // 用户原话：「有没有类似的这种问题」。这是上一轮「超长图例挤图」的同族：
-    // 长内容没有 shrink 约束 → 撑破容器。判据量「弹窗内有没有元素越过右内边距」。
     const LONG = '这是一个非常非常长的中文标签名称用来测试会不会撑破弹窗右边缘还有很多字';
     await page.evaluate((long) => {
       state.categories.forEach((c) => { if (!c.builtin) c.tags = c.tags.map(() => long); });
@@ -613,22 +569,16 @@ test.describe('版式一致性', () => {
       }
     };
 
-    // 1) 主列表：资产 / 收益 / 消费
     await gotoAssets(page, 'assets');
     await collect(await scan());
     await gotoAssets(page, 'income');
     await page.evaluate(() => renderIncomeTab());
     await collect(await scan());
     await page.locator('#mode-expenses').click();
-    // 模式切换是同步的：用可见性断言到位（原先 sleep 300ms 是盲等）
     await expect(page.locator('#tab-expenses')).toBeVisible();
     await collect(await scan());
 
-    // 2) 弹窗里的表：月度消费明细 / 消费构成 / 快照详情 / 快照对比 / 消费两月对比。
-    //    上一版只点了「月度消费明细」这一张，另外四张（金额列全没挂 num）从未被扫到——
-    //    「遍历所有 .asset-row 表」的判据是对的，但没人把它们打开，绿灯是空的。
     await page.locator('#tabs-expenses .tab-btn[data-tab="expense-trend"]').click();
-    // 趋势清单由 switchTab 的延时重绘填充：等首行出现再点（click 自带自动等待，这里把意图写明）
     await expect(page.locator('#expense-trend-list .row-hit').first()).toBeVisible();
     await page.locator('#expense-trend-list .row-hit').first().click();
     await expect(page.locator('#snapshot-modal')).toBeVisible();
@@ -646,7 +596,6 @@ test.describe('版式一致性', () => {
     await collect(await scan());
     await page.keyboard.press('Escape');
 
-    // 快照详情与快照对比需要两个月的快照（对比按钮在只有一个月时只弹便条）
     await gotoAssets(page, 'history');
     await page.evaluate(() => {
       state.snapshots = ['2026-01', '2026-02'].map((month, i) => ({
@@ -701,7 +650,6 @@ test.describe('版式一致性', () => {
         assets: state.assets.map((a) => ({ ...a, amount: a.amount * 100 })),
       }];
     });
-    /** 相邻单元格的**文本**间距：量的不是格子边界，而是肉眼看到的两个内容的间隙 */
     const textGaps = () =>
       page.evaluate(() => {
         const range = document.createRange();
@@ -751,7 +699,6 @@ test.describe('版式一致性', () => {
   });
 
   test('弹窗页脚与字段标签：同类弹窗结构一致', async ({ appPage: page }) => {
-    // 打开一个普通弹窗（预期消费）与一个两端对齐弹窗（设置），各自成组比较
     await page.locator('#mode-expenses').click();
     await page.locator('#tabs-expenses .tab-btn[data-tab="expense-trend"]').click();
     await page.locator('#expense-expectation-btn').click();
@@ -775,7 +722,6 @@ test.describe('版式一致性', () => {
     await page.locator('#tabs-assets .tab-btn[data-tab="assets"]').click();
     await page.locator('#tab-assets button:has-text("登记资产")').click();
     await expect(page.locator('#asset-modal')).toBeVisible();
-    // 两种排法各自成组：普通字段（标签独一行）与 .tight（标签与右侧读数同排、下间距由父行承担）
     await once(await uniqStyles(page, '#asset-modal .field-label:not(.tight)', ['display', 'fontSize', 'fontWeight', 'color', 'marginBottom']));
     await once(await uniqStyles(page, '#asset-modal .field-label.tight', ['display', 'fontSize', 'fontWeight', 'color', 'marginBottom']));
     // 两种排法除了下间距外必须完全同源
@@ -838,7 +784,6 @@ test.describe('可访问性：表单字段必须有真正的名字（不是 plac
         for (const modal of visibles) {
           for (const el of modal.querySelectorAll('input, select, textarea')) {
             if (el.type === 'hidden' || el.offsetParent === null) continue;
-            // 可访问名：关联 label / aria-label / aria-labelledby
             let name = '';
             if (el.getAttribute('aria-label')) name = el.getAttribute('aria-label');
             else if (el.getAttribute('aria-labelledby')) {
@@ -851,9 +796,6 @@ test.describe('可访问性：表单字段必须有真正的名字（不是 plac
               id: el.id || el.name || el.tagName,
               name,
               ph: el.getAttribute('placeholder') || '',
-              // 关联 label 的**文本**：名字来自真 label 时，哪怕与 placeholder 同字也是正当的
-              // （runway-expectation 的 label 就叫「月消费 (CNY)」，placeholder 也是它）。
-              // 只有「名字不是从 label 来、而恰好等于 placeholder」才是「拿示例当名字」。
               fromLabel: !!(el.labels && el.labels.length) || !!el.getAttribute('aria-labelledby'),
             });
           }
@@ -873,9 +815,6 @@ test.describe('可访问性：表单字段必须有真正的名字（不是 plac
 
 test.describe('可访问性：每个弹窗都要有名字（role=dialog 的另一半承诺）', () => {
   test('全站 dialog 的可访问名来自可见标题（aria-labelledby → 真标题元素）', async ({ appPage: page }) => {
-    // role="dialog" + aria-modal 只说了「这是一层模态」，没说「这是哪一层」。
-    // 15 个弹窗原先一个 aria-labelledby 都没有：读屏器打开后只念「对话框」，
-    // 用户无从知道自己在「设置」还是「删除确认」。判据从页面自身求值，不写死弹窗清单。
     await gotoAssets(page, 'assets');
     const dialogs = await page.evaluate(() =>
       [...document.querySelectorAll('.modal-overlay[role="dialog"]')].map((d) => ({
@@ -899,7 +838,6 @@ test.describe('可访问性：每个弹窗都要有名字（role=dialog 的另�
     }
     expect(bad, '弹窗必须有可访问名（否则读屏器只说「对话框」）：' + bad.join(' / ')).toEqual([]);
 
-    // 真的到达读屏器：打开设置弹窗，AX 树里的名字要是「设置」
     await page.getByRole('button', { name: '设置' }).click();
     await expect(page.locator('#settings-modal')).toBeVisible();
     expect(await page.locator('#settings-modal').ariaSnapshot()).toContain('dialog "设置"');
@@ -1056,7 +994,6 @@ test.describe('版式一致性：排版档位在真实浏览器里唯一', () =>
       viewHistorySegment('2026-01', state.categories[1].id, state.categories[1].tags[0]);
     });
     await expect(page.locator('#snapshot-modal')).toBeVisible();
-    // strong 与 b 是同一条规则的两个选择器，验证 strong 即验证该声明（b 只在校验面板出现）
     await once(await uniqStyles(page, 'strong', ['fontWeight']));
   });
 });
@@ -1079,11 +1016,9 @@ test.describe('分布图总数：随筛选联动且与扇区同源', () => {
     await gotoAssetsTab(page, 'chart');
     await expect(page.locator('#chart-total')).toBeVisible();
 
-    // sampleState 三笔资产：CNY 50,000 + 80,000；HKD 50,000 → 50,000 / 0.92 = 54,347.83
     const ALL = '¥184,347.83';
     await page.selectOption('#chart-category-select', 'cat-type');
     await expect(page.locator('#chart-total')).toHaveText(ALL);
-    // 与报头净资产同口径（该维度只含已归类资产时两者相等）
     await expect(page.locator('#masthead-whole')).toHaveText('184,347');
 
     // 未归类的资产：仍计入总数（否则扇区百分比之和对不上显示的合计 —— 单测曾因此漏过
@@ -1101,18 +1036,14 @@ test.describe('分布图总数：随筛选联动且与扇区同源', () => {
     await page.locator('#tabs-expenses .tab-btn[data-tab="expense-chart"]').click();
     await expect(page.locator('#expense-chart-total')).toBeVisible();
 
-    // 月份下拉默认取最近月份（与消费列表页的「全部时间」不同，是既有行为）
     await expect(page.locator('#expense-chart-total')).toHaveText('¥42.00');
 
-    // 全部时间：88.5 + 3200 + 42 = 3,330.50
     await page.selectOption('#expense-chart-month-select', '');
     await expect(page.locator('#expense-chart-total')).toHaveText('¥3,330.50');
 
-    // 切到 2026-01：88.5 + 3200 = 3,288.50
     await page.selectOption('#expense-chart-month-select', '2026-01');
     await expect(page.locator('#expense-chart-total')).toHaveText('¥3,288.50');
 
-    // 同月份切维度（消费类型）：维度只改分组方式，不改总数
     await page.selectOption('#expense-chart-category-select', 'ec-type');
     await expect(page.locator('#expense-chart-total')).toHaveText('¥3,288.50');
   });
@@ -1181,11 +1112,9 @@ test.describe('可读性：平铺 chip 未选中态跨分类一致', () => {
     );
     expect(selected.length).toBeGreaterThanOrEqual(2);
     for (const s of selected) {
-      // 选中态有实心底色（盖印）与实线描边，与未选态的「虚线空栏」区分
       expect(s.bg, `「${s.text}」选中态应有分类底色`).not.toBe('rgba(0, 0, 0, 0)');
       expect(s.style, `「${s.text}」选中态应为实线`).toBe('solid');
     }
-    // 两个分类的选中底色不同（分类色确实生效）
     expect(new Set(selected.map((s) => s.bg)).size).toBe(selected.length);
   });
 
@@ -1212,7 +1141,6 @@ test.describe('可读性：平铺 chip 未选中态跨分类一致', () => {
   });
 
   test('已选 chip 的「盖印」边必须明显强于未选空栏（用户实测：选中了却看不出来）', async ({ appPage: page }) => {
-    // 把三个分类都摆出来（调色板 0/1/2 号基色：棕/绿/黄），黄系正是最看不清的那档
     await page.evaluate(() => {
       state.expenseCategories = [
         { id: 'ec1', name: '甲类', builtin: false, tags: ['甲一', '甲二'] },
@@ -1236,7 +1164,6 @@ test.describe('可读性：平铺 chip 未选中态跨分类一致', () => {
           pressed: el.getAttribute('aria-pressed') === 'true',
           text: el.textContent.trim(),
           border: cs.borderTopStyle === 'dashed' ? parse(cs.borderTopColor) : null,
-          // 非图形文字的对比度下限（WCAG 1.4.11）
           edge: ratio(parse(cs.borderTopColor), card),
         };
       });
@@ -1293,8 +1220,6 @@ test.describe('可读性：悬停气泡必须完整可见', () => {
   /** 悬停某个 tip，返回气泡矩形 + 其上是否被别的元素盖住 */
   const hoverTip = async (page, sel) => {
     await hoverMark(page, sel);
-    // 气泡展示时会被搬到 body 下（绕开祖先的层叠上下文/裁剪），故按 id 找：
-    // `aria-describedby` 指向的就是它，这也正是读屏器认的那条关联。
     await expect
       .poll(async () =>
         page.evaluate((s) => {
@@ -1310,7 +1235,6 @@ test.describe('可读性：悬停气泡必须完整可见', () => {
       const id = mark.getAttribute('aria-describedby');
       const bubble = document.getElementById(id);
       const r = bubble.getBoundingClientRect();
-      // 沿气泡的四个角与下边缘中点做命中测试：任何一处落在气泡外＝被盖住或被裁掉
       const pts = [
         [r.left + 4, r.top + 4],
         [r.right - 4, r.top + 4],
@@ -1320,7 +1244,6 @@ test.describe('可读性：悬停气泡必须完整可见', () => {
       return {
         rect: { l: Math.round(r.left), t: Math.round(r.top), r: Math.round(r.right), b: Math.round(r.bottom) },
         vw: innerWidth, vh: innerHeight,
-        // 气泡底色（钉的是 --card-2，见 CSS）与四个采样点：稍后按像素核对
         bg: getComputedStyle(bubble).backgroundColor,
         pts: [
           { x: Math.round(r.left + 6), y: Math.round(r.top + 6) },
@@ -1352,14 +1275,11 @@ test.describe('可读性：悬停气泡必须完整可见', () => {
   });
 
   test('重绘之后不得留下两份同 id 的气泡（它会一直显示，且 getElementById 结果不定）', async ({ appPage: page }) => {
-    // 气泡展示时被搬到 body 下；卡片一重绘又会生成一份同 id 的，两份同时存在就出双份。
     await gotoAssets(page, 'income');
     await page.evaluate(() => renderIncomeTab());
     const tip = page.locator('#income-summary .tip-mark');
-    // 同上：这次 hover 也要熬过 switchTab 那次延迟重绘
     await expect(async () => { await tip.hover(); }).toPass({ timeout: 10000 });
     await expect.poll(async () => page.locator('#cov-shortfall-tip').count()).toBe(1);
-    // 触发重绘（改安全边际 = 重算读数 = 重建那段 HTML）
     await page.evaluate(() => { state.incomeSafetyFactor = 80; renderIncomeTab(); });
     await expect.poll(async () => page.locator('#cov-shortfall-tip').count(), {
       message: '重绘后应仍只有一个气泡（遗留的那份必须被丢掉）',
@@ -1382,7 +1302,6 @@ test.describe('可读性：悬停气泡必须完整可见', () => {
 });
 
 test.describe('版式一致性：数字列右对齐（账本对齐小数点）', () => {
-  /** 某张表里第 idx 列：表头与数据行的对齐方式、列宽、数字排布 */
   const col = (page, listSel, idx) =>
     page.evaluate(([sel, i]) => {
       const head = document.querySelector(`${sel} .list-head`);
@@ -1417,7 +1336,6 @@ test.describe('版式一致性：数字列右对齐（账本对齐小数点）',
     const idx = await page.evaluate(() =>
       [...document.querySelectorAll('#assets-list .list-head > div')].findIndex((d) => d.textContent.includes('金额 (CNY)')));
     expect(idx, '表头里应有「金额 (CNY)」列').toBeGreaterThan(0);
-    // 金额列紧邻其左（中间隔着「货币」列：它是代码不是数字，保持左对齐）
     const idxAmount = await page.evaluate(() =>
       [...document.querySelectorAll('#assets-list .list-head > div')].findIndex((d) => d.textContent.trim().startsWith('金额') && !d.textContent.includes('CNY')));
     expect(idxAmount).toBeGreaterThan(0);
@@ -1444,7 +1362,6 @@ test.describe('版式一致性：真实数据下的读数层级', () => {
     await gotoAssets(page);
     await page.locator('#tabs-assets .tab-btn[data-tab="income"]').click();
     await expect(page.locator('#income-summary')).toBeVisible();
-    // .card-title-sm 只在「数据校验」面板里出现（与旁边那个用例同一召出手法）
     await page.evaluate(() => {
       state.expenses[0].tags = {};
       renderExpenses();
@@ -1469,7 +1386,6 @@ test.describe('版式一致性：真实数据下的读数层级', () => {
     await page.locator('#tabs-assets .tab-btn[data-tab="categories"]').click();
     await once(await uniqStyles(page, '.card-title', ['fontSize', 'fontWeight']));
 
-    // .card-title-sm 只在「数据校验」面板里出现：抹掉一条消费的标签把它召出来
     await page.evaluate(() => {
       state.expenses[0].tags = {};
       renderExpenses();
@@ -1504,7 +1420,6 @@ test.describe('版式：弹窗宽度的四档真的生效', () => {
       .filter((r) => Math.abs(r.w - EXPECT[r.tier]) > 1)
       .map((r) => `#${r.id} 挂 ${r.tier || 'default'} = ${r.w}px（应为 ${EXPECT[r.tier]}px）`);
     expect(bad, '档位必须定义在 .modal-content 之后，否则四档全部失效：' + bad.join(' / ')).toEqual([]);
-    // 四档都不是死档：某一档没人用时，它是不是生效不会有人发现
     for (const tier of ['modal-sm', 'modal-md', 'modal-lg', 'modal-xl']) {
       expect(rows.some((r) => r.tier === tier), `档位 ${tier} 没有任何弹窗在用`).toBe(true);
     }
@@ -1513,9 +1428,6 @@ test.describe('版式：弹窗宽度的四档真的生效', () => {
 
 test.describe('版式：设置行的标签列 / 控件列', () => {
   test('控件永远贴右（换行时也一样），且不越出行右缘', async ({ appPage: page }) => {
-    // 用户原话：「按钮都放在右边，这样看着整齐一些，现在很潦草」——描述一长，控件会换行，
-    // 而换行后左对齐会让它看着像说明文字的一部分，与上下几行的右对齐对不上。
-    // 判据是运行时几何，不写死行清单：宽屏与窄屏各量一次。
     for (const vw of [1280, 390]) {
       await page.setViewportSize({ width: vw, height: 800 });
       await page.evaluate(() => showSettings());
@@ -1563,21 +1475,18 @@ test.describe('可读性：焦点环 / 选中态 / 滚动条', () => {
     const n = (s.match(/[\d.]+/g) || []).map(Number);
     return { r: n[0] || 0, g: n[1] || 0, b: n[2] || 0, a: n.length > 3 ? n[3] : 1 };
   };
-  // 半透明色压在给定底色上，得到真实呈现色
   const over = (f, b) => ({ r: f.r * f.a + b.r * (1 - f.a), g: f.g * f.a + b.g * (1 - f.a), b: f.b * f.a + b.b * (1 - f.a) });
 
   // 全站可聚焦控件：焦点环色对「它紧邻的底色」必须 ≥3:1（亮暗两套都查）
   for (const theme of ['light', 'dark']) {
     test(`${theme === 'light' ? '亮' : '暗'}色：每个可聚焦控件的焦点环对邻近底色 ≥3:1`, async ({ appPage: page }) => {
       if (theme === 'dark') {
-        // setTheme 是同步的（classList + 变量翻转），不需要睡眠等渲染
         await page.evaluate(() => setTheme(true));
       }
 
       const rows = await page.evaluate(() => {
         const out = [];
         const seen = new Set();
-        // 先把页面滚到有内容的地方（默认视图顶端之外还有整张表格）
         window.scrollTo(0, 0);
         for (const el of document.querySelectorAll('button, input, select, textarea, [tabindex="0"], [role="button"]')) {
           const r = el.getBoundingClientRect();
@@ -1590,13 +1499,11 @@ test.describe('可读性：焦点环 / 选中态 / 滚动条', () => {
           const key = el.tagName + '.' + String(el.className).split(' ')[0] + '#' + (el.id || '');
           if (seen.has(key)) continue;
           seen.add(key);
-          // 环带中心：负 offset 时在盒内，正 offset 时在盒外
           const off = parseFloat(fs.outlineOffset) || 0;
           const w = parseFloat(fs.outlineWidth) || 0;
           const dy = off >= 0 ? -(off + w / 2) : -(off + w / 2);
           const cx = Math.round(r.left + Math.min(r.width / 2, 40));
           const y = Math.round(r.top + dy);
-          // 邻近底色 = 环带外再 6px 处那一点所属元素的**有效**背景（沿祖先链取第一个不透明的）
           const probe = document.elementFromPoint(cx, Math.max(0, y - 6));
           let bg = null;
           for (let n = probe; n; n = n.parentElement) {
@@ -1645,7 +1552,6 @@ test.describe('可读性：焦点环 / 选中态 / 滚动条', () => {
           bg: cs.getPropertyValue('--bg').trim(),
         };
       });
-      // 只写 -webkit- 一套时 Firefox/Safari 完全走 UA 默认（暗色下是一道亮条）
       expect(info.scrollbarWidth, '标准 scrollbar-width 未声明').not.toBe('auto');
       expect(info.scrollbarColor, '标准 scrollbar-color 未声明').not.toBe('auto');
       const parts = info.scrollbarColor.match(/[\d.]+/g).map(Number);
@@ -1675,7 +1581,6 @@ test.describe('节奏：时长出自同一套 token，图表动画也进系统',
           for (const p of ['transition', 'transition-duration', 'animation', 'animation-duration']) {
             const v = r.style.getPropertyValue(p);
             if (!v) continue;
-            // 允许 var(--mo-*) 与 0s/0ms（减动效归零）；其余字面量时长算违规
             const times = v.match(/(?<![\w-])(\d*\.?\d+)(ms|s)\b/g) || [];
             const stripped = v.replace(/var\(--mo-[a-z]+(?:,\s*[^)]*)?\)/g, '');
             const leftovers = stripped.match(/(?<![\w-])(\d*\.?\d+)(ms|s)\b/g) || [];
@@ -1714,8 +1619,6 @@ test.describe('节奏：时长出自同一套 token，图表动画也进系统',
   });
 
   test('图表动画进系统：页面送到库里的时长是 mid 档，不是库默认 1000ms', async ({ appPage: page }) => {
-    // 用替身记录「页面送了哪些动画参数」。不连外网拿真库（e2e 卫生铁律），
-    // 而这条要验的正是「页面有没有显式给参数」——替身看得见，真库的默认值看不见。
     await page.evaluate(() => switchTab('expense-chart'));
     await page.waitForFunction(() => window.__echartsCalls && window.__echartsCalls.lastAnimation, null, { timeout: 10000 });
     const info = await page.evaluate(() => ({

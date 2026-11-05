@@ -19,11 +19,6 @@
  */
 const { test, expect, visitAllTabs, collectOffThemeColors, UA_DEFAULT_COLORS } = require('./fixtures');
 
-/**
- * 已知的写死色值（主题色板之外）。这是**待清理清单**，不是豁免名单：
- * 每修一处就从这里删一行；新增一处会让下面的测试变红。
- * 全部集中在语义色（涨/跌/信息徽章与便条）和几处按钮描边上，改它们要同步亮/暗两套。
- */
 const KNOWN_HARDCODED = new Set([
   'rgb(143, 103, 19)',      // #8f6713  .btn-gold 描边（gold-600，未提成变量）
   'rgb(220, 182, 180)',     // #dcb6b4  .btn-danger 描边（亮色）
@@ -35,19 +30,16 @@ const KNOWN_HARDCODED = new Set([
   'rgb(184, 223, 196)',     // #b8dfc4  描边（亮）
   'rgb(28, 42, 32)',        // #1c2a20  底（暗）
   'rgb(45, 68, 53)',        // #2d4435  描边（暗）
-  // .toast-error（error 语义色只在便条出现时渲染，此前因时机碰巧从未被扫到）
   'rgb(252, 232, 224)',     // #fce8e0  底（亮）
   'rgb(240, 200, 184)',     // #f0c8b8  描边（亮）
   'rgb(42, 28, 26)',        // #2a1c1a  底（暗）
   'rgb(74, 44, 42)',        // #4a2c2a  描边（暗）
-  // .toast-info（同上：确定性触发后新暴露）
   'rgb(248, 241, 222)',     // #f8f1de  底（亮）
   'rgb(227, 211, 163)',     // #e3d3a3  描边（亮）
   'rgb(41, 34, 20)',        // #292214  底（暗）
   'rgb(69, 58, 32)',        // #453a20  描边（暗）
 ]);
 
-/** 扫一遍所有视图，按「UA 默认 / 写死色值」分堆 */
 async function scan(page) {
   await visitAllTabs(page);
   const { offenders } = await collectOffThemeColors(page);
@@ -60,7 +52,6 @@ async function scan(page) {
   return { ua, hardcoded };
 }
 
-/** 切到暗色主题：setTheme 是同步翻转（classList + renderAll），直接断言即可到位 */
 const switchToDark = async (page) => {
   await page.getByRole('button', { name: '设置' }).click();
   await page.locator('#theme-seg-dark').click();
@@ -156,12 +147,6 @@ test.describe('主题色一致性', () => {
   });
 });
 
-/**
- * 打印形态：账本是最该能打印的东西，而浏览器默认**不打印背景色**。
- * 暗色主题下 --fg 是 #ece4d0，印在白纸上只有 1.27:1 —— 等于印出一张白纸。
- * 判据不写死色值，而是「打印媒体下的前景色对白纸的对比度」与「玻璃材质是否退场」，
- * 两者都从页面自身求值，改 token 时不需要改测试。
- */
 test.describe('打印形态：暗色主题也要印得出、印得清', () => {
   const lin = (v) => (v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4));
   const lum = (c) => 0.2126 * lin(c.r / 255) + 0.7152 * lin(c.g / 255) + 0.0722 * lin(c.b / 255);
@@ -175,7 +160,6 @@ test.describe('打印形态：暗色主题也要印得出、印得清', () => {
   };
   const WHITE = { r: 255, g: 255, b: 255 };
 
-  // 暗色主题 + 打印媒体：这是最坏的一格，也是这条的真身
   test('暗色主题打印：正文与次要文字对白纸都达 AA（4.5:1）', async ({ appPage: page }) => {
     await switchToDark(page);
     await page.emulateMedia({ media: 'print' });

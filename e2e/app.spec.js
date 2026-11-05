@@ -1,12 +1,3 @@
-/*
- * e2e/app.spec.js — 端到端主用例
- * --------------------------------------------------------------------------
- * 覆盖 UI 契约测试（test/ui-wiring.test.js）够不着的那一层：真实浏览器里的
- * 首屏渲染、导航、增删改、筛选、弹窗、图表初始化、主题切换与 localStorage 持久化。
- *
- * 分组按页面自己的模块走：首屏 / 导航 / 资产 / 消费 / 图表 / 弹窗 / 持久化 / 汇率。
- * 断言落在「用户看得见的东西」与「应用自己的状态」，不断言像素、不断言 CDN。
- */
 const {
   test, expect, LS_KEY, INDEX_URL,
   stubCdn, seed, waitReady, disableMotion, readAppState, sampleState, gotoAssets,
@@ -15,7 +6,6 @@ const {
 const { ui } = require('../logic.js');
 const { AUTO_OPEN_GUARD_MS, TAG_PRESS_MS } = ui;
 
-/** 按住不放：用页面自己的时钟等到「真的按满 TAG_PRESS_MS」，不猜一个睡眠时长 */
 const holdPastTagPress = async (page) => {
   await page.evaluate(() => { window.__holdStart = performance.now(); });
   return expect
@@ -23,13 +13,10 @@ const holdPastTagPress = async (page) => {
     .toBeGreaterThan(TAG_PRESS_MS);
 };
 
-/** 读 localStorage 原文：验证「已落盘」（增删改后应用都会 saveState） */
 const readStored = (page) => page.evaluate((key) => JSON.parse(localStorage.getItem(key) || '{}'), LS_KEY);
 
-/** 读内存态：验证「迁移/兜底已生效」（migrateState 只修内存态，不回写 localStorage） */
 const readState = readAppState;
 
-/** 断言便条文案（#toast-area 是全站唯一出口，可能同时有多条，按文案精确定位） */
 const expectToast = (page, msg) =>
   expect(page.locator('#toast-area .toast', { hasText: msg })).toBeVisible();
 
@@ -50,10 +37,6 @@ async function openWith(page, state, opts = {}) {
   await waitReady(page);
 }
 
-/**
- * 最小存档：只给必填字段，其余由 migrateState() 兜底。
- * 迁移类用例关心的是「缺字段怎么补」，所以基准里刻意不写 cashRatio/rates 等。
- */
 const minimalState = (over = {}) => ({
   categories: [{ id: 'currency', name: '货币类型', builtin: true, tags: ['CNY', 'HKD', 'USD'] }],
   assets: [],
@@ -87,7 +70,6 @@ test.describe('首屏渲染', () => {
   });
 
   test('有数据用户：masthead 按当前汇率折算净资产', async ({ appPage: page }) => {
-    // 50000 + 80000 CNY + 50000 HKD ÷ 0.92 = 184347.826…
     await expect(page.locator('#masthead-whole')).toHaveText('184,347');
     await expect(page.locator('#masthead-cents')).toHaveText('.83');
     await expect(page.locator('#masthead-date')).not.toHaveText('—');
@@ -119,7 +101,6 @@ test.describe('模式与 Tab 导航', () => {
 
   test('已在资产页时入口失效：不再抬闸（键盘通直也被挡）', async ({ appPage: page }) => {
     await gotoAssets(page);
-    // 按完整条链路（真实鼠标长按）也不应该再抬闸一次
     const box = await page.locator('#mode-assets').boundingBox();
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
     await page.mouse.down();
@@ -131,8 +112,6 @@ test.describe('模式与 Tab 导航', () => {
   });
 
   test('共用确认框的按钮文案/色调每次都重置（金调不粘到删除确认上）', async ({ appPage: page }) => {
-    // 备份提示是金调调用方：借它的公开入口把同一枚按钮染成金色，
-    // 再看下一次删除确认是不是回到「确认 / 危险色」。
     await page.evaluate(() => showConfirm('测试用', () => {}, '备份', { okLabel: '备份', tone: 'gold' }));
     await expect(page.locator('#confirm-ok-btn')).toHaveText('备份');
     await expect(page.locator('#confirm-ok-btn')).toHaveClass(/btn-gold/);
@@ -152,11 +131,7 @@ test.describe('模式与 Tab 导航', () => {
     const ctx = await browser.newContext({ hasTouch: true, viewport: { width: 420, height: 800 }, isMobile: true });
     const touch = await ctx.newPage();
     await stubCdn(touch);
-    // 这条用例断言的是中文提示文案：显式选中文（语言默认英文，见 i18n.spec.js）
     await seed(touch, { lang: 'zh' });
-    // 探针：window.tailwind 只有 stubCdn 的空壳脚本才会定义（真 CDN 会挂完整实现）。
-    // 它存在 = 这个上下文确实走了替身路由——这就是「不再真连外网」的证据。
-    // 图表库现在按需加载，且空账本不画图，故不拿 __echartsCalls 当探针。
     await touch.goto(INDEX_URL);
     await waitReady(touch);
     expect(await touch.evaluate(() => !!window.tailwind), '触摸上下文也必须走 CDN 替身').toBe(true);
@@ -164,7 +139,6 @@ test.describe('模式与 Tab 导航', () => {
     await expect(touch.locator('#content-assets')).toBeHidden();
     await expect(touch.locator('#asset-gate-modal')).toBeHidden();
     await expect(touch.locator('#toast-area .toast', { hasText: '长按' })).toBeVisible();
-    // 键盘仍然可达（只用键盘的人不被挡在门外）：但它也只得抬闸，进门要抄一句
     await touch.locator('#mode-assets').focus();
     await touch.keyboard.press('Enter');
     await expect(touch.locator('#asset-gate-modal')).toBeVisible();
@@ -202,12 +176,10 @@ test.describe('模式与 Tab 导航', () => {
   test('资产入口是两段闸：短按只提示，按满抬闸，抄错不放行，抄对才进', async ({ appPage: page }) => {
     const assets = page.locator('#mode-assets');
     const gate = page.locator('#asset-gate-modal');
-    // 短按：不进门，只给一句「长按多久」
     await assets.click();
     await expect(page.locator('#content-assets')).toBeHidden();
     await expect(page.locator('#toast-area .toast', { hasText: '长按' })).toBeVisible();
 
-    // 长按：按住期间墨线浸满（--mode-press 由 rAF 推进），**按满即抬闸**（不必等松手）
     const box = await assets.boundingBox();
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
     await page.mouse.down();
@@ -216,7 +188,6 @@ test.describe('模式与 Tab 导航', () => {
       .poll(() => assets.evaluate((el) => parseFloat(el.style.getPropertyValue('--mode-press'))))
       .toBeGreaterThan(0.2);
 
-    // 按满的瞬间抄写框自己出现（手指还按着）——这就是「自动抬闸」的观感
     await expect(gate).toBeVisible({ timeout: 5000 });
     await expect(page.locator('#content-assets')).toBeHidden();
     const phrase = ((await page.locator('#asset-gate-phrase').textContent()) || '').trim();
@@ -226,7 +197,6 @@ test.describe('模式与 Tab 导航', () => {
     await page.mouse.up();
     await expect(gate).toBeVisible();
 
-    // 守卫窗后再提交，判据才生效（轮询真实常量，不猜睡眠）
     await expect
       .poll(() => page.evaluate(() => (__autoOpenedAt === null ? -1 : performance.now() - __autoOpenedAt)),
         { message: '等长按守卫窗过期' })
@@ -240,7 +210,6 @@ test.describe('模式与 Tab 导航', () => {
     await expect(page.locator('#asset-gate-input')).toHaveValue('');
     await expect(page.locator('#content-assets')).toBeHidden();
 
-    // 抄对：提交即进（不再有第二次确认框）
     await page.locator('#asset-gate-input').fill(phrase);
     await page.keyboard.press('Enter');
     await expect(page.locator('#content-assets')).toBeVisible();
@@ -254,11 +223,9 @@ test.describe('模式与 Tab 导航', () => {
     await page.keyboard.press('Enter');
     await expect(page.locator('#asset-gate-modal')).toBeVisible();
     await expect(page.locator('#content-assets')).toBeHidden();
-    // 再按一次回车只是提交一个空输入：被驳回，不会进门
     await page.keyboard.press('Enter');
     await expect(page.locator('#asset-gate-error')).toBeVisible();
     await expect(page.locator('#content-assets')).toBeHidden();
-    // 抄对了才进
     const phrase = ((await page.locator('#asset-gate-phrase').textContent()) || '').trim();
     await page.locator('#asset-gate-input').fill(phrase);
     await page.keyboard.press('Enter');
@@ -281,7 +248,6 @@ test.describe('模式与 Tab 导航', () => {
   test('放弃抄写：留在消费页', async ({ appPage: page }) => {
     await page.locator('#mode-assets').click(); // 短按只提示，不抬闸
     await expect(page.locator('#content-assets')).toBeHidden();
-    // 键盘激活（detail === 0）只抬闸：不用鼠标的人同样不被长按挡在门外
     await page.locator('#mode-assets').focus();
     await page.keyboard.press('Enter');
     await expect(page.locator('#asset-gate-modal')).toBeVisible();
@@ -294,9 +260,6 @@ test.describe('模式与 Tab 导航', () => {
   test('键盘 Tab 不再在资产/消费间切换（交还浏览器默认焦点顺序）', async ({ appPage: page }) => {
     await expect(page.locator('#mode-expenses')).toHaveClass(/active/);
     await page.keyboard.press('Tab');
-    // 只断言「Tab 走了普通焦点、没有切换模式」，**不写死第一个焦点是谁**：
-    // 顶端按钮的左右次序是设计决定（消费在左），把它钉在 E2E 里会让一次换位连带改测试；
-    // 次序本身由 ui-wiring 的契约测试守（那条才是「有意为之」的载体）
     const focused = await page.evaluate(() => document.activeElement && document.activeElement.id);
     expect(['mode-expenses', 'mode-assets']).toContain(focused);
     await expect(page.locator('#content-expenses')).toBeVisible();
@@ -310,9 +273,6 @@ test.describe('已经在某一页上时再点它：空点击', () => {
   // 重绘 + 重播入场只是把同样的东西再画一遍，用户看到的是一次没有理由的闪动。
   const paneX = (page, sel) =>
     page.evaluate((s) => (document.querySelector(s).style.getPropertyValue('--pane-x') || '').trim(), sel);
-  // 图表库按需加载：点 Tab 后脚本仍在注入途中时 `__echartsCalls` 还不存在。
-  // 直接读会让 poll 抛 TypeError 立即判负（不是等超时），CI 上偶发。按「还没渲染」返回 0，
-  // 让 poll 继续等——与 fixtures 的 chartSize 同一处理。
   const renders = (page, id) =>
     page.evaluate((i) => (window.__echartsCalls ? window.__echartsCalls.setOption.filter((c) => c.id === i).length : 0), id);
 
@@ -328,8 +288,6 @@ test.describe('已经在某一页上时再点它：空点击', () => {
 
     await tab.click(); // 再点一次「当前」这个 Tab
 
-    // 换到消费趋势并等它的渲染落地：这证明时间真的往前走过（异步渲染那一档已经烧完）。
-    // 若刚才那次点击排了定时器，它必然先于这一步执行——同延时的定时器先排先烧。
     await page.locator('#tabs-expenses .tab-btn[data-tab="expense-trend"]').click();
     await expect
       .poll(() => renders(page, 'expense-trend-chart'), { message: '消费趋势应完成一次图表渲染' })
@@ -366,9 +324,7 @@ test.describe('图表 Tab：每次进入都重播入场动画', () => {
     }, id);
 
   const cases = [
-    // [子 Tab 栏, 子 Tab, 图表容器 id, 需要先进入资产模式, 离开时切到的 Tab]
     ['#tabs-assets', 'chart', 'sunburst-chart', true, 'assets'],
-    // 历史净值要有快照才画图：没快照时渲染提前 return，根本走不到 clear（空态不播动画）
     ['#tabs-assets', 'history', 'history-chart', true, 'assets'],
     ['#tabs-assets', 'income', 'income-chart', true, 'assets'],
     ['#tabs-expenses', 'expense-chart', 'expense-sunburst-chart', false, 'expenses'],
@@ -377,8 +333,6 @@ test.describe('图表 Tab：每次进入都重播入场动画', () => {
 
   for (const [bar, tab, chartId, needAssets, away] of cases) {
     test(`${tab}：离开再进来先 clear 再画（相同数据的 setOption 不会重播动画）`, async ({ page }) => {
-      // 播种带快照的存档：历史净值少于 2 条快照就不画图（renderHistoryChart 提前 return），
-      // 用例会空转在「等渲染」上
       const base = sampleState();
       const snap = (month, updatedAt) => ({
         month,
@@ -395,7 +349,6 @@ test.describe('图表 Tab：每次进入都重播入场动画', () => {
 
       const btn = page.locator(`${bar} .tab-btn[data-tab="${tab}"]`);
       await btn.click();
-      // 先等这次渲染真的画出图（按需加载 + 排下一帧），再谈 clear
       await expect
         .poll(() => page.evaluate((i) => {
           const calls = window.__echartsCalls;
@@ -427,7 +380,6 @@ test.describe('资产增删改', () => {
     await page.selectOption('#asset-currency', 'USD');
     await page.fill('#asset-rate-min', '2');
     await page.fill('#asset-rate-max', '4');
-    // 标签是平铺 chips 而非下拉：点 chip 写入同组 hidden input
     await page.locator('#asset-tags-section .tag-picker').first().locator('.tag-choice', { hasText: '权益基金' }).click();
     await page.locator('#asset-tags-section .tag-picker').nth(1).locator('.tag-choice', { hasText: '低风险' }).click();
     await page.locator('#asset-form button:has-text("保存")').click();
@@ -441,7 +393,6 @@ test.describe('资产增删改', () => {
     expect(created.currency).toBe('USD');
     expect(created.expectedRateMin).toBe(2);
     expect(created.expectedRateMax).toBe(4);
-    // 货币标签自动跟随下拉 ⊕ 手选的两个分类标签
     expect(created.tags).toMatchObject({ currency: 'USD', 'cat-type': '权益基金', 'cat-risk': '低风险' });
   });
 
@@ -543,7 +494,6 @@ test.describe('资产增删改', () => {
 test.describe('改账本：所有派生读数立刻重算（实时联动）', () => {
   test('切收益口径（最低↔最高）：报头副行的月收益跟着换（不在收益页也要同步）', async ({ appPage: page }) => {
     await gotoAssets(page, 'income');
-    // 收益页在 next frame 才渲染（afterTabPaint），先等它就位再读基准值
     await expect(page.locator('#income-monthly')).toHaveText('¥348.28');
     const minReading = await page.locator('#income-monthly').textContent();
 
@@ -562,7 +512,6 @@ test.describe('改账本：所有派生读数立刻重算（实时联动）', ()
     const before = await page.locator('#income-monthly').textContent();
     expect(before).not.toBe('¥0');
 
-    // 导入一份只有一笔 100 万 @12% 的账本：月收益应为 1,000,000 × 12% ÷ 12 = ¥10,000
     const payload = {
       ...sampleState(),
       stress: null,
@@ -578,7 +527,6 @@ test.describe('改账本：所有派生读数立刻重算（实时联动）', ()
     await page.locator('#confirm-ok-btn').click();
     await expect(page.locator('#confirm-modal')).toBeHidden();
 
-    // 导入后重绘的是「全部派生读数」，不是只有报头：收益摘要/报头/分布图同一份账本
     await expect(page.locator('#masthead-whole')).toHaveText('1,000,000');
     await expect(page.locator('#income-monthly')).toHaveText('¥10,000.00');
     await expect(page.locator('#income-summary-footer')).toContainText('总资产 ¥1,000,000.00');
@@ -588,8 +536,6 @@ test.describe('改账本：所有派生读数立刻重算（实时联动）', ()
     await gotoAssets(page);
     await expect(page.locator('#masthead-sub')).toContainText('预估月收益');
 
-    // 行内把「沪深300指数」（8 万 @最低 5%）改成 16 万：预估月收益 348.28 → 681.61
-    // 旧接线只刷了净资产 + 可见图表（资产页没有图表），收益读数要到切页才重算
     const cell = page.locator('#assets-rows .asset-row[data-id="a-fund"] .amount-cell');
     await cell.click();
     await cell.locator('input').fill('160000');
@@ -603,7 +549,6 @@ test.describe('改账本：所有派生读数立刻重算（实时联动）', ()
     await gotoAssets(page, 'income');
     await expect(page.locator('#income-monthly')).toHaveText('¥348.28');
 
-    // renderAll 里两个列表渲染器各有一个收尾口：不括起来就是同一张图两遍
     const before = await page.evaluate(() => window.__echartsCalls.setOption.length);
     await page.evaluate(() => renderAll());
     const after = await page.evaluate(() => window.__echartsCalls.setOption.length);
@@ -613,8 +558,6 @@ test.describe('改账本：所有派生读数立刻重算（实时联动）', ()
 
 test.describe('净资产目标', () => {
   test('未设目标：报头里是一行「名称 + 动作」的设置行，不是一个不知道填什么的空框', async ({ appPage: page }) => {
-    // 用户视角：空态原是一个整行的大框里塞一枚小按钮——看着像输入框，框里没有名字。
-    // 正解：左侧写明这行是什么（目标净资产），右侧是动作，一行装得下。
     await gotoAssets(page);
     const panel = page.locator('#net-worth-target .target-panel');
     await expect(panel).toBeVisible();
@@ -650,12 +593,10 @@ test.describe('消费记录', () => {
     await expect(page.locator('#expense-month-filter')).toHaveValue('2026-01');
     await expect(page.locator('#expenses-rows .asset-row')).toHaveCount(2);
 
-    // 叠加搜索：月份内再筛关键词
     await page.fill('#expense-search', '房租');
     await expect(page.locator('#expenses-rows .asset-row')).toHaveCount(1);
     await expect(page.locator('#expense-total-line')).toContainText('2026年1月 匹配');
 
-    // 叠加到无结果 → 空态给出「清除筛选」（有结果时该按钮不出现）
     await page.fill('#expense-search', '咖啡');
     await expect(page.locator('#expenses-empty-clear')).toBeVisible();
     await page.locator('#expenses-empty-clear').click();
@@ -784,8 +725,6 @@ test.describe('图表初始化与空态', () => {
     await gotoAssets(page);
     await page.evaluate(() => { switchTab('chart'); switchTab('assets'); });
     await expect(page.locator('#tab-chart')).toBeHidden();
-    // 等的不是固定时长，而是「若真有那次延迟渲染，它已经跑过了」。
-    // 图表库按需加载：连一次 init 都不该发生，`__echartsCalls` 也可能压根没被创建。
     await expect.poll(() => page.evaluate(() => (window.__echartsCalls ? window.__echartsCalls.init.length : 0))).toBe(0);
     const sizes = await page.evaluate(() =>
       Object.fromEntries(Object.entries((window.__echartsCalls || {}).instances || {}).map(([k, v]) => [k, [v.getWidth(), v.getHeight()]])));
@@ -799,7 +738,6 @@ test.describe('图表初始化与空态', () => {
 
   test('旭日图空态：所选维度无数据时不留空白画布', async ({ page }) => {
     const s = sampleState();
-    // 新增一个没有任何资产归类的维度：选中它应显示空态而非空白画布
     s.categories.push({ id: 'cat-empty', name: '空维度', builtin: false, tags: ['甲', '乙'] });
     await openWith(page, s);
     await gotoAssetsTab(page, 'chart');
@@ -840,7 +778,6 @@ test.describe('本月预算卡（消费趋势）', () => {
     })),
   });
 
-  // 把主题 CSS 变量解析成实际颜色：用浏览器自己算（探针元素走同一变量链），不写死 rgb
   const resolvedColor = (page, name) => page.evaluate((v) => {
     const probe = document.createElement('div');
     probe.style.color = `var(${v})`;
@@ -854,12 +791,9 @@ test.describe('本月预算卡（消费趋势）', () => {
     await openTrendAt(page, withMonthExpenses([600, 400]), '2026-10-06T10:00:00');
     await expect(page.locator('#pace-num')).toHaveText('¥1,000.00');
     await expect(page.locator('#pace-pct')).toHaveText('20.0%');
-    // 10 月 31 天、6 号 → 余 26 天（今天算整天）
     await expect(page.locator('#pace-note')).toHaveText('预算剩 ¥4,000.00 · 余 26 天 · 日均 ¥153.85');
-    // 尺子语义是预算容器：不带「今天」站点，也不再叙述时间进度
     await expect(page.locator('#month-pace-card .cov-marker')).toHaveCount(0);
     await expect(page.locator('#month-pace-card')).not.toContainText('时间进度');
-    // 未超支时填充是活钱的 verdigris（而非警示色）
     const fillBg = await page.locator('#pace-fill').evaluate((el) => getComputedStyle(el).backgroundColor);
     expect(fillBg).toBe(await resolvedColor(page, '--verdigris'));
   });
@@ -868,7 +802,6 @@ test.describe('本月预算卡（消费趋势）', () => {
     await openTrendAt(page, withMonthExpenses([3200, 2600]), '2026-10-06T10:00:00');
     await expect(page.locator('#pace-pct')).toHaveText('116.0%');
     await expect(page.locator('#pace-note')).toHaveText('已超预算 ¥800.00 · 本月额度已用完');
-    // 填充物理封顶（右端即整月预算），真实百分比留在读数里
     await expect(page.locator('#pace-fill')).toHaveCSS('width', await page.locator('#month-pace-card .cov-track')
       .evaluate((el) => getComputedStyle(el).width));
     const fillBg = await page.locator('#pace-fill').evaluate((el) => getComputedStyle(el).backgroundColor);
@@ -905,7 +838,6 @@ test.describe('读数卡的自定月消费（只对本卡生效）', () => {
 
   test('默认带出已填的预期月消费；改后只影响本卡，全局预期与存档不被回写', async ({ appPage: page }) => {
     await openRunway(page);
-    // 未自定时分母就是全局「预期月消费」，输入框默认值须是它（不用重敲）
     await expect(page.locator('#runway-expectation')).toHaveValue('5,000');
     await expect(page.locator('#runway-preview')).toHaveText('勾选标签后这里显示结果');
 
@@ -917,7 +849,6 @@ test.describe('读数卡的自定月消费（只对本卡生效）', () => {
     await page.locator('#runway-modal .btn-gold').click();
     await expect(page.locator('#runway-modal')).toBeHidden();
 
-    // 读数卡换用自定分母（并标出自定），消费趋势的参考线/进度卡仍是全局值
     await expect(page.locator('#runway-expense-name')).toHaveText('月消费（自定）');
     await expect(page.locator('#runway-expense')).toHaveText('¥9,000.00');
     await expect(page.locator('#pace-expense')).toHaveText('¥5,000.00');
@@ -939,7 +870,6 @@ test.describe('读数卡的自定月消费（只对本卡生效）', () => {
     await page.locator('#tabs-expenses .tab-btn[data-tab="expense-trend"]').click();
     await expect(page.locator('#runway-expense')).toHaveText('¥2,000.00');
 
-    // 清空回默认（不是回 0）：把全局预期填回字段, 保存后分母名不再标「自定」
     await page.locator('#runway-reading button').click();
     await page.locator('#runway-expectation').fill('');
     await page.locator('#runway-modal .btn-gold').click();
@@ -947,16 +877,13 @@ test.describe('读数卡的自定月消费（只对本卡生效）', () => {
     await expect(page.locator('#runway-expense')).toHaveText('¥5,000.00');
     expect((await readStored(page)).runwayExpectation).toBe(0);
 
-    // 重开后默认带出当前生效的分母（就是全局预期），不必重敲
     await page.locator('#runway-reading button').click();
     await expect(page.locator('#runway-expectation')).toHaveValue('5,000');
 
-    // 「默认」按钮把全局预期填回字段
     await page.locator('#runway-expectation').fill('9000');
     await page.locator('[onclick="useDefaultRunwayExpectation()"]').click();
     await expect(page.locator('#runway-expectation')).toHaveValue('5,000');
 
-    // 填成与全局预期相同的数 → 按默认存（不标「自定」, 不钉住旧值）
     await page.locator('#runway-expectation').fill('5000');
     await page.locator('#runway-modal .btn-gold').click();
     await expect(page.locator('#runway-expense-name')).toHaveText('预期月消费');
@@ -998,7 +925,6 @@ test.describe('弹窗与提示', () => {
     await expect(page.locator('#confirm-modal')).toBeHidden();
     await expect(page.locator('#expense-category-modal'), 'ESC 不能关掉被叠住的那层').toBeVisible();
 
-    // 再弹一次，用真实指针点「取消」：数据不变
     await page.locator('#expense-category-form button[type="submit"]').click();
     await expect(page.locator('#confirm-modal')).toBeVisible();
     await page.locator('#confirm-modal button:has-text("取消")').click();
@@ -1019,8 +945,6 @@ test.describe('弹窗与提示', () => {
   test('提示便条是唯一出口且会自动退场', async ({ appPage: page }) => {
     await page.locator('#tab-expenses button:has-text("记录消费")').click();
     await page.fill('#expense-amount', '0');
-    // 便条 2.5s 后自己退场：真等就是每条用例白烧 2.5s。这里接管页面时钟后快进，
-    // 断言的东西一模一样（是不是自己消失、有没有留残影）。
     await page.clock.install();
     await page.locator('#expense-form button:has-text("保存")').click();
     await expect(page.locator('#toast-area .toast', { hasText: '金额必须大于 0' })).toBeVisible();
@@ -1098,8 +1022,6 @@ test.describe('分类标签改名（迁移引用，不是清空）', () => {
     await page.mouse.down();
     await expect(input, '按满时长即进编辑态（不必等松手）').toBeVisible({ timeout: 3000 });
     await expect(input).toBeFocused();
-    // 抬手那一下不参与：输入框还在、焦点还在、整名仍选中（落在输入框上的点击会把
-    //「全选好、直接打」收成一根光标；落点若是被挤开的隔壁胶囊 ✕，那就是删数据）
     await page.mouse.up();
     await expect(input).toBeFocused();
     expect(await input.evaluate((el) => [el.selectionStart, el.selectionEnd]), '整名保持选中').toEqual([0, 4]);
@@ -1116,7 +1038,6 @@ test.describe('分类标签改名（迁移引用，不是清空）', () => {
     expect(st.assets.map((a) => a.tags['cat-type'])).toEqual(['现金类', '权益基金', '现金类']);
     expect(st.runwayTags).toEqual([{ catId: 'cat-type', tag: '现金类' }]);
 
-    // 列表上的 pill 同步（cfg.renderItems 接线）
     await gotoAssetsTab(page);
     await expect(page.locator('#assets-rows .tag-pill', { hasText: '现金类' })).toHaveCount(2);
   });
@@ -1134,7 +1055,6 @@ test.describe('分类标签改名（迁移引用，不是清空）', () => {
     expect(await pill.getAttribute('tabindex'), '也不进 Tab 序：键盘不该够到一个不可能成立的动作').toBeNull();
     expect(await pill.getAttribute('role')).toBeNull();
 
-    // 真按住满时长：仍然什么都不发生（负向断言只能真等——手势本身就是时间）
     const box = await pill.boundingBox();
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
     await page.mouse.down();
@@ -1159,7 +1079,6 @@ test.describe('分类标签改名（迁移引用，不是清空）', () => {
     await expect(input).toBeVisible({ timeout: 3000 });
     await page.mouse.up();
 
-    // 分类在编辑期间消失（只改内存态，不重绘——重绘会把输入框一起收走，那就验不到收尾了）
     await page.evaluate(() => {
       state.categories = state.categories.filter((c) => c.id !== 'cat-type');
     });
@@ -1198,7 +1117,6 @@ test.describe('分类编辑框的标签输入（逗号分隔）', () => {
     await gotoAssetsTab(page, 'categories');
     await page.locator('#categories-list .card', { hasText: '资产类型' }).getByRole('button', { name: '编辑' }).click();
     await expect(page.locator('#category-modal')).toBeVisible();
-    // 真实入口：一串重复名字，且没有新增引用（不弹「清空引用」确认框）
     await page.fill('#cat-tags', '权益基金, 活期现金，权益基金');
     await page.locator('#category-form button:has-text("保存")').click();
     await expect(page.locator('#category-modal')).toBeHidden();
@@ -1304,7 +1222,6 @@ test.describe('持久化与迁移', () => {
     await page.goto('index.html');
     await waitReady(page);
     await expect(page.locator('#masthead-whole')).toHaveText('0');
-    // 内置货币分类由 migrateState 补回
     expect((await readState(page)).categories.map((c) => c.id)).toContain('currency');
   });
 
@@ -1329,7 +1246,6 @@ test.describe('持久化与迁移', () => {
   test('孤儿标签引用在迁移期被清理', async ({ page }) => {
     await openWith(page, minimalState({
       expenseCategories: [{ id: 'ec-pay', name: '支付方式', builtin: false, tags: ['微信'] }],
-      // ec-gone 分类已不存在 → 其标签引用应在迁移时剔除
       expenses: [{ id: 'e-1', date: '2026-01-05', amount: 10, note: 'x', tags: { 'ec-pay': '微信', 'ec-gone': '幽灵' } }],
     }));
     expect(Object.keys((await readState(page)).expenses[0].tags)).toEqual(['ec-pay']);
@@ -1355,7 +1271,6 @@ test.describe('持久化与迁移', () => {
 });
 
 test.describe('覆盖标尺的缺口 Tips（还需本金）', () => {
-  // 有息本金 13 万（50000+80000 CNY, HKD 折算另计）、max 档年化约 6.58%
   const gotoIncome = async (page) => {
     await gotoAssetsTab(page, 'income');
     await expect(page.locator('#cov-section')).toBeVisible();
@@ -1381,7 +1296,6 @@ test.describe('覆盖标尺的缺口 Tips（还需本金）', () => {
 
     await page.locator('#cov-mode-cash').click();
     await expect(page.locator('#cov-mode-cash')).toHaveClass(/active/);
-    // 重绘后气泡回到收起态（须重新 hover），口径切换后 ? 图标仍在
     await expect(page.locator('#cov-reading .tip-mark')).toBeVisible();
     await page.locator('#cov-reading .tip-mark').hover();
     await expect(bubble).toContainText('还需本金');
@@ -1404,7 +1318,6 @@ test.describe('覆盖标尺的缺口 Tips（还需本金）', () => {
 
   test('页脚加权平均利率与 Tips 的外推年化同基地（改一处即同步，不各自漂移）', async ({ appPage: page }) => {
     await gotoIncome(page);
-    // 页脚「加权平均利率 X%」中的 X 就是有息本金的加权均值
     const footer = await page.locator('#income-summary-footer').textContent();
     const avgRate = parseFloat(footer.match(/加权平均利率 ([\d.]+)%/)[1]);
 
@@ -1412,7 +1325,6 @@ test.describe('覆盖标尺的缺口 Tips（还需本金）', () => {
     const bubble = await page.locator('#cov-shortfall-tip').textContent();
     const effRate = parseFloat(bubble.match(/实际年化 ([\d.]+)%/)[1]);
 
-    // 安全边际 100% 时两者应相等（同为有息本金基地）；若页脚另算基地就会分叉
     expect(avgRate).toBeCloseTo(effRate, 1);
   });
 
@@ -1428,7 +1340,6 @@ test.describe('覆盖标尺的缺口 Tips（还需本金）', () => {
 
 test.describe('汇率', () => {
   test('汇率口径：1 外币 = X CNY，页面对 API 的倒数取值不重复取倒', async ({ page }) => {
-    // API 给 1 CNY = 0.5 HKD → HKD→CNY = 2 → 50000 HKD = 100000 CNY
     await openWith(page, sampleState(), { rates: { hkd: 0.5, usd: 7.24 } });
     await expect(page.locator('#masthead-whole')).toHaveText('230,000');
     expect(await page.evaluate(() => state.rates.HKD)).toBe(2);
@@ -1442,8 +1353,6 @@ test.describe('汇率', () => {
   });
 
   test('拉取失败且有缓存汇率：沿用缓存、提示中性、数值不跳变', async ({ page }) => {
-    // 补上 rateFallbackNotice(hasCache=true) 这一支：此前只有「无缓存」分支被覆盖，
-    // 「有缓存」分支（文案「使用缓存汇率」）没有任何用例走到
     const s = sampleState();
     // 缓存汇率必须是**应用口径**（1 HKD = 1/0.92 CNY），且 fetchedAt 非空才算「有缓存」
     s.rates = { CNY: 1, HKD: 1 / 0.92, USD: 1 / 7.24, fetchedAt: '2026-01-01T00:00:00.000Z' };
@@ -1485,13 +1394,7 @@ test.describe('汇率', () => {
   });
 });
 
-/*
- * 台灯掠光（跟随指针的纸面光）。
- * 单测只能守「换算函数正确」与「接线唯一」，守不住「事件真的接上了、值真的写进去了」——
- * 这一组在真实浏览器里跑一遍指针，把「手一动纸面就亮」钉住。
- */
 test.describe('台灯掠光（纸面光跟随指针）', () => {
-  /** 读固定层上的两个 CSS 变量（灯的位置全在这里） */
   const lampPos = (page) =>
     page.evaluate(() => {
       const el = document.querySelector('.lamp-layer');
@@ -1547,7 +1450,6 @@ test.describe('台灯掠光（纸面光跟随指针）', () => {
     const st = await lampPos(page);
     expect(st.on, '减动效下不得点亮').toBe(false);
     expect(st.x, '减动效下坐标都不该被写入').toBe('');
-    // CSS 侧也有一道闸：即使 JS 漏了，光层也不该被画出来
     const hidden = await page.evaluate(() => getComputedStyle(document.querySelector('.lamp-layer')).display);
     expect(hidden).toBe('none');
   });
@@ -1573,8 +1475,6 @@ test.describe('行级可点元素：指针与键盘两条路都要给', () => {
     await locator.focus();
     const focused = await locator.evaluate((el) => el === document.activeElement);
     expect(focused, '行必须先真的能拿到焦点').toBe(true);
-    // 按键 → 弹窗开/合都是同步接线：用可见性自动等到位（原先 sleep 250/200 是盲等，
-    // 慢机器上会飘、快机器上白等）
     const pressOpens = async (key) => {
       await locator.focus();
       await page.keyboard.press(key);
@@ -1607,8 +1507,6 @@ test.describe('行级可点元素：指针与键盘两条路都要给', () => {
   });
 
   test('月度明细/分类构成：日期按文本渲染（导入的脏 date 不得成为 HTML）', async ({ page }) => {
-    // 备注、标签名都走了 esc，日期却是裸插值——而 date 来自导入的 JSON（migrateState 只补空值、
-    // 不校验形状）。一行 `2026-01<img src=x onerror=...>` 就能在明细弹窗里执行脚本。
     const evilDate = '2026-01<img src=x onerror="window.__xss=1">';
     await openWith(page, {
       ...sampleState(),
@@ -1641,7 +1539,6 @@ test.describe('行级可点元素：指针与键盘两条路都要给', () => {
   test('旭日图清单：只有会下钻的顶层行可聚焦，Enter 真能下钻', async ({ appPage: page }) => {
     await gotoAssets(page, 'chart');
     await expect(page.locator('#chart-legend .row-hit').first()).toBeVisible();
-    // 明细行的悬停高亮是「看着这里」而非导航，不该占 Tab 序
     const onlyTops = await page.locator('#chart-legend .chart-legend-row').evaluateAll((els) =>
       els.every((e) => (e.dataset.top === '1' ? e.classList.contains('row-hit') : !e.classList.contains('row-hit')))
     );
@@ -1664,7 +1561,6 @@ test.describe('行级可点元素：指针与键盘两条路都要给', () => {
     await page.evaluate(() => showImportExport());
     await expect(page.locator('#io-modal')).toBeVisible();
 
-    // 从导出按钮往后 Tab：主张焦点会落到 file input，且视觉焦点环画在看得见的 label 上
     await page.locator('#io-modal .btn-gold').first().focus();
     await page.keyboard.press('Tab');
     const landed = await page.evaluate(() => {
@@ -1682,7 +1578,6 @@ test.describe('行级可点元素：指针与键盘两条路都要给', () => {
     expect(landed.insideLabel, 'label 必须包住 input，焦点环才画得到看得见的地方').toBe(true);
     expect(landed.outline, ':focus-within 应给出可见焦点环').toBe('2px');
 
-    // 控件仍然看得见、点得到（不是被 sr-only 连视觉一起藏掉）
     const box = await page.locator('#io-modal .file-label').boundingBox();
     expect(box.width, '可见的导入按钮不能被藏起来').toBeGreaterThan(60);
     expect(box.height).toBeGreaterThan(20);
@@ -1767,7 +1662,6 @@ test.describe('弹窗焦点管理（aria-modal 的兑现）', () => {
       expect(inside, `第 ${i + 1} 次 Shift+Tab 之后焦点逃出了弹窗`).toBe(true);
     }
 
-    // 4) 关闭后焦点回到打开它的按钮，而不是掉到 body 让用户从页头重新 Tab
     await page.keyboard.press('Escape');
     await expect(page.locator('#expense-modal')).toBeHidden();
     const afterClose = await page.evaluate(() => ({
@@ -1779,13 +1673,9 @@ test.describe('弹窗焦点管理（aria-modal 的兑现）', () => {
   });
 
   test('叠层弹窗：确认框叠在分类弹窗之上，关掉后焦点回到被叠住的那层（栈式回还）', async ({ appPage: page }) => {
-    // 真实路径：分类弹窗里改标签 → 删掉一个仍被引用的标签 → saveCategoryGeneric 弹确认框。
-    // 此时**分类弹窗还开着**，确认框叠在它上面——这才是「弹窗叠弹窗」。
     await gotoAssets(page, 'categories');
-    // 编辑「资产类型」（标签：活期现金 / 权益基金，两者都被资产引用）
     await page.locator('#categories-list .card', { hasText: '资产类型' }).getByRole('button', { name: '编辑' }).click();
     await expect(page.locator('#category-modal')).toBeVisible();
-    // 只留「活期现金」→ 「权益基金」成为被移除且有引用的标签 → 弹确认框
     await page.fill('#cat-tags', '活期现金');
     await page.locator('#category-modal button[type="submit"]').click();
     await expect(page.locator('#confirm-modal')).toBeVisible();
@@ -1803,7 +1693,6 @@ test.describe('弹窗焦点管理（aria-modal 的兑现）', () => {
       document.getElementById('confirm-modal').contains(document.activeElement));
     expect(stillInConfirm, 'Tab 必须困在最上层（确认框），不能穿透到被叠住的弹窗').toBe(true);
 
-    // ESC 取消：确认框关掉，焦点应回到**下层那个弹窗内**（被叠住的那层），而不是掉到 body
     await page.keyboard.press('Escape');
     await expect(page.locator('#confirm-modal')).toBeHidden();
     await expect(page.locator('#category-modal')).toBeVisible();
@@ -1824,7 +1713,6 @@ test.describe('弹窗焦点管理（aria-modal 的兑现）', () => {
     await opener.focus();
     await opener.click();
     await expect(page.locator('#expense-modal')).toBeVisible();
-    // 点遮罩空白处关闭
     await page.locator('#expense-modal').click({ position: { x: 5, y: 5 } });
     await expect(page.locator('#expense-modal')).toBeHidden();
     const isBody = await page.evaluate(() => document.activeElement === document.body);
@@ -1934,7 +1822,6 @@ test.describe('日期选择器与复制', () => {
     await waitReady(page);
     await page.locator('#expenses-rows .row-btn.copy').first().click();
     await expect(page.locator('#expense-modal')).toBeVisible();
-    // 标题是「复制消费」，日期是今天
     await expect(page.locator('#expense-modal-title')).toHaveText('复制消费');
     // 关键断言：日历不得处于展开态
     const open = await page.evaluate(() => !!document.querySelector('.flatpickr-calendar.open'));
@@ -1968,15 +1855,12 @@ test.describe('日期选择器与复制', () => {
     });
 
     expect(decl, '必须找到 .flatpickr-day 的 max-width 声明').toBeTruthy();
-    // 固定像素值 = 那个 bug（36px）；相对值才跟着容器走
     expect(/^\d+(\.\d+)?px$/.test(decl.trim()), `max-width 不能是固定像素（当前 ${decl}）：容器一宽就会一行塞进 8 天`).toBe(false);
     expect(decl, 'max-width 应相对容器（百分比或 calc）').toMatch(/calc\(|%/);
   });
 });
 
 test.describe('资产排序的键盘通道', () => {
-  // 拖拽把手原先只有 draggable——指针专属手势，键盘用户完全无法调整资产顺序。
-  // 「可点即键盘可达」的判据：指针能到的路径，键盘也要能到。
   test('聚焦把手后 ↑/↓ 能移动资产顺序，焦点跟着走', async ({ appPage: page }) => {
     await gotoAssets(page, 'assets');
     const order = () => page.evaluate(() =>
@@ -1984,7 +1868,6 @@ test.describe('资产排序的键盘通道', () => {
     const before = await order();
     expect(before).toBe('a-cash,a-fund,a-hk');
 
-    // 聚焦第一行的把手，按 ↓：招商银行活期 应与 沪深300指数 交换
     const handle = page.locator('#assets-rows .asset-row[data-id="a-cash"] .drag-handle');
     await handle.focus();
     await page.keyboard.press('ArrowDown');
@@ -1992,21 +1875,16 @@ test.describe('资产排序的键盘通道', () => {
       .toBeFocused(); // 焦点跟着被移动的行走（连续按才可用）
     expect(await order(), '↓ 应把该资产下移一格').toBe('a-fund,a-cash,a-hk');
 
-    // 再按 ↓ 到底
     await page.keyboard.press('ArrowDown');
     expect(await order()).toBe('a-fund,a-hk,a-cash');
-    // 到底后再按不越界
     await page.keyboard.press('ArrowDown');
     expect(await order(), '已在最后一行，再按 ↓ 不得越界').toBe('a-fund,a-hk,a-cash');
 
-    // ↑ 两次回到顶部；到顶后再按不越界
     await page.keyboard.press('ArrowUp');
     await page.keyboard.press('ArrowUp');
     await page.keyboard.press('ArrowUp');
     expect(await order(), '↑ 三次后应回到原序（第三次已到顶，不越界）').toBe('a-cash,a-fund,a-hk');
 
-    // 资产侧排序状态被清空（表头不再显示 ▲/▼ 激活态）。
-    // 只数资产表头——消费侧日期列有默认排序，全站数会把不相干的 active 数进来。
     const active = await page.evaluate(() =>
       document.querySelectorAll('#assets-list .sort-indicator.active').length);
     expect(active, '移动顺序后应清除列排序状态').toBe(0);
@@ -2014,13 +1892,6 @@ test.describe('资产排序的键盘通道', () => {
 });
 
 test.describe('Tab 滑动指示条', () => {
-  // 用户要求：从「消费记录」切到「消费分布」时，小黄条从左边**滑**到右边，不是跳变。
-  // 实现：指示条是 Tab 栏里唯一的一个元素，位置由 moveTabIndicator 写 CSS 变量，
-  // transform/left 有过渡 → 滑动。判据：
-  //   ① 全站只有两个指示条（每条 Tab 栏一个），不是每个按钮自带 border
-  //   ② 切换后指示条几何位置 = 目标按钮的 offsetLeft/offsetWidth（滑到位）
-  //   ③ 过渡存在（computed transition-duration > 0，减动效 fixture 会把它归零——
-  //      故这条在 fixture 的 reducedMotion: 'reduce' 下断言 duration 为 0 即「尊重减动效」）
   test('切换 Tab 后指示条滑到目标按钮下方（几何对位）', async ({ appPage: page }) => {
     const geo = () => page.evaluate(() => {
       const bar = document.querySelector('#tabs-expenses .tab-bar');
@@ -2040,7 +1911,6 @@ test.describe('Tab 滑动指示条', () => {
     expect(g1.w, '初始指示条宽度应等于「消费记录」按钮宽').toBe(g1.btnW);
 
     await page.locator('#tabs-expenses .tab-btn[data-tab="expense-chart"]').click();
-    // 等指示条滑到位：轮询「位置与宽度都等于目标按钮」（正常 0.28s 过渡，减动效下瞬间到位）
     await expect
       .poll(async () => {
         const g = await geo();
@@ -2050,13 +1920,9 @@ test.describe('Tab 滑动指示条', () => {
     const g2 = await geo();
     expect(g2.x, '指示条应滑到「消费分布」按钮的 offsetLeft').toBe(g2.btnX);
     expect(g2.w).toBe(g2.btnW);
-    // 确实移动了（不是没动）
     expect(g2.x, '指示条必须真的移动了').not.toBe(g1.x);
 
-    // 减动效 fixture 下过渡时长应为 0（尊重 prefers-reduced-motion）。
-    // transitionDuration 可能是 "0.28s, 0.28s"（多个属性），每个值都要为 0。
     const durs = g2.dur.split(',').map((x) => parseFloat(x));
-    // fixtures 把减动效实现为 0.001ms（1e-6s）而非严格 0 —— 判据「小于 1ms 即视为无过渡」
     expect(durs.every((d) => d < 0.001), `减动效时过渡时长应归零（当前 ${g2.dur}）`).toBe(true);
   });
 
@@ -2118,26 +1984,20 @@ test.describe('Tab/模式切换：入场方向感（内容从行的哪一端滑�
     );
 
   test('切到右侧的 Tab：--pane-x=1；往回切：-1', async ({ appPage: page }) => {
-    // 消费 Tab 次序（左→右）：消费记录 · 分类管理 · 消费分布 · 消费趋势
     await page.locator('#tabs-expenses .tab-btn[data-tab="expense-chart"]').click();
     await expect.poll(() => paneX(page, '#tab-expense-chart')).toBe('1');
     await page.locator('#tabs-expenses .tab-btn[data-tab="expense-trend"]').click();
     await expect.poll(() => paneX(page, '#tab-expense-trend')).toBe('1');
-    // 从最右切回最左 = 往回翻页
     await page.locator('#tabs-expenses .tab-btn[data-tab="expenses"]').click();
     await expect.poll(() => paneX(page, '#tab-expenses')).toBe('-1');
   });
 
   test('模式切换同样带方向（消费在左、资产在右）；入场只挂内层面板，外壳不挂', async ({ appPage: page }) => {
     await gotoAssets(page);
-    // 内层子 Tab 的方向由 switchMode 透传给 switchTab —— 一次「翻页」只有一个方向
     await expect.poll(() => paneX(page, '#tab-assets')).toBe('1');
-    // 内层确实播了入场（.enter 挂在 [id^="tab-"] 面板上）
     await expect(page.locator('#tab-assets')).toHaveClass(/enter/);
-    // 切回消费 = 反向
     await page.locator('#mode-expenses').click();
     await expect.poll(() => paneX(page, '#tab-expenses')).toBe('-1');
-    // 外壳 content-* 不参与入场：动画选择器只认 [id^="tab-"]，对壳调 enterTab 是无人消费的死接线
     expect(
       await page.evaluate(() => document.querySelectorAll('#content-assets.enter, #content-expenses.enter').length),
       '外壳 content-* 不得挂 .enter（死接线已删，不得回潮）'
@@ -2160,7 +2020,6 @@ test.describe('分布图的构成清单（与图同源）', () => {
     await gotoAssets(page, 'chart');
     await expect(page.locator('#chart-legend .chart-legend-row').first()).toBeVisible();
     const rows = await legendRows(page, 'chart-legend');
-    // sampleState：CNY 50,000 + 80,000；HKD 50,000 ÷ 0.92 = 54,347.83 → 合计 184,347.83
     expect(rows.map((r) => r.name)).toEqual(['CNY', 'HKD']);
     expect(rows[0].amt).toBe('¥130,000.00');
     expect(rows[1].amt).toBe('¥54,347.83');
@@ -2179,7 +2038,6 @@ test.describe('分布图的构成清单（与图同源）', () => {
     await gotoAssets(page, 'chart');
     await expect(page.locator('#chart-legend .chart-legend-row').first()).toBeVisible();
 
-    // 新建一个没有任何资产归类的维度并选中
     await page.evaluate(() => {
       state.categories.push({ id: 'cat-empty', name: '空维度', builtin: false, tags: ['甲', '乙'] });
       saveState(); renderCategories();
@@ -2227,7 +2085,6 @@ test.describe('分布图的构成清单（与图同源）', () => {
     const sum = cash.reduce((s, r) => s + parseFloat(r.pct), 0);
     expect(sum).toBeGreaterThan(99.5);
 
-    // 切到总收益：同一批分类的金额应变化（现金口径 ≤ 总收益口径），占比各自仍为 100%
     await page.locator('#income-chart-mode-total').click();
     await expect.poll(async () => (await legendRows(page, 'income-chart-legend'))[0].amt).not.toBe(cash[0].amt);
     const total = await legendRows(page, 'income-chart-legend');
@@ -2241,27 +2098,22 @@ test.describe('分布图的构成清单（与图同源）', () => {
       [...document.querySelectorAll('#chart-legend .chart-legend-name')].map((e) => e.textContent.trim()));
     const head = () => page.evaluate(() => document.getElementById('chart-legend-head').textContent.trim());
 
-    // 初始：顶层分类（货币维度）
     expect(await names()).toEqual(['CNY', 'HKD']);
     expect(await head()).toBe('构成');
 
-    // 点分类行 → 清单换成该分类下的资产；占比分母换成该分类合计（加起来 100%）
     await page.locator('#chart-legend .chart-legend-row').first().click();
     await expect.poll(names).toEqual(['沪深300指数', '招商银行活期']);
     expect(await head()).toContain('CNY');
-    // 图本身也跟着下钻：喂给 ECharts 的数据只剩该分类（与清单同一套选中态）
     await expect.poll(() => page.evaluate(() => window.__echartsCalls.sunburstData)).toEqual(['CNY']);
     // 卡片总数也跟着换成该分类合计（否则图里的扇区与上方的数对不上）
     await expect(page.locator('#chart-total')).toHaveText('¥130,000.00');
     const pcts = await page.evaluate(() =>
       [...document.querySelectorAll('#chart-legend .chart-legend-pct')].map((e) => parseFloat(e.textContent)));
     expect(pcts.reduce((a, b) => a + b, 0)).toBeCloseTo(100, 1);
-    // 明细金额之和 = 该分类合计（分母与图上扇区同源）
     const amts = await page.evaluate(() =>
       [...document.querySelectorAll('#chart-legend .chart-legend-amt')].map((e) => Number(e.textContent.replace(/[^0-9.]/g, ''))));
     expect(amts.reduce((a, b) => a + b, 0)).toBeCloseTo(130000, 0);
 
-    // 返回全部分类
     await page.locator('#chart-legend-head .legend-back').click();
     await expect.poll(names).toEqual(['CNY', 'HKD']);
     // 图本身也必须回到全景：这是用户报的那个 bug——清单回来了、图仍停在下钻层
@@ -2277,18 +2129,12 @@ test.describe('分布图的构成清单（与图同源）', () => {
     expect(await head()).toBe('构成');
     expect(await page.evaluate(() => JSON.stringify(sunburstLegendSel['chart-legend']))).toBe('null');
 
-    // 点图上的扇区也能下钻：用 ECharts 替身派发一次真实形态的 click 事件
-    // （params 形如 ECharts 给的：带 treePathInfo 祖先路径）。替身没有 canvas，
-    // 点不到真扇区，但「点击参数 → 下钻 → 清单联动」这条链路能验；
-    // 真实点击已由 logic 层的 sunburstNodePath 断言 + 本地真库探针覆盖
     await page.selectOption('#chart-category-select', 'currency');
     await expect.poll(names).toEqual(['CNY', 'HKD']);
     await page.evaluate(() => {
-      // 用页面自己的 chart 变量（替身的 getInstanceByDom 返回 null）
       chart.dispatchAction({ type: 'click', name: 'HKD', dataIndex: 2, treePathInfo: [{ name: '', value: 0 }, { name: 'HKD', value: 1 }] });
     });
     await expect.poll(head).toContain('HKD');
-    // 点到条目层（长度 3）不下钻：树只有两层，再钻没有下一层可去
     await page.locator('#chart-legend-head .legend-back').click();
     await expect.poll(names).toEqual(['CNY', 'HKD']);
     await page.evaluate(() => {
@@ -2296,7 +2142,6 @@ test.describe('分布图的构成清单（与图同源）', () => {
     });
     expect(await head(), '点条目不应下钻（明细已是最后一层）').toBe('构成');
 
-    // 再点一次已选中的分类 = 返回全部分类（原生下钻已关，内环仍能点回去）
     await page.evaluate(() => {
       chart.dispatchAction({ type: 'click', name: 'HKD', dataIndex: 2, treePathInfo: [{ name: '', value: 0 }, { name: 'HKD', value: 1 }] });
     });
@@ -2314,7 +2159,6 @@ test.describe('分布图的构成清单（与图同源）', () => {
     const all = await legendRows(page, 'expense-chart-legend');
     expect(all.reduce((s, r) => s + parseFloat(r.pct), 0)).toBeGreaterThan(99.5);
 
-    // sampleState 的消费：2026-01（微信 88.5 / 支付宝 3200）、2026-02（微信 42）
     await page.selectOption('#expense-chart-month-select', '2026-02');
     await expect.poll(async () => (await legendRows(page, 'expense-chart-legend')).length).toBe(1);
     const feb = await legendRows(page, 'expense-chart-legend');
@@ -2333,7 +2177,6 @@ test.describe('分布图的构成清单（与图同源）', () => {
     // 三种下标互不相等，谁也糊弄不过去。
     await page.locator('#tabs-expenses .tab-btn[data-tab="expense-chart"]').click();
     await expect(page.locator('#expense-chart-legend .chart-legend-row').first()).toBeVisible();
-    // 默认选中最新月份（2026-02 只有微信）；切到 1 月才有两个分类可比
     await page.selectOption('#expense-chart-month-select', '2026-01');
     await expect.poll(async () => (await legendRows(page, 'expense-chart-legend')).length).toBe(2);
     const rows = await legendRows(page, 'expense-chart-legend');

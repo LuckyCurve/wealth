@@ -1,13 +1,3 @@
-/*
- * ui-wiring.test.js — index.html UI 接线契约测试
- * --------------------------------------------------------------------------
- * 单文件 SPA 没有「组件引用」可查，HTML 的 onclick 属性就是接线本身。
- * 这里用零依赖的文本断言守住几条关键架构契约，防止后续改动时：
- *   - 旧入口回潮（如页头重新出现导入/导出、明暗快捷开关）
- *   - 同一设置出现两套互不同步的控件（如 io-modal 里再长出频率下拉）
- *   - 接线改名后漏改（onclick 指向已不存在的函数）
- * 与 logic.test.js 一样跑在 node --test 下，无需构建。
- */
 const { test, describe } = require('node:test');
 const assert = require('node:assert');
 const fs = require('fs');
@@ -47,7 +37,6 @@ describe('UI 接线契约：设置是唯一入口', () => {
     assert.strictEqual(count(/onclick="showSettings\(\)"/g), 1, 'showSettings 只应接在页头一处');
     assert.strictEqual(count(/dark-toggle/g), 0, '头部 ☀/☾ 快捷开关应保持移除');
     assert.ok(!html.includes('>导入 / 导出<'), '页头不应再有「导入 / 导出」按钮');
-    // showImportExport 仅允许由设置弹窗底部的跨弹窗链接触发
     const callers = html.match(/onclick="[^"]*showImportExport\(\)[^"]*"/g) || [];
     assert.strictEqual(callers.length, 1, 'showImportExport 只能有一个触发点');
     assert.ok(callers[0].includes("closeModal('settings-modal')"), '该触发点应在设置弹窗内（先关设置再打开）');
@@ -100,13 +89,11 @@ describe('UI 接线契约：统一提示便条（右下角单一出口）', () =
       html.indexOf('id="toast-area"') < html.indexOf('<script src="logic.js">'),
       '容器应在应用脚本加载前存在于 DOM');
     assert.match(html, /<div id="toast-area"[^>]*aria-live="polite"/, '读屏器可感知');
-    // 不允许再出现其他 append 到 body 的瞬时提示通道
     assert.strictEqual(fnSource('toast').match(/document\.body\.appendChild/g), null, '便条应入容器而非直接挂 body');
   });
 
   test('三种语义色齐全：success/error/info 各有亮暗两套样式', () => {
     for (const t of ['success', 'error', 'info']) {
-      // 选择器可能与其他同色系规则合并（`.toast-success, .mo-badge.up`）：只要求它带了样式
       assert.match(html, new RegExp(`\\.toast-${t}\\s*[,{]`), `.toast-${t} 亮色样式存在`);
       assert.match(html, new RegExp(`\\.dark \\.toast-${t}\\s*[,{]`), `.dark .toast-${t} 暗色样式存在`);
     }
@@ -119,7 +106,6 @@ describe('UI 接线契约：统一提示便条（右下角单一出口）', () =
     assert.match(src, /(?:[A-Za-z_$][A-Za-z0-9_$]*\.)?rateFallbackNotice\(!!state\.rates\.fetchedAt\)/);
     assert.doesNotMatch(src, /使用缓存汇率|汇率获取失败/, '失败文案不应在内联脚本里硬编码重复');
     assert.match(logic, /function (?:[A-Za-z_$][A-Za-z0-9_$]*\.)?rateFallbackNotice\(/, '决策纯函数应在 logic.js');
-    // 响应形状校验与取倒数同源：直接在页面里 1/cny.hkd，脏响应会把 NaN/Infinity 写进存档
     assert.match(src, /(?:[A-Za-z_$][A-Za-z0-9_$]*\.)?ratesFromApi\(/, '汇率响应须经 logic.js ratesFromApi 校验后写入');
     assert.doesNotMatch(stripComments(src), /1 \/ cny\./, '不得在页面里直接取倒数（缺字段即 NaN）');
   });
@@ -163,7 +149,6 @@ describe('UI 接线契约：共享层单一来源（防重复实现各自漂移�
       assert.match(fnSource(fn), /(?:[A-Za-z_$][A-Za-z0-9_$]*\.)?nextSortState\(/, `${fn} 应调用 nextSortState`);
       assert.doesNotMatch(fnSource(fn), /sortDir = 'desc'/, `${fn} 内联方向翻转应消失`);
     }
-    // 消费侧首次点击粘性翻转语义保留
     assert.match(fnSource('toggleExpenseSort'), /expenseSortTouched/);
   });
 
@@ -173,7 +158,6 @@ describe('UI 接线契约：共享层单一来源（防重复实现各自漂移�
       assert.match(src, /\.\.\.barChartBase\(/, `${fn} 应用 barChartBase 底座`);
       assert.match(src, /\.\.\.chartTooltipBase\(/, `${fn} 应用 chartTooltipBase 底座`);
     }
-    // 逐字重复的 grid/xAxis/yAxis 样板已收敛进 helper：字面量只允许出现一次（helper 定义处）
     assert.strictEqual(count(/grid: \{ left: '3%'/g), 1, 'axis/grid 样板只允许在 barChartBase 内定义一份');
   });
 
@@ -181,7 +165,6 @@ describe('UI 接线契约：共享层单一来源（防重复实现各自漂移�
     assert.match(logic, /function (?:[A-Za-z_$][A-Za-z0-9_$]*\.)?defaultCompareBaseMonth\(/, '默认基准口径应在 logic.js');
     assert.match(fnSource('openCompareModal'), /(?:[A-Za-z_$][A-Za-z0-9_$]*\.)?defaultCompareBaseMonth\(sorted\)/, '接线从 logic.js 取默认基准');
     assert.strictEqual(count(/function (?:[A-Za-z_$][A-Za-z0-9_$]*\.)?defaultCompareBaseMonth\(/g), 0, 'index.html 不应再保留本地副本');
-    // 不保留记忆：每次打开都重置为最近两个月（起始=次新月，结束=最新月）
     const src = fnSource('openCompareModal');
     assert.doesNotMatch(src, /prevBase|prevTarget/, '不应再读取上次选择');
     assert.match(src, /baseSel\.value = (?:[A-Za-z_$][A-Za-z0-9_$]*\.)?defaultCompareBaseMonth\(sorted\)/, '起始月强制次新月');
@@ -254,12 +237,8 @@ describe('UI 接线契约：便条的播报优先级', () => {
 });
 
 describe('UI 接线契约：Tab 滑动指示条', () => {
-  // 用户要求：从「消费记录」切到「消费分布」时，小黄条应从左边**滑**过去，不是跳变。
-  // 实现：指示条不再是每个按钮自己的 border-bottom，而是 Tab 栏里**唯一的**一个元素，
-  // 切换时用 transform 移动到目标按钮下方（transform 有过渡 = 滑动）。
   test('每条 Tab 栏里必须有且只有一个滑动指示条元素', () => {
     assert.match(html, /class="tab-bar[^"]*"[^>]*>\s*<span class="tab-indicator"/, '指示条必须是 tab-bar 的第一个子元素（单一元素）');
-    // 按钮自己的 border-bottom 不再承担「指示当前」的职责
     assert.doesNotMatch(html, /\.tab-btn\.active \{[^}]*border-bottom-color/, 'active 按钮不得再用 border-bottom 画黄条（那是跳变）');
     assert.match(html, /\.tab-indicator \{/, '指示条要有自己的样式（位置由 JS 写变量，过渡在 CSS）');
     assert.match(html, /transition:[^;]*transform/, '指示条必须有 transform 过渡（否则还是跳变）');
@@ -280,9 +259,6 @@ describe('UI 接线契约：Tab 滑动指示条', () => {
     const resizeFn = (() => {
       const clean = stripComments(html);
       const key = "addEventListener('resize'";
-      // 取「监听体**内**（不是文件后续巧遇的字样）调 moveTabIndicator」的那个 resize 段：
-      // 每段是“resize( 后的全部余文”，会包含后面所有代码。指示条那个监听的特征：
-      // 段内**同时**含 moveTabIndicator 与 .tab-btn.active（从 active 按钮读当前 tab）。
       const segs = clean.split(key).slice(1);
       return segs.find((s) => s.slice(0, 600).includes('moveTabIndicator') && s.includes('.tab-btn.active')) || '';
     })();
@@ -346,7 +322,6 @@ describe('UI 接线契约：弹窗焦点管理（aria-modal 的兑现）', () =>
   });
 
   test('所有隐藏弹窗的路径都走 closeModal：否则焦点管理被绕过（只改 display 而不还焦点）', () => {
-    // ESC 与遮罩点击原先各自写 `style.display = 'none'`，绕过了 closeModal。
     const escBlock = blockFrom(html, "if (e.key !== 'Escape') return;", '});');
     assert.doesNotMatch(escBlock, /top\.style\.display = 'none'/, 'ESC 关弹窗必须走 closeModal（否则焦点不还）');
     assert.match(escBlock, /closeModal\(top\.id\)|confirmCancel\(\)/, 'ESC 应统一走 closeModal / confirmCancel');
@@ -454,8 +429,6 @@ describe('UI 接线契约：堆叠柱下钻与图例记忆', () => {
   test('点击下钻接线单一来源 wireStackedBarDrill，两图各接一次，内联 chart.on(click) 不回潮', () => {
     assert.match(html, /function wireStackedBarDrill\(/, 'helper 定义存在');
     assert.strictEqual(count(/wireStackedBarDrill\(/g), 3, '定义一处 + 两图 init 各一次');
-    // chart click 只允许出现在两个「单一接线函数」里：堆叠柱下钻 + 旭日选中分类。
-    // 散落在 render* 里的内联 chart.on('click') 仍不允许（那正是这条要防的）
     assert.strictEqual(count(/\.on\('click'/g), 2, 'chart click 仅限 wireStackedBarDrill / wireSunburstDrill 内各一处');
     const inlineOn = html.split(String.fromCharCode(10))
       .filter((l) => l.indexOf(".on('click'") >= 0 && !/^\s*(\/\/|\*)/.test(l))
@@ -542,13 +515,10 @@ describe('UI 接线契约：收益覆盖标尺（分子口径可切换的预期�
     assert.strictEqual(count(/onclick="setCoverageMode\('cash'\)"/g), 1);
     assert.strictEqual(count(/onclick="setCoverageMode\('total'\)"/g), 1);
     assert.match(fnSource('setCoverageMode'), /setSegMode\('cov-mode-cash', 'cov-mode-total'/);
-    // 指引分支仅现金口径有意义
     assert.match(fnSource('renderCoverageMeter'), /coverageMode === 'cash' && cashMonthly <= 0/);
   });
 
   test('预期保存/清除只重绘列表（图表与报头的收尾交给 syncDerivedReads）', () => {
-    // 可见性守卫不再在每个写入点各写一遍：它只在 refreshVisibleCharts 一处
-    //（有专属契约守着）。写入点只负责「数值变了就重绘列表」，其余派生读数自动跟上。
     for (const fn of ['saveExpectation', 'clearExpectation']) {
       const src = fnSource(fn);
       assert.match(src, /renderAssets\(\)/, `${fn} 重绘列表（收尾走 syncDerivedReads）`);
@@ -572,7 +542,6 @@ describe('UI 接线契约：收益覆盖标尺（分子口径可切换的预期�
     assert.match(logic, /function (?:[A-Za-z_$][A-Za-z0-9_$]*\.)?ratedPrincipalCNY\(/, '决策纯函数在 logic.js');
     const src = fnSource('renderIncomeTab');
     assert.match(src, /(?:[A-Za-z_$][A-Za-z0-9_$]*\.)?ratedPrincipalCNY\(assetsInView\(\)\)/, '页脚基地须走 logic.js 同一口径（经压测叠加入口）');
-    // 内联 reduce 聚合有息本金是分家源头（改一处忘另一处 → 页脚均值与外推年化对不上）
     assert.doesNotMatch(src, /assets\.reduce\(\(s, a\) => s \+ toCNY/, '页脚不得内联重复聚合有息本金');
   });
 
@@ -585,11 +554,9 @@ describe('UI 接线契约：收益覆盖标尺（分子口径可切换的预期�
     assert.match(tip, /class="tip-mark"/, '复用 ? 图标');
     assert.match(tip, /class="tip-bubble"/, '说明性文字进气泡不写正文');
     assert.match(tip, /aria-describedby="cov-shortfall-tip"/, '? 图标关联气泡（可访问性）');
-    // 已覆盖分支只剩印徽：tip 拼装须收在 !ok 分支内
     assert.match(src, /if \(!ok\)/, 'Tips 只在未覆盖分支拼装');
     assert.match(src, /shortfallTipHtml\(need,/, '渲染层只调唯一拼装处');
     assert.doesNotMatch(tip, /(?:[A-Za-z_$][A-Za-z0-9_$]*\.)?formatCNY\(gap|\* 12 \*/, '外推算式不得在展示层重写（口径在 logic.js）');
-    // 年化 = annual ÷ principal: 展示层再算一遍就与 logic.js 的外推基数分家（改一处忘另一处）
     assert.doesNotMatch(tip, /annual \/ principal|\/ principal \* 100/, '实际年化不得在展示层重算');
     assert.strictEqual(count(/cov-shortfall-tip/g) <= 2, true, '气泡 id 只应出现在拼装处, 不另开通道');
   });
@@ -613,7 +580,6 @@ describe('UI 接线契约：备份落盘统一走确认框 + 系统文件窗口'
       'await ratePromise 必须排在弹框之前，否则确认框里的文件名/汇率是旧的');
     assert.doesNotMatch(src, /showSaveFilePicker|downloadBackupJSON|backupJSONText/,
       '确认框只负责问：落盘必须交给 saveBackupToFile 唯一出口');
-    // 确认回调就是那次手势：回调体里出现 await（或写成 async 回调）都会让文件窗口打不开
     const cb = src.slice(src.indexOf('showConfirm('));
     const cbBody = cb.slice(cb.indexOf('=> {'), cb.indexOf('}, prompt.title'));
     assert.ok(cbBody.length > 0, '确认回调体必须能被定位（改形会让这条断言静默失效）');
@@ -624,9 +590,7 @@ describe('UI 接线契约：备份落盘统一走确认框 + 系统文件窗口'
     const src = stripComments(fnSource('saveBackupToFile'));
     const pickerIdx = src.indexOf('window.showSaveFilePicker(');
     assert.ok(pickerIdx > 0, '必须直接调 showSaveFilePicker（仅 Chromium 支持；其余走 fallback）');
-    // 只允许写盘那一段 await（try 块内），函数入口到「弹窗口」之间一步都不许停
     const head = src.slice(src.indexOf('try {'), pickerIdx);
-    // 入口到「弹窗口」之间只允许一个 await —— 就是打开窗口本身那一个
     assert.strictEqual((head.match(/await/g) || []).length, 1,
       'showSaveFilePicker 之前不得先 await 别的：自动备份的唯一手势来自确认框那次点击');
     assert.match(head, /await\s*$/, '唯一那个 await 必须紧贴打开窗口这一句');
@@ -685,7 +649,6 @@ describe('UI 接线契约：备份文件夹', () => {
   test('onclick 只挂同步入口，异步实现单独命名（内联名收集器不认 async function）', () => {
     assert.match(html, /function chooseBackupDir\(\) \{ chooseBackupDirAsync\(\); \}/);
     assert.match(html, /function exportData\(\) \{\n {2}syncBackupControls\(\);[\s\S]*?exportDataAsync\(\);/);
-    // 清除目录先经确认框，异步实现仍单独命名、只在确认回调里调用
     const clearDir = fnSource('clearBackupDir');
     assert.match(clearDir, /showConfirm\(/, '清除备份文件夹也要二次确认');
     assert.match(clearDir, /clearBackupDirAsync\(\)/, '确认后才走异步实现');
@@ -754,7 +717,6 @@ describe('UI 接线契约：汇率刷新链路（绕过 CDN 缓存 / 恢复可�
       assert.match(src, new RegExp(`getElementById\\('${tab}'\\)\\.style\\.display !== 'none'\\) render`),
         `${tab} 的重绘分支必须带可见性守卫（隐藏容器 echarts 0 尺寸初始化，进去就是空白）`);
     }
-    // 汇率刷新后的图表重绘不再由 fetchRates 自己接：重绘列表即收尾 syncDerivedReads
     assert.match(stripComments(fnSource('fetchRates')), /renderAssets\(\)/, '汇率刷新后资产与派生读数一起重算');
     assert.doesNotMatch(stripComments(fnSource('fetchRates')), /refreshVisibleCharts\(\)/,
       '不重复拉图表（renderAssets 收尾已经做过，多拉一次就是两遍 setOption）');
@@ -798,11 +760,9 @@ describe('UI 接线契约：Flatpickr 日期选择器', () => {
     const helperSrc = fnSource('setExpenseDate');
     assert.match(helperSrc, /\._flatpickr/, 'helper 内部检测 Flatpickr 实例');
     assert.match(helperSrc, /fp\.setDate\(/, 'helper 走 fp.setDate');
-    // openExpenseModal 不再各自检测 _flatpickr
     const modalSrc = fnSource('openExpenseModal');
     assert.doesNotMatch(modalSrc, /\._flatpickr/, 'openExpenseModal 不应内联 _flatpickr 检测');
     assert.match(modalSrc, /setExpenseDate\(/, 'openExpenseModal 应调用 setExpenseDate');
-    // 不应有直接赋值 .value 的日期设置
     assert.doesNotMatch(modalSrc, /expense-date\]\.value =/, 'openExpenseModal 不应直接赋值 expense-date.value');
   });
 
@@ -931,7 +891,6 @@ describe('UI 接线契约：消费标签筛选（单下拉分组，类别作不�
   });
 
   test('标签筛选下拉与月份下拉、搜索框同级排列在筛选栏内', () => {
-    // 筛选栏是 tab-expenses 内的 flex 容器，包含搜索框、月份下拉与分组标签下拉
     const expTab = html.match(/id="tab-expenses"[\s\S]*?<\/section>/);
     assert.ok(expTab, '消费 Tab 区域存在');
     const bar = expTab[0];
@@ -951,7 +910,6 @@ describe('UI 接线契约：分类管理回车添加标签', () => {
     // id 由「前缀 + 分类 id」拼成，两者都可能来自导入的 JSON：属性里必须转义
     const input = html.match(/<input type="text" id="\$\{(?:[A-Za-z_$][A-Za-z0-9_$]*\.)?esc\(cfg\.newTagPrefix \+ cat\.id\)\}"[^>]*>/);
     assert.ok(input, '分类卡片的「新增标签」输入框模板存在');
-    // 中文输入法确认候选字用的也是回车：无 isComposing 守卫会提前提交并销毁组字中的输入框
     assert.match(
       input[0],
       /onkeydown="if\(event\.key==='Enter'&&!event\.isComposing\)/,
@@ -984,8 +942,6 @@ describe('UI 接线契约：分类管理回车添加标签', () => {
   });
 
   test('标签（逗号分隔）由 category.parseTagInput 解析，页面不另写一份 split', () => {
-    // 去重只能在解析处：「甲, 甲」存进分类后，列表里是两枚同名胶囊、图表里两份同名分组，
-    // 而改名判重（includes）会被其中一个挡住——界面自己清不掉。
     const src = fnSource('saveCategory');
     assert.match(src, /const tags = category\.parseTagInput\(tagsStr\)/, '唯一解析入口');
     assert.doesNotMatch(src, /split\(\/\[,\uff0c\]\//, '逗号解析不得在页面里重写一份（去重会跟着漏）');
@@ -1064,20 +1020,16 @@ describe('UI 接线契约：标签改名（迁移引用，不是清空）', () =
   test('胶囊上不再有 ✎：长按胶囊即改名（长按状态机与资产入口同源）', () => {
     assert.strictEqual(count(/class="tag-pill"/g), 1, '胶囊模板只允许一处');
     const pill = fnSource('tagPillHtml');
-    // ✎ 图标去掉：它太小、还把每一枚胶囊都变成「带控件的样子」；改成长按整枚胶囊
     assert.doesNotMatch(pill, /pill-edit/, '不再渲染 ✎ 图标');
     assert.doesNotMatch(pill, /✎/, '标记里不得再出现 ✎ 字形');
     assert.strictEqual(count(/✎/g), 0, '全页不留 ✎（提示文案里也不要再指路到图标）');
-    // 长按接线：胶囊挂 press 事件，落点仍走那唯一的改名实现
     assert.match(pill, /data-rename/, '胶囊带改名所需的分类/标签数据');
     assert.match(html, /startTagPress\(/, '按下即开始计时');
     assert.match(html, /endTagPress\(/, '松手判定');
-    // 阈值与进度走 logic.js（与资产入口同一套状态机，只换阈值）
     const logicSrc = fs.readFileSync(path.join(__dirname, '..', 'logic.js'), 'utf8');
     assert.match(logicSrc, /function (?:[A-Za-z_$][A-Za-z0-9_$]*\.)?pressDecision\(heldMs, threshold\)/, '判定参数化（不复制第二份阈值逻辑）');
     assert.match(html, /(?:[A-Za-z_$][A-Za-z0-9_$]*\.)?pressDecision\([^)]*TAG_PRESS_MS/, '改名用 TAG_PRESS_MS 那一档');
     assert.strictEqual(count(/renameTag\(/g), 2, '定义一处 + startTagRename 提交处一处（不再有第二条改名路径）');
-    // 键盘/读屏器仍要能改名：长按是手势，不是权限（与资产入口同一原则）
     assert.match(pill, /tabindex="0"/, '胶囊可聚焦');
     assert.match(html, /onkeydown="[^"]*renameTagFromKey/, '键盘必须有一条直达改名的路');
   });
@@ -1095,9 +1047,7 @@ describe('UI 接线契约：标签改名（迁移引用，不是清空）', () =
     // 样式表里也不得留「只减不加」的死规则：.mode-press.armed 从未被 add 过（只有 remove），
     // 留着会让下一个人以为按住时真有这一态
     assert.strictEqual(count(/\.mode-press\.armed/g), 0, '.mode-press.armed 是死规则（无任何代码 add）');
-    // 长按胶囊的进度靠 JS 按实宽写 box-shadow；CSS 里的 --tag-press 伪进度宽度恒为 0，且会被内联覆盖
     assert.strictEqual(count(/var\(--tag-press/g), 0, '--tag-press 没有任何视觉出口，不得留在样式中');
-    // 松手早于下一帧那一线：判定同源，够长就仍然进编辑态
     assert.match(fnSource('endTagPress'), /startTagRename\(/, '手势够长不该因为少一帧而作废');
   });
 
@@ -1109,7 +1059,6 @@ describe('UI 接线契约：标签改名（迁移引用，不是清空）', () =
     assert.match(src, /cat\.builtin[\s\S]{0,60}?\? \{ showKey: false \}/, '内置分类只给纯展示选项');
     assert.strictEqual(count(/removeSide: side/g), 1, '入口只在这一处按 builtin 收口');
     assert.match(src, /tagPillHtml\(cat, t, cfg\.colorFn, tagOpts\)/, '两侧共用同一份 opts（不各写一遍）');
-    // 守卫照旧：只读是「不给入口」，不是把守卫当挡箭牌
     assert.strictEqual(count(/toast\(i18n\.t\('内置分类不可修改'\)/g), 3, '改名/删除/保存分类三处守卫不漏');
   });
 
@@ -1152,7 +1101,6 @@ describe('UI 接线契约：数据校验（缺标签一键/逐条补齐，资产
     assert.strictEqual(count(/id="tagcheck-groups"/g), 1);
     assert.strictEqual(count(/function openTagCheck\(/g), 1, '打开入口只定义一次');
     assert.match(fnSource('openTagCheck'), /openModal\('tagcheck-modal'\)/, '走通用弹窗路径');
-    // 定义一处 + 两条校验条「去校验」+ 分类卡片提示条 + 新建分类后自动打开
     assert.strictEqual(count(/openTagCheck\(/g), 5, '所有入口都调同一入口函数');
   });
 
@@ -1171,7 +1119,6 @@ describe('UI 接线契约：数据校验（缺标签一键/逐条补齐，资产
     assert.strictEqual(count(/class="tag-choice"/g), 1, 'tag-choice 模板只允许存在一处');
     assert.strictEqual(count(/function tagPickerHtml\(/g), 1, 'chips 生成函数唯一');
     assert.strictEqual(count(/renderTagPicker/g), 0, '旧的就地渲染函数应保持重命名（面板需要拿 HTML 字符串复用）');
-    // 定义一处 + 资产表单 + 消费表单 + 面板一键补齐 + 面板逐条
     assert.strictEqual(count(/tagPickerHtml\(/g), 5);
     assert.match(fnSource('tagCheckGroupHtml'), /tagPickerHtml\(/, '面板分组复用 chips 生成');
   });
@@ -1235,7 +1182,6 @@ describe('UI 接线契约：数据校验（缺标签一键/逐条补齐，资产
   test('分组头分类名取 cat 而非会话对象 g（g 只有 catId/ids，用 g.name 会渲成空串）', () => {
     const src = fnSource('tagCheckGroupHtml');
     assert.match(src, /(?:[A-Za-z_$][A-Za-z0-9_$]*\.)?esc\(cat\.name\)/, '分类名从分类对象取');
-    // 调用语法正则而非裸关键词：说明注释里也会出现字段名，裸匹配会误报
     assert.doesNotMatch(src, /\$\{(?:[A-Za-z_$][A-Za-z0-9_$]*\.)?esc\(g\.name\)\}/, '会话对象没有 name 字段，插值即渲出空标题');
   });
 
@@ -1289,18 +1235,15 @@ describe('UI 接线契约：压测（读数走叠加入口，账本读原值）'
     // 为什么不能只断言「出现过 assetsInView」：那样同一函数里改坏一处（收益表的加权利率基地）
     // 仍会绿——真实发生过的假绿。
     const allowed = {
-      // 只取「资产条数」与「有没有资产」（与金额无关，压测不改条数）
       renderMasthead: 1,
       renderChart: 1,
     };
-    // 数的是**剥掉注释后**的代码：注释里提一句 state.assets 不应让一条漏接的断言变绿
     for (const [fn, n] of Object.entries(allowed)) {
       assert.strictEqual((stripComments(fnSource(fn)).match(/state\.assets/g) || []).length, n,
         fn + ' 里 state.assets 的读取点应恰好 ' + n + ' 处（多一处就是漏接 assetsInView/ledgerAssets）');
     }
     for (const fn of ['totalAssetsCNY', 'renderIncomeTab', 'renderCoverageMeter',
       'renderRunwayRow', 'renderRunwayPreview', 'renderIncomeChart',
-      // 快照存原值，但它经 ledgerAssets() 取——名字就是「这里故意不打折」的判据
       'confirmSnapshot']) {
       assert.strictEqual((stripComments(fnSource(fn)).match(/state\.assets/g) || []).length, 0,
         fn + ' 不得直接读 state.assets（压测叠加只在 assetsInView 一处发生）');
@@ -1312,7 +1255,6 @@ describe('UI 接线契约：压测（读数走叠加入口，账本读原值）'
   });
 
   test('账本侧读原值：列表/快照/导出/示例数据不得经 assetsInView（压测不写账本）', () => {
-    // 这几处是「账本事实」：打折了就是篡改数据，不是读数
     for (const fn of ['renderAssets', 'openAssetModal', 'saveAsset']) {
       const src = fnSource(fn);
       assert.match(src, /state\.assets/, fn + ' 应读账本原值（压测只改读数）');
@@ -1332,7 +1274,6 @@ describe('UI 接线契约：压测（读数走叠加入口，账本读原值）'
   test('标签改名迁移情景、分类删除让情景失效（改名 ≠ 删除，与读数卡同一处置）', () => {
     assert.match(fnSource('renameTag'), /stress\.migrateStressTagRefs\(state\.stress,/, '改名要迁移跌幅条目（否则情景静默失效）');
     assert.match(fnSource('deleteCategory'), /stress\.pruneStress\(state\.stress,/, '分类删除后要重新归一');
-    // 与读数卡的迁移同处一行调用点（两件事都在「改名」这一个动作里收尾）
     const src = fnSource('renameTag');
     assert.match(src, /migrateRunwayTagRefs\(/, '读数卡与压测同处迁移（别只迁一个）');
   });
@@ -1355,8 +1296,6 @@ describe('UI 接线契约：压测（读数走叠加入口，账本读原值）'
     const src = fnSource('renderStressChrome');
     assert.match(src, /stress\.stressActive\(state\.stress\)/, '两处指示器共用同一「生效」判据');
     assert.match(src, /stress\.stressBarText\(/, '条的三态文案在 logic.js');
-    // 资产重绘时同步指示器：不再由 renderAssets 各挑一处重绘，收尾一律交给 syncDerivedReads
-    // （它内部调 renderStressChrome，见「实时联动」那一组契约）
     assert.match(fnSource('renderAssets'), /syncDerivedReads\(\)/, '资产重绘时同步指示器');
   });
 
@@ -1366,14 +1305,12 @@ describe('UI 接线契约：压测（读数走叠加入口，账本读原值）'
     assert.doesNotMatch(fnSource('openStressModal'), /state\.stress = /, '打开不得写状态');
     assert.match(fnSource('saveStress'), /state\.stress = next/, '保存才落 state');
     assert.match(fnSource('clearStress'), /state\.stress = null/, '清除立即回真实值');
-    // 复用：滑块与读数走既有 class（安全边际那套），胶囊走 tagPillHtml 唯一模板
     const keeps = fnSource('renderStressKeeps');
     assert.match(keeps, /class="scale-input"/, '复用比例尺滑块（与安全边际同一套）');
     assert.match(keeps, /class="scale-reading"/, '复用等宽读数（--fill 与滑块同步）');
     assert.match(keeps, /tagPillHtml\(cat, r\.tag, catColor\)/, '胶囊走唯一模板 tagPillHtml');
     assert.strictEqual(count(/class="tag-pill"/g), 1, '胶囊模板只允许一处');
     assert.match(fnSource('onStressKeepInput'), /setScaleValue\(/, '滑块填充走 setScaleValue 单一来源');
-    // 维度下拉：只列可压测分类（内置货币分类排除，汇率是另一条通道）
     assert.match(fnSource('fillStressDimensionSelect'), /stress\.stressDimensions\(state\.categories\)/);
   });
 
@@ -1437,7 +1374,6 @@ describe('UI 接线契约：账本一变，所有派生读数就重算（实时�
   });
 
   test('批量重绘只收尾一次（renderAll 不得把同一张图画两遍）', () => {
-    // 两侧列表各收尾一次就是两次 setOption；renderAll 括起来，收尾只跑一次。
     assert.match(fnSource('renderAll'), /_renderBatch\+\+/, 'renderAll 括住整个批量');
     assert.match(fnSource('renderAll'), /syncDerivedReads\(\)/, '批量结束后再刷一次');
     assert.match(fnSource('syncDerivedReads'), /if \(_renderBatch\) return;/, '批量期间先攒着');
@@ -1449,7 +1385,6 @@ describe('UI 接线契约：图表 tooltip 转义用户输入（防存储型 XSS
   // p.name / p.seriesName / treePathInfo 均来自用户输入（资产名、备注、标签名），
   // 不转义时恶意名称（或导入的 JSON）会执行脚本。列表/弹窗已全走 esc()，tooltip 不得例外。
   test('旭日图 tooltip 名称/标签路径经 esc 转义，且内容单一来源 sunburstTooltipContent', () => {
-    // 转义与「路径 › 名称 + 金额 · 占比」文案收敛在 helper 一处；三张旭日图只传口径
     const helper = fnSource('sunburstTooltipContent');
     assert.ok(helper, 'sunburstTooltipContent helper 存在');
     assert.match(helper, /(?:[A-Za-z_$][A-Za-z0-9_$]*\.)?esc\(p\.name\)/, 'helper 应转义名称');
@@ -1473,8 +1408,6 @@ describe('UI 接线契约：图表 tooltip 转义用户输入（防存储型 XSS
   });
 
   test('用户字段插值一律经 esc：日期不是「安全形状」，它同样来自导入的 JSON', () => {
-    // 备注/标签名都转了，日期却是裸插值——而 migrateState 对 date 只补空值、不校验形状。
-    // 精确到「插值里出现的裸用户字段」，不搞全站一刀切（`${formatCNY(x)}` 这类无需转义）。
     assert.strictEqual(count(/\$\{e\.date\}/g), 0, '日期插值必须走 esc（月度明细/分类构成两处曾裸插）');
     assert.strictEqual(count(/\$\{(?:e|exp|it|a|asset|s)\.(?:date|note|name)\}/g), 0,
       '用户输入字段不得裸插值进 innerHTML');
@@ -1497,10 +1430,6 @@ describe('UI 接线契约：图表 tooltip 转义用户输入（防存储型 XSS
 
 describe('UI 接线契约：预期保存/清除不自己碰图表（隐藏容器 echarts 0 尺寸初始化）', () => {
   test('写入点只重绘列表，图表重绘一律经 syncDerivedReads（守卫只在一处）', () => {
-    // 覆盖标尺的「修改」入口位于资产模式收益 Tab，此时 #tab-expense-trend 隐藏；
-    // 无守卫会在隐藏容器上 echarts.init 出 0×0 实例，之后进入趋势页图表空白。
-    // 现在两个写入点都不碰图表：收尾是 renderAssets → syncDerivedReads → refreshVisibleCharts
-    //（它五个分支各带可见性守卫，由上一组契约守着），故这里反向钉死。
     for (const fn of ['saveExpectation', 'clearExpectation']) {
       const src = fnSource(fn);
       assert.match(src, /renderAssets\(\)/, `${fn} 重绘列表`);
@@ -1576,7 +1505,6 @@ describe('UI 接线契约：行内金额编辑键位（小键盘 Enter 同 Tab�
 
 describe('UI 接线契约：行级可点元素必须键盘可达（可点即键盘可达）', () => {
   test('行级激活键位走 logic.js activateKeyAction，不在内联里各自判键名', () => {
-    // 只认 Enter 是常见的半吊子实现：Space 是屏幕阅读器用户最惯用的激活键。
     assert.strictEqual(
       (html.match(/function activateKeyAction/g) || []).length,
       0,
@@ -1630,7 +1558,6 @@ describe('UI 接线契约：行级可点元素必须键盘可达（可点即键�
   });
 
   test('排序表头：Space 与 Enter 同义、aria-sort 走 logic.js 单一口径', () => {
-    // 表头是 role=button，只认 Enter 会让 Space 落空；aria-sort 让读屏器知道当前排序列。
     const sortHeads = html.match(/<div[^>]*onclick="toggle(Sort|ExpenseSort)[^>]*>/g) || [];
     assert.strictEqual(sortHeads.length, 6, '资产 4 列 + 消费 2 列排序表头');
     for (const head of sortHeads) {
@@ -1644,7 +1571,6 @@ describe('UI 接线契约：行级可点元素必须键盘可达（可点即键�
       assert.strictEqual((head.match(/\bclass="/g) || []).length, 1,
         `排序表头只能有一个 class 属性（重复的那个会被丢弃，导致 .row-hit 静默失效）：${head}`);
       assert.match(head, /\bclass="[^"]*\brow-hit\b/, '排序表头必须带上 .row-hit（指针样式与焦点环的来源）');
-      // 数值列（金额族）另要 .num；名字/货币/日期是左对齐的标识文本，不在此列
       if (/金额/.test(head)) assert.match(head, /\bclass="[^"]*\bnum\b/, '数值列表头还要带 .num（右对齐与等宽数字）');
     }
     assert.match(
@@ -1709,8 +1635,6 @@ describe('UI 接线契约：内联事件属性必须是合法 JS（单测看不�
       // 而那正是我们要守的东西（少花括号这类错误与占位符内容无关）。
       const body = raw.replace(/\$\{[^}]*\}/g, '0');
       try {
-        // 处理体在浏览器里就是这样被包成函数体的；能构造即语法正确
-        // eslint-disable-next-line no-new-func
         new Function('event', body);
       } catch (e) {
         bad.push(`${e.message} :: ${raw}`);
@@ -1741,11 +1665,8 @@ describe('UI 接线契约：内联事件属性必须是合法 JS（单测看不�
     const logic = fs.readFileSync(path.join(__dirname, '..', 'logic.js'), 'utf8');
     const declared = new Set();
     const collect = (src, indent) => {
-      // `async function` 同样是**顶格声明**（函数声明提升，内联处理器能直接调用），
-      // 漏掉它会把「图表渲染改成 async」这种正常重构误报成「名字不存在」。
       const re = new RegExp(`^${indent}(?:async\\s+)?(?:function|let|const|var)\\s+([A-Za-z_$][\\w$]*)`, 'gm');
       for (const m of src.matchAll(re)) declared.add(m[1]);
-      // `let a = 1, b = 2;` 这类同行多声明（同样只认顶层）
       const re2 = new RegExp(`^${indent}(?:let|const|var)\\s+[^;=]+=[^;]*;`, 'gm');
       for (const m of src.matchAll(re2)) {
         for (const n of m[0].matchAll(/(?:^|[,\s])([A-Za-z_$][\w$]*)\s*=/g)) declared.add(n[1]);
@@ -1753,11 +1674,8 @@ describe('UI 接线契约：内联事件属性必须是合法 JS（单测看不�
     };
     collect(html, '');      // 内联脚本：顶格声明
     collect(logic, '  ');   // logic.js：UMD 工厂内两格缩进
-    // 域入口（money / text / chartData …）由 logic.js 的 UMD 注入挂到全局，
-    // 内联处理器里写 text.esc(...) 是合法的——把它们算作已声明
     for (const m of logic.matchAll(/^ {4}([A-Za-z_$][\w$]*): \{$/gm)) declared.add(m[1]);
 
-    // 浏览器内建（window 上的构造器/全局函数）与事件处理器自带的 event/this
     const builtins = new Set([
       'event', 'this', 'document', 'window', 'console', 'Math', 'Date', 'JSON', 'Number', 'String',
       'Array', 'Object', 'Set', 'Map', 'Boolean', 'isNaN', 'isFinite', 'parseInt', 'parseFloat',
@@ -1770,7 +1688,6 @@ describe('UI 接线契约：内联事件属性必须是合法 JS（单测看不�
       // 否则「给函数传 patch 对象」这种合法写法会被误报成「名字不存在」。
       const body = raw.replace(/\$\{[^}]*\}/g, '0').replace(/'[^']*'/g, "''").replace(/"[^"]*"/g, '""')
         .replace(/([{,]\s*)([A-Za-z_$][\w$]*)\s*:/g, '$1');
-      // 只取「前面不是 . 或标识符字符」的裸标识符（属性访问/字符串里的不查）
       for (const m of body.matchAll(/(^|[^\w$.'"])([A-Za-z_$][\w$]*)/g)) {
         const name = m[2];
         if (builtins.has(name) || declared.has(name)) continue;
@@ -1786,7 +1703,6 @@ describe('UI 接线契约：键盘 Tab 不再切换资产/消费', () => {
   test('旧键盘接管整块移除，不回潮', () => {
     assert.strictEqual(count(/handleTabKeyNav/g), 0, '键盘 Tab 接管处理器应保持移除');
     assert.strictEqual(count(/nextTabIndex/g), 0, '组内循环下标纯函数随之移除');
-    // 子 Tab 栏与模式按钮都不再有 keydown 接管：Tab 恢复浏览器默认焦点顺序
     const bar = html.match(/<div id="tabs-assets"[\s\S]*?<\/div>/)[0];
     assert.ok(!/onkeydown/.test(bar), '子 Tab 栏不得接管键位');
   });
@@ -1808,7 +1724,6 @@ describe('UI 接线契约：资产页只能靠长按送达（提高日常查看�
     assert.match(src, /e\.detail === 0/, '只有合成激活抬闸；鼠标/触摸的 detail 是 1，被长按链挡住');
     assert.match(src, /openAssetGate\(\)/, '合成激活只开抄写框');
     assert.doesNotMatch(src, /switchMode\(/, '合成激活绝不能直接进资产页（那正是被删掉的「两次回车进去」）');
-    // detail 的取值不是猜的：app.spec.js 用真实触摸与键盘各跑一遍把它钉住
   });
 
   test('右键不参与长按（option+点击是「想开菜单」，不是想进门）', () => {
@@ -1848,13 +1763,9 @@ describe('UI 接线契约：资产页只能靠长按送达（提高日常查看�
   });
 
   test('长按满时长自动抬闸（按满即弹抄写框，不必再松手）', () => {
-    // 旧决策「弹窗只能松手时出现」是为了躲「抬手指落到刚出现的遮罩上」；
-    // 现由 autoOpenGuard 守卫窗解决（弹出后一小段时间内的指针事件一律忽略），
-    // 行为改为按满即弹——更自然。
     const tick = fnSource('tickModePress');
     assert.match(tick, /openAssetGate\(/, '满时长由推进帧直接抬闸（不必等松手）');
     assert.match(tick, /__autoOpenedAt = performance\.now\(\)/, '弹出时刻要记下（守卫窗的起点）');
-    // 收尾函数只处理短按提示；守卫窗内紧跟的松手要被忽略
     const end = fnSource('endModePress');
     assert.match(end, /decision === 'hint'/, '短按仍要教一句');
     assert.match(end, /(?:[A-Za-z_$][A-Za-z0-9_$]*\.)?autoOpenGuard\(/, 'pointerup 收尾必须查守卫（否则抬手即关）');
@@ -1948,8 +1859,6 @@ describe('UI 接线契约：菜单图标（内联 Lucide symbol，一个来源�
 
 describe('UI 接线契约：弹窗可访问性', () => {
   test('每个 modal-overlay 都要有名字（aria-labelledby 指向本弹窗内的可见标题）', () => {
-    // role="dialog" + aria-modal 只说明「这是一层模态」，没说明「这是哪一层」。
-    // 原先 15 个弹窗一个名字都没有，读屏器打开后只念「对话框」。
     const overlays = html.match(/<div id="[^"]+" class="modal-overlay"[^>]*>/g) || [];
     assert.ok(overlays.length >= 10, '弹窗数量应被扫到');
     for (const tag of overlays) {
@@ -1999,7 +1908,6 @@ describe('UI 接线契约：所选标签的钱 ÷ 预期月消费（消费趋势
   });
 
   test('读数卡公式写在结构里（整句居中, 不沿用无刻度支撑的锚点两端对齐）', () => {
-    // 行尾无关: 断言只截到卡片的闭合 div（工作区可能 CRLF，写死 \n 会脆）
     const section = html.match(/id="runway-card"[\s\S]*?<\/div>/);
     assert.ok(section, '读数卡存在');
     assert.match(section[0], /÷ <span id="runway-expense-name"[^>]*>预期月消费<\/span>/,
@@ -2007,7 +1915,6 @@ describe('UI 接线契约：所选标签的钱 ÷ 预期月消费（消费趋势
     assert.match(section[0], /id="runway-num"/);
     assert.match(section[0], /id="runway-expense"/);
     assert.match(section[0], /id="runway-months"/);
-    // 分母名单独成槽且唯一: JS 靠它切换「预期月消费 / 月消费（自定）」
     assert.strictEqual(count(/id="runway-expense-name"/g), 1);
     assert.match(html, /\.runway-line \{[^}]*justify-content: center/, '整句居中, 窄屏按顿读点换行');
     assert.doesNotMatch(section[0], /cov-anchors/, '无刻度可测, 不套用两端对齐锚点（中间空档会显得突兀）');
@@ -2024,7 +1931,6 @@ describe('UI 接线契约：所选标签的钱 ÷ 预期月消费（消费趋势
     }
     assert.match(fnSource('renderExpenseTrendChart'), /renderRunwayRow\(\);/, '随消费趋势同步刷新');
     assert.doesNotMatch(fnSource('renderIncomeTab'), /renderRunwayRow/, '收益侧不再接线');
-    // 调用点唯一：定义 1 + 趋势图同步 1 + 保存后 1；多一处就多一份刷新时机要维护
     assert.strictEqual(count(/renderRunwayRow\(\)/g), 3, '不得新增散落调用点');
     // 空态也要刷新: 必须放在 renderExpenseTrendChart 的早退之前（无消费记录时读数照样成立）
     const trend = fnSource('renderExpenseTrendChart');
@@ -2041,7 +1947,6 @@ describe('UI 接线契约：所选标签的钱 ÷ 预期月消费（消费趋势
   test('多选 chips 复用 tagChipHtml 单一来源，不另造第二套 chip 模板', () => {
     assert.strictEqual(count(/class="tag-choice"/g), 1, 'chip 模板只允许存在一处');
     assert.strictEqual(count(/function tagChipHtml\(/g), 1, 'chip 生成函数唯一');
-    // 定义一处 + 单选 picker（录入/校验复用）+ 读数区多选 picker
     assert.strictEqual(count(/tagChipHtml\(/g), 3, '单选与多选共用同一 chip 生成');
     assert.match(fnSource('renderRunwayTagGroups'), /tagChipHtml\(/);
   });
@@ -2076,7 +1981,6 @@ describe('UI 接线契约：所选标签的钱 ÷ 预期月消费（消费趋势
   });
 
   test('标签语义放 ? 悬停提示（正文不写说明），hover 与键盘 focus 都能看到', () => {
-    // 文案现在既在 data-i18n 键里又在可见文本里，故数「可见的那一处」（>文本<）
     assert.strictEqual(count(/>同一分类内多选为「或」[^<]*</g), 1, '语义只出现一次——在提示气泡里');
     // 弹窗标题里的 ? 提示现在有两处（压测 + 读数卡），必须锚定到读数卡那一个：
     // 非贪婪匹配会拿到文档里先出现的那个，断言就成了「验了另一个弹窗」
@@ -2087,7 +1991,6 @@ describe('UI 接线契约：所选标签的钱 ÷ 预期月消费（消费趋势
     assert.match(tip[0], /同一分类内多选为「或」/);
     assert.match(tip[0], /不同分类之间为「且」/);
     assert.match(tip[0], /某个分类不选则不参与过滤/);
-    // 展示条件改由 JS 加 .placed（气泡展示时要搬到 body 下，见 placeTipBubble 注释）
     assert.match(html, /\.tip-bubble\.placed \{[^}]*visibility: visible/, '定位后即展示');
     assert.match(html, /document\.addEventListener\('mouseover'/, '指针进入时定位');
     assert.match(html, /document\.addEventListener\('focusin'/, '键盘 focus 也能定位');
@@ -2104,8 +2007,6 @@ describe('UI 接线契约：所选标签的钱 ÷ 预期月消费（消费趋势
     const bubble = html.match(/\n  \.tip-bubble \{[\s\S]*?\n  \}/)[0];
     assert.match(bubble, /position: fixed/, '气泡必须相对视口定位（否则被祖先的层叠上下文困住）');
     assert.doesNotMatch(bubble, /position: absolute/, 'absolute 会落进祖先的层叠上下文');
-    // 定位在 logic.js（纯函数，可单测），页面只做一次赋值
-    // 定位换算是纯函数（在 logic.js，可单测）；页面只负责量尺寸并写两个 CSS 变量
     const logicSrc = fs.readFileSync(path.join(__dirname, '..', 'logic.js'), 'utf8');
     assert.match(logicSrc, /function (?:[A-Za-z_$][A-Za-z0-9_$]*\.)?tipBubblePos\(/, '定位换算有单一入口（logic.js 纯函数）');
     assert.match(html, /function placeTipBubble\(/, '页面只做「量尺寸 + 写变量」这一件事');
@@ -2151,8 +2052,6 @@ describe('UI 接线契约：读数卡的自定月消费（只对本卡生效）'
       '分母必须走单一口径函数');
     assert.match(src, /(?:[A-Za-z_$][A-Za-z0-9_$]*\.)?runwayExpectationIsCustom\(state\.runwayExpectation\)/, '自重绘后仍要能标出「自定」');
     assert.doesNotMatch(src, /state\.expenseExpectation\s*\|\|/, '直接读全局预期会把自定值吞掉');
-    // 只禁「拿 state.runwayExpectation 直接比较/运算」（裸 `expenseExpectation` 会命中函数名
-    // runwayExpectationOf，造成自相矛盾的断言；带 state 前缀的赋值是卡片自身的字段，另由迁移测试把守）
     assert.doesNotMatch(src, /state\.runwayExpectation\s*[<>=!+\-*/]/,
       '分母取值一律走 runwayExpectationOf / runwayExpectationIsCustom，不在渲染层内联回落链');
     assert.match(fnSource('renderRunwayPreview'), /(?:[A-Za-z_$][A-Za-z0-9_$]*\.)?runwayExpectationOf\(/,
@@ -2165,7 +2064,6 @@ describe('UI 接线契约：读数卡的自定月消费（只对本卡生效）'
       assert.match(fnSource(fn), /(?:[A-Za-z_$][A-Za-z0-9_$]*\.)?normalizeRunwayExpectationInput\([\s\S]{0,80}state\.expenseExpectation\)/,
         `${fn} 走同一解析+归一口径（各写一份时值等价也靠不住, 只改一处就会分家）`);
     }
-    // 内联脚本不再自行 replace(/,/g)/parseFloat/比较全局值
     for (const fn of ['renderRunwayPreview', 'saveRunwayTags']) {
       const src = fnSource(fn);
       assert.doesNotMatch(src, /parseFloat/, `${fn} 不得重写解析`);
@@ -2211,9 +2109,7 @@ describe('UI 接线契约：读数卡的自定月消费（只对本卡生效）'
 describe('UI 接线契约：本月已花 ÷ 预期月消费（趋势页预算卡）', () => {
   const logic = fs.readFileSync(path.join(__dirname, '..', 'logic.js'), 'utf8');
   const trendTab = html.match(/id="tab-expense-trend"[\s\S]*?<\/section>/)[0];
-  // 卡片骨架：卡首到下一张卡（跑道卡）之间
   const card = trendTab.slice(trendTab.indexOf('id="month-pace-card"'), trendTab.indexOf('id="runway-card"'));
-  // 渲染函数源码（剥掉注释）：契约断言针对代码——注释里复述算式或旧文案不算违规
   const paceSrc = () => stripComments(fnSource('renderMonthPace'));
 
   test('口径在 logic.js：预算读数/状态文案单一来源，渲染层不内联算式', () => {
@@ -2284,7 +2180,6 @@ describe('UI 接线契约：本月已花 ÷ 预期月消费（趋势页预算卡
     assert.ok(trend.indexOf('renderMonthPace();') < trend.indexOf('state.expenses.length === 0'),
       '必须在早退之前');
     assert.strictEqual(count(/function renderMonthPace\(/g), 1, '定义唯一');
-    // 调用点唯一：定义外仅趋势图同步 1 处（无散落调用点要维护）
     assert.strictEqual(count(/renderMonthPace\(\)/g), 2, '定义 1 + 趋势图同步 1');
   });
 });
@@ -2373,13 +2268,11 @@ describe('UI 接线契约：排版档位单一来源（字号/字重/字体族�
   });
 
   test('Tailwind 不再承载排版规格（字号/字重/字体族/字距工具类清零）', () => {
-    // 规格写进 CDN 工具类的后果：E2E 里是空壳看不见、真机里又和自有档位各算一套
     for (const cls of ['text-xs', 'text-sm', 'text-lg', 'text-\\[10px\\]', 'font-medium', 'font-bold', 'font-mono',
       'tracking-tight', 'tracking-\\[[^\\]]+\\]']) {
       assert.strictEqual(count(new RegExp(`class="[^"]*\\b${cls}\\b`, 'g')), 0,
         `${cls} 应替换为自有档位类 / 角色类`);
     }
-    // Tailwind 配置里的 fontFamily 同样撤掉：字体族只在 <style> 定义一次
     assert.strictEqual(count(/fontFamily: \{/g), 0, 'Tailwind config 不再声明 fontFamily');
   });
 
@@ -2434,7 +2327,6 @@ describe('UI 接线契约：排版档位单一来源（字号/字重/字体族�
     const border = rule.match(/border: 1px dashed ([^;]+);/);
     assert.ok(border, '未选中态保持虚线空栏');
     assert.strictEqual(border[1].trim(), 'var(--border)', '虚线描边走中性 border，不走分类色');
-    // 已选态才允许用分类色（data-driven 色值无法用类名表达，只能内联变量）
     const pressed = html.match(/\n  \.tag-choice\[aria-pressed="true"\] \{[^}]*\}/)[0];
     assert.match(pressed, /background: var\(--chip-bg\)/, '已选态用分类底色（实心盖印）');
     assert.match(pressed, /color: var\(--chip-fg\)/, '已选态用分类字色');
@@ -2470,13 +2362,11 @@ describe('UI 接线契约：版式一致性（同类结构同一套 class）', (
     }
     assert.match(html, /--content-max: \d+rem;/, '宽度 token 存在');
     assert.match(html, /--content-pad: [\d.]+rem;/, '边距 token 存在');
-    // 四个用法处都挂同一个类（页头 / 两个模式的 Tab 栏 / 正文）
     assert.strictEqual(count(/class="app-header-inner/g), 1, '页头走内容栏');
     assert.strictEqual(count(/class="content-column/g), 3, '两个 Tab 栏与正文都走内容栏');
   });
 
   test('原生控件明暗由页面的 color-scheme 决定（不跟随系统）', () => {
-    // 主题是应用内自己切的：写 light dark 会让「系统暗 + 页面亮」时弹出反色下拉面板
     assert.match(html, /\n  :root \{[^}]*color-scheme: light;/, ':root 声明亮色');
     assert.match(html, /\n  :root\.dark \{[^}]*color-scheme: dark;/, ':root.dark 声明暗色');
     assert.strictEqual(count(/color-scheme: light dark/g), 0, '不得跟随系统（两者可能不一致）');
@@ -2532,7 +2422,6 @@ describe('UI 接线契约：版式一致性（同类结构同一套 class）', (
     const heights = html.match(/id="(sunburst-chart|income-chart|expense-sunburst-chart)"[^>]*style="[^"]*height:\s*(\d+)px/g) || [];
     assert.strictEqual(heights.length, 0,
       `图纸高度不得写死像素：${heights.map((h) => h.slice(0, 60)).join(' / ')}`);
-    // 三张旭日图共用同一套宽高比（同类结构同一实现）
     assert.match(html, /\.chart-canvas \{[^}]*aspect-ratio/, '高度由列宽与宽高比推出');
     assert.strictEqual((html.match(/class="chart-canvas[ "]/g) || []).length, 3, "三张旭日图都走同一个容器类（高度比例只在类里定义）");
   });
@@ -2561,7 +2450,6 @@ describe('UI 接线契约：版式一致性（同类结构同一套 class）', (
       assert.ok(rules[0].includes('.' + cls), `${cls} 也要吃到列间距`);
     }
     assert.ok(rules[0].includes('.asset-row.grid-wide'), '资产宽表也要吃到列间距');
-    // 日期栏定宽：日期是定长文本（YYYY-MM-DD），按 fr 分配就永远贴着内容宽
     assert.match(html, /\n  \.cols-expense-month \{ grid-template-columns: 96px 1fr 2fr 1\.5fr; \}/, '月度明细的日期栏定宽');
     assert.match(html, /\n  \.cols-expense-segment \{ grid-template-columns: 96px 1fr 0\.8fr 2\.6fr; \}/, '构成明细的日期栏定宽');
   });
@@ -2572,7 +2460,6 @@ describe('UI 接线契约：版式一致性（同类结构同一套 class）', (
     for (const cls of ['btn-sm', 'btn-xs']) {
       assert.match(html, new RegExp(`\\.${cls}(,| \\{)`), `${cls} 档位在 CSS 里定义`);
     }
-    // 空态邀请按钮的内联 padding 与 .btn-ghost 默认值完全重复，应已删除
     assert.strictEqual(count(/class="btn-ghost" style="padding/g), 0, '默认档位不再重复声明 padding');
   });
 
@@ -2633,7 +2520,6 @@ describe('UI 接线契约：弹窗尺寸与筛选控件的档位', () => {
 
   test('筛选下拉统一 .select-field，搜索框宽度归 .search-wrap，都不再内联 min-width', () => {
     assert.strictEqual(count(/style="min-width:\d+px;"/g), 0, '筛选控件不再内联 min-width');
-    // 8 个工具条/图表筛选下拉 + 5 个对比弹窗下拉 + 压测弹窗的维度下拉（w-full）
     assert.strictEqual(count(/class="select-field( |")/g), 14, '14 个下拉都挂同一类');
     assert.strictEqual(count(/class="select-field ml-2"/g), 5, '弹窗内下拉用既有 ml-2 工具类控制左间距');
     assert.match(html, /<input[^>]*id="expense-search"[^>]*class="t-body"/, '搜索框不再带内联宽度');
@@ -2674,7 +2560,6 @@ describe('UI 接线契约：收益/读数文字色的角色类补齐', () => {
   test('正向收益色 .ink-up、加粗读数 .readout-strong 各自单一来源', () => {
     assert.strictEqual(count(/style="color:var\(--verdigris\);"/g), 0, '正向收益色应走 .ink-up');
     assert.match(html, /\n  \.ink-up \{ color: var\(--verdigris\); \}/);
-    // 读数卡里的加粗数值（标签钱数 / 月数）共用同一档
     assert.strictEqual(count(/style="font-weight:600;color:var\(--fg\);"/g), 0, '加粗读数走 .readout-strong');
     assert.strictEqual(count(/style="font-weight:600;color:var\(--accent-ink\);"/g), 0, '加粗金墨读数走 .readout-strong.ink-accent');
     assert.match(html, /\n  \.readout-strong \{ font-weight: var\(--fw-strong\); \}/);
@@ -2698,7 +2583,6 @@ describe('UI 接线契约：分布图总数（与扇区同源，随筛选联动�
 
   test('两侧都调 logic.js 的 sumAmountCNY（不各写一遍 reduce）', () => {
     const expenseSrc = fnSource('renderExpenseChart');
-    // 旧写法：消费分布自己 reduce 合计（与扇区口径分家）
     assert.ok(!/filtered\.reduce\(/.test(expenseSrc), '消费分布不得再自己 reduce 合计');
     assert.match(expenseSrc, /(?:[A-Za-z_$][A-Za-z0-9_$]*\.)?sumAmountCNY\(/, '消费分布走同一纯函数');
     // 报头净资产也委托同一纯函数：不得再自写一遍 reduce
@@ -2713,12 +2597,9 @@ describe('UI 接线契约：分布图总数（与扇区同源，随筛选联动�
     // 扇区百分比之和对不上显示的总数（口径分裂）。这里钉死「只用同一个 total 变量」。
     for (const fn of ['renderChart', 'renderExpenseChart']) {
       const src = fnSource(fn);
-      // 取金额变量，不是 DOM 元素变量（totalEl = document.getElementById(...) 要先排除）
       const decl = src.match(/const (\w*[Tt]otal\w*) = (?!document\.)[^;]+;/);
       assert.ok(decl, `${fn} 应有一个金额合计变量（实测 ${JSON.stringify(src.slice(0, 60))}）`);
       const name = decl[1];
-      // 分母经 sunburstDrillView 派生（下钻时换成该分类合计），但**仍然只有一个变量**：
-      // 卡片总数、tooltip、清单三处都读 view.total，不再各算一遍
       assert.match(src, new RegExp(`(?:[A-Za-z_$][A-Za-z0-9_$]*\\.)?sunburstDrillView\\(data, ${name}, `), `${fn}: 派生以该筛选合计为起点`);
       assert.match(src, /renderChartTotal\(totalEl, view\.total\)/, `${fn}: 显示的总数用派生分母`);
       assert.match(src, /sunburstTooltipContent\(p, th, view\.total\)/, `${fn}: tooltip 分毋同源`);
@@ -2732,7 +2613,6 @@ describe('UI 接线契约：分布图总数（与扇区同源，随筛选联动�
       const src = fnSource(fn);
       const emptyBranches = src.match(/showChartOrEmpty\([^)]*false\)/g) || [];
       assert.ok(emptyBranches.length >= 2, `${fn} 有空态分支（实测 ${emptyBranches.length}）`);
-      // 每个 showChartOrEmpty(..., false) 所在行之后紧跟一次收起（同一分支里）
       for (const line of emptyBranches) {
         const idx = src.indexOf(line);
         assert.match(src.slice(idx, idx + 200), /hideChartTotal\(/, `${fn} 的空态分支里应收起总数`);
@@ -2756,7 +2636,6 @@ describe('UI 接线契约：台灯掠光（跟随指针的纸面光）', () => {
     const logic = fs.readFileSync(path.join(__dirname, '..', 'logic.js'), 'utf8');
     assert.match(logic, /function (?:[A-Za-z_$][A-Za-z0-9_$]*\.)?lampPos\(/, '坐标换算下沉 logic.js');
     assert.match(logic, /function (?:[A-Za-z_$][A-Za-z0-9_$]*\.)?lampEnabled\(/, '开关判定下沉 logic.js');
-    // 页面里只允许出现「读坐标 → 调 lampPos → 写变量」这一种写法，不允许自己算百分比
     const src = fnSource('flushLamp');
     assert.match(src, /(?:[A-Za-z_$][A-Za-z0-9_$]*\.)?lampPos\(/, '走纯函数换算');
     assert.match(src, /setProperty\('--lamp-x'/, '只写 CSS 变量');
@@ -2794,14 +2673,11 @@ describe('UI 接线契约：台灯掠光（跟随指针的纸面光）', () => {
   test('掠光是纸面光学，不该给卡片/行另加一套悬停渐变（各部件各有自己的 hover 语义）', () => {
     // 表格行的 hover 是「当前行」的指示，曾经就是纯底色；不得被光晕改写
     assert.match(html, /\n  \.asset-row:hover \{ background: var\(--card-2\); \}/, '行悬停语义不变');
-    // 不允许再出现第二套「跟随指针的光晕」（如逐卡片的 radial-gradient hover）
     const mats = html.match(/radial-gradient\(\d+px \d+px at var\(--lamp-x/g) || [];
     assert.strictEqual(mats.length, 1, '指针处的小圆芯只此一处');
     const lampCss = html.match(/\.lamp-layer \{[^}]*\}/)[0];
     assert.match(lampCss, /var\(--lamp-x, 50%\)/, '未收到指针时停在居中兜底值');
-    // 光带靠 calc(--lamp-x ± …) 跟随指针横扫；写成固定角度的死值就退化成「装饰条纹」而非「掠光」
     assert.match(lampCss, /transparent calc\(var\(--lamp-x, 50%\) [-+]/, '光带位置随指针（而非固定条纹）');
-    // 大半径圆霍 = 「一圈发光背景」（模板式），不是打在纸上的光
     assert.ok(!/radial-gradient\(5\d\dpx/.test(lampCss), '不得用大半径圆霍冒充光');
   });
 });
@@ -2819,8 +2695,6 @@ describe('UI 接线契约：纸面质感与印刷细节', () => {
       const decls = (html.match(new RegExp(`${v}:`, 'g')) || []).length;
       assert.strictEqual(decls, 2, `${v} 必须在亮/暗两套 :root 里各定义一次（实得 ${decls} 处）`);
     }
-    // theme.spec.js 的两套变量一一对应巡检只扫 :root / :root.dark，
-    // 这三条正在这两块里（漏定义会让暗色下回落到亮色的暖白灯——一片刺眼白斑）
   });
 
   test('关键动效均可在减动效下关停（光晕在减动效下直接不画）', () => {
@@ -2860,7 +2734,6 @@ describe('UI 接线契约：内联脚本必须能通过解析', () => {
   });
 
   test('顶层声明去重检查本身有效（对重名样本报错）', () => {
-    // 自检：确认这层防护不是空转
     assert.throws(() => new Function('let a = 1;\nconst a = 2;'), SyntaxError);
   });
 });
@@ -2908,8 +2781,6 @@ describe('UI 接线契约：分布图的两栏（图 + 构成清单）', () => {
       // 用字面量包含判定，不用 RegExp：`\(` 在 JS 字符串里会退化成分组括号，
       // 于是 `f(a)` 变成「f 后紧跟 a」而永远匹配不上（这个坑刚踩过）
       assert.ok(src.includes(`const ${name} = `), `${fn} 应有总数变量 ${name}`);
-      // 下钻后分母换成该分类合计，但派生只有一个来源（sunburstDrillView），
-      // 卡片总数 / tooltip / 清单三处都读同一个 view.total
       assert.ok(src.includes(`sunburstDrillView(data, ${name}, `), `${fn}: 派生分母以筛选合计为起点`);
       assert.ok(src.includes('sunburstTooltipContent(p, th, view.total)'), `${fn}: tooltip 分母同源`);
       assert.ok(src.includes('renderChartTotal(totalEl, view.total)'), `${fn}: 卡片总数同源`);
@@ -2999,7 +2870,6 @@ describe('UI 接线契约：卡片的液态玻璃材质', () => {
   });
 
   test('材质打包进 --glass-shadow，:hover 只换外阴影（不重抄一遍材质）', () => {
-    // 重抄就会出现第二处材质定义，往后改材质必漏一处
     const shadowVar = html.match(/--glass-shadow:[\s\S]*?;/g) || [];
     assert.strictEqual(shadowVar.length, 1, '--glass-shadow 只能定义一次');
     assert.match(shadowVar[0], /var\(--glass-rim\)/, '受光边在里面');
@@ -3095,11 +2965,9 @@ describe('UI 接线契约：弹窗遮罩（磨砂与颜色变量）', () => {
  */
 describe('UI 接线契约：开屏（落纸入场）', () => {
   test('入场是两态 transition 且只在 booting 那一态才隐藏内容（base 即最终态）', () => {
-    // 两态：booting:not(.ready) = 未落定（透明/下移），ready = 过渡到最终态。
     assert.match(html, /html\.booting:not\(\.ready\) \.app-header-inner/, '未落定那一态存在');
     assert.match(html, /html\.ready \.app-header-inner \{[^}]*transition:/, '落定那一态带过渡');
     assert.match(html, /html\.booting:not\(\.ready\) \.lamp-layer \{[^}]*opacity: 0/, '第二拍：未落定时按住台灯');
-    // 关键：隐藏内容的规则只能挂在 booting 上（脚本不跑时 booting 不存在 → 内容正常可见）
     const hiding = html.match(/html\.booting:not\(\.ready\)[^{]*\{[^}]*opacity:\s*0[^}]*\}/g) || [];
     assert.ok(hiding.length > 0, '未落定态确实在隐藏纸面');
     // 不得用 display/visibility 藏（那会让巡检与读屏器真的一无所见）
@@ -3119,7 +2987,6 @@ describe('UI 接线契约：开屏（落纸入场）', () => {
   });
 
   test('减动效要连延迟一起关（只关时长的话，带 delay 的入场会先停在未落定态）', () => {
-    // 闸门本身是那条「一把关掉全部动效」的全局规则（不写死行号，只认它的形态）
     const kill = html.match(/\*, \*::before, \*::after \{[^}]*animation-duration: 0\.001ms[^}]*\}/);
     assert.ok(kill, '全局减动效闸门存在');
     assert.match(kill[0], /animation-delay:\s*0\.001ms !important/, '动画延迟也要归零');
@@ -3156,7 +3023,6 @@ describe('UI 接线契约：图表尺寸同步', () => {
     assert.match(src, /clientWidth/, '读容器宽');
     assert.match(src, /clientHeight/, '读容器高');
     assert.match(src, /if \(!w \|\| !h\) return/, '容器不可见（尺寸 0）时不动它');
-    // 旧的 window resize 统一登记不再保留：它覆盖不到「切 Tab 的 display 翻转」
     assert.ok(!/window\.addEventListener\('resize', \(\) => \{\s*if \(chart\)/.test(html),
       '原先那段 window resize 统一 resize 应收敛到 observeChartSize');
   });
@@ -3193,12 +3059,10 @@ describe('UI 接线契约：旭日图选中分类后清单联动', () => {
 
   test('图上的扇区点击与清单行点击走同一条路径（两处行为不许各自漂移）', () => {
     assert.strictEqual(count(/function wireSunburstDrill\(/g), 1, '接线函数唯一');
-    // 三个图各自接一次（资产/消费/收益分布）
     assert.strictEqual(count(/wireSunburstDrill\(/g), 4, '定义一处 + 三张图各接一次');
     const src = fnSource('wireSunburstDrill');
     assert.match(src, /drillSunburst\(/, '点击扇区 → 选中该分类');
     assert.match(src, /treePathInfo/, '用 ECharts 给的祖先路径判层级（顶层分类才下钻）');
-    // 清单行的点击入口在 renderSunburstLegend 里（DOM 归它管），但也只能调 drillSunburst
     const legend = fnSource('renderSunburstLegend');
     assert.match(legend, /el\.onclick = /, '清单行点击挂在自己的渲染函数里');
     assert.match(legend, /drillSunburst\(elId/, '行点击 → 同一个 drillSunburst 入口');
@@ -3226,14 +3090,6 @@ describe('UI 接线契约：旭日图选中分类后清单联动', () => {
     assert.match(fnSource('renderSunburstLegend'), /selected[\s\S]*?sunburstLegendRows/, '选中态由纯函数校验后回落');
   });
 
-  /*
-   * 图本身也要下钻，且与清单同一套状态。
-   * ------------------------------------------------------------------------
-   * 修的真 bug：ECharts 自带 nodeClick:'rootToNode' 会维护自己的 view root，
-   * 与清单的 sunburstLegendSel 是两套状态。于是「‹ 全部分类」只清了清单，
-   * 图还停在下钻层（用户原话：「返回到整个全景的时候，依然展示的是具体分类的值」）。
-   * 修法：关掉原生下钻，图的数据由选中态派生（sunburstDrillView）。
-   */
   test('关掉 ECharts 原生下钻（nodeClick:false），否则图上会有第二套视图状态', () => {
     const src = fnSource('buildSunburstOption');
     assert.match(src, /nodeClick: *false/, '必须显式关掉原生下钻');
@@ -3270,8 +3126,6 @@ describe('UI 接线契约：旭日图选中分类后清单联动', () => {
   });
 
   test('下钻接线只在 init 时注册一次（每帧 on(click) 会累积监听器）', () => {
-    // 监听器累积的实际症状：点一下触发 N 次下钻，N 为偶数时 toggle 回原位 =「点了没反应」。
-    // 接线现在作为 wire 回调交给宿主，宿主只在 init 分支里调一次。
     assert.match(fnSource('chartApply'), /if \(spec\.wire\) spec\.wire\(chart\);/, '宿主在 init 分支里接线');
     for (const [fn, id] of [['renderChart', 'chart-legend'], ['renderIncomeChart', 'income-chart-legend'], ['renderExpenseChart', 'expense-chart-legend']]) {
       const src = fnSource(fn);
@@ -3311,9 +3165,6 @@ describe('UI 接线契约：拖拽排序的键盘替代', () => {
 });
 
 describe('UI 接线契约：Tab/模式切换的过渡动画', () => {
-  // 用户要求页面切换有顺滑过渡（精致感）。约束：display 翻转没法过渡，
-  // 所以用「显示后下一帧加 .enter」两步走；减动效时 delay/时长一起归零
-  // （只关时长的话带 delay 的入场会停在「还没出来」——开屏那条的教训）。
   test('入场过渡挂在会动画的内层面板上：switchTab 触发，switchMode 只透传方向', () => {
     assert.match(fnSource('switchTab'), /enterTab\([\s\S]*?shift\)/, 'switchTab 要触发内层面板的入场过渡');
     const mode = stripComments(fnSource('switchMode'));
@@ -3323,7 +3174,6 @@ describe('UI 接线契约：Tab/模式切换的过渡动画', () => {
   });
 
   test('入场过渡在 CSS 里统一定义（不逐处内联）', () => {
-    // pane 元素没有 tab-pane 类（section 只有 id），选择器用 [id^=tab-] 前缀
     assert.match(html, /\n  \[id\^="tab-"\]\.enter \{/, '入场态样式集中在 [id^=tab-].enter 一处');
     assert.match(html, /\[id\^="tab-"\]\.enter \{[^}]*animation/, '用 animation 表达入场（避免 JS 同步时序）');
   });
@@ -3385,13 +3235,10 @@ describe('UI 接线契约：长按满时长自动弹窗', () => {
     const logic = fs.readFileSync(path.join(__dirname, '..', 'logic.js'), 'utf8');
     assert.match(logic, /AUTO_OPEN_GUARD_MS/, '守卫窗常量定义在 logic.js');
     assert.match(html, /(?:[A-Za-z_$][A-Za-z0-9_$]*\.)?autoOpenGuard\(/, '守卫判定走 logic.js 纯函数（不重写一份）');
-    // 收尾函数要查守卫
     const end = stripComments(fnSource('endModePress'));
     assert.match(end, /(?:[A-Za-z_$][A-Za-z0-9_$]*\.)?autoOpenGuard\(/, 'pointerup 收尾必须查守卫（否则抬手即关）');
-    // 遮罩关闭也要查守卫
     const overlayBlock = blockFrom(html, '__modalMouseDownTarget = e.target', '__modalMouseDownTarget = null');
     assert.match(overlayBlock, /(?:[A-Za-z_$][A-Za-z0-9_$]*\.)?autoOpenGuard\(/, '遮罩 click 关闭也必须查守卫');
-    // 确认按钮在守卫窗内的点击也要忽略（那是抬手余波，不是用户真点）
     const okBtn = blockFrom(stripComments(html), "getElementById('confirm-ok-btn').addEventListener");
     assert.match(okBtn, /(?:[A-Za-z_$][A-Za-z0-9_$]*\.)?autoOpenGuard\(/, '确认按钮的 click 也必须查守卫');
   });
@@ -3452,12 +3299,10 @@ describe('UI 接线契约：下拉弹层跟主题（base-select）', () => {
 
   test('闭合态宽度由固有宽度测量钉住（不得在页面里另写一套判据）', () => {
     const logic = fs.readFileSync(path.join(__dirname, '..', 'logic.js'), 'utf8');
-    // 定义在前、出现在 ui 导出块里——只改一处的半吊子（定义了没导出）在浏览器里直接 TypeError
     assert.match(logic, /function shouldPinSelectWidth\(/, 'logic.js 定义 shouldPinSelectWidth');
     assert.match(logic, /\n      shouldPinSelectWidth,/, 'logic.js 在 ui 域导出 shouldPinSelectWidth');
     assert.match(fnSource('freezeSelectWidth'), /ui\.shouldPinSelectWidth\(/, '页面调用 logic.js 的判据（不重写一份）');
     assert.match(html, /--sel-w/, '宽度经 CSS 变量落回样式（单一来源）');
-    // opt-in 之后 select 不再按最长选项取宽；只有把它钉住才不会随选中项跳动
     assert.match(html, /body select \{[^}]*width:\s*var\(--sel-w/, 'select 的 width 必须引用 --sel-w');
     // 量本必须剥成原生外观：继承到 base-select 就会量到「被钉过的宽度」（实测 160 而非 231）
     assert.match(fnSource('freezeSelectWidth'), /data-measuring/, '量本必须带 data-measuring');
@@ -3554,7 +3399,6 @@ describe('UI 接线契约：多语言（默认英文，设置里切中文）', (
     return i;
   };
 
-  // 把 i18n.t(...) 换成占位，剩下的中文字面量即为漏网之鱼
   const withoutCalls = (src) => {
     const clean = stripJsComments(src);
     let out = '';

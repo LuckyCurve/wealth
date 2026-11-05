@@ -13,7 +13,6 @@
  */
 const { test, expect, stubCdn, seed, waitReady, sampleState } = require('./fixtures');
 
-/** 三条纸面：页头 / 子 Tab 栏（两个模式各一条）/ 正文 */
 const BANDS = ['.app-header-inner', '.tab-bar', 'main.content-column'];
 
 const bandState = (page) =>
@@ -87,7 +86,6 @@ test.describe('开屏：落纸入场', () => {
     await seed(page, sampleState());
     await page.goto('index.html');
     await waitReady(page);
-    // 灯是否点着由指针决定（lampEnabled）：先把指针移进窗口，它才该亮
     await page.mouse.move(420, 320);
     await expect
       .poll(async () => page.evaluate(() => getComputedStyle(document.querySelector('.lamp-layer')).opacity))
@@ -103,13 +101,11 @@ test.describe('开屏：落纸入场', () => {
   test('看门狗：脚本没跑到就绪那一步也会自己放行（页面不得空白）', async ({ page }) => {
     await stubCdn(page);
     await seed(page, sampleState());
-    // 阻断应用脚本：只加 booting、永远等不到 ready
     await page.route('**/logic.js', (r) => r.abort());
     // 时钟必须在导航前接管（看门狗的 setTimeout 是加载时注册的）
     await page.clock.install();
     await page.goto('index.html');
     await expect(page.locator('html')).toHaveClass(/\bbooting\b/);
-    // 看门狗是 1.5s 的定时器：接管时钟后快进，不必真等（要验的是「它会不会自己放行」）
     await page.clock.runFor(1600);
     await expect(page.locator('html')).toHaveClass(/\bready\b/);
   });

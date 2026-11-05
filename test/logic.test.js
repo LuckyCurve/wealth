@@ -1,15 +1,7 @@
-/*
- * test/logic.test.js — 财富管理 核心纯逻辑单测
- * 运行：node --test
- * 零依赖：仅用 Node 内置 node:test / node:assert。
- * 被测逻辑来自 logic.js（与 index.html 内联脚本共用同一份源码）。
- */
 const { test, describe, beforeEach } = require('node:test');
 const assert = require('node:assert');
 const L = require('../logic.js');
 
-// 在测试中通过 globalThis 注入 index.html 的全局可变状态（state / incomeMode），
-// 与浏览器中 logic.js 读取全局 `let state` 的行为一致。
 function freshState(overrides = {}) {
   return Object.assign({
     rates: { CNY: 1, HKD: 0.9, USD: 7.2, fetchedAt: null },
@@ -21,8 +13,6 @@ function freshState(overrides = {}) {
     expenseExpectation: 0,
     netWorthTarget: 0,
     incomeSafetyFactor: 100,
-    // 既有断言写的都是中文界面文案：i18n 以中文原文为键，语言固定 zh 时 t() 原样返回。
-    // 英文表的行为由专门的「多语言词条」用例覆盖，不让这里跟着英文表漂。
     lang: 'zh',
   }, overrides);
 }
@@ -97,7 +87,6 @@ describe('快照查询', () => {
 
 // ========== 月度快照提醒 ==========
 describe('月度快照提醒 shouldRemindSnapshot（窗口 / 已在档 / 当天已提醒）', () => {
-  // 一条资产是前提：没有资产时快照全是 0，提醒只会催人记一张空表
   const withAssets = (extra = {}) =>
     freshState(Object.assign({ assets: [{ amount: 100, currency: 'CNY' }] }, extra));
 
@@ -221,7 +210,6 @@ describe('消费月度聚合 / 环比', () => {
 
   test('prevExpenseMonthOf 跳过空月份', () => {
     const months = L.expense.monthlyExpenseTotals(expenses);
-    // 2024-03 之前最近的是 2024-01（跳过无记录的 2024-02）
     assert.strictEqual(L.expense.prevExpenseMonthOf('2024-03', months), '2024-01');
     assert.strictEqual(L.expense.prevExpenseMonthOf('2024-04', months), '2024-03');
     assert.strictEqual(L.expense.prevExpenseMonthOf('2024-01', months), null);
@@ -238,7 +226,6 @@ describe('消费月度聚合 / 环比', () => {
     assert.strictEqual(b.pct, -37.5);
     assert.strictEqual(b.up, false);
 
-    // 持平：up 为 true，pct 为 0
     assert.deepStrictEqual(L.expense.expenseMoM(200, 200), { diff: 0, pct: 0, up: true });
     // 上月为 0：pct 归 0 避免 Infinity
     assert.deepStrictEqual(L.expense.expenseMoM(100, 0), { diff: 100, pct: 0, up: true });
@@ -299,7 +286,6 @@ describe('收益测算', () => {
     // 但 0 是合法值（纯权益，没有现金流），不得被当成缺失
     assert.strictEqual(L.income.getCashRatio({ cashRatio: 0 }), 0);
     assert.strictEqual(L.income.getCashRatio({ cashRatio: '0' }), 0);
-    // 非数字串仍按缺失（布尔等其它类型的强制转换维持原行为，不在本次范围内改）
     assert.strictEqual(L.income.getCashRatio({ cashRatio: 'abc' }), 1);
   });
   test('getSafetyFactor 百分比折算与钳制', () => {
@@ -644,9 +630,7 @@ describe('颜色数学', () => {
       assert.ok(c.fg.startsWith('#'));
       assert.ok(c.border.startsWith('#'));
     }
-    // 暗色背景亮度应低于亮色
     assert.ok(L.color.hexToHsl(light.bg).l > L.color.hexToHsl(dark.bg).l);
-    // 标签序数 t 影响插值与基色不同
     assert.notStrictEqual(L.color.pillColors(base, 0, false).bg, L.color.pillColors(base, 1, false).bg);
   });
   test('basePill 亮色返回基色副本, 暗色返回深底', () => {
@@ -661,7 +645,6 @@ describe('颜色数学', () => {
 // 38%，实测对比 2.4:1 —— 标签 pill 是资产/消费列表里信息密度最高的元素，用户第一眼
 // 就看它。口径：pillColors 的每个插值点 + 基色本身，亮/暗两套都必须达 WCAG AA（4.5:1）。
 describe('分类 pill 配色对比度（AA 4.5:1，亮/暗 × 每个插值点）', () => {
-  // 测试专用：WCAG 相对亮度与对比度（不进 logic.js——生产代码没有这个需求）
   const lum = (hex) => {
     const s = hex.replace('#', '');
     const c = [0, 2, 4].map((i) => parseInt(s.slice(i, i + 2), 16) / 255)
@@ -850,7 +833,6 @@ describe('图表数据构造 buildSunburstData / pctStr / percentSeriesData', ()
     assert.deepStrictEqual(L.chartData.sunburstLegendRows(null, 100, null), []);
     assert.deepStrictEqual(L.chartData.sunburstLegendRows(undefined, undefined, null), []);
     const out = L.chartData.sunburstLegendRows([{ name: 'A', value: '30' }, { name: 'B' }], 0);
-    // 分母为零时占比归 '0.0'（不出现 Infinity/NaN），值非数字归 0（不污染排序）
     assert.deepStrictEqual(out.map(x => [x.name, x.value, x.pct]), [['A', 30, '0.0'], ['B', 0, '0.0']]);
   });
 
@@ -909,13 +891,11 @@ describe('图表数据构造 buildSunburstData / pctStr / percentSeriesData', ()
       { name: '现金', children: [{ name: '招行', value: 100 }, { name: '汇丰', value: 50 }] },
       { name: '股票', children: [{ name: '沪深300', value: 250 }] },
     ];
-    // 选中「现金」→ 两条明细，分母 = 150（不是 400）
     const out = L.chartData.sunburstLegendRows(data, 400, '现金');
     assert.deepStrictEqual(out.map(x => [x.name, x.value, x.pct]), [
       ['招行', 100, '66.7'],
       ['汇丰', 50, '33.3'],
     ]);
-    // 明细要能反查到自己的父分类与在原 data 里的位置（高亮要定位到这条明细的扇区）
     assert.deepStrictEqual(out.map(x => x.path), [['现金', 0], ['现金', 1]]);
     assert.deepStrictEqual(out.map(x => x.idx), [0, 1], '分类内序号（同分类下高亮用）');
   });
@@ -940,7 +920,6 @@ describe('图表数据构造 buildSunburstData / pctStr / percentSeriesData', ()
     const top = L.chartData.sunburstLegendRows(dirty, 5, null);
     assert.deepStrictEqual(top.map(x => x.name), ['B', 'A'], '脏节点按 0 计值，仍参与排序');
     assert.deepStrictEqual(L.chartData.sunburstLegendRows(dirty, 5, 'A'), [], '选中脏节点 → 空列表');
-    // 分母为零：占比一律 '0.0'，不出现 NaN/Infinity
     const zero = L.chartData.sunburstLegendRows([{ name: 'X', children: [{ name: 'x', value: 0 }] }], 0, 'X');
     assert.deepStrictEqual(zero.map(x => [x.name, x.pct]), [['x', '0.0']]);
   });
@@ -964,7 +943,6 @@ describe('图表数据构造 buildSunburstData / pctStr / percentSeriesData', ()
       { name: '现金', children: [{ name: '招行' }, { name: '汇丰' }] },
       { name: '股票', children: [{ name: '沪深300' }] },
     ];
-    // 扁平序：root(0), 现金(1), 招行(2), 汇丰(3), 股票(4), 沪深300(5)
     assert.deepStrictEqual(L.chartData.sunburstNodePath(data, 0, null), 1, '第 0 个分类 → 扁平下标 1');
     assert.deepStrictEqual(L.chartData.sunburstNodePath(data, 1, null), 4, '第 1 个分类 → 扁平下标 4');
     assert.deepStrictEqual(L.chartData.sunburstNodePath(data, 0, 1), 3, '现金下第 1 个条目 → 扁平下标 3');
@@ -977,7 +955,6 @@ describe('图表数据构造 buildSunburstData / pctStr / percentSeriesData', ()
     assert.strictEqual(L.chartData.sunburstNodePath(data, 5, null), null, '分类越界');
     assert.strictEqual(L.chartData.sunburstNodePath(data, 0, 7), null, '条目越界');
     assert.strictEqual(L.chartData.sunburstNodePath(data, -1, null), null);
-    // 该分类没有 children 时，条目下标任何值都无意义
     assert.strictEqual(L.chartData.sunburstNodePath([{ name: 'A' }], 0, 0), null);
   });
 
@@ -1003,7 +980,6 @@ describe('图表数据构造 buildSunburstData / pctStr / percentSeriesData', ()
     assert.strictEqual(view.data, data, '未下钻时直接复用入参（每帧重建数组没有意义）');
     assert.strictEqual(view.total, 400, '分母仍是调用方给的筛选合计');
     assert.strictEqual(JSON.stringify(data), snap, '不改写入参');
-    // 空选中值（'' / undefined）与 null 同义
     assert.strictEqual(L.chartData.sunburstDrillView(data, 400, '').data, data);
     assert.strictEqual(L.chartData.sunburstDrillView(data, 400, undefined).total, 400);
   });
@@ -1024,12 +1000,9 @@ describe('图表数据构造 buildSunburstData / pctStr / percentSeriesData', ()
     assert.deepStrictEqual(L.chartData.sunburstDrillView(null, 100, '现金'), { data: [], total: 100 });
     assert.deepStrictEqual(L.chartData.sunburstDrillView(undefined, undefined, null), { data: [], total: 0 });
     const data = [{ name: '现金', children: [{ name: '招行', value: 100 }] }];
-    // 选中的分类不在当前数据里（被删/换维度）→ 回落为全量，与 sunburstLegendRows 同口径
     assert.strictEqual(L.chartData.sunburstDrillView(data, 100, '已被删掉的分类').data, data);
     assert.strictEqual(L.chartData.sunburstDrillView(data, 100, '已被删掉的分类').total, 100);
-    // 分母非数字/NaN 归 0，不把 NaN 传给 tooltip（会渲染成「NaN%」）
     assert.strictEqual(L.chartData.sunburstDrillView(data, 'abc', null).total, 0);
-    // 选中没有 children 的分类：数据只剩它，分母 0（占比由 pctStr 兜成 0.0）
     assert.deepStrictEqual(L.chartData.sunburstDrillView([{ name: '空' }], 100, '空').total, 0);
   });
 
@@ -1055,7 +1028,6 @@ describe('图表数据构造 buildSunburstData / pctStr / percentSeriesData', ()
     const sel = { 股票: false, 债券: true, 现金: true, 旧分类标签: false };
     const out = L.chartData.pruneLegendSelected(sel, ['股票', '债券', '现金']);
     assert.deepStrictEqual(out, { 股票: false, 债券: true, 现金: true });
-    // 不修改入参
     assert.strictEqual(sel['旧分类标签'], false);
     assert.deepStrictEqual(Object.keys(sel).sort(), ['债券', '旧分类标签', '现金', '股票'].sort());
   });
@@ -1138,7 +1110,6 @@ describe('备份 daysBetweenStr / backup 设置兜底', () => {
 });
 
 describe('备份决策 normalizeBackupFreq / hasAnyBackupWorthyData / shouldAutoBackup / backupStaleDays', () => {
-  // 带一条资产与指定备份设置的 state 工厂（保证「有数据」前提，便于聚焦频率分支）
   const withBackup = (backup, extra = {}) =>
     freshState(Object.assign({ assets: [{ amount: 100, currency: 'CNY' }], backup }, extra));
 
@@ -1160,7 +1131,6 @@ describe('备份决策 normalizeBackupFreq / hasAnyBackupWorthyData / shouldAuto
     assert.strictEqual(L.backup.backupNoteText(null, '2024-05-01'), '尚未备份过');
     assert.strictEqual(L.backup.backupNoteText(undefined, '2024-05-01'), '尚未备份过');
     assert.strictEqual(L.backup.backupNoteText('', '2024-05-01'), '尚未备份过');
-    // 当天备份：带「今天」后缀；历史日期：仅日期本身
     assert.strictEqual(L.backup.backupNoteText('2024-05-01', '2024-05-01'), '上次备份 2024-05-01（今天）');
     assert.strictEqual(L.backup.backupNoteText('2024-04-20', '2024-05-01'), '上次备份 2024-04-20');
   });
@@ -1367,8 +1337,6 @@ describe('汇率响应校验 ratesFromApi（脏响应不得污染 state.rates）
   });
 
   test('字段缺失 / 非数字 / 0 / 负数 / 非有限值一律拒绝（返回 null，调用方走既有回退）', () => {
-    // 原先直接 1 / cny.hkd：字段缺失得 NaN、0 得 Infinity——两者都会写进 state.rates 并落盘，
-    // 此后每张表、每个合计都是 NaN，而「汇率已更新」的便条还说成功。
     for (const bad of [
       undefined, null, {},
       { hkd: 0.92 }, { usd: 7.24 },
@@ -1600,7 +1568,6 @@ describe("hasAnyRatedAsset / cashRatioPct（从 index.html 下沉，「设了利
   });
 
   test('hasAnyRatedAsset：脏值行为与旧内联实现一致', () => {
-    // '' 与 NaN 不误报
     assert.strictEqual(L.income.hasAnyRatedAsset([{ expectedRateMin: '', expectedRateMax: NaN }]), false);
     // 数字字符串按关系比较隐式转数字（'3' > 0 === true），与下沉前两份内联实现行为一致，锁定防漂移
     assert.strictEqual(L.income.hasAnyRatedAsset([{ expectedRateMin: '3', expectedRateMax: 0 }]), true);
@@ -1623,7 +1590,6 @@ describe('coveragePct（覆盖标尺：分子月收益 ÷ 预期月消费，口�
     assert.ok(approx(L.income.coveragePct(6240, 10000), 62.4));
     assert.ok(approx(L.income.coveragePct(12500, 10000), 125));
     assert.ok(approx(L.income.coveragePct(10000, 10000), 100));
-    // 字符串数字防御（导入数据同源口径）
     assert.ok(approx(L.income.coveragePct('624', '1000'), 62.4));
   });
 
@@ -1684,11 +1650,9 @@ describe('coverShortfallPrincipal（覆盖缺口还需本金：按现有实际�
   });
 
   test('常规外推：need = 缺口月 ×12 ÷ 实际年化（年收益 ÷ 有息本金），rate 同源一次给出', () => {
-    // 月收益 6240、预期 10000，年收益 74880、基地 100 万 → 缺口 3760×12×1e6/74880
     const r = L.income.coverShortfallPrincipal(6240, 10000, 74880, 1000000);
     assert.ok(approx(r.need, 3760 * 12 * 1000000 / 74880));
     assert.ok(approx(r.rate, 7.488), 'rate 为实际年化百分比，与 need 同源（展示层不得重算）');
-    // 字符串数字防御（导入数据同源口径）
     const rs = L.income.coverShortfallPrincipal('6240', '10000', '74880', '1000000');
     assert.ok(approx(rs.need, 3760 * 12 * 1000000 / 74880));
   });
@@ -1818,7 +1782,6 @@ describe('消费数据校验 isUntaggedItem / missingTagGroups / setTag / backfi
     assert.strictEqual(L.expense.isUntaggedItem({ tags: null }, 'c1', cat.tags), true);
     assert.strictEqual(L.expense.isUntaggedItem(null, 'c1', cat.tags), true);
     assert.strictEqual(L.expense.isUntaggedItem(undefined, 'c1', cat.tags), true);
-    // validTags 缺失按空处理：任何值都视为无效 → 仍归入待校验
     assert.strictEqual(L.expense.isUntaggedItem({ tags: { c1: 'x' } }, 'c1', null), true);
   });
 
@@ -1972,14 +1935,11 @@ describe('长按送达资产页 modePressProgress / modePressDecision', () => {
 });
 
 describe('长按判定（pill 长按改名 / 资产入口共用同一套状态机）', () => {
-  // 分类卡片上的 ✎ 图标去掉了：太小、也把每一枚胶囊都变成「带控件的样子」。
-  // 改成长按整枚胶囊就地改名——判定与资产入口的长按同源，只把阈值参数化。
   test('阈值可传：同一套判定服务不同场景（改名给得更短）', () => {
     assert.strictEqual(L.ui.TAG_PRESS_MS, 600);
     assert.strictEqual(L.ui.pressDecision(700, 600), 'done');
     assert.strictEqual(L.ui.pressDecision(300, 600), 'short');
     assert.strictEqual(L.ui.pressDecision(0, 600), 'ignore');
-    // 不传阈值时退回资产入口那一档（既有语义不变）
     assert.strictEqual(L.ui.pressDecision(L.ui.MODE_PRESS_MS), 'done');
     assert.strictEqual(L.ui.pressDecision(L.ui.MODE_PRESS_MS - 1), 'short');
   });
@@ -1988,7 +1948,6 @@ describe('长按判定（pill 长按改名 / 资产入口共用同一套状态�
     assert.strictEqual(L.ui.pressProgress(300, 600), 0.5);
     assert.strictEqual(L.ui.pressProgress(9999, 600), 1);
     assert.strictEqual(L.ui.pressProgress(-5, 600), 0);
-    // 脏阈值退回资产入口那一档，不产生 NaN/Infinity
     assert.strictEqual(L.ui.pressProgress(500, 0), L.ui.pressProgress(500, L.ui.MODE_PRESS_MS));
     assert.strictEqual(L.ui.pressProgress(500, NaN), L.ui.pressProgress(500, L.ui.MODE_PRESS_MS));
   });
@@ -2325,7 +2284,6 @@ describe('normalizeRunwayExpectationInput（输入框字符串 → 自定月消�
     assert.strictEqual(L.income.normalizeRunwayExpectationInput('5,000', 5000), 0);
     assert.strictEqual(L.income.normalizeRunwayExpectationInput('5000', 5000), 0);
     assert.strictEqual(L.income.normalizeRunwayExpectationInput('9000', 5000), 9000);
-    // 全局未设时同一个数就是自定值（无「默认」可回落）
     assert.strictEqual(L.income.normalizeRunwayExpectationInput('5000', 0), 5000);
   });
 
@@ -2438,8 +2396,6 @@ describe('runwayLiquidCNY（所选标签匹配的资产折算 CNY 合计）', ()
       { amount: 100, currency: 'CNY', tags: { c2: '低风险' } },
       { amount: 200, currency: 'CNY', tags: { c1: '活期现金' } },
     ];
-    // 畸形引用（有 catId 无 tag）: 若把 undefined 塞进集合, a.tags.c1 也是 undefined,
-    // 「没打过这个分类标签」的资产会被误判为命中, 分子虚高
     assert.strictEqual(L.income.runwayLiquidCNY(assets, [{ catId: 'c1' }]), null, '全部畸形 → 视为未选');
     assert.strictEqual(
       L.income.runwayLiquidCNY(assets, [{ catId: 'c1', tag: '活期现金' }, { catId: 'c2' }]), 200,
@@ -2588,7 +2544,6 @@ describe('本月预算 monthExpenseTotal / daysInMonthOf / monthBudgetReading / 
   });
 
   test('monthBudgetReading 口径：剩余 = 预期 − 已花、今天算整天、打平算不超、百分比不封顶', () => {
-    // 10 月 31 天, 6 号 → 余 26 天（含今天）
     const t = new Date(2026, 9, 6);
     const r = L.expense.monthBudgetReading(1000, 5000, t);
     assert.strictEqual(r.remaining, 4000);
@@ -2598,34 +2553,28 @@ describe('本月预算 monthExpenseTotal / daysInMonthOf / monthBudgetReading / 
     assert.strictEqual(r.over, false);
     assert.strictEqual(r.excess, 0);
 
-    // 打平不算超（与 incomeGap 打平算盈余同精神）：已花恰好等于预期
     const even = L.expense.monthBudgetReading(5000, 5000, t);
     assert.strictEqual(even.over, false);
     assert.strictEqual(even.remaining, 0);
     assert.strictEqual(even.dailyLeft, 0, '剩余为 0 时日均就是 0, 不显示负数');
 
-    // 超支：剩余为 0（不呈现负数）, 超出额另计, 日均不参与（剩余为 0 即无从谈起）
     const over = L.expense.monthBudgetReading(6000, 5000, t);
     assert.strictEqual(over.over, true);
     assert.strictEqual(over.remaining, 0);
     assert.strictEqual(over.excess, 1000);
     assert.strictEqual(over.dailyLeft, 0);
 
-    // 超过 100% 不封顶（封顶是进度条 UI 职责）
     assert.strictEqual(over.pctOfMonth, 120);
 
-    // 月初 0 元：全月都是剩余
     const first = L.expense.monthBudgetReading(0, 5000, new Date(2026, 9, 1));
     assert.strictEqual(first.daysLeft, 31);
     approx(first.dailyLeft, 5000 / 31);
     assert.strictEqual(first.over, false);
 
-    // 月末最后一天：只余今天一天, 分母不为 0
     const last = L.expense.monthBudgetReading(0, 5000, new Date(2026, 9, 31));
     assert.strictEqual(last.daysLeft, 1);
     assert.strictEqual(last.dailyLeft, 5000);
 
-    // 闰月（2024-02 共 29 天）: 余天数按实际月长算, 不写死 30/31
     const leap = L.expense.monthBudgetReading(0, 5000, new Date(2024, 1, 28));
     assert.strictEqual(leap.daysLeft, 2);
 
@@ -2633,7 +2582,6 @@ describe('本月预算 monthExpenseTotal / daysInMonthOf / monthBudgetReading / 
     const fallback = L.expense.monthBudgetReading(100, 5000, 'not-a-date');
     assert.ok(fallback && isFinite(fallback.daysLeft) && fallback.daysLeft >= 1);
 
-    // 未设预期 → null（UI 整卡不显示, 入口交给「预期消费」按钮）
     assert.strictEqual(L.expense.monthBudgetReading(1000, 0, t), null);
     assert.strictEqual(L.expense.monthBudgetReading(1000, -1, t), null);
     assert.strictEqual(L.expense.monthBudgetReading(1000, 'abc', t), null);
@@ -2647,7 +2595,6 @@ describe('本月预算 monthExpenseTotal / daysInMonthOf / monthBudgetReading / 
     assert.strictEqual(
       L.expense.monthBudgetNote(L.expense.monthBudgetReading(6000, 5000, t)),
       '已超预算 ¥1,000.00 · 本月额度已用完');
-    // 打平 = 预算刚好花完, 没有可叙述的差额
     assert.strictEqual(L.expense.monthBudgetNote(L.expense.monthBudgetReading(5000, 5000, t)), '');
     assert.strictEqual(L.expense.monthBudgetNote(null), '');
     // 脏/缺字段的 reading：不抛错、不打印 ¥NaN，而是不渲染（渲染函数曾只守 remaining,
@@ -2671,7 +2618,6 @@ describe('本月预算口径单一来源（monthExpenseTotal 与 monthlyExpenseT
     ];
     const fromAggregate = L.expense.monthlyExpenseTotals(expenses).find(x => x.month === '2026-10').total;
     assert.strictEqual(L.expense.monthExpenseTotal(expenses, '2026-10'), fromAggregate);
-    // 聚合里不存在的月份（或全部为脏记录）→ 0, 与「找不到即 0」同口径
     assert.strictEqual(L.expense.monthExpenseTotal(expenses, '2026-08'), 0);
     assert.strictEqual(L.expense.monthExpenseTotal(null, '2026-10'), 0);
   });
@@ -2696,9 +2642,6 @@ describe('sumAmountCNY（金额合计：分布图总数与报头净资产共用�
       { id: 'c', amount: 250, currency: 'HKD', tags: {} },
     ];
     globalThis.state = { ...freshState(), rates: { ...RATES }, assets };
-    // 拿 toCNY（全站唯一的单币种折算口）做参照：逐项折后相加应相等。
-    // 不同步复刻 totalAssetsCNY 的公式——那本身就是待防的重复实现；
-    // 「report 净资产与这里同源」由 ui-wiring 的接线断言把守。
     const expected = assets.reduce((s, a) => s + L.money.toCNY(a.amount, a.currency), 0);
     assert.strictEqual(L.money.sumAmountCNY(assets, RATES), expected);
   });
@@ -2709,7 +2652,6 @@ describe('sumAmountCNY（金额合计：分布图总数与报头净资产共用�
     assert.strictEqual(L.money.sumAmountCNY(undefined, undefined), 0);
     // 无 rates 时按 1:1 兜底（与 amountAtRates 一致，不抛错、不出 NaN）
     assert.strictEqual(L.money.sumAmountCNY([{ amount: 50, currency: 'HKD' }], null), 50);
-    // 脏数据（NaN / Infinity / 字符串金额）不污染总数
     const dirty = L.money.sumAmountCNY([
       { amount: NaN, currency: 'CNY' },
       { amount: Infinity, currency: 'CNY' },
@@ -2859,8 +2801,6 @@ describe('排序列头对读屏器的表述', () => {
 });
 
 describe('拖拽排序的键盘替代', () => {
-  // 拖拽把手只有 draggable，键盘用户完全无法调整资产顺序。
-  // 纯函数只管「数组里怎么挪」；键位判定（哪些键触发）与 DOM 副作用在 index.html。
   test('上移 / 下移：把 srcIdx 的元素挪到目标位置', () => {
     const arr = ['a', 'b', 'c', 'd'];
     assert.deepStrictEqual(L.ui.moveAssetIndex(arr, 0, 2), ['b', 'c', 'a', 'd']);
@@ -2942,7 +2882,6 @@ describe('下拉框固有宽度的钉住判据（opt-in base-select 的补偿）
   });
 
   test('占位项与实质选项并存时必须钉（否则缩到占位项那么窄）', () => {
-    // 消费月份/标签下拉的第一项就是「全部时间 / 全部标签」
     assert.strictEqual(L.ui.shouldPinSelectWidth(['全部标签', '', '通勤交通与打车费报销单据']), true);
   });
 
@@ -2992,7 +2931,6 @@ describe('多语言词条 t / normalizeLang / langTag', () => {
 
   test('单复数：值为数组时按 n=1 取单数', () => {
     globalThis.state = freshState({ lang: 'zh' });
-    // 中文词条是字符串，不参与单复数
     assert.strictEqual(L.i18n.t('资产'), '资产');
     const table = L.i18n.I18N_EN;
     table['__probe__'] = ['{n} asset', '{n} assets'];
@@ -3044,7 +2982,6 @@ describe('migrateState：语言设置的归一', () => {
     L.migrate.migrateState();
     assert.strictEqual(state.categories[0].name, '货币类型');
 
-    // 已存在：即使语言变了，分类名也保持原样
     globalThis.state = freshState({ lang: 'en', categories: [{ id: 'currency', name: '货币类型', builtin: true, tags: ['CNY'] }] });
     L.migrate.migrateState();
     assert.strictEqual(state.categories[0].name, '货币类型');
@@ -3070,7 +3007,6 @@ describe('月份标签跟随界面语言（英文用 Intl 短月名）', () => {
     assert.strictEqual(L.date.monthLabel(''), '');
     assert.strictEqual(L.date.monthLabel(null), '');
     assert.strictEqual(L.date.monthLabel('2024'), '2024');
-    // 1 月 1 日若按本地时区解析，UTC-11 会退到上一年的 12 月
     assert.strictEqual(L.date.monthLabel('2024-01'), 'Jan 2024');
   });
 });
@@ -3115,7 +3051,6 @@ describe('示例数据（纯逻辑：只产数据，不碰 DOM 与 state）', ()
     const out = L.demo.assetDemo({ now: fixedNow, genId: (() => { let i = 0; return () => 'id' + (++i); })() });
     assert.strictEqual(out.snapshots.length, 6);
     assert.deepStrictEqual(out.snapshots.map((s) => s.month), ['2026-06', '2026-07', '2026-08', '2026-09', '2026-10', '2026-11']);
-    // 快照内资产 id 跨月稳定，对比才能按 id 关联
     const ids = out.snapshots[0].assets.map((a) => a.id);
     for (const s of out.snapshots) assert.deepStrictEqual(s.assets.map((a) => a.id), ids);
     // 账本取最后一个月（最新事实），不是别的月
@@ -3131,7 +3066,6 @@ describe('示例数据（纯逻辑：只产数据，不碰 DOM 与 state）', ()
     assert.strictEqual(out.categories.length, 3);
     assert.deepStrictEqual(out.categories[1].tags, ['活期现金', '定期存款', '权益基金', '债券基金', '银行理财']);
     assert.deepStrictEqual(out.categories[2].tags, ['低风险', '中风险', '高风险']);
-    // 每笔资产在每个分类下恰好一个标签（压测单维度的前提）
     for (const a of out.assets) {
       assert.strictEqual(a.tags[out.categories[1].id] !== undefined, true);
       assert.strictEqual(a.tags[out.categories[2].id] !== undefined, true);
@@ -3181,7 +3115,6 @@ describe('示例数据（纯逻辑：只产数据，不碰 DOM 与 state）', ()
       assert.strictEqual(typeof e.note, 'string');
       assert.ok(e.tags[typeCat.id] && e.tags[payCat.id] && e.tags[freqCat.id], '三个分类都要有标签');
     }
-    // 覆盖最近 6 个月，且不含未来月份
     const months = [...new Set(out.expenses.map((e) => e.date.slice(0, 7)))].sort();
     assert.deepStrictEqual(months, ['2026-06', '2026-07', '2026-08', '2026-09', '2026-10', '2026-11']);
     assert.ok(out.expenses.every((e) => e.date.slice(0, 7) <= '2026-11'), '不得产出未来月份');
@@ -3191,8 +3124,6 @@ describe('示例数据（纯逻辑：只产数据，不碰 DOM 与 state）', ()
     globalThis.state = freshState({ lang: 'zh' });
     const out = L.demo.expenseDemo({ now: fixedNow, genId: () => 'x' });
     for (const e of out.expenses) {
-      // 用四舍五入到分再比较：浮点乘法会留下 81.9 → 8190.000000000001 这类尾巴，
-      // 判据要的是「两位小数就够」，不是「二进制里恰好可表示」
       assert.strictEqual(Math.round(e.amount * 100) / 100, e.amount, `${e.amount} 应恰好两位小数`);
       assert.ok(Number.isInteger(Math.round(e.amount * 100)), `${e.amount} 到分是整数`);
     }
@@ -3223,5 +3154,4 @@ describe('图表动画参数（节奏系统的一部分：不沿用库默认 100
   });
 });
 
-// 压测（stress）用例单独成文件：这一节读起来是一整件事（设计见 DECISIONS.md）
 require('./stress-logic-cases.js');

@@ -25,13 +25,10 @@ const makeScrollable = (page) =>
     document.querySelector('main').appendChild(probe);
   });
 
-// 滚动量要小到 toolbar 仍在视口内：Playwright 点按钮前会把它 scrollIntoView，
-// 滚动过头的话这一次点击自己就把页面拉回顶部——测的就不是「锁没锁」了
 const SCROLL_TO = 120;
 
 const scrollY = (page) => page.evaluate(() => Math.round(window.scrollY));
 
-/** 打开消费表单（入口不经任何门槛），并把页面滚到中间 */
 async function openExpenseModalScrollable(page) {
   await makeScrollable(page);
   await page.evaluate((y) => window.scrollTo(0, y), SCROLL_TO);
@@ -47,7 +44,6 @@ test.describe('弹窗打开时背景不可滚', () => {
     await page.mouse.move(20, 20); // 遮罩左上角，远离弹窗正文
     for (let i = 0; i < 5; i += 1) await page.mouse.wheel(0, 400);
     expect(await scrollY(page)).toBe(before);
-    // 弹窗正文自己仍可滚（大表格弹窗要用）——冻结的只有背景
     await expect(page.locator('#expense-modal')).toBeVisible();
   });
 
@@ -59,7 +55,6 @@ test.describe('弹窗打开时背景不可滚', () => {
   });
 
   test('触摸拖拽不滚背景（手机上顺手一拖也不该动）', async ({ browser }) => {
-    // 独立触摸上下文：fixtures 的 page 是桌面设备，触摸路径得亲自跑
     const { stubCdn, seed, waitReady, sampleState, INDEX_URL, disableMotion } = require('./fixtures');
     const ctx = await browser.newContext({ hasTouch: true, viewport: { width: 420, height: 800 }, isMobile: true });
     const page = await ctx.newPage();
@@ -71,8 +66,6 @@ test.describe('弹窗打开时背景不可滚', () => {
     await openExpenseModalScrollable(page);
 
     const before = await scrollY(page);
-    // 真实触摸拖拽：Touchscreen 只有 tap，用 CDP 合成一次滑动。
-    // 不用 tap——点在遮罩空白处本身就是「关弹窗」的手势，那会把锁解开，测的就不是锁了
     const cdp = await ctx.newCDPSession(page);
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: 200, y: 20 }] });
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: 200, y: 200 }] });
@@ -100,7 +93,6 @@ test.describe('弹窗打开时背景不可滚', () => {
     await expect(page.locator('#expense-modal')).toBeHidden();
     expect(await bodyOverflow(), '全关后必须恢复可滚').not.toBe('hidden');
     expect(await scrollY(page), '关闭时不得把滚动位置归零（那是另一种「跳」）').toBe(before);
-    // 恢复后真的能滚
     await page.mouse.move(200, 400);
     await page.mouse.wheel(0, 300);
     await expect.poll(() => scrollY(page)).toBeGreaterThan(before);
@@ -110,7 +102,6 @@ test.describe('弹窗打开时背景不可滚', () => {
     await makeScrollable(page);
     await page.evaluate((y) => window.scrollTo(0, y), SCROLL_TO);
     await gotoAssets(page, 'categories');
-    // 编辑「资产类型」→ 移除仍有引用的标签 → 弹确认框（叠在分类弹窗之上）
     await page.locator('#categories-list .card', { hasText: '资产类型' }).getByRole('button', { name: '编辑' }).click();
     await page.fill('#cat-tags', '活期现金');
     await page.locator('#category-modal button[type="submit"]').click();
@@ -131,7 +122,6 @@ test.describe('弹窗打开时背景不可滚', () => {
   });
 
   test('打开时页面本身不跳位（滚动条消失不得让内容横移）', async ({ appPage: page }) => {
-    // 隐藏 overflow 会让经典滚动条消失，内容整块右移 ~8px：这是「锁滚动」最常见的副作用
     await makeScrollable(page);
     await page.evaluate((y) => window.scrollTo(0, y), SCROLL_TO);
     const x = () => page.evaluate(() => Math.round(document.querySelector('main').getBoundingClientRect().left));
@@ -142,7 +132,6 @@ test.describe('弹窗打开时背景不可滚', () => {
   });
 
   test('弹窗正文自己仍可滚，且滚到头不会把滚轮传给背景', async ({ appPage: page }) => {
-    // 用内容最长的设置弹窗：小视口下正文必然溢出
     await page.setViewportSize({ width: 900, height: 380 });
     await page.getByRole('button', { name: '设置' }).click();
     await expect(page.locator('#settings-modal')).toBeVisible();
@@ -154,7 +143,6 @@ test.describe('弹窗打开时背景不可滚', () => {
     ).toMatchObject({ sh: expect.any(Number), ch: expect.any(Number) });
     expect(await box.evaluate((c) => c.scrollHeight > c.clientHeight + 1)).toBe(true);
     expect(await box.evaluate((c) => getComputedStyle(c).overscrollBehaviorY)).toBe('contain');
-    // 正文滚到底之后继续滚：背景仍不动（overscroll-behavior 把链式滚动截住）
     const before = await scrollY(page);
     await box.hover();
     for (let i = 0; i < 6; i += 1) await page.mouse.wheel(0, 600);
@@ -168,8 +156,6 @@ test.describe('弹窗打开时背景不可滚', () => {
  * `aria-modal="true"` 于是只是句声明。用 inert 把它变成事实（声明式，一条规则覆盖全部入口）。
  */
 test.describe('弹窗打开时背景不可交互', () => {
-  // 「是否被 inert 挡住」= 自己或任一祖先带 inert（inert 会向下继承；只读元素自身的
-  // .inert 会把「父级 header 被冻结、按钮在 header 里」误判成没冻结）
   const inertOf = (page, sel) =>
     page.evaluate((s) => {
       const el = document.querySelector(s);

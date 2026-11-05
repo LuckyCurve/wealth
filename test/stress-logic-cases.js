@@ -16,8 +16,6 @@ const { test, describe, beforeEach } = require('node:test');
 const assert = require('node:assert');
 const L = require('../logic.js');
 
-// 本文件与 logic.test.js 各自可独立运行：被测纯函数读全局 state / incomeMode，
-// 这里自行注入（不在两处各写一份断言，但注入是测试脚手架，重复无妨）。
 beforeEach(() => {
   globalThis.state = {
     rates: { CNY: 1, HKD: 0.9, USD: 7.2, fetchedAt: null },
@@ -182,7 +180,6 @@ describe('压测：pruneStress（存档/导入的归一与剪枝）', () => {
       { tag: '权益基金', pct: 50 }, { tag: '活期现金', pct: 0 },
     ] }, cats);
     assert.deepStrictEqual(out, { catId: 'type', keeps: [{ tag: '权益基金', keep: 50 }, { tag: '活期现金', keep: 100 }] });
-    // 旧格式全是 pct 0（当时语义是「没跌」）= 剩满 = 未启用
     assert.strictEqual(L.stress.pruneStress({ catId: 'type', drops: [{ tag: '权益基金', pct: 0 }] }, cats), null);
   });
 
@@ -252,9 +249,7 @@ describe('压测：展示口径（stressDimensions / stressKeepRows / stressBarT
     assert.deepStrictEqual(rows.map(r => r.tag), ['活期现金', '权益基金'], '按分类的标签顺序');
     assert.deepStrictEqual(rows.map(r => r.amount), [100000, 100000]);
     assert.deepStrictEqual(rows.map(r => r.keep), [100, 50], '没列到的标签默认 100%');
-    // 空情景（打开弹窗时的初始草稿）也给出 100% —— 这就是「默认没有亏损」
     assert.deepStrictEqual(L.stress.stressKeepRows(assets, { catId: 'type', keeps: [] }, cats).map(r => r.keep), [100, 100]);
-    // 外币按当前汇率折算（与分布图的合计同一个 amountAtRates）
     globalThis.state = { ...globalThis.state, rates: { CNY: 1, HKD: 0.9, USD: 7.2 } };
     const rowsFx = L.stress.stressKeepRows(
       [{ amount: 100, currency: 'HKD', tags: { type: '活期现金' } }], { catId: 'type', keeps: [] }, cats);
@@ -267,7 +262,6 @@ describe('压测：展示口径（stressDimensions / stressKeepRows / stressBarT
   test('stressBarText 三态：无可用维度 / 未启用 / 生效（含未归类尾巴）', () => {
     assert.strictEqual(L.stress.stressBarText(null, [cats[0]], assets), '压测：先在「分类管理」里建一个分类');
     assert.strictEqual(L.stress.stressBarText(null, cats, assets), '压测：未启用');
-    // 条上列的是**剩余比例**（与滑块上的数一致，不让用户换算）
     const on = L.stress.stressBarText({ catId: 'type', keeps: [{ tag: '权益基金', keep: 50 }, { tag: '活期现金', keep: 100 }] }, cats, assets);
     assert.match(on, /压测中：资产类型：权益基金 50%/);
     assert.match(on, /未归类 ¥50,000\.00 按未打折计入/, '剩满的标签不列出，未归类那句必须出现');

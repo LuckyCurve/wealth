@@ -1,13 +1,3 @@
-/*
- * e2e/i18n.spec.js — 界面语言（默认英文，设置里切中文）
- * --------------------------------------------------------------------------
- * 单测能守住「每条文案都有词条」，守不住「切了语言页面真的变了」：
- * html lang、日期控件、图表、动态模板都可能在切换后留在旧语言（离线渲染的模板尤其）。
- * 这里用真实浏览器跑一遍，并把「英文界面里没有中文残留」做成一次全 Tab 巡检。
- *
- * 语言是用户设置（随存档落盘）：默认英文，所以既有 spec 播种时显式选中文（见 fixtures），
- * 本文件负责验证「不播种 = 英文」与切换本身。
- */
 const {
   test, expect, stubCdn, seed, waitReady, disableMotion, gotoAssets, INDEX_URL, LS_KEY,
 } = require('./fixtures');
@@ -22,7 +12,6 @@ async function openWith(page, state) {
   await waitReady(page);
 }
 
-// 界面上可见的文字（body.innerText 只取渲染后的文本，不含属性与 hidden）
 const visibleText = (page) => page.evaluate(() => document.body.innerText);
 
 /** 英文数据：巡检英文界面时，用户数据本身不能含中文（否则「有没有漏译」分不清） */
@@ -77,7 +66,6 @@ test.describe('语言：默认与切换', () => {
     await expect(page.locator('#lang-seg-zh')).toHaveAttribute('aria-pressed', 'true');
     await expect(page.locator('#lang-seg-en')).toHaveAttribute('aria-pressed', 'false');
     expect(await page.evaluate(() => document.documentElement.lang)).toBe('zh-CN');
-    // 动态模板（空态副标题由 JS 写入）也跟着换
     await expect(page.locator('#expenses-empty-title')).toHaveText('还没有消费记录');
 
     const stored = await page.evaluate((k) => JSON.parse(localStorage.getItem(k)), LS_KEY);
@@ -131,7 +119,6 @@ test.describe('英文界面的完整性巡检', () => {
 
     const walk = async (label) => {
       const text = await visibleText(page);
-      // 「中文」是语言选项，故意用中文写（语言名各写各的），不算漏译
       const bad = text.replace(/中文/g, '').match(new RegExp(CJK.source + '+', 'g'));
       expect(bad, `${label} 里残留中文：${(bad || []).join(' / ')}`).toBeNull();
     };
@@ -156,7 +143,6 @@ test.describe('英文界面的完整性巡检', () => {
     await expect(page.locator('#asset-gate-phrase')).toHaveText(/^[\x20-\x7e]+$/);
     await page.locator('#asset-gate-modal button:has-text("Not now")').click();
 
-    // 弹窗：设置（语言/外观/备份三行说明文字最多）、登记资产、记录消费、备份与导入
     await page.locator('header button[onclick="showSettings()"]').click();
     await walk('设置弹窗');
     await page.keyboard.press('Escape');
