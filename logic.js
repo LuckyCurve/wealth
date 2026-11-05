@@ -1,14 +1,6 @@
 /*
- * logic.js — 财富管理 · 核心纯逻辑（可单测）
- * --------------------------------------------------------------------------
- * 从 index.html 的内联 <script> 中抽取出的「与 DOM 无关」的纯函数 / 数据逻辑，
- * 通过 UMD 双端复用：
- *   - 浏览器：<script src="logic.js"></script> 先于应用脚本加载，函数挂到全局，
- *     供 index.html 内联脚本按原名直接调用（运行时行为不变）。
- *   - Node：以 CommonJS 模块被 test/*.test.js 通过 require 引入，零依赖、无需构建。
- *
- * 约定：依赖全局可变状态（state / incomeMode）的函数在浏览器读取 index.html 的全局，
- * 在测试中通过 globalThis.state / globalThis.incomeMode 注入，签名保持不变。
+ * logic.js — 与 DOM 无关的纯逻辑（UMD：浏览器挂全局 / Node require），页面与单测共用同一份源码。
+ * 依赖全局 state / incomeMode 的函数在测试中经 globalThis 注入，签名不变。
  */
 (function (root, factory) {
   if (typeof module !== 'undefined' && module.exports) {
@@ -53,16 +45,8 @@
     return String(str).replace(/\{(\w+)\}/g, (m, k) => (vars[k] == null ? m : String(vars[k])));
   }
 
-  // ========== 示例数据（纯：只产数据，不碰 DOM / 不写 state）==========
-  // 为什么下沉：两个示例加载器各占 ~4KB 的内联脚本，而它们**全是数据形状**（分类/资产/快照/
-  // 消费怎么摆、月份怎么推、金额怎么抖），没有一行 DOM。留在 index.html 里既占预算、又测不到
-  // （「示例数据的金额非负」「快照 totalCNY 与资产同口径」这类判据只有下沉后才能单测）。
-  // 页面侧只剩「确认 → 赋值 → 落盘 → 重绘」这四步副作用。
-  //
-  // 三个入参各自解掉一件事：
-  //   now        —— 时间是入参而不是 new Date()，否则「6 个月以当月收尾」永远测不准
-  //   genId      —— id 生成器由调用方给（页面用 genId()，测试用递增桩）
-  //   currencyCat / expenseTypeCat —— 内置分类**原样带入**，不在这里复制或改名
+  // ========== 示例数据（只产数据，不碰 DOM / 不写 state）==========
+  // 时间是入参而非 new Date()（否则「6 个月以当月收尾」测不准）；id 生成器由调用方注入。
   const DEMO_RATES = { CNY: 1, HKD: 0.92, USD: 7.24 };
 
   function demoRates(now) {
@@ -218,11 +202,7 @@
   }
 
   // ========== 图表动画参数（节奏系统的一部分）==========
-  // ECharts 默认 1000ms / cubicInOut，是**全站最长的一档**（比任何 CSS 过渡都长），
-  // 且不认 prefers-reduced-motion：真库实测 reducedMotion: reduce 下 animationDuration 仍是 1000。
-  // 故页面必须显式给参数。为什么下沉：这是纯决策（「给不给、给多少、减动效怎么处置」），
-  // 可单测；而页面侧只剩「把 CSS token 读成数值」这一件不可测的事。
-  // midSec 是 --mo-mid 的秒数（CSS token 是节奏的唯一来源，这里不另写一份毫秒数）。
+  // ECharts 默认 1000ms 且不认 prefers-reduced-motion，页面必须显式给；midSec 是 --mo-mid 的秒数。
   function chartMotion(midSec, reduceMotion) {
     if (reduceMotion) return { animation: false };
     const ms = Math.round((Number(midSec) || 0.25) * 1000);
@@ -294,10 +274,7 @@
   }
 
   // ========== 排序状态机（纯）==========
-  // 三态循环：同列点击 升序 → 降序 → 取消排序（恢复自然/拖拽顺序）；换列则重置为新列升序。
-  // 资产 toggleSort 与消费 toggleExpenseSort 共用同一状态机；
-  // flipSticky=true 表达消费侧「首次点击保留旧行为」的粘性翻转（仅翻转方向、不进入循环），
-  // 由调用方负责翻回 touched 标记。返回新 {by, dir}，不修改入参
+  // 三态循环：同列 升序 → 降序 → 取消；换列重置为新列升序。flipSticky 是消费侧首次点击的粘性翻转。
   function nextSortState(by, dir, field, flipSticky) {
     if (by === field) {
       if (flipSticky) return { by, dir: dir === 'asc' ? 'desc' : 'asc' };
@@ -317,11 +294,7 @@
     return null;
   }
 
-  // 行级激活的键位语义（单一来源）：role="button" 的元素被期望同时响应 Enter 与 Space
-  // （WAI-ARIA 惯例，缺一不可）。只认 Enter 是常见的半吊子实现——用键盘的人按 Space
-  // 毫无反应，而 Space 恰恰是屏幕阅读器用户最惯用的激活键。
-  // Tab/Esc/方向键必须放行：Tab 是焦点移动、Esc 是关弹窗、方向键是滚动，
-  // 吃掉它们比「少支持一个键」更糟——那是把键盘用户困在原地。
+  // 行级激活的键位语义：Enter 与 Space 都要响应（WAI-ARIA 惯例）；Tab/Esc/方向键必须放行，否则把人困在原地。
   function activateKeyAction(key) {
     return key === 'Enter' || key === ' ';
   }
@@ -334,12 +307,8 @@
     return dir === 'desc' ? 'descending' : 'ascending';
   }
 
-  // 排序列头对读屏器的表述（可访问名）。
-  // 为什么不能只靠 aria-sort：表头是 role="button"（不是 columnheader），而 aria-sort
-  // **按 WAI-ARIA 规范未定义在 button 上**——实测 Chrome 的 AX 树里那枚属性不产生任何 sort 信息
-  // （原生 <th aria-sort> 也一样测不出），即「属性写上了、读屏器收不到」。
-  // 真正到达读屏器的是**可访问名**，故把方向写进去；同时保留可见列名在前
-  // （WCAG 2.5.3「名称包含可见文字」：否则语音控制用户喊不出这一列）。
+  // 排序列头的可访问名：aria-sort 在 role=button 上不可达（AX 树里测不出），真正到达读屏器的是 aria-label——
+  // 方向写进去，可见列名留在前面（WCAG 2.5.3）。
   function sortAriaLabel(label, by, dir, field) {
     if (!by || by !== field) return '';
     if (dir !== 'asc' && dir !== 'desc') return ''; // 脏值不误报方向
@@ -347,14 +316,8 @@
   }
 
   // ===== 进入资产页的门槛：长按 + 抄写 =====
-  // 目的不是权限，是给「顺手看一眼」定价（资产价格短期波动天然大，高频查看只会
-  // 放大情绪噪音）。两段闸：
-  //   ① 指针路径上按住「资产」满 MODE_PRESS_MS——只挡顺手一点；
-  //   ② 抬闸后抄一句随机箴言——每次进入都要付，且无法被肌肉记忆抹平。
-  // 键盘/读屏器不付①（按住 Enter 会按键重复，计时不可信），但②对所有人同价：
-  // 门槛的价格不能取决于你用什么设备。
-  // 阈值、进度比例与「按满/仅提示」判定都收在这里：文案要报时长，判定要用时长，
-  // 分散在页面里改一处忘一处就会出现「文案说 1.2 秒、实际 1 秒」这类漂移。
+  // 给「顺手看一眼」定价，不是权限：指针路径按满 MODE_PRESS_MS，抬闸后抄一句箴言（键盘不付前者）。
+  // 阈值/进度/判定都在这里，页面只读——文案报的时长与判定必须同源。
   const MODE_PRESS_MS = 1000;
 
   // 已按住时长 → 进度比例（0~1，供进度动画取宽度；超时封顶不溢出）
@@ -401,11 +364,7 @@
     return t('长按 {sec} 秒进入资产页', { sec: Number.isInteger(sec) ? sec : sec.toFixed(1) });
   }
 
-  // 门槛箴言池（复制粘贴=0）：抬闸后要现场抄写其中一句。
-  // 两池**各用母语写、互不翻译**——译文腔读起来像考试题，也会把「无常」这层意思磨平。
-  // 硬约束（由单测把关）：句数相等、长度等价（中文 ≤10 字 / 英文 ≤24 字符）、
-  // 两池都不含标点。否则换个界面语言就顺手改了门槛的价钱，或者全角/半角逗号
-  // 打错变成一次无意义的失败。
+  // 门槛箴言池：两池各用母语写、互不翻译；句数相等、长度等价、都不含标点（单测把守），否则换语言就换了门槛的价钱。
   const ENTRY_PHRASES = {
     zh: [
       '账面起落皆是暂相',
@@ -522,16 +481,8 @@
     return { x: pct(x, w), y: pct(y, h) };
   }
 
-  // 悬停提示气泡的视口坐标（气泡用 position: fixed 挂在视口上，不挂在 ? 图标上）。
-  //
-  // 为什么要脱离祖先：卡片自身有 backdrop-filter，于是**自成层叠上下文**——气泡的 z-index
-  // 只在卡片内部有效，后面那张卡片在文档里更靠后，就整块盖上来（用户实测：收益测算里
-  // 「缺口」旁的气泡下半被下面的表格盖住）。弹窗正文的 overflow-y:auto 与窄屏表格的
-  // overflow-x:auto 也会直接裁掉溢出的气泡。fixed 定位一次解决这两类。
-  //
-  // 三条约束：默认落在锚点下方并与锚点左对齐；下方放不下就翻到上方；右侧放不下就向左收
-  // （始终夹在视口内——越界只会让气泡消失或凭空多出横向滚动条）。
-  // 锚点矩形、气泡尺寸与视口都由调用方量好传进来，本函数只管算术，故可单测。
+  // 悬停气泡的视口坐标：气泡用 fixed 挂在视口上——祖先有 backdrop-filter 会自成层叠上下文，后面的卡片能整块盖住它，
+  // 弹窗正文的 overflow 也会裁掉。三条约束：默认下方左对齐、下方放不下翻上、右侧放不下向左收（始终夹在视口内）。
   const TIP_GAP = 8;   // 锚点与气泡之间的间距
   const TIP_EDGE = 8;  // 气泡与视口边缘的最小留白
   function tipBubblePos(anchor, bw, bh, viewport) {
@@ -557,11 +508,7 @@
     return { left: Math.round(left), top: Math.round(top) };
   }
 
-  // 是否需要这盏灯：减动效（明确要求安静）/ 粗指针（触屏没有悬停，徒耗性能）/ 页面不可见
-  // 三种情况都不跟。判定为纯函数，DOM 层只负责把三个信号取出来。
-  // 灯该不该亮：四种「不跟」的情况（减动效/触屏/页面不可见/弹窗开着）。
-  // 弹窗开着不跟：背景已被磨砂推远，光还在底下逐帧重算，既看不见又白花一次全屏渐变；
-  // 且「界面上只有最上层是活的」这条承诺在光的层次上也该成立。
+  // 灯该不该亮：减动效 / 触屏 / 页面不可见 / 弹窗开着，四种都不跟（弹窗开着时光在磨砂后面白算）。
   function lampEnabled(opts) {
     const o = opts || {};
     return !o.reducedMotion && !o.coarsePointer && !o.hidden && !o.modalOpen;
@@ -687,10 +634,7 @@
   }
 
   // ========== 消费标签筛选（分组下拉，纯函数）==========
-  // 下拉形态：类别作 optgroup 分组头（不可选），标签为可选项。选中值编码 catId + SEP + tag，
-  // 由 parseTagFilter 解回 { catId, tag }，DOM 侧不自行拼/拆口径（防两处漂移）。
-  // 分隔符取控制字符：分类 id 由 genId() 生成、标签为用户输入，均不含 \u0001；
-  // 解析取首个分隔符，标签自身即使含分隔符也会原样保留在 tag 里
+  // 类别作 optgroup 头；选中值编码 catId + \u0001 + tag，DOM 侧不自行拼/拆（防两处漂移）。
   const TAG_FILTER_SEP = '\u0001';
 
   function tagFilterValue(catId, tag) {
@@ -724,10 +668,7 @@
   }
 
   // ========== 消费筛选（三段叠加 + 空态判据，唯一所有者）==========
-  // 页面不再持有镜像变量，也不从控件读回：控件只写、渲染只读这一份状态。
-  // 失效值（月份已无记录 / 标签已改名或移出）在归一阶段丢弃，因此不存在
-  // 「先重建下拉、再读值」的次序依赖——那个次序在旧实现里真实写反过一次，
-  // 表现为「下拉=全部时间 / 空态=该月无记录」的自相矛盾中间态。
+  // 控件只写、渲染只读这一份状态；失效值在归一阶段丢弃，所以不存在「先重建下拉、再读值」的次序依赖。
   function normalizeExpenseFilters(filters, expenses, categories) {
     const f = filters || {};
     const months = expenseMonths(expenses);
@@ -816,11 +757,8 @@
     return n;
   }
 
-  // ========== 标签改名的引用迁移 ==========
-  // 在分类编辑框里把「活期现金」改成「现金类」，旧名已不在标签列表里——若按「无效引用」清理，
-  // 资产/消费上的归类会被静默清空（分布图与读数卡随之失真）。改名必须**迁移引用**，
-  // 只有真正被移除的标签才走删除路径。
-  // 只迁移恰好命中「同分类 + 同名」的引用，返回迁移条数（供 UI 提示）。
+  // ========== 标签改名的引用迁移 ===========
+  // 改名必须迁移引用：按「旧名已失效」清理会静默清空归类（分布/收益随之失真）。返回迁移条数供 UI 提示。
   function migrateTagRefs(items, catId, from, to) {
     let n = 0;
     (items || []).forEach(it => {
@@ -919,10 +857,7 @@
   }
 
   // ========== 覆盖标尺（月收益对预期月消费的覆盖率）==========
-  // 覆盖率（%）: 分子月收益 ÷ expectation × 100（分子由调用方按口径选现金或总收益）。
-  // expectation 未设/非法（<=0）→ null（无法计量, UI 显示「设定预期」邀请态）；
-  // 月收益非法/负数 → 0（防御, 覆盖率从零起量而非 NaN）
-  // 形参名 amount 口径无关: 分子可为现金收益或总收益（默认口径为 total）, 勿命名成 cashMonthly 误导调用方
+  // 分母未设/非法 → null（UI 走邀请态）；分子非法/负数 → 0。形参名 amount 与口径无关。
   function coveragePct(amount, expectation) {
     const e = Number(expectation);
     if (!isFinite(e) || e <= 0) return null;
@@ -931,11 +866,8 @@
     return c / e * 100;
   }
 
-  // 两口径收益合计（报头副行/收益摘要/覆盖标尺共用, 防多处各算漂移）。
-  // 返回 { annual, cashAnnual, monthly, daily, cashMonthly }, 衍生值与单资产算法同式除法;
-  // 未设利率资产贡献 0, 空表/缺失入参归零不产出 NaN。
-  // 语义约定: 全量累加含负收益资产（表单允许负利率、导入亦不鴴制）——
-  // 与报头口径一致; 旧收益摘要曾 filter(annual>0) 剔除负值属口径分裂, 勿回潮
+  // 两口径收益合计（报头副行/收益摘要/覆盖标尺共用）：未设利率的资产贡献 0，空表不产出 NaN。
+  // 语义：全量累加含负收益资产——旧实现 filter(annual>0) 剔除负值属口径分裂，勿回潮。
   function sumAssetIncomes(assets) {
     let annual = 0, cashAnnual = 0;
     (assets || []).forEach(a => {
@@ -972,15 +904,8 @@
     }, 0);
   }
 
-  // 覆盖缺口还需本金（线性外推）: 缺口月 ×12 ÷ 实际年化，其中实际年化 = annual ÷ principal。
-  // annual/principal 由调用方按口径传入（total: 年总收益/有息本金；cash: 年现金收益/有息本金），
-  // 有息本金指 getAssetRate > 0 资产的折算合计（闲置零利率资产不摊薄收益率）；
-  // 安全边际已含在 annual 里（calcAssetIncome 折算），min/max 跟随 incomeMode。
-  // 返回：已覆盖/打平或预期非法 → null（UI 不挂 Tips）；年收益/基地非法或非正 → Infinity
-  // （实际年化 ≤0 无法外推，UI 显示兜底一句）；月收益非法按 0 参与（与 incomeGap 同口径）。
-  // 返回 { need, rate }: need 同上（null / Infinity / 金额）; rate 为**实际年化百分比**
-  // （annual ÷ principal × 100, 已含安全边际折算），与 need 同源一次算就出 ——
-  // 展示层再算一遍 annual/principal 就与外推基数分家（改一处忘另一处不报错）。
+  // 还需本金（线性外推）：缺口月 ×12 ÷ 实际年化，实际年化 = annual ÷ principal（分母只含有息本金）。
+  // 返回 { need, rate }，两者同源一次算出——展示层再算一遍就会与外推基数分家。
   function coverShortfallPrincipal(monthly, expectation, annual, principal) {
     const e = Number(expectation);
     if (!isFinite(e) || e <= 0) return { need: null, rate: 0 };
@@ -1021,11 +946,8 @@
     return out;
   }
 
-  // 分子合计（CNY）: 匹配资产的金额按当前汇率折算求和。
-  // 标签语义（与筛选面板的维度语义一致, 已按分类分组）:
-  //   同一分类内多选 = 或 —— 一个资产在一个分类下只带一个标签, 同分类取交必然为零（如「低风险 + 中风险」）;
-  //   不同分类之间 = 且 —— 所选分类都要满足（如「活期现金 + 低风险」只算既是活期又低风险的资产）。
-  // 未选标签返回 null —— 与「选了但无资产命中」（0）区分, UI 据此走指引句而不是把「没选」显示成 0
+  // 分子合计（CNY）：匹配资产的金额按当前汇率折算求和。同分类内多选取「或」、跨分类取「且」；
+  // 未选标签返回 null（与「选了但没命中」的 0 区分），UI 据此走指引句。
   function runwayLiquidCNY(assets, runwayTags) {
     const refs = Array.isArray(runwayTags) ? runwayTags : [];
     if (refs.length === 0) return null;
@@ -1050,11 +972,7 @@
     return sum;
   }
 
-  // 分母（月消费）: 先看全局「预期月消费」是否已设 —— 未设则整卡不显示（读数卡入口就在卡内, 自定值也无从填起,
-  // 仍然回页头「预期消费」按钮）；已设则自定值优先, 未自定（0/空/非法/负值）回落全局值。
-  // 自定值只作用于这张读数卡 —— 不写回 state.expenseExpectation, 趋势参考线/覆盖标尺/进度卡照旧用全局值,
-  // 目的就是可以按更保守的月消费看「能撑多久」, 不动全局口径。全局预期未设 → 0（UI 整卡不显示,
-  // 即卡内自定值不放行 —— 「先有预期月消费才有这张卡」）。
+  // 分母（月消费）：全局预期未设 → 整卡不显示；已设则自定值优先。自定值只作用于本卡，不写回全局口径。
   function runwayExpectationOf(runwayExpectation, expenseExpectation) {
     const global = Number(expenseExpectation);
     if (!isFinite(global) || global <= 0) return 0;
@@ -1069,11 +987,8 @@
     return isFinite(custom) && custom > 0;
   }
 
-  // 输入框字符串 → 自定月消费值（0 = 未自定/按默认）: 空串、非法、非正数一律 0;
-  // 与全局「预期月消费」相同的数也按默认存（0）—— 它会继续跟着全局走, 否则日后改全局预期时
-  // 本卡会默默钉住一个看似默认的旧值。
-  // 写入侧（saveRunwayTags）与弹窗实时预览共用这一处解析+归一; 读取侧的回落见 runwayExpectationOf。
-  // 两侧不得各写一份: 值恰好等价也靠不住, 只改一处就会让预览与保存后的读数分家且不报错。
+  // 输入串 → 自定月消费（0 = 按默认）：空/非法/非正 → 0；与全局相同的数也存 0（否则日后改全局时本卡会钉住旧值）。
+  // 写入侧与弹窗预览共用这一处——各写一份时值恰好等价也会分家且不报错。
   function normalizeRunwayExpectationInput(raw, expenseExpectation) {
     const v = parseMoneyInput(raw);
     if (!isFinite(v) || v <= 0) return 0;
@@ -1104,16 +1019,9 @@
     return rem === 0 ? t('{y} 年', { y: years }) : t('{y} 年 {m} 个月', { y: years, m: rem });
   }
 
-  // ========== 压测（全局视图叠加：一组「某维度下各标签还剩多少」假设）==========
-  // 为什么是叠加而不是一个独立页面、为什么单维度、为什么账本与快照不动，见
-  // docs/adr/0004-stress-as-view-overlay.md。这里只落口径。
-  //
-  // 情景形如 { catId, keeps: [{ tag, keep }] }——keep 是**剩余比例（%）**，不是跌幅：
-  // 用户的心智是「还剩多少」（拉满 100% = 没亏，拉到 66% = 跌了 34%），
-  // 让他换算成跌幅再填一遍纯属白付一道算术。所以存的也是 keep，跌幅只在展示时取补数。
-  // **只存比例**，不存任何金额：金额一律现算（汇率会变、账本会改，存下来的数第二天就是错的）。
-  // 单维度是硬约束：每笔资产在每个分类下恰好一个标签，若允许两个维度各给一个比例，
-  // 同一笔钱会被乘两次（剩 50% 与剩 90% 变成剩 45%），而用户根本预期不到那个数。
+  // ========== 压测（全局视图叠加：某维度下各标签还剩多少）==========
+  // 决策见 ADR 0004。keep 是剩余比例（不是跌幅），只存比例不存金额；
+  // 单维度是硬约束——两个维度会把同一笔钱乘两次（剩 50% 与 90% 变成 45%）。
 
   // 剩余比例归一：非有限数 → null（该条丢弃，不是当成 100——「没填」和「填了个乱码」不是一回事）；
   // 越界钳制 0~100（>100% 是「看涨」，本页不做预测）；小数四舍五入成整数（滑块就是 step=1）。
@@ -1136,11 +1044,8 @@
     return null;
   }
 
-  // 情景归一（存档加载与导入共用，migrateState 调用）: 非法 / 指向已删分类标签 / 选了内置货币分类 /
-  // 剪完全是「剩 100%」→ null。**不弹提示**：静默失效每次开页面都提醒一次等于吵人，
-  // 而「条回到未启用」本身就是可见的交代。
-  // categories 传 null/undefined 时只做形状归一，不做存在性校验
-  //（「读不到分类」≠「分类已删」：失败即未知，不得据此丢弃用户设好的情景）。
+  // 情景归一（加载与导入共用）：非法 / 指向已删标签 / 选了内置货币分类 / 剪完全是 100% → null，不弹提示。
+  // categories 为空只做形状归一——「读不到分类」≠「分类已删」，失败即未知。
   function pruneStress(stress, categories) {
     if (!stress || typeof stress !== 'object' || Array.isArray(stress)) return null;
     const catId = typeof stress.catId === 'string' ? stress.catId : '';
@@ -1201,12 +1106,8 @@
     return 100 - stressKeepOf(asset, stress);
   }
 
-  // 折算后的资产数组（**全局视图叠加的唯一入口**）——报头/收益/覆盖标尺/读数卡/分布图
-  // 都从这里取资产，而不是各自读 state.assets 再打折：口径分散到十几处必然漂移，
-  // 症状是同一页上「压测后的覆盖率」配着「压测前的月收益」。
-  // 未启用时**原样返回同一份数组**（连复制都不做）：让「没开压测」这条路径零开销、零风险。
-  // 启用时返回新数组，每项 {...a, amount: 按剩余比例折算}；其余字段（利率/现金比例/标签/名称）不动
-  // ——利率是收益率不是金额，本金缩了收益在 calcAssetIncome 里自然跟着缩。
+  // 折算后的资产（**全局视图叠加的唯一入口**）：未启用时原样返回同一份数组（零开销），
+  // 启用时返回 {...a, amount: 折算后}——利率是收益率不是金额，收益在 calcAssetIncome 里自然跟着缩。
   function effectiveAssets(assets, stress) {
     if (!stressActive(stress)) return assets;
     return (assets || []).map(a => {
@@ -1329,16 +1230,8 @@
     return new Date(y, m, 0).getDate();
   }
 
-  // 本月预算消耗口径（进度卡读数单一来源）——**不用时间进度做对照基准**：
-  // 消费沿时间并不均匀（房租这类大额固定支出在月初入账），「比时间进度多花/少花」几乎完全由
-  // 那笔支出的入账日决定, 不携带「是否花超了」的信息, 反而会诱导用户把正常支出当异常。
-  // 改为两个不依赖均匀假设、直接可决策的数：
-  //   remaining = 预期 − 已花（下限 0, 超支时不在剩余里呈现负数）
-  //   daysLeft  = 当月天数 − 今天日期号 + 1 —— 今天算整天（与旧的 pace 口径同精神, 不虚报）
-  //   dailyLeft = remaining ÷ daysLeft —— 「剩下这些钱、这些天, 每天能花多少」, 分母恒 >= 1
-  //   over/excess = 已花 > 预期 / 超出额（打平算不超, 与 incomeGap 打平算盈余同精神）
-  //   pctOfMonth  = 已花 ÷ 预期 × 100 —— 真实值不封顶, 封顶是进度条 UI 职责
-  // expectation 未设/非法（<=0）→ null（UI 整卡不显示, 入口交给「预期消费」按钮）
+  // 本月预算口径：不用时间进度做基准（大额固定支出的入账日决定一切，不携带「花超了」的信息），
+  // 只给 remaining / daysLeft / dailyLeft / over / pctOfMonth；预期未设 → null。
   function monthBudgetReading(spent, expectation, today) {
     const e = Number(expectation);
     if (!isFinite(e) || e <= 0) return null;
@@ -1358,11 +1251,7 @@
     };
   }
 
-  // 预算状态文案（#pace-note 唯一渲染出口, 内联脚本不得重复字面量）:
-  // 正常 → 剩余 + 余下天数 + 日均; 超支 → 超出额 + 「本月额度已用完」（不显示负的日均）;
-  // 打平（remaining 与 excess 都为 0）→ ''（没有可叙述的差额）。金额走 formatCNY 同一货币呈现。
-  // 入参可能是脏的/缺字段的（不一定是 monthBudgetReading 的产物）: 本函数读到的每个字段都必须
-  // 先验成有限数, 否则 formatCNY(undefined) 会抛 TypeError、formatCNY(NaN) 会渲染出「¥NaN」。
+  // 预算文案（#pace-note 唯一出口）：每个字段先验成有限数，否则 formatCNY(undefined) 抛错、NaN 会渲染成「¥NaN」。
   function monthBudgetNote(reading) {
     if (!reading) return '';
     const remaining = Number(reading.remaining);
@@ -1696,15 +1585,7 @@
   }
 
   // ========== 图表数据构造（纯，可单测）==========
-  // 旭日图 / 堆叠柱调色板：资产/收入/消费/历史/趋势五图共用同一套暖色配色。
-  // 原定义在 index.html，迁移至此处以便逻辑与单测共用同一份数据源。
-  // 图表色板（旭日图/堆叠柱共用）。条目三个字段各有契约：
-  //   base  内环分类基色
-  //   label 印在**内环**上的字色——不是固定白字：琥珀/铜这类浅底上白字只有 2.3:1，
-  //         得改用墨字。早先字色写死在 buildSunburstOption 里（color: '#fff'），实测 10 个
-  //         基色有 7 个不达 AA；收进表里才能被单测逐条钉住（同 CATEGORY_COLORS 的思路）。
-  //   shades 外环条目三阶：同色相浅阶、彼此明度差 ≥5%（兄弟条目要看得出来）
-  // 外环浅阶一律用 CHART_INK（墨）——浅底上白字只有 2.0~3.7:1，两种环的字色天然不同。
+  // 图表色板：base 内环基色、label 内环字色（浅底必须用墨字，固定白字实测 7/10 不达 AA）、shades 外环三阶。
   const CHART_INK = '#211B10';
   const CATEGORY_PALETTE = [
     { base: '#BB5647', label: '#FFFFFF', shades: ['#AF776F', '#BF938C', '#D0AFAA'] },
@@ -1725,13 +1606,8 @@
     return pal.shades[i % pal.shades.length];
   }
 
-  // 旭日图数据构造（资产/收入/消费三图共用）：给定分类与「按标签分组的子项数组」，
-  // 统一套用 CATEGORY_PALETTE 配色。childValue(child) 决定扇区数值；
-  // child 可携带 extra 字段（如 _assetId）透传到 ECharts 节点。数值统一四舍五入两位。
-  // **字色写在节点上（label.color）**，不靠 levels[].label.color 的回调：实测 ECharts 5
-  // 对 sunburst 层级 label 的函数型 color 不保证逐节点求值（本项目的真实图上量到 2.15:1，
-  // 说明回调没生效、退回默认黑字）；节点级静态色则确定生效。写在数据里还有个好处：
-  // 色与字仍同表（CATEGORY_PALETTE.label / CHART_INK）且可被单测直接断言。
+  // 旭日图数据构造（三图共用）：childValue 决定扇区数值，child 的 extra 透传到节点。
+  // 字色写在节点上（label.color）——实测 ECharts 5 对 levels 里的函数型 color 不保证逐节点求值。
   function buildSunburstData(cat, groups, childValue) {
     return cat.tags
       .filter(t => (groups[t] || []).length > 0)
@@ -1751,15 +1627,8 @@
       });
   }
 
-  // 旭日图的「视图」：喂给图的数据与占比分母，由清单的选中态派生。
-  // 为什么不让 ECharts 自己下钻（nodeClick:'rootToNode'）：那会引入**第二套**视图状态——
-  // 图的 viewRoot 与清单的选中态各自为政，于是「‹ 全部分类」只清了清单、图仍停在下钻层
-  // （用户实测：「返回到整个全景的时候，依然展示的是具体分类的值」）。
-  // 改成一个派生函数后，图与清单读的是同一份选中态，不可能再漂。
-  //   · 未选中（null/''/undefined，或指向已不存在的分类）→ 原样返回全量 + 调用方的筛选合计；
-  //   · 选中 → 只喂该分类（图的内环就是它，外环是它的条目），分母换成该分类合计
-  //     （与清单条目级占比同源，条目加起来正好 100%）。
-  // 不改写入参：未选中时直接复用入参数组（每帧重建一份没意义，也会让 ECharts 重排）。
+  // 旭日图的「视图」：喂给图的数据与占比分母都由清单的选中态派生，不让 ECharts 自己下钻
+  // （那会引入第二套 viewRoot，于是「返回全部」只清了清单、图还停在下钻层）。
   function sunburstDrillView(data, total, selected) {
     const list = Array.isArray(data) ? data : [];
     const sel = selected ? list.find(n => n && n.name === selected) : null;
@@ -1783,11 +1652,7 @@
     return 0;
   }
 
-  // 旭日图节点在**扁平化树**里的下标（ECharts 的 dataIndex 就是这一套）。
-  // 实测（真实 ECharts 5）：点内环分类返回 dataIndex = 顶层下标 + 1，因为虚拟根占了 0；
-  // 于是「分类 N」= 1 + N，「分类 N 下的第 k 个条目」= 2 + N + k（前面的兄弟分掉了序号）。
-  // 不换算就会差一个：悬停清单第一行会高亮到隔壁扇区（这个 bug 曾真的发生）。
-  // 越界一律 null：调用方据此跳过 highlight，而不是乱亮一个不相干的扇区。
+  // 扁平树下标换算：点内环分类返回 dataIndex = 顶层下标 + 1（虚拟根占 0），条目 = 2 + N + k；越界一律 null。
   function sunburstNodePath(data, catIdx, childIdx) {
     const list = data || [];
     if (!Number.isInteger(catIdx) || catIdx < 0 || catIdx >= list.length) return null;
@@ -1806,13 +1671,8 @@
     return (node && Array.isArray(node.children)) ? node.children.length : 0;
   }
 
-  // 旭日图右侧清单的数据：**未选中**时列顶层分类；**选中某分类**时列它下面的条目。
-  // 需求原话：「选中其中一个层级的时候，他右边的标签可以联动成选中的当前分类下的一些标签」。
-  // 三点口径：
-  //   ① selected 指向不存在的分类（被删掉/换了维度）→ 回落为顶层列表，不留悬空状态；
-  //   ② 条目级占比的**分母是该分类合计**（条目加起来正好 100%），不是全局合计；
-  //   ③ 每条带 idx / path，供「清单 → 扇区」高亮定位（path 交给 sunburstNodePath 换算）。
-  // 不改写入参：入参就是喂给 echarts 的同一份 data。
+  // 右侧清单：未选中列顶层分类，选中某分类列它的条目（分母是该分类合计，条目加起来 100%）。
+  // selected 指向已删分类 → 回落顶层列表；每条的 idx/path 供「清单 → 扇区」高亮。
   function sunburstLegendRows(data, total, selected) {
     const list = data || [];
     const sel = list.find(n => n && n.name === selected);
@@ -1894,11 +1754,8 @@
       : t('上次备份 {p1}', { p1: lastBackup });
   }
 
-  // 方案 A 决策：今天是否该弹一次自动备份确认框。
-  // off / 无数据 → 否；从未备份或历史日期损坏(gap==null) → 是；
-  // daily 当天已备份过(gap<=0) → 否；weekly 不足 7 天(gap<7) → 否。
-  // 只看 lastBackup（确认写入才更新）：取消/回退下载一律不算「备份过」，当天再进来仍会再问一次。
-  // backup 对象缺失时按默认 daily + 从未备份处理（与 migrateState 兑底一致）
+  // 今天该不该自动备份：off / 无数据 → 否；从未备份或日期损坏 → 是；daily 当天已备份 → 否；weekly 不足 7 天 → 否。
+  // 只看 lastBackup（确认写入才更新）：取消/回退下载都不算「备份过」。
   function shouldAutoBackup(s, today) {
     const b = (s && s.backup) || {};
     if (b.autoFreq === 'off' || !hasAnyBackupWorthyData(s)) return false;
@@ -1943,12 +1800,8 @@
     return backupFileName(today, seq);
   }
 
-  // 落点决策：**一律过系统文件窗口**（能弹 → file），弹不出来才回退浏览器下载。
-  // 为什么不再「目录已授权就静默写」：跨会话的目录写权限靠不住（Chrome 的授权只撑到关闭该 origin
-  // 最后一个标签页，重开后 queryPermission 就是 prompt），而自动备份跑在定时器里没有用户手势、
-  // 无法申请授权——结果是「设置了文件夹却仍在弹下载框」。现在统一：先弹确认框（用户点击 =
-  // 手势），再开文件窗口，位置由 startIn（设置里选的目录）决定。
-  // 缺省参数按「弹不出」保守处理，调用方漏传不会误写。
+  // 落点：一律过系统文件窗口，弹不出来才回退下载。目录授权跨会话不可靠（Chrome 只撑到关标签页），
+  // 而定时器里没有用户手势、无法申请授权——「设置了文件夹却仍弹下载框」就是这么来的。缺省按「弹不出」处理。
   function backupWritePlan(opts) {
     opts = opts || {};
     return { target: opts.supportsPicker ? 'file' : 'download' };
@@ -2010,11 +1863,8 @@
       : { msg: t('汇率获取失败'), type: 'error' };
   }
 
-  // 汇率响应的**形状校验**：API 给的是「1 CNY = X 外币」，页面要取倒数写成「1 外币 = X CNY」。
-  // 原先直接 1 / cny.hkd：字段缺失得 NaN、给 0 得 Infinity，两者都会写进 state.rates 并落盘——
-  // 此后每张表、每个合计都是 NaN / Infinity，而便条还说「汇率已更新」。故这里先验，
-  // 任一币种不是有限正数就整体拒绝（返回 null，调用方走既有的 catch 回退分支）。
-  // 不逐个「能用的用、不能用的留旧值」：一次响应里只有一半可信时，混着用的口径比全旧更难解释。
+  // 汇率响应形状校验：任一币种不是有限正数就整体拒绝（返回 null → 走回退）。字段缺失得 NaN、给 0 得 Infinity，
+  // 写进 state.rates 后每个合计都脏，而便条还说「汇率已更新」；半个响应可信时混用比全旧更难解释。
   function ratesFromApi(cny) {
     const ok = (v) => typeof v === 'number' && Number.isFinite(v) && v > 0;
     if (!cny || typeof cny !== 'object' || !ok(cny.hkd) || !ok(cny.usd)) return null;
@@ -2027,38 +1877,20 @@
   }
 
   // ========== 便条的播报优先级 ==========
-  // 便条容器原先写死 aria-live="polite"：所有知会（含 22 处 error）都排队等读屏器空闲才念。
-  // 但 error 的语义就是「出错了、等你处理」——排队到用户下一次操作之后才念，
-  // 等于把「现在就得知道」降级成「顺口提一句」。故按类型分档：
-  //   error → assertive（打断当前朗读，立刻播报）；其余 → polite（不打断，择机播报）。
-  // 判据下沉到这里（可单测），DOM 侧只负责把值写到容器属性上。
+  // error → assertive（现在就得知道），其余 → polite；判据在这里，DOM 只写属性。
   function toastLiveMode(type) {
     return type === 'error' ? 'assertive' : 'polite';
   }
 
-  // ========== 下拉框的固有宽度（opt-in base-select 之后的补偿）==========
-  // `appearance: base-select` 让 select 由页面接管绘制，代价是它**不再按最长选项取宽**：
-  // 实测同一个下拉换选中项会在 160 / 186 / 214 之间跳（原生恒定 231），表格上方的
-  // 筛选条于是每选一次就左右抖一下。
-  //
-  // 试过且**全部无效**（都是「按内容定宽」该生效的写法，实测宽度照样跳）：
-  //   field-sizing: content / min-width: max-content / width: max-content。
-  // 唯一稳的办法：把固有宽度量一次、钉在 `--sel-w` 上。这里只放「要不要钉」的判据（可单测），
-  // 量宽与写变量归 DOM 侧（见 index.html 的 freezeSelectWidths）。
-  //
-  // 不该钉的两种：
-  //   - 选项全空：空下拉在等着被填充，钉住它就再也回不到内容宽；
-  //   - 选项全空串：「全部时间 / 全部标签」这类占位项本身就是空的，按它钉宽等于按空串钉。
-  // 多一个「全部××」与长选项并存的常见情形下必须钉——否则弹层与控件都会缩到占位项那么窄。
+  // ========== 下拉框的固有宽度（base-select 之后的补偿）==========
+  // base-select 不再按最长选项取宽，换选项时宽度会跳；field-sizing/content 那几种写法实测全部无效，只能量一次钉住。
+  // 不该钉的两种：选项全空（还在等填充）、选项全是空串（占位项）。
   function shouldPinSelectWidth(labels) {
     return (labels || []).some((t) => String(t == null ? '' : t).trim() !== '');
   }
 
   // ========== 拖拽排序的键盘替代 ==========
-  // 拖拽把手原先只有 draggable——指针专属手势，键盘用户完全无法调整资产顺序。
-  // 这里只做「数组里怎么挪」这一半（可单测）；键位判定与 DOM 副作用在 index.html。
-  // 必须返回新数组而不改原数组：调用方拿返回值赋回 state，原地改动配合渲染函数
-  // 的重绘时序容易静默不刷新。
+  // 只管「数组里怎么挪」（可单测）；返回新数组而不改原数组，避免配合重绘时序时静默不刷新。
   function moveAssetIndex(arr, from, to) {
     if (!Array.isArray(arr) || arr.length < 2) return arr;
     if (!Number.isInteger(from) || !Number.isInteger(to)) return arr;
@@ -2070,11 +1902,7 @@
   }
 
   // ========== 弹窗自动弹出后的指针守卫 ==========
-  // 长按满时长自动弹确认框时，抬起的手指会紧跟一次 pointerup 与 click：
-  // 遮罩的 click 会把确认框当场关掉（旧决策「弹窗只能松手时出现」就是为了躲这个，
-  // 代价是用户必须「按满—松手」两步，不自然）。改为自动弹出 + 短守卫窗：
-  // 弹出后一小段时间内的指针事件全部忽略，之后恢复。窗口必须是正的小量——
-  // 太长会把用户真点的「确认」按钮也吞掉。
+  // 长按满时长自动弹框时，抬起的手指会紧跟一次 pointerup/click 把遮罩点掉；弹出后一小段窗口内忽略指针事件。
   const AUTO_OPEN_GUARD_MS = 400;
   function autoOpenGuard(elapsedSinceOpen, guardMs) {
     const g = guardMs === undefined ? AUTO_OPEN_GUARD_MS : guardMs;
@@ -2082,17 +1910,8 @@
   }
 
   // ========== 弹窗焦点陷阱 ==========
-  // 15 个弹窗都写了 role="dialog" aria-modal="true"——那是对读屏器的承诺：弹窗背后的
-  // 内容不可达。但实测完全没接管焦点：打开后焦点还在触发按钮上、第一下 Tab 就走出弹窗、
-  // 关闭后掉到 body。承诺是空的（写对了 ARIA 不等于做了行为）。
-  //
-  // 这里只做「判据」这一半（可单测），DOM 侧由 index.html 执行 focus()。
-  // 返回 { wrap, index }：
-  //   wrap=false → 交还浏览器默认行为（中间位置不必插手，插手反而会打断 IME/选区）；
-  //   wrap=true  → 调用方把焦点移到 idx 出的那个元素上（绕回另一端）。
-  // 为什么 index=-1（焦点不在弹窗内）要一律拉回来：刚打开时焦点还在触发按钮上，
-  // 以及用户点了弹窗外/脚本聚焦到别处之后，都需要一把拉回弹窗内，否则
-  // aria-modal 的承诺立刻是假的。
+  // 15 个弹窗都写了 aria-modal，但写对 ARIA 不等于接管了焦点：判据在这里（可单测），DOM 侧执行 focus()。
+  // wrap=false 交还浏览器默认；index=-1（焦点不在弹窗内）一律拉回来，否则 aria-modal 的承诺立刻是假的。
   function trapFocus(currentIdx, count, shift) {
     if (!(count > 0)) return { wrap: false, index: -1 }; // 没有可聚焦元素：连「关闭」都按不到，别接管
     if (currentIdx < 0 || currentIdx >= count) {
@@ -2107,10 +1926,7 @@
   }
 
   // ========== 金额合计（按显式汇率表折算为 CNY）==========
-  // 分布图卡片上方的总数用它：旭日图只给各部分占比，用户看不到「当前筛选下到底多少」。
-  // 为什么要显式传汇率表：消费侧金额恒为 CNY（无 currency 字段 → 按 1 充底），资产侧要按
-  // 当前汇率折；同一个函数两页共用，不得各 reduce 一遍（那必然漂移）。
-  // 脏数据（NaN / Infinity / 字符串金额）不污染总数：界面上的总数必须始终能显示。
+  // 汇率表由调用方传（资产按当前汇率、消费恒为 CNY）；脏数据不污染总数——界面上的总数必须始终能显示。
   function sumAmountCNY(items, rates) {
     return (items || []).reduce((s, it) => {
       const v = amountAtRates(it && it.amount, it && it.currency, rates);
@@ -2607,15 +2423,8 @@
     '知道了': 'Got it',
   };
 
-  // 页面不直接调用、但被单测逐条断言的内部件（保留在域里：单测就是它们的使用者，
-  // 删掉导出等于删掉那些断言的接缝）：date.addMonths / date.daysBetweenStr /
-  // text.escRegExp / color.hexToHsl / color.hslToHex / color.CHART_INK / color.shadeAt /
-  // chartData.nodeValue / chartData.childCount / expense.parseTagFilter /
-  // expense.hasTagFilterOption / expense.applyExpenseFilters / income.getSafetyFactor /
-  // backup.BACKUP_STALE_DAYS / backup.hasAnyBackupWorthyData / ui.AUTO_OPEN_GUARD_MS /
-  // ui.TIP_GAP / ui.TIP_EDGE
-  // 按域分组：接口按「这个函数管哪件事」划分，不再平铺成一袋名字。
-  // 页面与单测都经域名访问（如 text.esc），新增函数先想清楚属于哪个域。
+  // 页面不直接调用、但被单测逐条断言的内部件也留在域里（删掉导出等于删掉那些断言的接缝）。
+  // 按域分组：页面与单测都经域名访问（如 text.esc），新增函数先想清楚属于哪个域。
   return {
     i18n: {
       t,

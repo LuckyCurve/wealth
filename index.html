@@ -2540,13 +2540,7 @@ function observeChartSize(chart) {
         }
       });
     }
-    // 图表尺寸不在这里登记：每张图在自己的 init 分支里 observeChartSize（盯住容器）。
-    // 原先这里是 window resize 统一 resize，覆盖不到「切 Tab 的 display 翻转」这一种变化。
-    // dark class 已在 <head> 内联脚本提前设置（避免暗色用户首屏闪烁）；主题切换入口唯一在设置弹窗
-    // 字体 CSS 是异步加载（media=print 技巧），canvas 图表初次渲染可能用了回退字体；
-    // 字体就绪后重绘当前可见图表，保证标签/数字渲染一致。
-    // 账本真的可用了才落纸（开屏入场挂在 html.ready 上，见 CSS 里的落纸注释）。
-    // 一次 rAF：让浏览器先把「未落定」那一帧画出来，否则两态在同一帧里翻转＝没有过渡。
+    // 一次 rAF 再落纸：两态在同一帧翻转等于没有过渡（图表尺寸与字体就绪各自有登记点，不在此）。
     requestAnimationFrame(() => document.documentElement.classList.add('ready'));
     if (document.fonts && document.fonts.ready) {
       document.fonts.ready.then(() => { freezeSelectWidths(); refreshVisibleCharts(); });
@@ -2681,11 +2675,7 @@ window.addEventListener('resize', () => {
   });
 });
 
-// 入场过渡（单一来源）：先显示（display 已由调用方翻开），下一帧加 .enter 播动画。
-// 必须隔一帧：display 翻转与 .enter 同一帧画出的话，初始态根本不会被渲染，动画不播
-// （与开屏「booting→ready 两态」同一道理）。动画结束后摘掉 class，下次切换重新播。
-// 方向感写进 --pane-x（keyframes 的唯一消费点）：往右翻页内容自右滑入、往回翻自左滑入；
-// 判定在 logic.js ui.paneEnterShift，调用方只把实测位置喂进去，不各写一份算式。
+// 入场过渡：display 已翻开，隔一帧再加 .enter 播动画（同帧会连初始态一起画、动画不播）；方向由 --pane-x 给。
 function enterTab(pane, shift) {
   if (!pane) return;
   pane.style.setProperty('--pane-x', String(shift || 0));
@@ -2697,13 +2687,7 @@ function enterTab(pane, shift) {
   });
 }
 
-// 「等新面板布局好再渲染」的唯一入口（五个图表 Tab 共用）。
-// 原先各写一份 setTimeout(100)：固定睡眠既没有理由（display 翻转是同步的），又会在
-// 「切过去又立刻切走」时把图画进**已经隐藏**的容器——真实浏览器实测 echarts.init 出 0×0 实例
-// （这正是 AGENTS 里「隐藏容器不得 init」那条；之后靠 ResizeObserver 才恢复）。
-// rAF 让出一帧给浏览器完成布局；执行时再确认这个 Tab 仍可见，不可见就不画
-// （下次进入时 switchTab 会重新排一次）。不在此处补渲染后台 Tab：那要按当前主题画，
-// 与「隐藏 Tab 下次进入时按新主题渲染」的既有约定冲突。
+// 「等新面板布局好再渲染」的唯一入口：rAF 让出一帧，执行时再确认仍可见——不可见就不画（隐藏容器 init 出 0×0 实例）。
 function afterTabPaint(tab, render) {
   requestAnimationFrame(() => {
     const pane = document.getElementById('tab-' + tab);
@@ -2919,11 +2903,8 @@ function cancelAssetGate() {
   closeModal('asset-gate-modal');
 }
 
-// ========== 台灯掠光（跟随指针的纸面光）==========
-// 账本摊在桌上，灯在纸上游走：指针即光源。全站唯一的常驻动效，其余都是一次性/状态性的。
-// 位置换算与开关判定在 logic.js（ui.lampPos / ui.lampEnabled），这里只负责取信号、写变量、收事件。
-// 减动效查询与取值：与 masthead 计数动画共用同一份（两处各查一遍 matchMedia，
-// 就是同一件事在文件里出现两次；且同名 const 重复声明会让整个脚本死在解析期）
+// ========== 台灯掠光（全站唯一的常驻动效）==========
+// 判定与换算在 logic.js（ui.lampPos / ui.lampEnabled）；这里只取信号、写变量、收事件。
 const _reduceMotionQuery = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
 // 粗指针 = 触屏（没有悬停可言），不跟：省掉一幅全屏固定层的逐帧重绘
 const _coarsePointer = window.matchMedia ? window.matchMedia('(pointer: coarse)').matches : false;
@@ -3525,13 +3506,7 @@ function ensureEChartsReady(el) {
   });
 }
 // ========== 图表宿主：五张图共用同一段生命周期 ==========
-// 调用点只交「实例槽 / 容器 / 首次接线 / option」，以下四条约束由宿主统一守住：
-//   ① 图表库按需加载（默认页不画图，首屏不下载）；
-//   ② 容器不可见（0×0）既不加载也不 init——拿 0 去 init 才是把图做废的那一步；
-//   ③ init 后立刻登记尺寸观察（漏一张是静默的：图还在，只是画在旧尺寸上）；
-//   ④ 换数据前先清强调态（setOption 重建的扇区会继承上一帧的 blur(0.2)，表现为几块一直灰着）。
-// 监听器只在 init 分支里注册一次：每帧注册会累积，点一下触发 N 次下钻。
-// slot = chartSlot(get, set)：各图仍持有自己的模块级实例变量，宿主不维护全局表。
+// 宿主守四条：按需加载 / 容器不可见不 init / init 后立刻登记尺寸 / 换数据前清强调态；监听器只在 init 注册一次。
 function chartSlot(get, set) {
   return { get: get, set: set };
 }
@@ -3547,12 +3522,8 @@ async function chartApply(spec) {
     if (spec.wire) spec.wire(chart);
   }
   chart.dispatchAction({ type: 'downplay' });
-  // 图表动画也进节奏系统：ECharts 默认 1000ms / cubicInOut，是全站最长的一档
-  // （比任何 CSS 过渡都长），且**不认 prefers-reduced-motion**——真库实测
-  // reducedMotion: reduce 下 animationDuration 仍是 1000。判据在 logic.js chart.motion
-  // （纯函数，可单测）；这里只把 CSS token 求值后喂进去。
-  // 注意不能写 `chart.motion(...)`：本函数的局部 `chart` 是 ECharts 实例，会在实例上找方法
-  // （实翻过：整页图表全灭）。域名是 motion，与实例变量不同名，故不会撞。
+  // 图表动画也进节奏系统（真库不认 prefers-reduced-motion）；判据在 logic.js chart.motion，这里只喂 CSS token。
+  // 不能写 chart.motion：本函数的局部 chart 是 ECharts 实例（实翻过：整页图表全灭）。
   const mo = motion.chartMotion(
     parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--mo-mid')) || 0.25,
     _reduceMotion
@@ -3568,15 +3539,8 @@ function showChartOrEmpty(chartEl, emptyEl, show) {
   emptyEl.style.display = show ? 'none' : '';
 }
 
-// 分布图右侧的构成清单（资产/消费两张旭日图共用，单一实现）。
-// 数据与排序、占比口径都在 logic.js（sunburstBreakdown），这里只管 DOM：
-//   · elId   清单容器
-//   · data   喂给 echarts 的同一份 data（顶层分类 = 内环节点，顺序一致）
-//   · total  占比分母——**必须与 tooltip 百分比同一个变量**（口径分裂在「分布图总数」踩过一次）
-//   · chartObj 悬停清单行时高亮对应扇区，两栏才是「同一张量表」而不是两张无关的表
-// 色块取 color.CATEGORY_PALETTE（与图同色板），不混用 pill 调色板：两套色板各司其职。
-// data 为空（空态）时清空容器：它与图同生共死，留着上一次的行会在空态提示旁
-// 显示一份过期数据（同 hideChartTotal 的理由）。
+// 分布图右侧构成清单（两张旭日图共用）：数据与占比口径在 logic.js，这里只管 DOM。
+// total 必须与 tooltip 是同一个变量；悬停清单行高亮对应扇区——两栏是同一张量表。
 function renderSunburstLegend(elId, data, total, chartObj) {
   const el = document.getElementById(elId);
   if (!el) return;
@@ -3646,11 +3610,8 @@ function renderSunburstLegend(elId, data, total, chartObj) {
   if (head) head.onclick = (e) => { if (e.target.dataset && e.target.dataset.back) drillSunburst(elId, null); };
 }
 
-// 旭日图的「选中分类」状态：按清单容器各存一份（三个图各自独立）。
-// 存名字而不是下标：切分类维度/月份后下标会指向别的分类，名字能靠 chartData.sunburstLegendRows 校验后回落
-// （指向不存在的分类 → 当作未选中），不会留下悬空状态。
-// 这是图的**唯一**视图状态：喂给图的数据由它派生（logic.js chartData.sunburstDrillView），
-// 不再让 ECharts 的 nodeClick 自己维护一套 viewRoot（两套状态就是「返回了但图没回来」的根因）。
+// 旭日图「选中分类」状态：按清单容器各存一份，存名字不存下标（换维度后下标会指向别的分类）。
+// 这是图的唯一视图状态——不让 ECharts 用 nodeClick 自己维护 viewRoot（两套状态 = 「返回了但图没回来」）。
 let sunburstLegendSel = {};
 
 // 选中某分类（null = 回到全部分类）。唯一入口：图上扇区点击与清单行点击都走这里。
@@ -3667,16 +3628,8 @@ function drillSunburst(elId, catName) {
   if (typeof fn === 'function') fn();
 }
 
-// 图上的扇区点击 → 选中该分类（走到内环分类即为「下钻」）。
-// 单一接线函数供三张旭日图共用（资产/消费/收益分布），避免三处各写一遍而漂移：
-//   · 只有**顶层分类**才下钻（树只有两层，点明细没有更下一层可去）；
-//   · 判层级用 ECharts 给的 treePathInfo（祖先路径），而不是 dataIndex 猜—
-//     dataIndex 是扁平树下标，拿它反推层级就是自找差一；
-//   · 再点已选中的分类 = 返回全部分类（原生下钻被关掉后，内环仍能点回去，
-//     免得「进了下钻只能找那个小返回链接」）。
-// 接线只在图表首次 init 时注册一次（与堆叠柱下钻同惯例，见 renderHistoryChart）：
-// 每帧都 on('click') 会累积监听器，一次点击触发 N 次下钻——N 为偶数时「点了没反应」。
-// 不需要把当前数据传进来：点击参数自带 treePathInfo，选中态在 sunburstLegendSel 里。
+// 扇区点击 → 选中该分类（点内环分类即返回全部）；三张旭日图共用这一处接线，只在 init 时注册一次。
+// 判层级用 treePathInfo，不拿 dataIndex 反推（它是扁平树下标，会差一）。
 function wireSunburstDrill(chartObj, elId) {
   if (!chartObj) return;
   chartObj.on('click', (p) => {
@@ -3726,11 +3679,8 @@ function chartTooltipBase(th) {
   };
 }
 
-// 堆叠柱状图共用底座（历史净值 / 消费趋势单一来源，原先两处逐字重复）：
-// legend/grid/xAxis/yAxis；mode='percent' 时 y 轴固定 0~100 并带 % 后缀。
-// legendData 可选：显式传入标签序列以控制图例顺序；
-// legendSelected 可选：回灌图例选中态（legendselectchanged 记住、经 chartData.pruneLegendSelected 清理），
-// 使切模式/切主题/汇率刷新等重绘不丢失用户的图例隐藏状态
+// 堆叠柱底座（历史净值/消费趋势共用）：mode='percent' 时 y 轴固定 0~100。
+// legendData 控图例顺序，legendSelected 回灌隐藏态——切模式/主题/汇率刷新不丢用户的图例选择。
 function barChartBase(th, dates, mode, legendData, legendSelected) {
   return {
     backgroundColor: 'transparent',
@@ -3807,14 +3757,9 @@ function cmpBar(d, maxAbs, colorFn) {
   return `<div class="cmp-bar-track"><div class="cmp-bar" style="width:${Math.max(3, Math.abs(d) / maxAbs * 100).toFixed(1)}%;background:${colorFn(d)};"></div></div>`;
 }
 
-// 弹窗打开统一入口（与 closeModal 成对）：此前十餘处各自 style.display=''，现单一来源
+// 弹窗打开的统一入口（与 closeModal 成对）
 // ========== 弹窗焦点管理 ==========
-// 15 个弹窗都写了 role="dialog" aria-modal="true"——那是对读屏器的承诺：弹窗背后的内容
-// 不可达。实测却完全没有接管焦点：打开后焦点仍留在**背后的触发按钮**上（读屏器会继续读出
-// 弹窗外的内容），第一下 Tab 就走出弹窗，关闭后焦点掉到 body（下次 Tab 从页头重来）。
-// 写对了 ARIA 不等于做了行为——这里把行为补上。
-//
-// 判据（谁绕回谁、下标怎么算）在 logic.js ui.trapFocus（可单测），这里只做 DOM 副作用。
+// ARIA 只兑现一半：焦点进弹窗、Tab 不出去、关闭还给触发元素。判据在 logic.js ui.trapFocus。
 
 // 弹窗内可聚焦元素：打开时取第一个、Tab 陷阱取全集，两处共用一份（不许各写一遍选择器）。
 // 为什么过滤 offsetParent：被 CSS 隐藏/折叠的控件仍在 DOM 里，focus() 上去等于把焦点丢出弹窗。
@@ -3840,13 +3785,8 @@ function topModal() {
   return open[open.length - 1] || null;
 }
 
-// 「这一层属于当前界面，不该被冻结」——弹窗打开时唯一需要保持可交互的东西。
-// 判据是**它在文档流里的位置**而不是一张元素清单：这张表漏一个，症状就是「弹窗里点不动
-// 某个控件」（实测：flatpickr 的日历由库自己挂到 body 下，被一起 inert 掉，日期选不了）。
-//   · 开着的弹窗：它当前就是界面本身；
-//   · 挂在 body 下、自己定位的临时层（fixed/absolute）：便条、日期日历、被搬家的 ? 气泡——
-//     这些都是「当前弹窗的延伸」，不属于背后那张账页；
-//   · 其余（header、Tab 栏、main、灯层）凡在常规文档流里的，一律冻结。
+// 「这一层属于当前界面」的判据是它在文档流里的位置，不是元素清单：开着的弹窗 + 挂在 body 下自己定位的临时层
+// （便条、日历、? 气泡）保持可交互，其余一律 inert——按清单写会漏掉日历那类库自己挂上去的东西。
 function isActiveLayer(el) {
   if (el.classList && el.classList.contains('modal-overlay')) return el.style.display !== 'none';
   const pos = getComputedStyle(el).position;
@@ -3895,11 +3835,7 @@ function openModal(id) {
   const isAutoFocusable = (el) => !isPickerHost(el) && !el.hasAttribute('data-no-autofocus');
   const firstField = list.find(el => el.matches('input, select, textarea') && isAutoFocusable(el));
   const target = firstField || list.find(isAutoFocusable) || list[0];
-  // **preventScroll 是必需的，不是优化**：弹窗正文自带 `overflow-y:auto`（max-height 85dvh），
-  // 而明细类弹窗的页脚只有一个「关闭」按钮，焦点退到它身上时它在最底部——浏览器为了让焦点
-  // 可见会把正文滚到底，于是长表一打开就停在最后一行、标题与摘要全被推出视野
-  // （用户原话：「为什么弹出的这个弹窗，每次都是不是在最上边呢」）。
-  // 不用「先 focus 再 scrollTop = 0」：那样焦点仍留在底部，一按 Tab 又被拽回去。
+  // preventScroll 是必需的：正文自带 overflow-y:auto，焦点落到最底部的「关闭」会把长表滚到最后一行。
   if (target) target.focus({ preventScroll: true });
 }
 
@@ -3907,13 +3843,7 @@ function openModal(id) {
 // 标签字体为等宽体（IBM Plex Mono + CJK 回退），按字符像素宽度估算：拉丁 0.6em、CJK 1em
 
 // ========== SHARED HELPERS ==========
-// 资产/消费两套逻辑共用的小工具：旭日图配置、分类配色、利率标签、排序、金额格式化、月份下拉、分段按钮。
-// 抽到这里避免三处旭日图、两处 catColor、四处利率标签等重复实现各自漂移。
-// 旭日图 tooltip 内容单一来源（资产/收入/消费三图共用）：标签路径 › 名称 + 金额 · 占比。
-// 名称与标签路径可能来自用户输入（资产名/备注/标签），统一经 text.esc 后拼接
-// （ECharts tooltip 默认 renderMode:'html'，未转义会执行脚本）。
-// opts.prefix 加在金额前（收入图「月现金收益/月总收益」）；opts.pctLabel 加在百分比前（收入图「占比 」）。
-// 收入图的「单资产明细」分支自建内容，不走此函数。
+// 旭日图 tooltip 内容单一来源（三图共用）：名称与标签路径来自用户输入，必须 text.esc（renderMode 是 html）。
 function sunburstTooltipContent(p, th, total, opts) {
   opts = opts || {};
   const pct = money.pctStr(p.value, total);
@@ -3965,11 +3895,7 @@ function buildSunburstOption(data, tooltipFormatter) {
   };
 }
 
-// 分类基础色（pill 配色）：每项含 bg/fg/border，fg 全部 ≥4.5:1。
-// 定义在 catColorImpl 之前，消除「const 后置引用」的 TDZ 隐患。
-// color.CATEGORY_COLORS（分类 pill 基色）在 logic.js：它是「配色 × 插值点都达 AA」这条不变量的
-// 数据源，放 logic.js 才能被单测逐点校验（原在 index.html，曾在这里翻车：亮色插值
-// 把底色压深而字没跟着加深，实测最低 2.4:1）。
+// 分类基础色（pill 配色）：数据源在 logic.js color.CATEGORY_COLORS——「配色 × 插值点都达 AA」要能单测（曾在这里翻车）。
 
 // 分类 pill 配色：资产/消费共用同一套逻辑, 仅分类集合不同
 function catColorImpl(cats, catId, tagName) {
@@ -3994,13 +3920,7 @@ function rateLabelText(a, digits) {
 
 // money.money2 在 logic.js（与 money.formatCNY/money.moneyStr 同族）
 
-// 压测叠加后「当前视图里的资产」（**派生读数的唯一入口**）:
-// 未启用时零开销原样返回 state.assets；启用时返回打折后的副本。
-// 报头/收益/覆盖标尺/读数卡/三张旭日图/加权利率都从这里取，不得各自读 state.assets 再打折
-// ——口径散到十几处必然漂移（症状是同一页上「压测后的覆盖率」配着「压测前的月收益」）。
-// 例外（**必须**读原值）：资产列表与其行内编辑、资产表单、分类 CRUD、快照保存、导出、示例数据。
-// 账本原值（**不叠加压测**）：列表/表单/快照/导出/示例数据，以及压测自己的
-// 「原值 ¥Y」「加权跌幅」「未归类」口径用。名字就是判据——看到它就知道这里故意不打折。
+// 压测叠加后「当前视图里的资产」（派生读数的唯一入口）；账本原值走 ledgerAssets()，名字就是判据。
 function ledgerAssets() {
   return state.assets;
 }
@@ -4023,11 +3943,7 @@ function tagPillHtml(cat, tagVal, colorFn, opts) {
   const c = colorFn(cat.id, tagVal);
   const key = opts.showKey === false ? '' : `<span class="tag-key">${opts.keyHtml != null ? opts.keyHtml : text.esc(cat.name)}</span>`;
   const val = `<span class="tag-val">${opts.valHtml != null ? opts.valHtml : text.esc(tagVal)}</span>`;
-  // 改名入口 = **长按整枚胶囊**（卡片上的编辑图标已去掉：它太小，还把每一枚胶囊都变成
-  // 「带控件的样子」）。故这里只带数据，行为由事件委托接（见 startTagPress）：
-  //   data-rename="<side>"  → 长按后走 startTagRename（唯一的改名实现）
-  // 可聚焦 + Enter 直达改名：长按是**手势**，不是权限——键盘与读屏器不该被挡在门外
-  // （与「进资产页」的长按门槛同一条原则）。
+  // 改名入口 = 长按整枚胶囊（可聚焦 + Enter 直达）；长按是手势不是权限，行为由事件委托接（startTagPress → startTagRename）。
   const ren = opts.renameSide
     ? ` data-rename="${text.jsAttr(opts.renameSide || '')}" data-cat="${text.jsAttr(cat.id)}" data-tag="${text.jsAttr(tagVal)}" tabindex="0" role="button" title="${i18n.t('长按可改名')}" aria-label="${i18n.t('标签 {p1}，长按或按回车改名', { p1: tagVal })}" onkeydown="if(event.key==='Enter')renameTagFromKey(event)"`
     : '';
@@ -4300,14 +4216,7 @@ function renameTag(side, catId, oldName, newName) {
 }
 
 // ===== 长按胶囊改标签名 =====
-// 为什么用长按而不是一枚编辑图标：图标太小（15px）、又把每一枚胶囊都变成「带控件的样子」；
-// 而改成本身是个低频动作，不该常驻在视觉里。长按的判定与「进资产页」那套**同源**
-// （logic.js ui.pressDecision / ui.pressProgress，只换阈值 ui.TAG_PRESS_MS）。
-//
-// 三条必须守住的：
-//   ① 短按什么都不做——胶囊上的点击本来没有语义，别给它发明一个；
-//   ② 指针移开 / 被系统夺走 = 放弃（与资产入口同一处置，避免「手指滑过去就进了编辑态」）；
-//   ③ 长按是手势不是权限：键盘 Enter 直达改名（renameTagFromKey），读屏器同样可达。
+// 短按什么都不做；指针移开或被系统夺走 = 放弃；长按是手势不是权限（Enter 直达）。判定与资产入口同源。
 let tagPress = null; // { el, start, raf, moved }
 
 function startTagPress(e, pill) {
@@ -4440,14 +4349,8 @@ function updateSortIndicators(prefix, fields, sortBy, sortDir) {
     if (!el) return;
     el.textContent = sortBy === f ? (sortDir === 'asc' ? ' ▲' : ' ▼') : '';
     el.className = 'sort-indicator' + (sortBy === f ? ' active' : '');
-    // ▲/▼ 只说给看得见的人；读屏器要的是「按哪一列排、朝哪个方向」这句显式的话。
-    // 两条通道都写，但只有一条真的到达读屏器：
-    //   aria-sort  ——按 WAI-ARIA 规范**未定义在 role=button 上**（那位子是 columnheader/
-    //                rowheader），实测 Chrome 的 AX 树里它不产生任何 sort 信息；
-    //                留着是为了「将来表头改成真正的 columnheader 就自动接上」。
-    //   aria-label ——真正到达读屏器的是**可访问名**。取值走 logic.js ui.sortAriaLabel
-    //                （可见列名在前，满足 WCAG「名称包含可见文字」）。
-    // 必须**每次**都 setAttribute：只在选中时设的话，换一列排序后旧方向会粘在上一列上。
+    // aria-sort 在 role=button 上不可达（AX 树里不产生 sort 信息），真正到达读屏器的是 aria-label；
+    // 每次都要 setAttribute——只设选中的话，换列后旧方向会粘在上一列上。
     const head = el.parentElement;
     if (head && head.getAttribute('role') === 'button') {
       head.setAttribute('aria-sort', ui.sortAriaSort(sortBy, sortDir, f));
@@ -4458,12 +4361,7 @@ function updateSortIndicators(prefix, fields, sortBy, sortDir) {
   });
 }
 
-// 月份下拉选项: 生成「全部时间」+ 倒序月份, 保留当前选中值; 返回 select 元素
-// 下拉选项统一写入：**内容没变就不碰 DOM**。
-// 为什么要这道闸：消费记录页的搜索框每次按键都会重跑整条筛选链，而筛选链开头的
-// 「重建月份/标签下拉」若每次都替换 option 元素，等于每个字符都重建一次无关控件——
-// 下拉处于展开态时用户的选择会被打断（实测每次按键 option 元素全部换新）。
-// 判据是「新旧选项串是否相同」（可单测），相同就只补一次选中值。
+// 下拉选项统一写入：内容没变就不碰 DOM（搜索每按一键都重跑筛选链，替换 option 会打断展开中的下拉）。
 function setSelectOptions(sel, html) {
   if (sel.dataset.optionsHtml === html) return;
   sel.innerHTML = html;
@@ -4472,17 +4370,8 @@ function setSelectOptions(sel, html) {
   freezeSelectWidth(sel);
 }
 
-// 钉住下拉框的固有宽度。
-// --------------------------------------------------------------------------
-// `appearance: base-select` 让 select 由页面接管绘制，代价是它不再按最长选项取宽：
-// 实测同一个下拉换选中项宽度在 160/186/214 之间跳（原生恒定 231），筛选条跟着左右抖。
-// field-sizing: content / min-width: max-content / width: max-content 三种「按内容定宽」
-// 写法实测全部无效，只能量一次钉在 --sel-w 上（CSS 侧见 body select 的 width 声明）。
-//
-// **量本必须带 data-measuring**：量本一旦继承到 `appearance: base-select`，量到的就是
-// 被钉过的宽度（实测返回 160 而不是 231）——这就是“冻结了还是跳”的根因。
-// 拿不到布局（display:none 的 Tab 里的下拉，clientWidth 为 0）就跳过，
-// 等它进 Tab 时 setSelectOptions 会再走一遍。
+// 钉住下拉的固有宽度：base-select 不再按最长选项取宽，换选项时宽度会跳，只能量一次写进 --sel-w。
+// 量本必须带 data-measuring（否则量到的是被钉过的宽度）；拿不到布局就跳过，进 Tab 时 setSelectOptions 再量。
 function freezeSelectWidth(sel) {
   if (!sel || !sel.options) return;
   const labels = [...sel.options].map((o) => o.textContent);
@@ -4679,10 +4568,7 @@ function deleteSnapshot(month) {
 }
 
 // ========== 明细弹窗 / 表格骨架（唯一主人）==========
-// 四处明细视图与两张对比表共用一套骨架：表头行、数据行、列宽 class 都只在这里生成。
-// 标题也归这里管——此前四个视图各写同一个弹窗的标题，谁后开谁负责收拾
-//（viewSnapshot 里曾专门写一行「把标题改回来」，因为兄弟函数改过它）。
-// cells: [{ html, cls, style? }]，cls/style 原样输出；列宽由调用方传 cols。
+// 四处明细视图与两张对比表共用：表头行、数据行、列宽 class 与标题都只在这里生成。
 function detailTableHtml(cols, head, rows) {
   const cellHtml = c => `<div${c.cls ? ` class="${c.cls}"` : ''}${c.style ? ` style="${c.style}"` : ''}>${c.html}</div>`;
   return `<div class="asset-row list-head ${cols}">${head.map(cellHtml).join('')}</div>`
@@ -5035,11 +4921,7 @@ function setIncomeMode(mode) {
 }
 
 // ========== 覆盖标尺（月收益对预期月消费的覆盖率）==========
-// 骨架静态存在, 此处只同步宽度与文案 —— 安全边际滑块拖动时填充/菱形以过渡动画伸缩。
-// 分子口径 coverageMode 可切换（'cash' 现金=不动本金的严格口径 / 'total' 总收益=含增值宽松口径）,
-// 默认总收益、不持久化（与 incomeChartMode 同惯例）; 切换控件内嵌标签行公式。
-// 覆盖率/差额口径在 logic.js income.coveragePct()/income.incomeGap()（单一来源）; 三种状态:
-// 未设预期 → 邀请行 / 现金口径下现金流为零 → 指引句 / 正常 → 读数行（达标附「已覆盖」印徽）
+// 分子口径 cash/total 可切换（不持久化）；口径与三态文案在 logic.js income.coveragePct / income.incomeGap。
 function renderCoverageMeter() {
   const invite = document.getElementById('cov-invite');
   const section = document.getElementById('cov-section');
@@ -5111,15 +4993,7 @@ function setCoverageMode(mode) {
 }
 
 // ========== 压测（情景编辑 + 条/印徽同步）==========
-// 为什么账本不动、为什么单维度、为什么不落盘金额见 docs/adr/0004-stress-as-view-overlay.md。
-// 口径（折算/归一/剪枝/未归类）全在 logic.js stress 域；这里只管 DOM 与草稿。
-//
-// 三处指示器同一个「生效」判据：
-//   ① 资产侧 Tab 栏之上的条（横贯全部资产 Tab）——生效时它是「为什么净资产变了」的唯一解释；
-//   ② 页头印徽——压测是**全局**状态，消费模式下也要看得见（那里还有跟着变的读数卡）；
-//   ③ 报头小字「压测 -Z% · 原值 ¥Y」——给一个量级，不必列出每个标签。
-//
-// 弹窗只改草稿，保存才落 state（与读数卡/预期消费同惯例: 取消不落库）。
+// 决策见 ADR 0004，口径在 logic.js stress 域；条/印徽/报头小字共用同一个「生效」判据，弹窗只改草稿。
 
 function renderStressChrome() {
   const active = stress.stressActive(state.stress);
@@ -5171,12 +5045,8 @@ function onStressDimensionChange() {
   renderStressKeeps();
 }
 
-// 逐标签一行：标签名 + 该标签当前折算金额（帮助判断量级）+ 比例尺滑块 + 读数。
-// 滑块就是「**还剩多少**」：拉满 100% = 没有亏损（默认值，最常用），拉到 66% = 跌了 34%。
-// 为什么存剩余而不是跌幅：用户的心智是「还剩多少」，让他先换算成跌幅再填纯属白付一道算术；
-// 展示层要跌幅时才取补数（stress.stressDropOf，单一来源，页面不再写 100-keep）。
-// 复用安全边际那套 .scale-input/.scale-reading（--fill 由 setScaleValue 同步），step=1。
-// 行的数据（标签 / 当前折算金额 / 当前剩余）由 logic.js 出（可单测，口径与分布图同源）。
+// 逐标签一行：标签名 + 当前折算金额 + 「还剩多少」滑块（拉满 = 没亏）。
+// 存剩余不存跌幅（用户心智是「还剩多少」）；行数据由 logic.js 出，复用 .scale-input/.scale-reading。
 function renderStressKeeps() {
   const box = document.getElementById('stress-keeps');
   if (!box || !_stressDraft) return;
@@ -5246,11 +5116,7 @@ function clearStress() {
 }
 
 // ========== 所选标签的钱 ÷ 月消费（消费趋势的读数卡）==========
-// 依附「预期月消费」这条参考线（与收益测算无关）, 故落在消费趋势; 公式直呈现:
-// 标签摘要 ÷ 月消费, 锚点式数字与月数同一句话里给出。
-// 分母默认取全局「预期月消费」, 也可在弹窗里自定（只对本卡生效, 不回填全局, 目的＝按更保守的月消费看能撑多久）。
-// 口径在 logic.js income.runwayLiquidCNY()/income.runwayExpectationOf()/income.runwayMonths()/income.runwayMonthsText()（单一来源）。
-// 三种状态: **全局**预期月消费未设 → 整张卡不显示（入口即趋势页头的「预期消费」按钮, 卡内没有入口无从填起）/ 未选标签 → 指引句 / 正常 → 读数行。
+// 分母默认全局预期、可在弹窗自定（只对本卡生效）；全局未设则整卡不显示。口径在 logic.js income.runway*。
 function renderRunwayRow() {
   const card = document.getElementById('runway-card');
   const guide = document.getElementById('runway-guide');
@@ -5300,13 +5166,7 @@ function useDefaultRunwayExpectation() {
 }
 
 // ========== 本月已花 ÷ 预期月消费（趋势页预算卡）==========
-// 与「所选标签读数卡」同依附「预期月消费」这条参考线, 落在消费趋势; 公式直呈现: 已花 / 预期月消费。
-// 刻意不用时间进度做对照基准（消费沿时间不均匀, 大额固定支出会让它失真）, 只报两个可决策的数:
-//   剩余预算、以及「剩下这些钱、这些天, 每天能花多少」。
-// 口径在 logic.js expense.monthBudgetReading()/expense.monthBudgetNote()（单一来源）。
-// 预算尺上实心填充 = 已花占整月预期（右端即整月预算）; 三态与目标净资产面板同语言:
-// 未超支 verdigris / 预算将尽（≥90%）转金 / 超支转红。骨架静态存在, 这里只同步文案。
-// 未设预期消费 → 整张卡不显示（入口即页头「预期消费」按钮）。
+// 不拿时间进度做基准（大额固定支出会让它失真），只报剩余预算与「每天还能花多少」；口径在 logic.js expense.monthBudget*。
 function renderMonthPace() {
   const card = document.getElementById('month-pace-card');
   if (!card) return;
@@ -5654,11 +5514,7 @@ function toggleSort(field) {
 }
 
 // ========== LANGUAGE (界面语言，唯一入口：设置弹窗「语言」) ==========
-// 两条路径共用同一个词条表（logic.js i18n.I18N_EN）：
-//   ① 静态文案：data-i18n / data-i18n-<attr>（applyI18nDom 按当前语言写回 DOM）
-//   ② 动态文案：模板里 i18n.t(…)（渲染时取词）
-// 源文案就是键——缺词条时回落中文，所以「漏译」在英文界面里表现为中英混排；
-// test/ui-wiring.test.js 的覆盖率用例逐条把守，不靠人眼巡检。
+// 两条通道（data-i18n / i18n.t），键即中文原文，漏译回落中文——覆盖率由 ui-wiring 逐条把守。
 const I18N_ATTRS = ['aria-label', 'placeholder', 'title', 'content'];
 
 function applyI18nDom() {
@@ -5708,10 +5564,7 @@ function setLang(lang) {
 }
 
 // ========== THEME (日间/夜间，入口唯一：设置弹窗「外观」) ==========
-// 切换主题（设置弹窗「外观」seg 唯一入口）：目标与当前一致时不动、不重绘。
-// 落地：DOM class + localStorage['dark-mode']（首次访问的初始主题由 <head> 内联脚本处理，不走这里）；
-// 随后重绘分类 pill（color.pillColors 暗色分支）与当前可见图表
-// 设置弹窗内的主题 seg 回显（元素未渲染过则跳过）
+// 落 DOM class + localStorage，随后重绘 pill 与可见图表；目标与当前一致时不动、不重绘。
 function syncThemeSeg() {
   const lightBtn = document.getElementById('theme-seg-light');
   if (!lightBtn) return;
@@ -5760,11 +5613,7 @@ function refreshVisibleCharts() {
 }
 
 // ===== 派生读数的唯一刷新口 =====
-// 账本一变，所有从它派生的读数就在这里重算：报头（净资产/构成/目标/收益副行/压测小字）、
-// 压测条与印徽、当前可见图表与收益页（守卫在 refreshVisibleCharts，隐藏时零开销）。
-// 各写入点自己报几处重绘必漏：
-// 「报头已是新值」配着「压测条还是旧值」、换了收益口径报头还停在上一个口径。
-// 新增派生读数就把重绘挂在这里；数值一律现算（调用方不传数）。
+// 账本一变，报头/压测条与印徽/可见图表都在这里重算；新增派生读数就挂这里，数值一律现算（调用方不传数）。
 let _renderBatch = 0; // 批量重绘期间先攒着（两侧列表各收一次会把同一张图画两遍）
 function syncDerivedReads() {
   if (_renderBatch) return;
@@ -5780,14 +5629,7 @@ function showImportExport() {
 }
 
 // ========== BACKUP (确认框 + 文件窗口 + 新鲜度提醒) ==========
-// 方案 A：当天首次打开页面时问一次「要不要备份」，点确认才弹系统文件窗口落盘。
-// 为什么必须先问：自动备份跑在定时器里**没有用户手势**，直接开文件窗口必然失败；
-// 而「目录已授权就静默写」也不成立——Chrome 的目录授权只撑到关闭该 origin 最后一个标签页，
-// 重开后 queryPermission 就是 prompt，定时器又没有手势去申请授权（详见 LESSONS.md）。
-// 于是统一成一条路：确认框（点击 = 手势）→ showSaveFilePicker（startIn = 设置里的目录）。
-// 方案 C：距上次备份超过 7 天且已有数据时，进页面温和提醒。
-// 决策逻辑（backup.shouldAutoBackup / backup.backupStaleDays / backup.backupWritePlan / backup.backupPromptText /
-// backup.backupResultNotice）在 logic.js，此处只保留 DOM 副作用（弹框、写盘、toast、storage 写入）
+// 必须先弹确认框（自动备份没有用户手势，目录授权跨会话也不可靠）；决策在 logic.js，这里只做 DOM 副作用。
 
 // 目录句柄不能进 state（不可 JSON 序列化，也不该随导出走）：只存 IndexedDB。
 // 全部读写容错——隐私模式 / IDB 不可用时退化为「仅本次会话可用」，不阻塞首屏。
@@ -5893,11 +5735,7 @@ async function clearBackupDirAsync() {
 }
 
 // ===== 落盘 =====
-// 系统文件窗口：**落盘的唯一入口**（手动导出与自动备份都走它），窗口位置由 startIn 决定。
-// 两个硬约束：
-//   1) 调用前不得有 await —— 自动备份的唯一手势来自确认框那次点击，一个 await 就把它消耗掉；
-//   2) close() 成功才算写完 —— 中途失败不会提交半截文件。
-// 用户取消返回 'cancelled'（不记任何状态，于是当天还会再问一次）。
+// 唯一落盘入口：调用前不得有 await（手势会被消耗掉）；close() 成功才算写完；取消返回 'cancelled'，不记任何状态。
 async function saveBackupToFile(today, mode) {
   if (backupInFlight) return 'cancelled';
   backupInFlight = true;
@@ -5951,16 +5789,8 @@ function applyBackupResult(notice, today) {
   toast(notice.msg, notice.type);
 }
 
-// 方案 A 入口：是否触发由 logic.js 的 backup.shouldAutoBackup 判定，此处延迟数秒执行。
-// ratePromise 为本次启动 DOMContentLoaded 中那笔 fetchRates 的 promise：
-// 弹框前先 await 它，确保 state.rates 已更新（成功写入新汇率 / 失败回退缓存），
-// 避免备份抢在汇率刷新前拿到过期汇率。失败也不阻塞备份，用缓存汇率继续。
-// 确认框的「确认」就是那次用户手势：回调里**不得有任何 await** 就调 saveBackupToFile，
-// 否则手势被消耗、文件窗口打不开（测试把守这一条）。
-//
-// 快照提醒排在备份**收尾之后**（同一次启动不并存两层模态），所以收尾挂在两个点上：
-//   ① 取消 / ESC / 点遮罩——confirmCancel 里的 onCancel；
-//   ② 确认——写入 promise 的 finally（不能挂在「框关了」上：那时系统文件窗口正开着，也是模态）。
+// 方案 A 入口：判定在 backup.shouldAutoBackup，这里延迟数秒执行，并先 await 本轮的汇率请求。
+// 确认回调里不得有 await 就调 saveBackupToFile（手势）；快照提醒挂在备份收尾（取消回调 / 写入 finally）之后。
 async function maybeAutoBackup(ratePromise) {
   const settle = () => maybeSnapshotReminder();
   if (!backup.shouldAutoBackup(state, date.getLocalDateStr())) {
@@ -6197,11 +6027,7 @@ function closeModal(id) {
   const wasOpen = modal.style.display !== 'none';
   modal.style.display = 'none';
   syncScrollLock(); // 先按「还剩几层」重算，再还焦点（焦点可能落在背后页面上，那时已解冻）
-  // 把焦点还给打开它的那个元素。不回还的话焦点掉到 body，用户下一次 Tab 从页头重新开始——
-  // 「改完一条记录继续改下一条」这种连续操作会变得极难。
-  // **只有真的关掉了一层才出栈**：栈与「开着的弹窗」是一一对应的，对一个本来就关着的弹窗
-  // 调一次 closeModal 却照样弹一层，等于把**别的**弹窗的返回焦点吃掉——那层之后再关，
-  // 焦点就掉到 body 了（设置 → 备份与导入 → 先关设置 再关导入，返回焦点就没了）。
+  // 把焦点还给打开它的元素；只有真的关掉一层才出栈（否则会吃掉别的弹窗的返回焦点）。
   if (!wasOpen) return;
   const back = __modalReturnFocus.pop();
   if (back && document.contains(back) && back.focus) back.focus();
@@ -6359,10 +6185,7 @@ function setExpenseDate(dateStr) {
   if (fp) { fp.setDate(dateStr, false); } else { el.value = dateStr; }
 }
 // ====== EXPENSE FILTER ======
-// 筛选状态的唯一所有者：控件只写（onchange/oninput → setExpenseFilter），渲染只读。
-// 失效值（月份已无记录 / 标签已改名或移出）由 expense.normalizeExpenseFilters 丢弃，
-// 因此不再有「先重建选项、再读取」的次序依赖——那个次序曾写反过，表现为
-// 「下拉=全部时间 / 空态=该月无记录」的自相矛盾中间态。
+// 筛选状态的唯一所有者：控件只写、渲染只读；失效值由 expense.normalizeExpenseFilters 丢弃（不靠「先重建下拉、再读值」）。
 let expenseFilters = { month: '', tag: '', query: '' };
 
 // 唯一写入端：三个控件、空态「清除筛选」、搜索框内的 × / ESC 都走这里

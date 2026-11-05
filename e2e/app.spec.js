@@ -4,7 +4,7 @@
  * 覆盖 UI 契约测试（test/ui-wiring.test.js）够不着的那一层：真实浏览器里的
  * 首屏渲染、导航、增删改、筛选、弹窗、图表初始化、主题切换与 localStorage 持久化。
  *
- * 分组与 AGENTS.md 的模块划分对齐：首屏 / 导航 / 资产 / 消费 / 图表 / 弹窗 / 持久化 / 汇率。
+ * 分组按页面自己的模块走：首屏 / 导航 / 资产 / 消费 / 图表 / 弹窗 / 持久化 / 汇率。
  * 断言落在「用户看得见的东西」与「应用自己的状态」，不断言像素、不断言 CDN。
  */
 const {
@@ -81,7 +81,7 @@ test.describe('首屏渲染', () => {
     await expect(page.locator('#tab-expenses')).toBeVisible();
     await expect(page.locator('#tabs-assets')).toBeHidden();
     await expect(page.locator('#expenses-empty-title')).toHaveText('还没有消费记录');
-    // 没有资产 → 净资产为 0，且目标进度不出现（AGENTS.md：总资产为 0 时不显示）
+    // 没有资产 → 净资产为 0，且目标进度不出现（避免误报达成）
     await expect(page.locator('#masthead-whole')).toHaveText('0');
     await expect(page.locator('#net-worth-target')).toBeHidden();
   });
@@ -427,7 +427,7 @@ test.describe('资产增删改', () => {
     await page.selectOption('#asset-currency', 'USD');
     await page.fill('#asset-rate-min', '2');
     await page.fill('#asset-rate-max', '4');
-    // 标签是平铺 chips（见 AGENTS.md），非下拉：点 chip 写入同组 hidden input
+    // 标签是平铺 chips 而非下拉：点 chip 写入同组 hidden input
     await page.locator('#asset-tags-section .tag-picker').first().locator('.tag-choice', { hasText: '权益基金' }).click();
     await page.locator('#asset-tags-section .tag-picker').nth(1).locator('.tag-choice', { hasText: '低风险' }).click();
     await page.locator('#asset-form button:has-text("保存")').click();
