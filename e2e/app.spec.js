@@ -1318,6 +1318,24 @@ test.describe('持久化与迁移', () => {
     }));
     expect(Object.keys((await readState(page)).expenses[0].tags)).toEqual(['ec-pay']);
   });
+
+  test('分类缺 tags / 数组里混进 null 的脏存档照常渲染（不是「页面在、没数字」）', async ({ page }) => {
+    // 复现：手改过的 JSON 导入后，分类缺 tags → renderCategoryCards 的 cat.tags.map 抛错
+    // → 首屏 renderAll 死在半路（masthead 停 0、后续接线全没装），而 importData 已经落盘。
+    const errs = [];
+    page.on('pageerror', (e) => errs.push(e.message));
+    await openWith(page, minimalState({
+      categories: [
+        { id: 'currency', name: '货币类型', builtin: true, tags: ['CNY', 'HKD', 'USD'] },
+        { id: 'cat-tagless', name: '缺标签的分类' },
+        null,
+      ],
+      assets: [{ id: 'a-1', name: '资产', amount: 100, currency: 'CNY', tags: { currency: 'CNY' } }, null],
+    }));
+    await expect(page.locator('#masthead-whole')).toHaveText('100');
+    await expect(page.locator('#categories-list')).toContainText('缺标签的分类');
+    expect(errs).toEqual([]);
+  });
 });
 
 test.describe('覆盖标尺的缺口 Tips（还需本金）', () => {

@@ -477,6 +477,82 @@ describe('migrateState 迁移与兜底', () => {
   });
 });
 
+// ========== 分类 / 记录的结构兜底 ==========
+// 这一组全是「形状」而不是「值」：页面按 cat.tags.map / a.tags[catId] 直接取值，
+// 导入一份手改过的 JSON（分类缺 tags、数组里混进 null）就够让首屏渲染抛错——
+// 而 importData 在渲染之前已经落盘，于是刷新也回不来，只能开发者工具清存档。
+describe('migrateState：脏分类 / 脏记录不得把整页渲染弄死', () => {
+  test('分类缺 tags 兜底为 []（页面 cat.tags.map 才不抛）', () => {
+    globalThis.state = freshState({
+      categories: [{ id: 'c1', name: '股票' }],
+      expenseCategories: [{ id: 'e1', name: '餐饮' }],
+    });
+    L.migrate.migrateState();
+    const cat = state.categories.find(c => c.id === 'c1');
+    assert.deepStrictEqual(cat.tags, []);
+    assert.deepStrictEqual(state.expenseCategories[0].tags, []);
+  });
+
+  test('标签去重、丢弃非字符串与空串，保序', () => {
+    globalThis.state = freshState({
+      categories: [{ id: 'c1', name: 'x', builtin: false, tags: ['甲', '甲', '', null, 3, '乙', '甲'] }],
+    });
+    L.migrate.migrateState();
+    assert.deepStrictEqual(state.categories.find(c => c.id === 'c1').tags, ['甲', '乙']);
+  });
+
+  test('数组里的非对象项丢弃（含快照），数字 id 归一为字符串', () => {
+    globalThis.state = freshState({
+      categories: [null, 'garbage', { id: 5, name: 'n', tags: ['t'] }],
+      assets: [null, 42, { id: 'a1', name: 'A', amount: 100, currency: 'CNY', tags: {} }],
+      expenses: ['x', null, { id: 'e1', date: '2024-05-01', amount: 10, tags: {} }],
+      snapshots: [null, { month: '2024-05', assets: [], currencyRates: { CNY: 1 } }],
+    });
+    L.migrate.migrateState();
+    assert.deepStrictEqual(state.categories.filter(c => !c.builtin).map(c => c.id), ['5']);
+    assert.deepStrictEqual(state.assets.filter(a => a.id === 'a1').map(a => a.amount), [100]);
+    assert.strictEqual(state.expenses.length, 1);
+    assert.strictEqual(state.snapshots.length, 1);
+  });
+
+  test('分类缺 id 丢弃（没有 id 的分类无法被引用，也无法编辑/删除）', () => {
+    globalThis.state = freshState({
+      categories: [{ name: '无 id', tags: ['t'] }],
+      assets: [{ id: 'a1', amount: 1, currency: 'CNY', tags: {} }],
+    });
+    L.migrate.migrateState();
+    assert.deepStrictEqual(state.categories.map(c => c.id), ['currency']);
+    assert.strictEqual(state.assets.length, 1, '丢弃分类不该连带丢资产');
+  });
+
+  test('分类名非字符串归一为空串（渲染不会出现 undefined）', () => {
+    globalThis.state = freshState({ categories: [{ id: 'c1', name: null, tags: ['t'] }] });
+    L.migrate.migrateState();
+    assert.strictEqual(state.categories.find(c => c.id === 'c1').name, '');
+  });
+
+  test('资产币种缺失/非法归为 CNY（否则汇率按 1 兜底，外币被当成人民币）', () => {
+    globalThis.state = freshState({ assets: [
+      { id: 'a1', amount: 100, tags: {} },
+      { id: 'a2', amount: 100, currency: 123, tags: {} },
+      { id: 'a3', amount: 100, currency: 'USD', tags: {} },
+    ] });
+    L.migrate.migrateState();
+    assert.deepStrictEqual(state.assets.map(a => a.currency), ['CNY', 'CNY', 'USD']);
+  });
+
+  test('再跑一次不改形状（幂等）', () => {
+    globalThis.state = freshState({
+      categories: [{ id: 'c1', name: 'x', tags: ['甲', '甲'] }, null],
+      assets: [null, { id: 'a1', amount: 1, tags: {} }],
+    });
+    L.migrate.migrateState();
+    const once = JSON.stringify({ c: state.categories, a: state.assets });
+    L.migrate.migrateState();
+    assert.strictEqual(JSON.stringify({ c: state.categories, a: state.assets }), once);
+  });
+});
+
 // ========== 文本 / 金额工具 ==========
 describe('文本与金额工具', () => {
   test('esc 转义 & < > " \'', () => {

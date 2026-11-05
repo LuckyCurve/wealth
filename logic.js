@@ -845,6 +845,20 @@
     return (items || []).filter(it => it && it.tags && set.has(it.tags[catId])).length;
   }
 
+  // ========== 分类标签集合归一 ==========
+  // 存档里的 tags 数组与分类编辑框的输入共用一个形状：去空白、去空项、去重保序。
+  // 去重就在此处做：重复项在列表里是两枚同名胶囊、在图表里是两份同名分组，
+  // 而改名判重（includes）会被其中一个挡住——界面自己清不掉。
+  function normalizeTagArray(v) {
+    const out = [];
+    const seen = new Set();
+    (Array.isArray(v) ? v : []).forEach(t => {
+      const s = typeof t === 'string' ? t.trim() : '';
+      if (s && !seen.has(s)) { seen.add(s); out.push(s); }
+    });
+    return out;
+  }
+
   // ========== 收益测算（依赖 incomeMode / state）==========
   function getAssetRate(a, mode) {
     mode = mode || incomeMode;
@@ -1366,7 +1380,23 @@
   function migrateState() {
     // 语言设置先归一：后面的内置分类名要靠它取词（且 en 缺省时不能靠 t 的副作用）
     state.lang = normalizeLang(state.lang);
+    // 分类的**形状**兑底（唯一收口）：导入的 JSON 可能是手改的——分类缺 tags、数组里混进 null。
+    // 页面按 cat.tags.map / cat.name / cat.id 直接取值，缺一个字段就够让首屏 renderAll 抛错；
+    // 而 importData 在渲染之前已经 saveJson 落盘，于是刷新也回不来（只能开发者工具清存档）。
+    // 没有 id 的分类丢弃：它无法被引用、也无法编辑/删除，留着只会在卡片上留一块死区。
+    ['categories', 'expenseCategories'].forEach(k => {
+      const list = Array.isArray(state[k]) ? state[k] : [];
+      state[k] = list
+        .filter(c => c && typeof c === 'object' && !Array.isArray(c) && c.id != null && c.id !== '')
+        .map(c => Object.assign({}, c, {
+          id: String(c.id),
+          name: typeof c.name === 'string' ? c.name : '',
+          builtin: !!c.builtin,
+          tags: normalizeTagArray(c.tags),
+        }));
+    });
     if (!Array.isArray(state.snapshots)) state.snapshots = [];
+    state.snapshots = state.snapshots.filter(s => s && typeof s === 'object' && !Array.isArray(s));
     // migrate old snapshot format (with 'id') to new monthly format
     if (state.snapshots.length > 0 && state.snapshots.some(s => s && s.date && !s.month)) {
       const oldSnaps = state.snapshots.filter(s => s && s.date && !s.month);
@@ -1401,6 +1431,8 @@
     // ensure categories/assets arrays
     if (!Array.isArray(state.categories)) state.categories = [];
     if (!Array.isArray(state.assets)) state.assets = [];
+    // 记录同样只留对象（导入的数组里混进 null / 字符串会让渲染期 throw）
+    state.assets = state.assets.filter(a => a && typeof a === 'object' && !Array.isArray(a));
     // ensure currency category exists
     if (!state.categories.find(c => c.id === 'currency')) {
       // 名称只在**创建那一刻**取当前语言：分类名是用户数据，之后不随语言切换改写
@@ -1452,6 +1484,8 @@
       a.cashRatio = Math.min(100, Math.max(0, Number(a.cashRatio) || 0));
       // 防御: 导入数据中 amount 可能是字符串, 统一转为数字
       if (a.amount != null) a.amount = Number(a.amount) || 0;
+      // 币种缺失/非法归 CNY：外币缺币种时汇率按 1 兜底，会把美元当人民币算进净资产
+      if (typeof a.currency !== 'string' || !a.currency) a.currency = 'CNY';
       // tags 归一：DOM 侧多处直接 a.tags[catId]（资产列表/表单/快照详情）与分类 CRUD 的
       // it.tags[catId]，导入缺 tags 的资产会崩；与消费记录同一入口兑底
       if (!a.tags || typeof a.tags !== 'object') a.tags = {};
@@ -1464,6 +1498,7 @@
     state.runwayExpectation = isFinite(customExpectation) && customExpectation > 0 ? customExpectation : 0;
     // init expense data
     if (!Array.isArray(state.expenses)) state.expenses = [];
+    state.expenses = state.expenses.filter(e => e && typeof e === 'object' && !Array.isArray(e));
     state.expenses.forEach(e => {
       if (!e) return;
       if (e.amount != null) e.amount = Number(e.amount) || 0;
