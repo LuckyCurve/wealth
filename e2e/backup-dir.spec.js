@@ -29,6 +29,7 @@ async function setup(page, opts = {}) {
       window.__fs.startInIsDir = !!o && !!o.startIn;
       window.__fs.startInSameHandle = !!o && !!o.startIn && o.startIn === window.__fs.dirHandle;
       if (window.__fs.cancelSave) throw new DOMException('user aborted', 'AbortError');
+      if (window.__fs.failWithStartIn && o && o.startIn) throw new TypeError('bad startIn');
       if (window.__fs.pickerError) throw new DOMException('blocked', window.__fs.pickerError);
       const root = await navigator.storage.getDirectory();
       const fh = await root.getFileHandle(o.suggestedName, { create: true });
@@ -192,10 +193,6 @@ test('自动备份点取消：不写盘、不记状态，当天再进来还会�
   await expect(confirmBox(page)).toBeVisible();
 });
 
-// ===== 导出密钥（加密备份）=====
-// 这些用例要验的是**文件里到底是什么字节**：只有真实浏览器 + OPFS 写出的那份文件能答。
-// 加密在页面里跑 WebCrypto，在 Node 里用同一份 logic.js 解开——两边算的不是同一份实现就报错。
-
 async function setPassphrase(page, pass) {
   await page.evaluate(() => showSettings());
   await page.fill('#pass-input', pass);
@@ -272,7 +269,6 @@ test('导入加密备份：先要密钥；错了不动数据、框不关；对�
   expect(after.categories.map((c) => c.id)).toEqual(['currency']);
 });
 
-// ===== 导出失败要说得出口（用户实测：只看到「导出失败」，无从下手） =====
 test('写不进去时说清是文件被占，而不是笼统的「导出失败」', async ({ page }) => {
   await setup(page);
   await page.evaluate(() => { window.__fs.writeError = 'NoModificationAllowedError'; });
@@ -293,6 +289,17 @@ test('保存窗口打不开时提示换个浏览器或清掉备份文件夹', as
   await page.evaluate(() => { window.__fs.pickerError = 'SecurityError'; });
   await openExport(page);
   await expect(page.locator('#toast-area')).toContainText('浏览器没允许打开保存窗口');
+});
+
+test('起点目录句柄失效（Chrome 只报 TypeError）：去掉 startIn 重开一次，导出照成', async ({ page }) => {
+  await setup(page);
+  await page.evaluate(() => showSettings());
+  await page.click('#backup-dir-choose');
+  await page.evaluate(() => closeModal('settings-modal'));
+  await page.evaluate(() => { window.__fs.failWithStartIn = true; });
+  await openExport(page);
+  await expect(page.locator('#toast-area')).toContainText('数据已导出');
+  expect(await page.evaluate(() => window.__fs.saveCalls.length)).toBe(2);
 });
 
 test('设了密钥却没有 WebCrypto：拒绝导出（绝不默默写明文）', async ({ page }) => {

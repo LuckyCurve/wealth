@@ -1806,19 +1806,21 @@
     return { msg: t('数据已导出'), type: 'success', recordBackup: true };
   }
 
-  // 导出没完成时的对外口径：环境类错误各说该改什么（权限 / 占用 / 空间 / 不能加密），
-  // 其余带一个错误名——一句反馈就能定位，不用再去猜「失败」是哪一步。
   function exportErrorNotice(e, stage) {
     const name = (e && e.name) || '';
     const notice = (msg) => ({ msg: msg, type: 'error', recordBackup: false });
     if (name === 'no-webcrypto') return notice(t('这个页面不是安全环境（https 或 localhost），不能加密；换地址打开，或先清空导出密钥'));
+    if (name === 'bad-handle') return notice(t('保存窗口给回来的句柄不能用（被扩展或浏览器改过），换个浏览器再试'));
     if (stage === 'picker' && (name === 'NotAllowedError' || name === 'SecurityError')) {
       return notice(t('浏览器没允许打开保存窗口（多半是扩展或策略拦下了），换 Chrome / Edge 或先清空「备份文件夹」再试'));
     }
     if (name === 'NoModificationAllowedError') return notice(t('这个文件现在写不进去（可能正被其他程序打开），换个位置再试'));
     if (name === 'NotAllowedError' || name === 'SecurityError') return notice(t('浏览器不允许写入这个位置，换一个文件夹再试'));
     if (name === 'QuotaExceededError') return notice(t('磁盘没有空间了，无法写入'));
-    return notice(name ? t('导出失败，请重试（{p1}）', { p1: name }) : t('导出失败，请重试'));
+    const step = stage === 'picker' ? t('打开保存窗口') : stage === 'encrypt' ? t('加密') : t('写文件');
+    return notice(name
+      ? t('导出失败：{step}这一步没成功（{p1}）', { step: step, p1: name })
+      : t('导出失败：{step}这一步没成功', { step: step }));
   }
 
   // 设置里「备份文件夹」边注：它现在是**文件窗口的起点目录**，不再是「直接写入」的开关
@@ -1835,21 +1837,16 @@
   }
 
   // ========== 备份加密（密钥不随备份走）==========
-  // 密钥只存在页面自己的 localStorage 键里，**不进 state**：导入是把整份 state 覆盖掉，
-  // 密钥若跟着走，别人的备份会把你的密钥换掉（反之亦然）。用法是「设了就加密，没设就照旧明文」，
-  // 所以旧的明文备份永远能导。
   const BACKUP_ENC_FORMAT = 'wealth-backup-encrypted';
   const BACKUP_ENC_VERSION = 1;
   const BACKUP_KDF_ITERATIONS = 300000;
   const BACKUP_PASSPHRASE_MIN = 8;
-  // 迭代上限：文件是外来的，一个 1e12 的迭代数会先把页面卡死再报错
   const BACKUP_KDF_ITERATIONS_MAX = 1000000;
 
   function passphraseTooShort(p) {
     return String(p == null ? '' : p).length < BACKUP_PASSPHRASE_MIN;
   }
 
-  // 只认结构标记，不猜字段：把明文备份误判成密文，等于一个本来能导的文件打不开
   function isEncryptedBackup(o) {
     return !!o && typeof o === 'object' &&
       o.format === BACKUP_ENC_FORMAT &&
@@ -1858,7 +1855,8 @@
       !!o.cipher && typeof o.cipher.iv === 'string';
   }
 
-  function passphraseNoteText(set) {    return set
+  function passphraseNoteText(set) {
+    return set
       ? t('已设置：导出与自动备份都会加密，导入时要输入这串密钥')
       : t('未设置：导出与自动备份都是明文文件');
   }
@@ -1888,7 +1886,7 @@
     return out;
   }
 
-  // 头部与密文一起认证：改了版本号/迭代数就不再是同一把钥匙，解出来是失败而不是「按改过的参数照解」
+  // 头部进 AAD：改过的版本号/迭代数解不开，而不是照改过的参数继续解
   function backupAad(version) { return utf8Bytes(BACKUP_ENC_FORMAT + '/v' + version); }
 
   async function deriveBackupKey(passphrase, salt, iterations) {
@@ -1900,7 +1898,6 @@
   }
 
   async function encryptBackup(jsonText, passphrase) {
-    // 非安全环境（非 https / localhost）没有 crypto.subtle：宁可报错，不能默默写成明文
     if (!globalThis.crypto || !globalThis.crypto.subtle) {
       const e = new Error('no-webcrypto');
       e.name = 'no-webcrypto';
@@ -1920,7 +1917,6 @@
     }, null, 2);
   }
 
-  // 解不开只有一种对外口径（密钥错 / 文件被改 / 格式不对）：抛错，调用方一律提示重试
   async function decryptBackup(env, passphrase) {
     if (!isEncryptedBackup(env)) throw new Error('not-an-encrypted-backup');
     const iterations = Math.min(Math.max(Math.trunc(env.kdf.iterations), 1), BACKUP_KDF_ITERATIONS_MAX);
@@ -2503,7 +2499,12 @@
     '解密': 'Decrypt',
     '密钥不对，或文件已损坏': 'Wrong passphrase, or the file is damaged',
     '解开了，但里面不是账本 JSON': 'Decrypted, but that is not a ledger JSON',
-    '导出失败，请重试（{p1}）': 'Export failed; try again ({p1})',
+    '导出失败：{step}这一步没成功': 'Export failed at {step}',
+    '导出失败：{step}这一步没成功（{p1}）': 'Export failed at {step} ({p1})',
+    '打开保存窗口': 'the save dialog',
+    '加密': 'encryption',
+    '写文件': 'writing the file',
+    '保存窗口给回来的句柄不能用（被扩展或浏览器改过），换个浏览器再试': 'The save dialog returned an unusable handle (changed by an extension or the browser). Try another browser',
     '这个页面不是安全环境（https 或 localhost），不能加密；换地址打开，或先清空导出密钥': 'This page is not a secure context (https or localhost), so it cannot encrypt. Open it via a secure address, or clear the export passphrase first',
     '浏览器没允许打开保存窗口（多半是扩展或策略拦下了），换 Chrome / Edge 或先清空「备份文件夹」再试': 'The browser blocked its save dialog (usually an extension or a policy). Try Chrome / Edge, or clear the backup folder first',
     '这个文件现在写不进去（可能正被其他程序打开），换个位置再试': 'That file cannot be written right now (it may be open in another app). Pick another location',

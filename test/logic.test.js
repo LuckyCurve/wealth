@@ -1394,10 +1394,16 @@ describe('导出失败的对外口径 exportErrorNotice', () => {
       '这个页面不是安全环境（https 或 localhost），不能加密；换地址打开，或先清空导出密钥');
   });
 
-  test('认不出来的错误也带上错误名（一句反馈就能定位，不用猜是哪一步）', () => {
-    assert.strictEqual(notice(named('TypeError'), 'write').msg, '导出失败，请重试（TypeError）');
-    assert.strictEqual(notice(null, 'write').msg, '导出失败，请重试');
-    assert.strictEqual(notice(undefined).msg, '导出失败，请重试');
+  test('认不出来的错误说清是哪一步，并带上错误名（一句反馈就能定位）', () => {
+    assert.strictEqual(notice(named('TypeError'), 'write').msg, '导出失败：写文件这一步没成功（TypeError）');
+    assert.strictEqual(notice(named('TypeError'), 'encrypt').msg, '导出失败：加密这一步没成功（TypeError）');
+    assert.strictEqual(notice(named('TypeError'), 'picker').msg, '导出失败：打开保存窗口这一步没成功（TypeError）');
+    assert.strictEqual(notice(null, 'write').msg, '导出失败：写文件这一步没成功');
+    assert.strictEqual(notice(undefined).msg, '导出失败：写文件这一步没成功');
+  });
+
+  test('句柄不是文件句柄：说得出名字，不装成 TypeError', () => {
+    assert.strictEqual(notice(named('bad-handle'), 'write').msg, '保存窗口给回来的句柄不能用（被扩展或浏览器改过），换个浏览器再试');
   });
 
   test('失败一律不记「已备份」（当天再进来还会再问一次）', () => {

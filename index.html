@@ -2120,7 +2120,6 @@ tailwind.config = {
   </div>
 </div>
 
-<!-- 加密备份的密钥口：解不开就原地重试 -->
 <div id="pass-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="pass-modal-title" style="display:none;">
   <div class="modal-content modal-sm">
     <h3 class="font-display modal-title" id="pass-modal-title" data-i18n="输入密钥">输入密钥</h3>
@@ -5621,15 +5620,12 @@ async function clearBackupDirAsync() {
 }
 
 // ========== 导出密钥（加密备份）==========
-// 密钥只存这个 localStorage 键，不进 state：导入是整份 state 覆盖，跟着走就换掉了对方的密钥。
-// 设了就加密（三条落盘路径同一份内容），没设就照旧明文，所以旧的明文备份永远能导。
 const PASS_KEY = 'wealth-manager-passphrase';
 
 function exportPassphrase() {
   try { return localStorage.getItem(PASS_KEY) || ''; } catch (e) { return ''; }
 }
 
-// 落盘内容的唯一出口：加不加密只在这里判
 async function backupFileText() {
   const text = backup.backupJSONText(state);
   const pass = exportPassphrase();
@@ -5666,15 +5662,25 @@ async function saveBackupToFile(today, mode) {
   if (backupInFlight) return 'cancelled';
   backupInFlight = true;
   let notice;
-  let stage = 'picker'; // 卡在哪一步（开窗口 / 写文件 / 加密）决定该怎么救
+  let stage = 'picker';
   try {
-    const handle = await window.showSaveFilePicker({
+    const opts = {
       suggestedName: backup.backupFileName(today),
       startIn: backupDirHandle, // undefined = 浏览器按 origin 记住的上次目录
       types: [{ description: 'JSON', accept: { 'application/json': ['.json'] } }],
-    });
+    };
+    let handle;
+    try {
+      handle = await window.showSaveFilePicker(opts);
+    } catch (e) {
+      if (!(e && e.name === 'TypeError' && opts.startIn)) throw e;
+      delete opts.startIn;
+      handle = await window.showSaveFilePicker(opts);
+    }
+    stage = 'encrypt';
+    const text = await backupFileText();
     stage = 'write';
-    await writeFileHandleText(handle, await backupFileText());
+    await writeFileHandleText(handle, text);
     notice = backup.backupResultNotice({ mode, target: 'file', status: 'written' });
   } catch (e) {
     console.error('[backup] export failed at ' + stage, e);
@@ -5683,12 +5689,15 @@ async function saveBackupToFile(today, mode) {
       ? backup.backupResultNotice({ mode, target: 'file', status: 'cancelled' })
       : backup.exportErrorNotice(e, stage);
   } finally { backupInFlight = false; }
-  // 收尾在 try 之外：文件已写好，记状态出错也不该报成「导出失败」
   applyBackupResult(notice, today);
 }
 
 // close() 成功才算写入完成；中途失败不会提交半截文件
 async function writeFileHandleText(fh, text) {
+  if (!fh || typeof fh.createWritable !== 'function') {
+    e.name = 'bad-handle';
+    throw e;
+  }
   const w = await fh.createWritable();
   await w.write(text);
   await w.close();
@@ -5881,7 +5890,6 @@ function importData(e) {
   reader.readAsText(file);
 }
 
-// 明文与解密后共用的唯一收尾：认格式 → 确认 → 迁移
 function confirmImport(data) {
   if (data && Array.isArray(data.categories) && Array.isArray(data.assets)) {
     showConfirm(i18n.t('导入将覆盖当前所有数据，确认继续？'), () => {
@@ -5897,7 +5905,6 @@ function confirmImport(data) {
   }
 }
 
-// 这里的密钥不写 localStorage（设置里那颗是另一回事）
 let pendingImportEnv = null;
 function askImportPassphrase(env) {
   pendingImportEnv = env;
@@ -6152,14 +6159,23 @@ function toast(msg, type) {
   armToastHide(t);
 }
 
-function armToastHide(t) {
+function armToastHide(t, delay) {
+  clearTimeout(t._hideTimer);
   t._hideTimer = setTimeout(() => {
+    if (toastHeld(t)) { armToastHide(t, 700); return; }
     t.classList.add('leaving');
     // 退场元素不该继续被对比度巡检/读屏器当成内容：标记 aria-hidden。
     // 归隐由 CSS 的 visibility 负责（顺带不再吃指针）；300ms 后移出 DOM（与退场过渡等长）。
     t.setAttribute('aria-hidden', 'true');
     setTimeout(() => t.remove(), 300);
-  }, 2500);
+  }, delay || 2500);
+}
+
+function toastHeld(t) {
+  if (t.matches(':hover')) return true;
+  const sel = document.getSelection();
+  if (!sel || sel.isCollapsed) return false;
+  return t.contains(sel.anchorNode) || t.contains(sel.focusNode);
 }
 
 // ========== EXPENSE CRUD ==========
