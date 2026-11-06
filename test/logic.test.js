@@ -3262,48 +3262,71 @@ describe('图表动画参数（节奏系统的一部分：不沿用库默认 100
   });
 });
 
-// ========== 记账热力图 ==========
-describe('记账热力图：分档、周对齐与漏记天数', () => {
+// ========== 月份图 ==========
+describe('月份图：分档、周对齐与漏记天数', () => {
   const ex = (date, amount) => ({ id: date + amount, date, amount, note: '', tags: {} });
 
-  test('分档写死：0 / 1 / 2 / 3-4 / 5+', () => {
-    assert.deepStrictEqual([0, 1, 2, 3, 4, 5, 99].map(L.heatmap.level), [0, 1, 2, 3, 3, 4, 4]);
-    assert.strictEqual(L.heatmap.level('2'), 2, '字符串笔数不该落成 NaN 档');
-    assert.strictEqual(L.heatmap.level(null), 0);
+  test('笔数分档写死：0 / 1 / 2 / 3-4 / 5+', () => {
+    assert.deepStrictEqual([0, 1, 2, 3, 4, 5, 99].map(L.monthGrid.countLevel), [0, 1, 2, 3, 3, 4, 4]);
+    assert.strictEqual(L.monthGrid.countLevel('2'), 2, '字符串笔数不该落成 NaN 档');
+    assert.strictEqual(L.monthGrid.countLevel(null), 0);
+  });
+
+  test('金额分档按当月最大值四分位：0 不占档，最小的一档给 1', () => {
+    assert.strictEqual(L.monthGrid.amountLevel(0, 100), 0);
+    assert.strictEqual(L.monthGrid.amountLevel(10, 100), 1);
+    assert.strictEqual(L.monthGrid.amountLevel(25, 100), 2);
+    assert.strictEqual(L.monthGrid.amountLevel(50, 100), 3);
+    assert.strictEqual(L.monthGrid.amountLevel(100, 100), 4);
+    assert.strictEqual(L.monthGrid.amountLevel(10, 0), 0, '整月都是 0 时不除零');
   });
 
   test('非等宽日期直接丢，不参与聚合', () => {
-    const t = L.heatmap.dayTotals([ex('2026-03-01', 5), ex('2026-3-1', 5), ex('', 5), null]);
+    const t = L.monthGrid.dayTotals([ex('2026-03-01', 5), ex('2026-3-1', 5), ex('', 5), null]);
     assert.deepStrictEqual(Object.keys(t), ['2026-03-01']);
     assert.strictEqual(t['2026-03-01'].count, 1);
     assert.strictEqual(t['2026-03-01'].total, 5);
   });
 
-  test('列 = 周（周一起），每列 7 格，今天之后是 null', () => {
-    const view = L.heatmap.weeks([ex('2026-03-02', 10), ex('2026-03-02', 5)], '2026-03-05', 3);
-    assert.strictEqual(view.weeks.length, 3);
-    view.weeks.forEach(col => assert.strictEqual(col.length, 7));
-    const last = view.weeks[view.weeks.length - 1];
-    assert.strictEqual(last[0].date, '2026-03-02', '2026-03-05 是周四，本周一是 03-02');
-    assert.strictEqual(last[0].count, 2);
-    assert.strictEqual(last[0].total, 15);
-    assert.strictEqual(last[3].date, '2026-03-05', '今天自己在格子里');
-    assert.deepStrictEqual(last.slice(4), [null, null, null], '本周剩余三天是未来');
+  test('7 列、周一起：1 号落在它真实的星期几上', () => {
+    const view = L.monthGrid.build([ex('2026-03-01', 10), ex('2026-03-02', 5)], '2026-03', 'count', '2026-03-05');
+    assert.ok(view.weeks.every(w => w.length === 7), '每行 7 格');
+    assert.strictEqual(view.weeks[0][6].date, '2026-03-01', '2026-03-01 是周日，落在首行最后一格');
+    assert.strictEqual(view.weeks[0][6].count, 1);
+    assert.strictEqual(view.weeks[1][0].date, '2026-03-02');
+    assert.deepStrictEqual(view.weeks[0].slice(0, 6), [null, null, null, null, null, null], '首行前面补空格');
   });
 
-  test('月份标注只在跨月那列换条，span 累加列数', () => {
-    const view = L.heatmap.weeks([], '2026-03-05', 4);
-    assert.deepStrictEqual(view.months.map(m => [m.key, m.span]), [['2026-02', 3], ['2026-03', 1]]);
+  test('汇总：笔数、金额、当月最大值', () => {
+    const view = L.monthGrid.build([ex('2026-03-01', 10), ex('2026-03-01', 5), ex('2026-03-02', 700)], '2026-03', 'count', '2026-03-05');
+    assert.strictEqual(view.count, 3);
+    assert.strictEqual(view.amount, 715);
+    assert.strictEqual(view.maxAmount, 700);
+  });
+
+  test('未来日期标 future（页面据此禁用），且不计入漏记', () => {
+    const view = L.monthGrid.build([], '2026-03', 'count', '2026-03-05');
+    assert.strictEqual(view.weeks[1][4].future, true, '03-06 是未来');
+    assert.strictEqual(view.weeks[1][3].future, false, '今天是未来吗？不是');
   });
 
   test('漏记天数不含今天（一天还没过完，不能算漏了）', () => {
-    const r = L.heatmap.missingDays([ex('2026-03-01', 1), ex('2026-03-02', 1)], '2026-03-05');
-    assert.deepStrictEqual(r, { missing: 2, counted: 4 });
+    const view = L.monthGrid.build([ex('2026-03-01', 1)], '2026-03', 'count', '2026-03-05');
+    assert.strictEqual(view.missing, 3, '2/3/4 号空着，5 号是今天不算');
+    assert.strictEqual(L.monthGrid.build([], '2026-02', 'count', '2026-03-05').missing, 28, '过去的月份全算');
+    assert.strictEqual(L.monthGrid.build([], '2026-04', 'count', '2026-03-05').missing, 0, '未来的月份不算');
   });
 
-  test('脏日期与非法今天都不崩', () => {
-    assert.deepStrictEqual(L.heatmap.weeks([ex('bad', 1)], 'x', 2), { weeks: [], months: [] });
-    assert.deepStrictEqual(L.heatmap.missingDays([], ''), { missing: 0, counted: 0 });
+  test('格子上的数字：笔数直接写，金额折成 k', () => {
+    const cell = { day: 1, date: '2026-03-01', count: 3, amount: 1280 };
+    assert.strictEqual(L.monthGrid.cellValue(cell, 'count'), '3');
+    assert.strictEqual(L.monthGrid.cellValue(cell, 'amount'), '¥1.3k');
+    assert.strictEqual(L.monthGrid.cellValue({ count: 0, amount: 0 }, 'amount'), '', '没有记录就不写数字');
+  });
+
+  test('脏月份与脏今天都不崩', () => {
+    assert.strictEqual(L.monthGrid.build([], 'x', 'count', ''), null);
+    assert.strictEqual(L.monthGrid.build([ex('bad', 1)], '2026-13', 'count', ''), null);
   });
 });
 

@@ -1,3 +1,63 @@
+// ========== 月份图（消费页顶部的日历）==========
+// 图只看「这个月的全部记录」，不吃标签/搜索筛选——它回答的是「哪天记了、记了多少」，
+// 筛选是明细表格的事。月份有自己的状态：跟月份下拉单向同步，箭头只改它自己
+// （否则切到一个没有任何记录的月份会被 normalizeExpenseFilters 弹回「全部时间」）。
+let monthGridMode = 'count';
+let monthGridView = null;
+let expenseTableOpen = false;
+
+function renderMonthGrid() {
+  const grid = document.getElementById('month-grid');
+  if (!grid) return;
+  const month = monthGridView || date.getCurrentMonth();
+  const view = monthGrid.build(state.expenses, month, monthGridMode, date.getLocalDateStr());
+  const label = document.getElementById('month-grid-label');
+  const summary = document.getElementById('month-grid-summary');
+  if (label) label.textContent = date.monthLabel(month);
+  if (summary) {
+    const parts = [i18n.t('{n} 笔', { n: view.count })];
+    if (view.amount > 0) parts.push(money.formatCNY(view.amount));
+    if (view.missing > 0) parts.push(i18n.t('{n} 天没有记录', { n: view.missing }));
+    summary.textContent = parts.join(' · ');
+  }
+  const today = date.getLocalDateStr();
+  grid.innerHTML = view.weeks.map(week => week.map(cell => {
+    if (!cell) return '<span class="mg-cell is-blank"></span>';
+    const label = monthGrid.cellText(cell);
+    const value = monthGrid.cellValue(cell, monthGridMode);
+    const at = cell.date === today ? ' is-today' : '';
+    const click = cell.future ? ' disabled' : ` onclick="recordOnDay('${cell.date}')"`;
+    return `<button type="button" class="mg-cell${at}" data-lv="${cell.level}"${click} title="${text.esc(label)}" aria-label="${text.esc(label)}"><span class="mg-day">${cell.day}</span><span class="mg-val">${text.esc(value)}</span></button>`;
+  }).join('')).join('');
+}
+
+function recordOnDay(dateStr) {
+  openExpenseModal(null, null, dateStr);
+}
+
+function setMonthGridMode(mode) {
+  monthGridMode = mode === 'amount' ? 'amount' : 'count';
+  setSegMode('mg-mode-count', 'mg-mode-amount', monthGridMode, 'count', 'amount', renderMonthGrid);
+}
+
+function shiftMonthGrid(n) {
+  monthGridView = date.addMonths(monthGridView || date.getCurrentMonth(), n);
+  renderMonthGrid();
+}
+
+function toggleExpenseTable() {
+  expenseTableOpen = !expenseTableOpen;
+  applyExpenseTableState();
+}
+
+function applyExpenseTableState() {
+  const wrap = document.getElementById('expense-table');
+  const bar = document.getElementById('expense-table-toggle');
+  if (!wrap || !bar) return;
+  wrap.style.display = expenseTableOpen ? '' : 'none';
+  bar.setAttribute('aria-expanded', expenseTableOpen ? 'true' : 'false');
+}
+
 // ========== EXPENSE CRUD ==========
 // 设置消费日期值（兼容 Flatpickr 实例存在/不存在两种情况）
 function setExpenseDate(dateStr) {
@@ -17,6 +77,7 @@ let expenseFilters = { month: date.getCurrentMonth(), tag: '', query: '' };
 // 唯一写入端：三个控件、空态「清除筛选」、搜索框内的 × / ESC 都走这里
 function setExpenseFilter(patch) {
   expenseFilters = Object.assign({}, expenseFilters, patch);
+  if (patch && patch.month) monthGridView = patch.month;
   renderExpenses();
 }
 
@@ -138,6 +199,18 @@ function renderExpenses() {
   }
 
   const total = filtered.reduce((s, e) => s + e.amount, 0);
+  renderMonthGrid();
+
+  const tableBar = document.getElementById('expense-table-toggle');
+  const tableSummary = document.getElementById('expense-table-summary');
+  if (tableBar) tableBar.style.display = filtered.length ? '' : 'none';
+  if (tableSummary) {
+    tableSummary.textContent = filtered.length
+      ? i18n.t('{n} 笔', { n: filtered.length }) + ' · ' + money.formatCNY(total)
+      : '';
+  }
+  applyExpenseTableState();
+
   const parts = [];
   if (view.active.month) parts.push(date.monthLabel(view.active.month));
   if (view.active.tag) parts.push(view.active.tag);

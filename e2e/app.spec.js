@@ -1,6 +1,6 @@
 const {
   test, expect, LS_KEY, INDEX_URL,
-  stubCdn, seed, waitReady, disableMotion, readAppState, sampleState, gotoAssets,
+  stubCdn, seed, waitReady, disableMotion, readAppState, sampleState, gotoAssets, openExpenseTable,
 } = require('./fixtures');
 // 长按守卫窗阈值：E2E 等它过期时轮询真实常量，不复制一个数字（复制必然漂移）
 const { ui } = require('../logic.js');
@@ -554,6 +554,8 @@ test.describe('改账本：所有派生读数立刻重算（实时联动）', ()
   test('整页重绘只把可见图表画一遍（批量收尾一次，不重复 setOption）', async ({ appPage: page }) => {
     await gotoAssets(page, 'income');
     await expect(page.locator('#income-monthly')).toHaveText('¥348.28');
+    // 计数桩是在首次 setOption 时才挂上去的：不等到它存在就取 length 会读到 undefined
+    await page.waitForFunction(() => window.__echartsCalls);
 
     const before = await page.evaluate(() => window.__echartsCalls.setOption.length);
     await page.evaluate(() => renderAll());
@@ -692,6 +694,7 @@ test.describe('消费记录', () => {
   });
 
   test('新增 → 编辑 → 删除完整链路', async ({ appPage: page }) => {
+    await openExpenseTable(page);
     await page.locator('#tab-expenses button:has-text("记录消费")').click();
     await expect(page.locator('#expense-modal')).toBeVisible();
     await page.fill('#expense-amount', '66.6');
@@ -718,6 +721,7 @@ test.describe('消费记录', () => {
   });
 
   test('复制消费：预填金额/备注/标签，日期落到今天，新增而非覆盖', async ({ appPage: page }) => {
+    await openExpenseTable(page);
     await page.locator('#expenses-rows .asset-row', { hasText: '房租' }).getByRole('button', { name: '复制' }).click();
     await expect(page.locator('#expense-modal-title')).toHaveText('复制消费');
     await expect(page.locator('#expense-amount')).toHaveValue('3,200');
@@ -740,6 +744,7 @@ test.describe('消费记录', () => {
   });
 
   test('三态排序：粘性翻转 → 循环 → 取消', async ({ appPage: page }) => {
+    await openExpenseTable(page);
     const dates = () => page.locator('#expenses-rows .asset-row > div:first-child').allInnerTexts();
     await expect(await dates()).toEqual(['2026-02-03', '2026-01-20', '2026-01-05']);
 
@@ -1875,6 +1880,7 @@ test.describe('日期选择器与复制', () => {
     await page.addInitScript(FAKE);
     await page.goto('index.html');
     await waitReady(page);
+    await openExpenseTable(page);
     await page.locator('#expenses-rows .row-btn.copy').first().click();
     await expect(page.locator('#expense-modal')).toBeVisible();
     await expect(page.locator('#expense-modal-title')).toHaveText('复制消费');

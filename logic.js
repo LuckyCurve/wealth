@@ -1265,11 +1265,10 @@
     return t('预算剩 {p1} · 余 {p2} 天 · 日均 {p3}', { p1: formatCNY(remaining), p2: daysLeft, p3: formatCNY(dailyLeft) });
   }
 
-  // ========== 记账热力图（一年 365 格）==========
-  const HEATMAP_WEEKS = 53;
-
-  // 分档写死：按最大值归一的话，一个记到 20 笔的月份会把其余月份全压成最浅一档。
-  function heatmapLevel(count) {
+  // ========== 月份图（消费页：一个月一张，7 列，数字 + 深浅）==========
+  // 笔数分档写死（1 / 2 / 3-4 / 5+）：按最大值归一的话，一个记到 8 笔的日子会把其余日子压平。
+  // 金额反过来——一个月里的钱差得太远，只能按当月最大值分四档。
+  function countLevel(count) {
     const n = Number(count) || 0;
     if (n <= 0) return 0;
     if (n === 1) return 1;
@@ -1278,8 +1277,16 @@
     return 4;
   }
 
-  // 非等宽日期（'2026-2-3'）会让整周错位一格，直接丢。
-  function heatmapDayTotals(expenses) {
+  function amountLevel(amount, max) {
+    const v = Number(amount) || 0;
+    const m = Number(max) || 0;
+    if (v <= 0 || m <= 0) return 0;
+    const ratio = v / m;
+    return ratio >= 0.75 ? 4 : ratio >= 0.5 ? 3 : ratio >= 0.25 ? 2 : 1;
+  }
+
+  // 非等宽日期（'2026-2-3'）会让整格错位，直接丢。
+  function dayTotals(expenses) {
     const map = {};
     (expenses || []).forEach(e => {
       if (!e) return;
@@ -1293,84 +1300,65 @@
     return map;
   }
 
-  function heatmapWeeks(expenses, todayStr, weeks) {
-    const totals = heatmapDayTotals(expenses);
-    const [y, m, d] = String(todayStr || '').split('-').map(Number);
-    if (!y || !m || !d) return { weeks: [], months: [] };
-    const today = new Date(y, m - 1, d);
-    const dow = (today.getDay() + 6) % 7;
-    const n = weeks > 0 ? weeks : HEATMAP_WEEKS;
-    const cols = [];
-    for (let i = n - 1; i >= 0; i--) {
-      const monday = new Date(y, m - 1, d - dow - i * 7);
-      const cells = [];
-      for (let j = 0; j < 7; j++) {
-        const day = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + j);
-        if (day > today) { cells.push(null); continue; }
-        const key = getLocalDateStr(day);
-        const hit = totals[key];
-        const count = hit ? hit.count : 0;
-        cells.push({ date: key, count: count, total: hit ? hit.total : 0, level: heatmapLevel(count) });
-      }
-      cols.push(cells);
-    }
-    return { weeks: cols, months: heatmapMonthSpans(cols) };
-  }
-
-  function heatmapMonthSpans(cols) {
-    const out = [];
-    (cols || []).forEach(col => {
-      const first = (col || []).find(Boolean);
-      if (!first) return;
-      const key = first.date.slice(0, 7);
-      const last = out[out.length - 1];
-      if (last && last.key === key) { last.span += 1; return; }
-      out.push({ key: key, label: monthShortName(key), span: 1 });
-    });
-    return out;
-  }
-
-  function monthShortName(month) {
+  // 7 列（周一起），首行前面补空格让 1 号落在正确的星期；今天之后的日子标 future（页面据此禁用）。
+  // 漏记天数只算「今天及以前且一笔都没有」的日子：今天还没过完，算进去等于每天早上都报漏。
+  function monthGrid(expenses, month, mode, todayStr) {
     const [y, m] = String(month || '').split('-').map(Number);
-    if (!m || m < 1 || m > 12) return '';
-    if (normalizeLang(typeof state !== 'undefined' && state ? state.lang : I18N_DEFAULT) === 'zh') return m + '月';
-    try {
-      return new Intl.DateTimeFormat('en', { month: 'short', timeZone: 'UTC' }).format(new Date(Date.UTC(y || 2026, m - 1, 1)));
-    } catch (e) { return String(m); }
-  }
-
-  // 今天不算：一天还没过完，早上就报「今天没记」是把「还没到晚上」说成「漏了」。
-  function heatmapMissingDays(expenses, todayStr) {
-    const totals = heatmapDayTotals(expenses);
-    const [y, m, d] = String(todayStr || '').split('-').map(Number);
-    if (!y || !m || !d) return { missing: 0, counted: 0 };
+    if (!y || !m || m < 1 || m > 12) return null;
+    const totals = dayTotals(expenses);
+    const total = daysInMonthOf(month);
+    const lead = (new Date(y, m - 1, 1).getDay() + 6) % 7;
+    const today = String(todayStr || '');
+    const cells = [];
+    for (let i = 0; i < lead; i++) cells.push(null);
+    let count = 0;
+    let amount = 0;
+    let maxAmount = 0;
     let missing = 0;
-    for (let day = 1; day < d; day++) {
-      const key = y + '-' + String(m).padStart(2, '0') + '-' + String(day).padStart(2, '0');
-      if (!totals[key]) missing += 1;
+    for (let d = 1; d <= total; d++) {
+      const key = month + '-' + String(d).padStart(2, '0');
+      const hit = totals[key];
+      const c = hit ? hit.count : 0;
+      const a = hit ? hit.total : 0;
+      count += c;
+      amount += a;
+      if (a > maxAmount) maxAmount = a;
+      const future = !!today && key > today;
+      if (!future && c === 0 && key !== today) missing += 1;
+      cells.push({ day: d, date: key, count: c, amount: a, future: future });
     }
-    return { missing: missing, counted: Math.max(0, d - 1) };
+    cells.forEach(cell => {
+      if (!cell) return;
+      cell.level = mode === 'amount' ? amountLevel(cell.amount, maxAmount) : countLevel(cell.count);
+    });
+    while (cells.length % 7) cells.push(null);
+    const weeks = [];
+    for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7));
+    return {
+      month: month, days: total, weeks: weeks, mode: mode,
+      count: count, amount: amount, maxAmount: maxAmount, missing: missing,
+    };
   }
 
-  function heatmapCellText(cell) {
-    const day = t('{m} 月 {d} 日', { m: Number(cell.date.slice(5, 7)), d: Number(cell.date.slice(8, 10)) });
-    return cell.count > 0
-      ? day + ' · ' + t('{n} 笔', { n: cell.count }) + ' · ' + formatCNY(cell.total)
-      : day + ' · ' + t('这天没有记录');
+  // 格子上的数字：笔数直接写，金额折成整元/k——六位数塞不进一个几十像素的格子。
+  function cellValue(cell, mode) {
+    if (!cell || cell.count <= 0) return '';
+    return mode === 'amount' ? shortCNY(cell.amount) : String(cell.count);
   }
 
-  function heatmapMonthsHtml(view) {
-    return ((view && view.months) || []).map(m =>
-      '<span style="width:calc(' + m.span + ' * (var(--hm-cell) + var(--hm-gap)))">' + esc(m.label) + '</span>').join('');
+  function shortCNY(v) {
+    const n = Number(v) || 0;
+    if (n <= 0) return '';
+    if (n < 1000) return '¥' + Math.round(n);
+    if (n < 10000) return '¥' + (n / 1000).toFixed(1).replace(/\.0$/, '') + 'k';
+    return '¥' + Math.round(n / 1000) + 'k';
   }
 
-  function heatmapGridHtml(view) {
-    return ((view && view.weeks) || []).map(col => (col || []).map(c => {
-      if (!c) return '<span class="hm-cell is-future"></span>';
-      const label = esc(heatmapCellText(c));
-      return '<button type="button" class="hm-cell" data-lv="' + c.level + '" onclick="recordOnDay(\'' + c.date + '\')"' +
-        ' title="' + label + '" aria-label="' + label + '"></button>';
-    }).join('')).join('');
+  function monthGridCellText(cell) {
+    if (!cell) return '';
+    const day = t('{m} 月 {d} 日', { m: Number(cell.date.slice(5, 7)), d: cell.day });
+    if (cell.count <= 0) return day + ' · ' + t('这天没有记录');
+    return day + ' · ' + t('{n} 笔', { n: cell.count }) + ' · ' + formatCNY(cell.amount);
   }
 
   // ========== 数据迁移 / 兜底（依赖全局 state，原地修改）==========
@@ -2569,13 +2557,14 @@
     '{y} 年 {m} 个月': '{y} yr {m} mo',
     '已超预算 {p1} · 本月额度已用完': 'Over budget by {p1} · nothing left this month',
     '预算剩 {p1} · 余 {p2} 天 · 日均 {p3}': '{p1} left · {p2} days to go · {p3}/day',
-    '记账热力图': 'Recording heatmap',
-    '格子越深，这天记得越多': 'Darker means more entries that day',
-    '少': 'Less',
-    '多': 'More',
-    '看图': 'See chart',
+    '月份图': 'Month',
+    '笔数': 'Entries',
+    '明细': 'Details',
+    '上个月': 'Previous month',
+    '下个月': 'Next month',
+    '一': 'Mon', '二': 'Tue', '三': 'Wed', '四': 'Thu', '五': 'Fri', '六': 'Sat', '日': 'Sun',
     '点一格，就在那天补记一笔': 'Tap a day to add an entry for it',
-    '本月 {n} 天没有任何记录': '{n} days this month have no entries',
+    '{n} 天没有记录': '{n} days with no entries',
     '{n} 笔': '{n} entries',
     '这天没有记录': 'No entries that day',
     '{m} 月 {d} 日': '{m}/{d}',
@@ -2715,16 +2704,14 @@
       SNAPSHOT_REMINDER_MAX_DAYS,
       SNAPSHOT_REMINDER_DEFAULT_DAYS,
     },
-    heatmap: {
-      level: heatmapLevel,
-      dayTotals: heatmapDayTotals,
-      weeks: heatmapWeeks,
-      monthSpans: heatmapMonthSpans,
-      missingDays: heatmapMissingDays,
-      cellText: heatmapCellText,
-      monthsHtml: heatmapMonthsHtml,
-      gridHtml: heatmapGridHtml,
-      HEATMAP_WEEKS,
+    monthGrid: {
+      countLevel,
+      amountLevel,
+      dayTotals,
+      build: monthGrid,
+      cellValue,
+      cellText: monthGridCellText,
+      shortCNY,
     },
     expense: {
       expenseMonths,

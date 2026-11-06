@@ -311,7 +311,6 @@ function switchTab(tab, shift) {
   if (tab === 'expense-trend') {
     fillCategorySelect('expense-trend-category-select', state.expenseCategories);
     afterTabPaint(tab, renderExpenseTrendChart);
-    afterTabPaint(tab, renderHeatmap);
   }
 }
 

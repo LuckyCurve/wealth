@@ -388,15 +388,34 @@ tailwind.config = {
         </div>
       </div>
 
+      <div id="month-grid-card" class="card mb-6">
+        <div class="flex items-center justify-between mb-4 gap-3 flex-wrap">
+          <div>
+            <h3 class="font-display t-body t-bold" data-i18n="月份图">月份图</h3>
+            <p class="t-micro muted mt-1"><span id="month-grid-label" class="tabular"></span> · <span id="month-grid-summary" class="tabular"></span></p>
+          </div>
+          <div class="toolbar">
+            <button type="button" class="btn-ghost btn-xs" onclick="shiftMonthGrid(-1)" aria-label="上个月" data-i18n-aria-label="上个月">←</button>
+            <div class="seg-control">
+              <button id="mg-mode-count" onclick="setMonthGridMode('count')" class="seg-btn active" data-i18n="笔数">笔数</button>
+              <button id="mg-mode-amount" onclick="setMonthGridMode('amount')" class="seg-btn" data-i18n="金额">金额</button>
+            </div>
+            <button type="button" class="btn-ghost btn-xs" onclick="shiftMonthGrid(1)" aria-label="下个月" data-i18n-aria-label="下个月">→</button>
+          </div>
+        </div>
+        <div class="mg-weekdays" aria-hidden="true">
+          <span data-i18n="一">一</span><span data-i18n="二">二</span><span data-i18n="三">三</span><span data-i18n="四">四</span><span data-i18n="五">五</span><span data-i18n="六">六</span><span data-i18n="日">日</span>
+        </div>
+        <div id="month-grid" class="mg-grid"></div>
+        <p class="t-micro mt-3 muted" data-i18n="点一格，就在那天补记一笔">点一格，就在那天补记一笔</p>
+      </div>
+
+
+
       <!-- 数据校验条（消费侧）：有分类未归类记录时才出现（renderTagCheckBar 唯一写入点） -->
       <div id="tagcheck-bar-expense" class="tagcheck-bar" style="display:none;">
         <span class="tagcheck-text"></span>
         <button type="button" class="btn-ghost btn-xs" onclick="openTagCheck('expense')" data-i18n="去校验">去校验</button>
-      </div>
-
-      <div id="heatmap-notice" class="tagcheck-bar" style="display:none;">
-        <span class="tagcheck-text"></span>
-        <button type="button" class="btn-ghost btn-xs" onclick="gotoHeatmap()" data-i18n="看图">看图</button>
       </div>
 
       <div id="expenses-empty" class="card empty-state" style="display:none;">
@@ -409,14 +428,21 @@ tailwind.config = {
         </div>
       </div>
 
-      <div id="expenses-list" class="card">
-        <div class="asset-row list-head cols-expenses">
-          <div onclick="toggleExpenseSort('date')" role="button" tabindex="0" aria-sort="none" onkeydown="if(ui.activateKeyAction(event.key)){event.preventDefault();toggleExpenseSort('date');}" class="row-hit"><span data-i18n="日期">日期</span><span class="sort-indicator" id="expense-sort-date"></span></div>
-          <div class="num row-hit" onclick="toggleExpenseSort('amount')" role="button" tabindex="0" aria-sort="none" onkeydown="if(ui.activateKeyAction(event.key)){event.preventDefault();toggleExpenseSort('amount');}"><span data-i18n="金额">金额</span><span class="sort-indicator" id="expense-sort-amount"></span></div>
-          <div data-i18n="备注">备注</div><div data-i18n="标签">标签</div><div></div>
-        </div>
-        <div id="expenses-rows"></div>
+      <div id="expense-table-toggle" class="table-toggle" role="button" tabindex="0" aria-expanded="false" aria-controls="expense-table" onclick="toggleExpenseTable()" onkeydown="if(ui.activateKeyAction(event.key)){event.preventDefault();toggleExpenseTable();}">
+        <span class="t-micro" data-i18n="明细">明细</span>
+        <span id="expense-table-summary" class="t-micro muted tabular"></span>
+        <span class="table-toggle-chev" aria-hidden="true">▾</span>
       </div>
+      <div id="expense-table" style="display:none;">
+        <div id="expenses-list" class="card">
+          <div class="asset-row list-head cols-expenses">
+            <div onclick="toggleExpenseSort('date')" role="button" tabindex="0" aria-sort="none" onkeydown="if(ui.activateKeyAction(event.key)){event.preventDefault();toggleExpenseSort('date');}" class="row-hit"><span data-i18n="日期">日期</span><span class="sort-indicator" id="expense-sort-date"></span></div>
+            <div class="num row-hit" onclick="toggleExpenseSort('amount')" role="button" tabindex="0" aria-sort="none" onkeydown="if(ui.activateKeyAction(event.key)){event.preventDefault();toggleExpenseSort('amount');}"><span data-i18n="金额">金额</span><span class="sort-indicator" id="expense-sort-amount"></span></div>
+            <div data-i18n="备注">备注</div><div data-i18n="标签">标签</div><div></div>
+          </div>
+          <div id="expenses-rows"></div>
+        </div>
+        </div>
     </section>
 
     <!-- Expense Categories Tab -->
@@ -487,24 +513,6 @@ tailwind.config = {
           <p class="empty-sub" data-i18n="记录消费后，这里会按月展示消费趋势">记录消费后，这里会按月展示消费趋势</p>
           <div class="empty-action"><button onclick="switchTab('expenses')" class="btn-ghost" data-i18n="去记录消费">去记录消费</button></div>
         </div>
-      </div>
-      <div class="card mb-6">
-        <div class="flex items-center justify-between mb-4 gap-3 flex-wrap">
-          <div>
-            <h3 class="font-display t-body t-bold" data-i18n="记账热力图">记账热力图</h3>
-            <p class="t-micro muted mt-1" data-i18n="格子越深，这天记得越多">格子越深，这天记得越多</p>
-          </div>
-          <div class="hm-legend" aria-hidden="true">
-            <span data-i18n="少">少</span>
-            <i class="hm-cell"></i><i class="hm-cell" data-lv="1"></i><i class="hm-cell" data-lv="2"></i><i class="hm-cell" data-lv="3"></i><i class="hm-cell" data-lv="4"></i>
-            <span data-i18n="多">多</span>
-          </div>
-        </div>
-        <div class="hm-scroll">
-          <div id="hm-months" class="hm-months"></div>
-          <div id="hm-grid" class="hm-grid"></div>
-        </div>
-        <p id="hm-caption" class="t-micro mt-2 muted" data-i18n="点一格，就在那天补记一笔">点一格，就在那天补记一笔</p>
       </div>
       <!-- 本月已花 ÷ 预期月消费: 与「所选标签读数卡」同依附「预期月消费」这条参考线, 先近（本月）后远（长期）。
            尺子语义是**预算容器**: 实心填充 = 已花占整月预期, 25/50/75% 发丝刻度与货币构成条/比例尺同语言。

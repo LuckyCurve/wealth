@@ -345,7 +345,7 @@ describe('UI 接线契约：logic.js 导出清单与筛选同步时序', () => {
     const domains = Object.keys(api);
     assert.deepStrictEqual(
       domains.slice().sort(),
-      ['backup', 'category', 'chartData', 'color', 'date', 'demo', 'expense', 'heatmap', 'i18n', 'income', 'migrate', 'money', 'motion', 'snapshot', 'stress', 'text', 'ui', 'vault'],
+      ['backup', 'category', 'chartData', 'color', 'date', 'demo', 'expense', 'i18n', 'income', 'migrate', 'money', 'monthGrid', 'motion', 'snapshot', 'stress', 'text', 'ui', 'vault'],
       '域清单：新增域要在这里显式登记（防编辑残留悄悄多一个袋子）'
     );
     const seen = new Map();
@@ -1729,7 +1729,7 @@ describe('UI 接线契约：内联事件属性必须是合法 JS（单测看不�
   test('行级激活的守卫必须包住整段动作，而不是只包住 preventDefault', () => {
     // if(cond)A;B 只守卫 A——这是上面那条语法错误的成因，单独立一条说得更清楚。
     const hits = [...html.matchAll(/onkeydown="if\((?:[A-Za-z_$][A-Za-z0-9_$]*\.)?activateKeyAction\(event\.key\)\)([^"]*)"/g)];
-    assert.strictEqual(hits.length, 9, `行级激活共 9 处（资产 4 列排序 + 消费 2 列排序 + 清单行 + 快照行 + 趋势月份行）`);
+    assert.strictEqual(hits.length, 10, `行级激活共 10 处（资产 4 列排序 + 消费 2 列排序 + 清单行 + 快照行 + 趋势月份行 + 明细微标）`);
     for (const [, body] of hits) {
       assert.match(body, /^\{/, '守卫后应紧跟左花括号，把整段动作一起包住');
       assert.match(body, /\}$/, '动作段应以右花括号收尾');

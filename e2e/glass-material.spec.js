@@ -15,11 +15,13 @@
  * 取样点都在**边中点**而非四角：卡片圆角 10px，落在弧线上的取样会读到描边的抗锯齿，
  * 得到与材质无关的假读数（本文件开发时就踩过一次）。
  */
-const { test, expect, sampleState, seed, stubCdn, waitReady, disableMotion, samplePixels, pixelLum } = require('./fixtures');
+const { test, expect, sampleState, seed, stubCdn, waitReady, disableMotion, samplePixels, pixelLum, openExpenseTable } = require('./fixtures');
 
 const cardEdges = (page) =>
   page.evaluate(() => {
     const el = [...document.querySelectorAll('.card')].filter((c) => c.getBoundingClientRect().width > 900).pop();
+    // 取样读的是视口截图：卡片在折叠线以下时读到的全是空白（0.000 而不是「没有受光」）
+    el.scrollIntoView({ block: 'center' });
     const r = el.getBoundingClientRect();
     const cs = getComputedStyle(el);
     const insets = cs.boxShadow
@@ -55,6 +57,7 @@ const open = async (page) => {
   await seed(page, sampleState());
   await page.goto('index.html');
   await waitReady(page);
+  await openExpenseTable(page);
 };
 
 const setDark = async (page) => {

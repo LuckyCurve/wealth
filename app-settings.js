@@ -159,7 +159,6 @@ function refreshVisibleCharts() {
   if (document.getElementById('tab-income').style.display !== 'none') renderIncomeTab();
   if (document.getElementById('tab-expense-chart').style.display !== 'none') renderExpenseChart();
   if (document.getElementById('tab-expense-trend').style.display !== 'none') renderExpenseTrendChart();
-  if (document.getElementById('tab-expense-trend').style.display !== 'none') renderHeatmap();
 }
 
 // ===== 派生读数的唯一刷新口 =====
@@ -169,7 +168,6 @@ function syncDerivedReads() {
   if (_renderBatch) return;
   renderMasthead();
   renderStressChrome();
-  renderHeatmapNotice();
   refreshVisibleCharts();
 }
 

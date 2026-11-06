@@ -172,6 +172,17 @@ async function seed(page, state) {
   );
 }
 
+/**
+ * 展开消费明细（消费页的表格默认收起，收起时行高与列宽都是 0）：
+ * 需要点行内按钮、或量列宽的用例先调它，否则会遇到「元素在但不可点」。
+ */
+async function openExpenseTable(page) {
+  const bar = page.locator('#expense-table-toggle');
+  if ((await bar.getAttribute('aria-expanded')) === 'true') return;
+  await bar.click();
+  await expect(bar).toHaveAttribute('aria-expanded', 'true');
+}
+
 async function waitReady(page) {
   await page.waitForFunction(() => {
     const d = document.getElementById('masthead-date');
@@ -423,5 +434,5 @@ module.exports = {
   test, expect, stubCdn, seed, waitReady, disableMotion, readAppState,
   visitAllTabs, gotoAssets, collectOffThemeColors, UA_DEFAULT_COLORS,
   sampleState, EMPTY_STATE, LS_KEY, INDEX_URL,
-  samplePixels, pixelLum, chartSize, waitChart, expectChartFit,
+  samplePixels, pixelLum, chartSize, waitChart, expectChartFit, openExpenseTable,
 };

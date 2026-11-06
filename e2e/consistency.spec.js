@@ -1,4 +1,4 @@
-const { test, expect, visitAllTabs, gotoAssets, sampleState, seed, waitReady, stubCdn, samplePixels, INDEX_URL } = require('./fixtures');
+const { test, expect, visitAllTabs, gotoAssets, sampleState, seed, waitReady, stubCdn, samplePixels, INDEX_URL, openExpenseTable } = require('./fixtures');
 
 async function openWith(page, state) {
   await stubCdn(page);
@@ -1321,6 +1321,7 @@ test.describe('版式一致性：数字列右对齐（账本对齐小数点）',
 
   test('消费列表：金额列表头与数据行都右对齐、等宽数字、列宽相等', async ({ appPage: page }) => {
     await page.locator('#tabs-expenses .tab-btn[data-tab="expenses"]').click();
+    await openExpenseTable(page);
     const amount = await col(page, '#expenses-list', 1);
     expect(amount, '消费列表应有数据行').not.toBeNull();
     expect(amount.textAlign, '金额列必须右对齐（左对齐时 42.00 与 3,200.00 的小数点错开）').toBe('right');

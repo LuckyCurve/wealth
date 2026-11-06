@@ -753,38 +753,6 @@ function useDefaultRunwayExpectation() {
   renderRunwayPreview();
 }
 
-// ========== 记账热力图 + 漏记条 ==========
-function renderHeatmap() {
-  const grid = document.getElementById('hm-grid');
-  const months = document.getElementById('hm-months');
-  if (!grid || !months) return;
-  const view = heatmap.weeks(state.expenses, date.getLocalDateStr());
-  months.innerHTML = heatmap.monthsHtml(view);
-  grid.innerHTML = heatmap.gridHtml(view);
-}
-
-function recordOnDay(dateStr) {
-  openExpenseModal(null, null, dateStr);
-}
-
-function renderHeatmapNotice() {
-  const bar = document.getElementById('heatmap-notice');
-  if (!bar) return;
-  const reading = heatmap.missingDays(state.expenses, date.getLocalDateStr());
-  bar.style.display = reading.missing > 0 ? '' : 'none';
-  if (reading.missing > 0) {
-    bar.querySelector('.tagcheck-text').textContent = i18n.t('本月 {n} 天没有任何记录', { n: reading.missing });
-  }
-}
-
-function gotoHeatmap() {
-  switchTab('expense-trend');
-  requestAnimationFrame(() => {
-    const grid = document.getElementById('hm-grid');
-    if (grid) grid.scrollIntoView({ block: 'center', behavior: 'smooth' });
-  });
-}
-
 // ========== 本月已花 ÷ 预期月消费（趋势页预算卡）==========
 // 不拿时间进度做基准（大额固定支出会让它失真），只报剩余预算与「每天还能花多少」；口径在 logic.js expense.monthBudget*。
 function renderMonthPace() {
