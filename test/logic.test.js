@@ -1361,9 +1361,7 @@ describe('备份加密 vault（密钥不随备份走）', () => {
     assert.ok(Date.now() - t0 < 15000, '超过上限的迭代数不得真的跑完（那样等于让一个文件卡死页面）');
   });
 
-  test('文案：export 模式与设置边注都指向同一条事实（设了就加密）', () => {
-    assert.strictEqual(L.vault.passphraseNoteText(true), '已设置：导出与自动备份都会加密，导入时要输入这串密钥');
-    assert.strictEqual(L.vault.passphraseNoteText(false), '未设置：导出与自动备份都是明文文件');
+  test('导出模式文案：设了就加密', () => {
     assert.strictEqual(L.vault.backupModeText(true), '导出加密');
     assert.strictEqual(L.vault.backupModeText(false), '导出明文');
   });

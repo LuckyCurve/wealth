@@ -1854,12 +1854,6 @@
       !!o.cipher && typeof o.cipher.iv === 'string';
   }
 
-  function passphraseNoteText(set) {
-    return set
-      ? t('已设置：导出与自动备份都会加密，导入时要输入这串密钥')
-      : t('未设置：导出与自动备份都是明文文件');
-  }
-
   function backupModeText(set) {
     return set ? t('导出加密') : t('导出明文');
   }
@@ -2480,9 +2474,8 @@
     '使用缓存汇率': 'Using cached rates',
     '汇率获取失败': 'Exchange rates unavailable',
     '导出密钥': 'Export passphrase',
-    '导出与自动备份存成密文，导入时输入这串密钥才能打开。密钥只在本机、不随备份走；忘了就打不开。未设置时导出明文。': 'Exports and auto backups are encrypted; importing asks for this passphrase. It stays on this device and never travels with the file. Forget it and the files stay shut. While unset, exports are plain text.',
-    '已设置：导出与自动备份都会加密，导入时要输入这串密钥': 'Set: exports and auto backups are encrypted; importing asks for it',
-    '未设置：导出与自动备份都是明文文件': 'Not set: exports and auto backups are plain text',
+    '导出与自动备份存成密文；导入时要输入这串密钥。密钥只在本机，忘了就打不开。': 'Exports and auto backups are encrypted; importing asks for this passphrase. It stays on this device — forget it and the files stay shut.',
+    '更换密钥': 'Change passphrase',
     '导出加密': 'Encrypted export',
     '导出明文': 'Plain-text export',
     '保存密钥': 'Save passphrase',
@@ -2661,7 +2654,6 @@
       BACKUP_PASSPHRASE_MIN,
       passphraseTooShort,
       isEncryptedBackup,
-      passphraseNoteText,
       backupModeText,
       encryptBackup,
       decryptBackup,

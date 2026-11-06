@@ -679,8 +679,9 @@ describe('UI 接线契约：导入/导出（纯原始格式 + 迁移兜底共用
     assert.match(stripComments(fnSource('saveExportPassphrase')), /vault\.passphraseTooShort\(/,
       '短密钥在保存这一步就挡（不得存进去再在下一次导出才发现）');
     const sync = stripComments(fnSource('syncBackupControls'));
-    assert.match(sync, /vault\.passphraseNoteText\(/, '边注文案单一来源');
-    assert.match(sync, /settings-pass-note/);
+    assert.match(sync, /passInput\.hidden = !editing/, '已设置后输入框收起');
+    assert.match(sync, /passChange\.hidden = editing/, '更换密钥只在已设置时出现');
+    assert.match(html, /id="pass-change"[^>]*onclick="startPassEdit\(\)"/);
   });
 });
 

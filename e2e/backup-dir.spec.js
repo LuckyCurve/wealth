@@ -205,7 +205,6 @@ test('设了导出密钥：落盘的是密文信封，账本原文一个字都�
   await setup(page);
   await setPassphrase(page, 'correct horse battery');
   await page.evaluate(() => showSettings());
-  await expect(page.locator('#settings-pass-note')).toHaveText('已设置：导出与自动备份都会加密，导入时要输入这串密钥');
   await page.evaluate(() => closeModal('settings-modal'));
 
   await openExport(page);
@@ -221,6 +220,25 @@ test('设了导出密钥：落盘的是密文信封，账本原文一个字都�
   expect(plain.assets.length).toBe(3);
   expect(plain.snapshots.every((s) => !('totalCNY' in s))).toBe(true);
   await assert.rejects(() => L.vault.decryptBackup(env, 'correct horse batterY'));
+});
+
+test('已设置密钥后输入框收起，只留更换与清除；点更换再展开', async ({ page }) => {
+  await setup(page);
+  await page.evaluate(() => showSettings());
+  await expect(page.locator('#pass-input')).toBeVisible();
+  await expect(page.locator('#pass-change')).toBeHidden();
+  await page.fill('#pass-input', 'correct horse battery');
+  await page.click('#pass-save');
+  await expect(page.locator('#pass-input')).toBeHidden();
+  await expect(page.locator('#pass-save')).toBeHidden();
+  await expect(page.locator('#pass-change')).toBeVisible();
+
+  await page.click('#pass-change');
+  await expect(page.locator('#pass-input')).toBeVisible();
+  await expect(page.locator('#pass-input')).toHaveValue('');
+
+  await page.evaluate(() => { closeModal('settings-modal'); showSettings(); });
+  await expect(page.locator('#pass-input')).toBeHidden();
 });
 
 test('自动备份也加密：密钥设了就不存明文（自动与手动同一份内容）', async ({ page }) => {

@@ -300,6 +300,7 @@ tailwind.config = {
      这里只声明锁住时的形态，条件类名由那一处写。 */
   html.modal-open, html.modal-open body { overflow: hidden; }
   body { background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: var(--fs-body); font-weight: var(--fw-medium); font-feature-settings: 'tnum' 1; padding-bottom: env(safe-area-inset-bottom, 0px); text-autospace: normal; }
+  [hidden] { display: none !important; }
   /* ===== 纸纹与桌光：这个产品的隐喻是「一张摊在桌面上、被灯照着的账页」=====
      三层各司其职：
      ①  body::after  = 桌面（静止的、铺满视口的**光照层次**）
@@ -2099,7 +2100,6 @@ tailwind.config = {
         <p class="t-body mb-3 muted" data-i18n="导出当前所有数据为 JSON 文件">导出当前所有数据为 JSON 文件</p>
         <button onclick="exportData()" class="btn-gold" data-i18n="导出数据">导出数据</button>
         <span id="backup-last-text" class="t-micro ml-3 muted"></span>
-        <span id="io-pass-note" class="t-micro ml-3 muted"></span>
       </div>
       <hr>
       <div>
@@ -2364,12 +2364,12 @@ tailwind.config = {
       <div class="setting-row">
         <div class="setting-info">
           <p class="setting-label" data-i18n="导出密钥">导出密钥</p>
-          <p class="setting-desc" data-i18n="导出与自动备份存成密文，导入时输入这串密钥才能打开。密钥只在本机、不随备份走；忘了就打不开。未设置时导出明文。">导出与自动备份存成密文，导入时输入这串密钥才能打开。密钥只在本机、不随备份走；忘了就打不开。未设置时导出明文。</p>
-          <p id="settings-pass-note" class="setting-note"></p>
+          <p class="setting-desc" data-i18n="导出与自动备份存成密文；导入时要输入这串密钥。密钥只在本机，忘了就打不开。">导出与自动备份存成密文；导入时要输入这串密钥。密钥只在本机，忘了就打不开。</p>
         </div>
         <div class="setting-actions">
           <input type="password" id="pass-input" autocomplete="new-password" aria-label="导出密钥" data-i18n-aria-label="导出密钥" onkeydown="if(event.key==='Enter'&&!event.isComposing){event.preventDefault();saveExportPassphrase();}">
           <button type="button" id="pass-save" onclick="saveExportPassphrase()" class="btn-ghost btn-sm" data-i18n="保存密钥">保存密钥</button>
+          <button type="button" id="pass-change" onclick="startPassEdit()" class="btn-ghost btn-sm" hidden data-i18n="更换密钥">更换密钥</button>
           <button type="button" id="pass-clear" onclick="clearExportPassphrase()" class="btn-danger btn-sm" hidden data-i18n="清除">清除</button>
         </div>
       </div>
@@ -5482,6 +5482,7 @@ function setTheme(dark) {
 }
 
 function showSettings() {
+  passEditing = false; // 每次打开都回到「已设置」那一态
   syncThemeSeg();
   syncLangSeg();
   syncBackupControls();
@@ -5620,6 +5621,7 @@ async function clearBackupDirAsync() {
 }
 
 const PASS_KEY = 'wealth-manager-passphrase';
+let passEditing = false;
 
 function exportPassphrase() {
   try { return localStorage.getItem(PASS_KEY) || ''; } catch (e) { return ''; }
@@ -5643,13 +5645,21 @@ function saveExportPassphrase() {
     return;
   }
   input.value = '';
+  passEditing = false;
   syncBackupControls();
   toast(i18n.t('已设置导出密钥，之后的导出都会加密'), 'success');
+}
+
+function startPassEdit() {
+  passEditing = true;
+  syncBackupControls();
+  document.getElementById('pass-input').focus();
 }
 
 function clearExportPassphrase() {
   showConfirm(i18n.t('确认清除导出密钥？清除后导出的是明文文件；已加密的备份仍要原密钥才能打开。'), () => {
     try { localStorage.removeItem(PASS_KEY); } catch (e) {}
+    passEditing = false;
     syncBackupControls();
     toast(i18n.t('已清除导出密钥'), 'success');
   });
@@ -5785,9 +5795,10 @@ function checkBackupStale() {
 
 function syncBackupControls() {
   const freq = backup.normalizeBackupFreq(state.backup.autoFreq);       // 白名单归一，单一来源
+  const passSet = !!exportPassphrase();
   const noteText = backup.backupNoteText(state.backup.lastBackup, date.getLocalDateStr()); // 文案纯函数在 logic.js
   const lastEl = document.getElementById('backup-last-text');
-  if (lastEl) lastEl.textContent = noteText;
+  if (lastEl) lastEl.textContent = noteText + ' · ' + vault.backupModeText(passSet);
   ['daily', 'weekly', 'off'].forEach(v => {
     const btn = document.getElementById('backup-freq-' + v);
     if (!btn) return;
@@ -5802,13 +5813,15 @@ function syncBackupControls() {
   }
   const clearBtn = document.getElementById('backup-dir-clear');
   if (clearBtn) clearBtn.hidden = !backupDirHandle;
-  const passSet = !!exportPassphrase();
-  const passNote = document.getElementById('settings-pass-note');
-  if (passNote) passNote.textContent = vault.passphraseNoteText(passSet);
+  const editing = !passSet || passEditing;
+  const passInput = document.getElementById('pass-input');
+  const passSave = document.getElementById('pass-save');
+  const passChange = document.getElementById('pass-change');
   const passClear = document.getElementById('pass-clear');
+  if (passInput) passInput.hidden = !editing;
+  if (passSave) passSave.hidden = !editing;
+  if (passChange) passChange.hidden = editing;
   if (passClear) passClear.hidden = !passSet;
-  const ioNote = document.getElementById('io-pass-note');
-  if (ioNote) ioNote.textContent = vault.backupModeText(passSet);
 }
 
 function setBackupFreq(v) {
