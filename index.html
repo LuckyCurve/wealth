@@ -5665,9 +5665,9 @@ async function saveBackupToFile(today, mode) {
   try {
     const opts = {
       suggestedName: backup.backupFileName(today),
-      startIn: backupDirHandle, // undefined = 浏览器按 origin 记住的上次目录
       types: [{ description: 'JSON', accept: { 'application/json': ['.json'] } }],
     };
+    if (backupDirHandle) opts.startIn = backupDirHandle;
     let handle;
     try {
       handle = await window.showSaveFilePicker(opts);

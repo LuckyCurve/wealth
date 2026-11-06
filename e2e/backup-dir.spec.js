@@ -25,6 +25,7 @@ async function setup(page, opts = {}) {
     };
     window.showSaveFilePicker = async (o) => {
       window.__fs.saveCalls.push(o && o.suggestedName);
+      if (o && o.startIn === null) throw new TypeError('startIn is not a FileSystemHandle');
       // 位置一致性：startIn 必须就是设置里那个目录句柄本身（不是名字、不是新句柄）
       window.__fs.startInIsDir = !!o && !!o.startIn;
       window.__fs.startInSameHandle = !!o && !!o.startIn && o.startIn === window.__fs.dirHandle;

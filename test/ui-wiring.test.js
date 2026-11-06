@@ -596,7 +596,8 @@ describe('UI 接线契约：备份落盘统一走确认框 + 系统文件窗口'
     assert.match(head, /await\s*$/, '唯一那个 await 必须紧贴打开窗口这一句');
     assert.match(src.slice(pickerIdx), /await writeFileHandleText\(/,
       '窗口确认后才写内容（close() 成功才算写完）');
-    assert.match(src, /startIn: backupDirHandle/, '文件窗口必须从设置里选的目录打开');
+    assert.match(src, /if \(backupDirHandle\) opts\.startIn = backupDirHandle/, '文件窗口必须从设置里选的目录打开');
+    assert.doesNotMatch(src, /startIn:\s*(null|undefined)/, 'startIn 只能是句柄或不存在：传 null 会被当成枚举值直接 TypeError');
   });
 
   test('汇率拉取失败时不阻塞备份：await 包在独立 try/catch 且 catch 不 return，弹框在后续独立 try 块', () => {
