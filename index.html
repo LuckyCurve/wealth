@@ -6202,7 +6202,8 @@ function setExpenseDate(dateStr) {
 }
 // ====== EXPENSE FILTER ======
 // 筛选状态的唯一所有者：控件只写、渲染只读；失效值由 expense.normalizeExpenseFilters 丢弃（不靠「先重建下拉、再读值」）。
-let expenseFilters = { month: '', tag: '', query: '' };
+// 月份默认当月（最常看的一屏）；当月没有记录时它会在归一阶段被丢掉、回落「全部时间」。
+let expenseFilters = { month: date.getCurrentMonth(), tag: '', query: '' };
 
 // 唯一写入端：三个控件、空态「清除筛选」、搜索框内的 × / ESC 都走这里
 function setExpenseFilter(patch) {
@@ -6401,7 +6402,10 @@ function saveExpense(e) {
   }
 
   saveState();
-  renderExpenses();
+  // 记到筛选月份之外时跟过去，否则「已记录」的提示配一个纹丝不动的列表
+  const savedMonth = dateStr.slice(0, 7);
+  if (expenseFilters.month && expenseFilters.month !== savedMonth) setExpenseFilter({ month: savedMonth });
+  else renderExpenses();
   closeModal('expense-modal');
   toast(editId ? i18n.t('消费已更新') : i18n.t('消费已记录'), 'success');
 }

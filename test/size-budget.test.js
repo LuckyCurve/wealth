@@ -16,7 +16,9 @@ const fs = require('fs');
 const path = require('path');
 const ROOT = path.join(__dirname, '..');
 
-const INDEX_BUDGET = 401_000;
+// 消费列表月份默认当月（含「记到筛选外月份时跟过去」）：多出一条分支与两句原因注释，
+// 旧预算只剩两位数余量，给它一档整的留量。
+const INDEX_BUDGET = 402_000;
 
 function bytes(name) {
   return fs.statSync(path.join(ROOT, name)).size;

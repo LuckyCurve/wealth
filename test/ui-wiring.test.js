@@ -955,6 +955,26 @@ describe('UI 接线契约：消费标签筛选（单下拉分组，类别作不�
   });
 });
 
+describe('UI 接线契约：消费月份筛选默认当月', () => {
+  test('初始筛选状态：月份取当月，标签与关键词留空', () => {
+    const decl = html.match(/let expenseFilters = \{[^}]*\}/);
+    assert.ok(decl, '状态只有一处声明');
+    assert.match(decl[0], /month:\s*date\.getCurrentMonth\(\)/, '月份默认当月（本地月口径，不经 UTC）');
+    assert.match(decl[0], /tag:\s*''/, '标签不设默认');
+    assert.match(decl[0], /query:\s*''/, '关键词不设默认');
+  });
+
+  test('记到筛选之外的月份：筛选跟过去，别让「消费已记录」配一个纹丝不动的列表', () => {
+    const src = fnSource('saveExpense');
+    assert.match(src, /expenseFilters\.month\s*&&/, '只在已按月筛选时跟随；「全部时间」不擅自收窄');
+    assert.match(src, /setExpenseFilter\(\{\s*month\b/, '跟随也走唯一写入端');
+    assert.match(src, /\.slice\(0, 7\)/, '按记录的月份比较与写入');
+    const saved = src.indexOf('saveState()');
+    const follow = src.indexOf('setExpenseFilter(');
+    assert.ok(saved >= 0 && follow > saved, '先落盘再跟随：归一要看得见这条新记录，否则当月无记录会被回落成「全部时间」');
+  });
+});
+
 describe('UI 接线契约：分类管理回车添加标签', () => {
   test('新增标签输入框回车即添加，且 IME 组字中回车不误提交', () => {
     // id 由「前缀 + 分类 id」拼成，两者都可能来自导入的 JSON：属性里必须转义

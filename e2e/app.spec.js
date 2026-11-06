@@ -37,6 +37,12 @@ async function openWith(page, state, opts = {}) {
   await waitReady(page);
 }
 
+// 当月由真实日期决定：断言用的「当月 / 非当月」必须在运行时算，写死日期会在跨月后悄悄换成另一种场景
+const curMonth = () => {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+};
+
 const minimalState = (over = {}) => ({
   categories: [{ id: 'currency', name: '货币类型', builtin: true, tags: ['CNY', 'HKD', 'USD'] }],
   assets: [],
@@ -603,6 +609,55 @@ test.describe('消费记录', () => {
     await expect(page.locator('#expenses-rows .asset-row')).toHaveCount(3);
     await expect(page.locator('#expense-search')).toHaveValue('');
     await expect(page.locator('#expense-month-filter')).toHaveValue('');
+  });
+
+  test('时间筛选默认选中当月：打开就只看当月的账', async ({ page }) => {
+    const month = curMonth();
+    await openWith(page, {
+      ...sampleState(),
+      expenses: [
+        { id: 'e-cur', date: month + '-02', amount: 10, note: '当月咖啡', tags: { 'ec-pay': '微信', 'ec-type': '餐饮' } },
+        { id: 'e-old', date: '2020-01-05', amount: 20, note: '旧账', tags: { 'ec-pay': '微信', 'ec-type': '餐饮' } },
+      ],
+    });
+    await expect(page.locator('#expense-month-filter')).toHaveValue(month);
+    await expect(page.locator('#expenses-rows .asset-row')).toHaveCount(1);
+    await expect(page.locator('#expenses-rows')).toContainText('当月咖啡');
+    await expect(page.locator('#expense-total-line')).toContainText('¥10.00');
+
+    // 历史仍在一项之外：切到「全部时间」就能看到，默认值不是收窄成唯一视野
+    await page.selectOption('#expense-month-filter', '');
+    await expect(page.locator('#expenses-rows .asset-row')).toHaveCount(2);
+  });
+
+  test('当月还没有记录时回落到全部时间，不摆一个空列表', async ({ page }) => {
+    await openWith(page, {
+      ...sampleState(),
+      expenses: [{ id: 'e-old', date: '2020-01-05', amount: 20, note: '旧账', tags: { 'ec-pay': '微信', 'ec-type': '餐饮' } }],
+    });
+    await expect(page.locator('#expense-month-filter')).toHaveValue('');
+    await expect(page.locator('#expenses-rows .asset-row')).toHaveCount(1);
+  });
+
+  test('记到筛选之外的月份：筛选跟过去，新记录不会当场消失', async ({ page }) => {
+    const month = curMonth();
+    await openWith(page, {
+      ...sampleState(),
+      expenses: [{ id: 'e-cur', date: month + '-02', amount: 10, note: '当月咖啡', tags: { 'ec-pay': '微信', 'ec-type': '餐饮' } }],
+    });
+    await expect(page.locator('#expense-month-filter')).toHaveValue(month);
+
+    await page.locator('#tab-expenses button:has-text("记录消费")').click();
+    await page.fill('#expense-date', '2020-01-06');
+    await page.fill('#expense-amount', '33');
+    await page.fill('#expense-note', '补记上月');
+    await page.locator('#expense-tags-section .tag-picker').first().locator('.tag-choice', { hasText: '微信' }).click();
+    await page.locator('#expense-tags-section .tag-picker').nth(1).locator('.tag-choice', { hasText: '餐饮' }).click();
+    await page.locator('#expense-form button:has-text("保存")').click();
+
+    await expect(page.locator('#expense-month-filter')).toHaveValue('2020-01');
+    await expect(page.locator('#expenses-rows .asset-row')).toHaveCount(1);
+    await expect(page.locator('#expenses-rows')).toContainText('补记上月');
   });
 
   test('搜索每按一个键不重建月份/标签下拉（无关控件被换掉会打断展开中的选择）', async ({ appPage: page }) => {
