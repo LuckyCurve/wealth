@@ -3262,4 +3262,67 @@ describe('图表动画参数（节奏系统的一部分：不沿用库默认 100
   });
 });
 
+// ========== 记账热力图 ==========
+describe('记账热力图：分档、周对齐与漏记天数', () => {
+  const ex = (date, amount) => ({ id: date + amount, date, amount, note: '', tags: {} });
+
+  test('分档写死：0 / 1 / 2 / 3-4 / 5+', () => {
+    assert.deepStrictEqual([0, 1, 2, 3, 4, 5, 99].map(L.heatmap.level), [0, 1, 2, 3, 3, 4, 4]);
+    assert.strictEqual(L.heatmap.level('2'), 2, '字符串笔数不该落成 NaN 档');
+    assert.strictEqual(L.heatmap.level(null), 0);
+  });
+
+  test('非等宽日期直接丢，不参与聚合', () => {
+    const t = L.heatmap.dayTotals([ex('2026-03-01', 5), ex('2026-3-1', 5), ex('', 5), null]);
+    assert.deepStrictEqual(Object.keys(t), ['2026-03-01']);
+    assert.strictEqual(t['2026-03-01'].count, 1);
+    assert.strictEqual(t['2026-03-01'].total, 5);
+  });
+
+  test('列 = 周（周一起），每列 7 格，今天之后是 null', () => {
+    const view = L.heatmap.weeks([ex('2026-03-02', 10), ex('2026-03-02', 5)], '2026-03-05', 3);
+    assert.strictEqual(view.weeks.length, 3);
+    view.weeks.forEach(col => assert.strictEqual(col.length, 7));
+    const last = view.weeks[view.weeks.length - 1];
+    assert.strictEqual(last[0].date, '2026-03-02', '2026-03-05 是周四，本周一是 03-02');
+    assert.strictEqual(last[0].count, 2);
+    assert.strictEqual(last[0].total, 15);
+    assert.strictEqual(last[3].date, '2026-03-05', '今天自己在格子里');
+    assert.deepStrictEqual(last.slice(4), [null, null, null], '本周剩余三天是未来');
+  });
+
+  test('月份标注只在跨月那列换条，span 累加列数', () => {
+    const view = L.heatmap.weeks([], '2026-03-05', 4);
+    assert.deepStrictEqual(view.months.map(m => [m.key, m.span]), [['2026-02', 3], ['2026-03', 1]]);
+  });
+
+  test('漏记天数不含今天（一天还没过完，不能算漏了）', () => {
+    const r = L.heatmap.missingDays([ex('2026-03-01', 1), ex('2026-03-02', 1)], '2026-03-05');
+    assert.deepStrictEqual(r, { missing: 2, counted: 4 });
+  });
+
+  test('脏日期与非法今天都不崩', () => {
+    assert.deepStrictEqual(L.heatmap.weeks([ex('bad', 1)], 'x', 2), { weeks: [], months: [] });
+    assert.deepStrictEqual(L.heatmap.missingDays([], ''), { missing: 0, counted: 0 });
+  });
+});
+
+// ========== 日期型下拉的排序 ==========
+describe('monthsDesc：新的在上', () => {
+  test('降序、去重、丢空值', () => {
+    assert.deepStrictEqual(
+      L.date.monthsDesc(['2026-01', '2025-12', '2026-01', null, '', '2026-03']),
+      ['2026-03', '2026-01', '2025-12']
+    );
+  });
+
+  test('传升序也不会变成升序（顺序不归调用方管）', () => {
+    assert.deepStrictEqual(L.date.monthsDesc(['2026-01', '2026-02']), ['2026-02', '2026-01']);
+  });
+
+  test('非数组不崩', () => {
+    assert.deepStrictEqual(L.date.monthsDesc(null), []);
+  });
+});
+
 require('./stress-logic-cases.js');

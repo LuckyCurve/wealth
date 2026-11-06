@@ -43,7 +43,7 @@ async function openStressPage(page) {
 }
 
 async function openStressModal(page) {
-  await page.locator('#stress-bar .row-btn').click();
+  await page.locator('#stress-open').click();
   await expect(page.locator('#stress-modal')).toBeVisible();
 }
 
@@ -117,7 +117,7 @@ test.describe('压测：读数跟着变，账本不动', () => {
     expect(snap.stress).toEqual({ catId: 'cat-type', keeps: [{ tag: '权益基金', keep: 60 }] });
   });
 
-  test('刷新后情景仍在（落盘），清除后回到真实值', async ({ page }) => {
+  test('刷新后情景仍在（落盘），清除后回到真实值，且能回上一次', async ({ page }) => {
     await openStressPage(page);
     await gotoAssets(page);
     await openStressModal(page);
@@ -128,22 +128,19 @@ test.describe('压测：读数跟着变，账本不动', () => {
     await gotoAssets(page);
     await expect(page.locator('#masthead-whole')).toHaveText('210,000');
     await expect(page.locator('#stress-bar-text')).toContainText('权益基金 60%');
+    await expect(page.locator('#stress-restore')).toBeHidden();
 
     await openStressModal(page);
     await page.locator('#stress-modal .btn-danger').click();
-    await expect(page.locator('#confirm-modal')).toBeVisible();
-    await page.locator('#confirm-modal').getByRole('button', { name: '取消' }).click();
-    await expect(page.locator('#confirm-modal')).toBeHidden();
-    await expect(page.locator('#masthead-whole')).toHaveText('210,000');
-    expect(await page.evaluate(() => state.stress)).toEqual({ catId: 'cat-type', keeps: [{ tag: '权益基金', keep: 60 }] });
-    await expect(page.locator('#stress-modal')).toBeVisible();
-
-    await page.locator('#stress-modal .btn-danger').click();
-    await expect(page.locator('#confirm-modal')).toBeVisible();
-    await page.locator('#confirm-ok-btn').click();
+    await expect(page.locator('#stress-modal')).toBeHidden();
     await expect(page.locator('#masthead-whole')).toHaveText('250,000');
     await expect(page.locator('#stress-bar-text')).toHaveText('压测：未启用');
     await expect(page.locator('#stress-badge')).toBeHidden();
+
+    await page.locator('#stress-restore').click();
+    await expect(page.locator('#masthead-whole')).toHaveText('210,000');
+    await expect(page.locator('#stress-bar-text')).toContainText('权益基金 60%');
+    expect(await page.evaluate(() => state.stress)).toEqual({ catId: 'cat-type', keeps: [{ tag: '权益基金', keep: 60 }] });
   });
 
   test('标签改名后情景跟着迁移（不静默失效）', async ({ page }) => {

@@ -339,7 +339,7 @@ describe('UI 接线契约：logic.js 导出清单与筛选同步时序', () => {
     const domains = Object.keys(api);
     assert.deepStrictEqual(
       domains.slice().sort(),
-      ['backup', 'category', 'chartData', 'color', 'date', 'demo', 'expense', 'i18n', 'income', 'migrate', 'money', 'motion', 'snapshot', 'stress', 'text', 'ui', 'vault'],
+      ['backup', 'category', 'chartData', 'color', 'date', 'demo', 'expense', 'heatmap', 'i18n', 'income', 'migrate', 'money', 'motion', 'snapshot', 'stress', 'text', 'ui', 'vault'],
       '域清单：新增域要在这里显式登记（防编辑残留悄悄多一个袋子）'
     );
     const seen = new Map();
@@ -353,6 +353,13 @@ describe('UI 接线契约：logic.js 导出清单与筛选同步时序', () => {
       }
     }
     assert.ok(seen.size >= 100, '域内名字总数（实得 ' + seen.size + '）');
+  });
+
+  test('日期型下拉一律新的在上：月份 option 的 map 必须挂在 monthsDesc 上', () => {
+    const lines = html.split('\n').filter((l) => l.includes('date.monthLabel(m)') && l.includes('<option'));
+    assert.ok(lines.length >= 4, `应扫到月份 option 的每一处构建（实得 ${lines.length}）`);
+    const bad = lines.filter((l) => !l.includes('date.monthsDesc('));
+    assert.deepStrictEqual(bad, [], '未经 monthsDesc 的月份列表：' + bad.map((l) => l.trim().slice(0, 80)).join(' | '));
   });
 
   test('下拉选项内容没变就不碰 DOM（搜索每按一键不该换掉无关控件）', () => {
@@ -3847,6 +3854,9 @@ describe('UI 接线契约：破坏性入口一律二次确认', () => {
 
   const DELEGATED = { importData: 'confirmImport' };
 
+  // 可撤销的清除：不弹确认，但清除侧必须真的存了、恢复侧必须真的写回（只要求「有个按钮」等于把确认框换成一句承诺）。
+  const UNDOABLE = { clearStress: 'restoreStress' };
+
   test('入口收集器本身有效（扫不到入口就会假绿）', () => {
     assert.ok(destructive.length >= 10, `应扫到一批破坏性入口（实得 ${destructive.length}）`);
     for (const n of VIEW_ONLY) assert.ok(destructive.includes(n), `${n} 应仍在清单里，否则豁免名单已失效`);
@@ -3855,6 +3865,7 @@ describe('UI 接线契约：破坏性入口一律二次确认', () => {
   test('所有清空/删除/覆盖入口都经 showConfirm（取消即什么都没发生）', () => {
     const missing = destructive.filter((n) => {
       if (VIEW_ONLY.includes(n)) return false;
+      if (UNDOABLE[n]) return false;
       if (DELEGATED[n]) {
         assert.match(fnSource(n), new RegExp(DELEGATED[n] + '\\('), `${n} 应委托给 ${DELEGATED[n]}`);
         return !/showConfirm\(/.test(stripComments(fnSource(DELEGATED[n])));
@@ -3862,6 +3873,15 @@ describe('UI 接线契约：破坏性入口一律二次确认', () => {
       return !/showConfirm\(/.test(stripComments(fnSource(n)));
     });
     assert.deepStrictEqual(missing, [], '未二次确认的破坏性入口：' + missing.join(', '));
+  });
+
+  test('可撤销的清除：清除侧存旧值，恢复侧写回，且接口接在页面上', () => {
+    for (const [clearFn, restoreFn] of Object.entries(UNDOABLE)) {
+      assert.match(stripComments(fnSource(clearFn)), /state\.stressLast\s*=/, `${clearFn} 必须把被清掉的情景存进 stressLast`);
+      assert.match(stripComments(fnSource(restoreFn)), /state\.stressLast/, `${restoreFn} 必须从 stressLast 取回`);
+      assert.match(stripComments(fnSource(restoreFn)), /state\.stress\s*=/, `${restoreFn} 必须写回 state.stress`);
+      assert.match(html, new RegExp(`on[a-z]+="[^"]*${restoreFn}\\(`), `${restoreFn} 必须接在页面某个事件上`);
+    }
   });
 
   test('豁免的确实只动视图态（不得写 state / 落盘）', () => {

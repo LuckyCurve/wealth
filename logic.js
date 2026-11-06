@@ -257,6 +257,11 @@
     return Math.round((new Date(pb[0], pb[1] - 1, pb[2]) - new Date(pa[0], pa[1] - 1, pa[2])) / 86400000);
   }
 
+  // 日期型下拉一律新的在上；调用方传升序还是降序都不影响结果。
+  function monthsDesc(months) {
+    return [...new Set((months || []).filter(Boolean))].sort().reverse();
+  }
+
   function monthLabel(month) {
     // 手动拆解避免 new Date('YYYY-MM-01') 按 UTC 解析, 西半球时区（UTC-11/-12）会错月/年
     const [y, m] = String(month || '').split('-');
@@ -1260,6 +1265,114 @@
     return t('预算剩 {p1} · 余 {p2} 天 · 日均 {p3}', { p1: formatCNY(remaining), p2: daysLeft, p3: formatCNY(dailyLeft) });
   }
 
+  // ========== 记账热力图（一年 365 格）==========
+  const HEATMAP_WEEKS = 53;
+
+  // 分档写死：按最大值归一的话，一个记到 20 笔的月份会把其余月份全压成最浅一档。
+  function heatmapLevel(count) {
+    const n = Number(count) || 0;
+    if (n <= 0) return 0;
+    if (n === 1) return 1;
+    if (n === 2) return 2;
+    if (n <= 4) return 3;
+    return 4;
+  }
+
+  // 非等宽日期（'2026-2-3'）会让整周错位一格，直接丢。
+  function heatmapDayTotals(expenses) {
+    const map = {};
+    (expenses || []).forEach(e => {
+      if (!e) return;
+      const d = String(e.date || '');
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return;
+      const cur = map[d] || { count: 0, total: 0 };
+      cur.count += 1;
+      cur.total += Number(e.amount) || 0;
+      map[d] = cur;
+    });
+    return map;
+  }
+
+  function heatmapWeeks(expenses, todayStr, weeks) {
+    const totals = heatmapDayTotals(expenses);
+    const [y, m, d] = String(todayStr || '').split('-').map(Number);
+    if (!y || !m || !d) return { weeks: [], months: [] };
+    const today = new Date(y, m - 1, d);
+    const dow = (today.getDay() + 6) % 7;
+    const n = weeks > 0 ? weeks : HEATMAP_WEEKS;
+    const cols = [];
+    for (let i = n - 1; i >= 0; i--) {
+      const monday = new Date(y, m - 1, d - dow - i * 7);
+      const cells = [];
+      for (let j = 0; j < 7; j++) {
+        const day = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + j);
+        if (day > today) { cells.push(null); continue; }
+        const key = getLocalDateStr(day);
+        const hit = totals[key];
+        const count = hit ? hit.count : 0;
+        cells.push({ date: key, count: count, total: hit ? hit.total : 0, level: heatmapLevel(count) });
+      }
+      cols.push(cells);
+    }
+    return { weeks: cols, months: heatmapMonthSpans(cols) };
+  }
+
+  function heatmapMonthSpans(cols) {
+    const out = [];
+    (cols || []).forEach(col => {
+      const first = (col || []).find(Boolean);
+      if (!first) return;
+      const key = first.date.slice(0, 7);
+      const last = out[out.length - 1];
+      if (last && last.key === key) { last.span += 1; return; }
+      out.push({ key: key, label: monthShortName(key), span: 1 });
+    });
+    return out;
+  }
+
+  function monthShortName(month) {
+    const [y, m] = String(month || '').split('-').map(Number);
+    if (!m || m < 1 || m > 12) return '';
+    if (normalizeLang(typeof state !== 'undefined' && state ? state.lang : I18N_DEFAULT) === 'zh') return m + '月';
+    try {
+      return new Intl.DateTimeFormat('en', { month: 'short', timeZone: 'UTC' }).format(new Date(Date.UTC(y || 2026, m - 1, 1)));
+    } catch (e) { return String(m); }
+  }
+
+  // 今天不算：一天还没过完，早上就报「今天没记」是把「还没到晚上」说成「漏了」。
+  function heatmapMissingDays(expenses, todayStr) {
+    const totals = heatmapDayTotals(expenses);
+    const [y, m, d] = String(todayStr || '').split('-').map(Number);
+    if (!y || !m || !d) return { missing: 0, counted: 0 };
+    let missing = 0;
+    for (let day = 1; day < d; day++) {
+      const key = y + '-' + String(m).padStart(2, '0') + '-' + String(day).padStart(2, '0');
+      if (!totals[key]) missing += 1;
+    }
+    return { missing: missing, counted: Math.max(0, d - 1) };
+  }
+
+  function heatmapCellText(cell) {
+    const day = t('{m} 月 {d} 日', { m: Number(cell.date.slice(5, 7)), d: Number(cell.date.slice(8, 10)) });
+    return cell.count > 0
+      ? day + ' · ' + t('{n} 笔', { n: cell.count }) + ' · ' + formatCNY(cell.total)
+      : day + ' · ' + t('这天没有记录');
+  }
+
+  function heatmapMonthsHtml(view) {
+    return ((view && view.months) || []).map(m =>
+      '<span style="width:calc(' + m.span + ' * (var(--hm-cell) + var(--hm-gap)))">' + esc(m.label) + '</span>').join('');
+  }
+
+  function heatmapGridHtml(view) {
+    return ((view && view.weeks) || []).map(col => (col || []).map(c => {
+      if (!c) return '<span class="hm-cell is-future"></span>';
+      const label = esc(heatmapCellText(c));
+      return '<button type="button" class="hm-cell" data-lv="' + c.level + '" onclick="recordOnDay(\'' + c.date + '\')"' +
+        ' title="' + label + '" aria-label="' + label + '"></button>';
+    }).join('')).join('');
+  }
+
   // ========== 数据迁移 / 兜底（依赖全局 state，原地修改）==========
   // loadState（本地加载）与 importData（JSON 导入）共用，保证旧版数据导入后行为一致
   function migrateState() {
@@ -1334,6 +1447,9 @@
     // 压测情景（旧数据/导入文件可能缺失或指向已删分类标签）：归一 + 剪枝，失效即 null。
     // 只存跌幅不存金额——金额现算（汇率/账本都会变），存下来的数第二天就是错的
     state.stress = pruneStress(state.stress, state.categories);
+    // 「上一次压测」：清除时把旧情景存这里，压测条上给一条回去的路。
+    // 同一套归一与剪枝——指向已删分类标签的旧情景回去也不会命中任何东西。
+    state.stressLast = pruneStress(state.stressLast, state.categories);
     // 快照提醒（旧数据/导入文件可能缺失）：窗口走白名单、天数钳 1~28；
     // 提醒日只认 'YYYY-MM-DD'——它只是「今天问过没有」的痕迹，脏值当没问过（不阻断提醒）
     state.snapshotReminder = normalizeSnapshotReminder(state.snapshotReminder);
@@ -2152,7 +2268,6 @@
     '在消费趋势图中显示为水平参考线，收起部分类别后可对比每月合计': 'Drawn as a reference line in the trend chart; collapse categories to compare monthly totals',
     '预期月消费 (CNY)': 'Expected monthly spend (CNY)',
     '清除': 'Clear',
-    '确认清除压测情景？': 'Clear the stress scenario?',
     '确认清除预期月消费？': 'Clear the expected monthly spend?',
     '确认清除目标净资产？': 'Clear the net worth target?',
     '确认清除备份文件夹？': 'Clear the backup folder?',
@@ -2454,6 +2569,19 @@
     '{y} 年 {m} 个月': '{y} yr {m} mo',
     '已超预算 {p1} · 本月额度已用完': 'Over budget by {p1} · nothing left this month',
     '预算剩 {p1} · 余 {p2} 天 · 日均 {p3}': '{p1} left · {p2} days to go · {p3}/day',
+    '记账热力图': 'Recording heatmap',
+    '格子越深，这天记得越多': 'Darker means more entries that day',
+    '少': 'Less',
+    '多': 'More',
+    '看图': 'See chart',
+    '点一格，就在那天补记一笔': 'Tap a day to add an entry for it',
+    '本月 {n} 天没有任何记录': '{n} days this month have no entries',
+    '{n} 笔': '{n} entries',
+    '这天没有记录': 'No entries that day',
+    '{m} 月 {d} 日': '{m}/{d}',
+    '回到上一次': 'Restore last',
+    '压测已清除 · 可回到上一次': 'Stress cleared · restore available',
+    '压测已恢复': 'Stress restored',
     '货币类型': 'Currency',
     '尚未备份过': 'No backup yet',
     '上次备份 {p1}（今天）': 'Last backup {p1} (today)',
@@ -2544,6 +2672,7 @@
       getLocalDateStr,
       getLocalMonthStr,
       monthLabel,
+      monthsDesc,
       daysBetweenStr,
       daysInMonthOf,
     },
@@ -2585,6 +2714,17 @@
       normalizeSnapshotReminder,
       SNAPSHOT_REMINDER_MAX_DAYS,
       SNAPSHOT_REMINDER_DEFAULT_DAYS,
+    },
+    heatmap: {
+      level: heatmapLevel,
+      dayTotals: heatmapDayTotals,
+      weeks: heatmapWeeks,
+      monthSpans: heatmapMonthSpans,
+      missingDays: heatmapMissingDays,
+      cellText: heatmapCellText,
+      monthsHtml: heatmapMonthsHtml,
+      gridHtml: heatmapGridHtml,
+      HEATMAP_WEEKS,
     },
     expense: {
       expenseMonths,

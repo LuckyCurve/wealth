@@ -16,9 +16,9 @@ const fs = require('fs');
 const path = require('path');
 const ROOT = path.join(__dirname, '..');
 
-// 消费列表月份默认当月（含「记到筛选外月份时跟过去」）：多出一条分支与两句原因注释，
-// 旧预算只剩两位数余量，给它一档整的留量。
-const INDEX_BUDGET = 402_000;
+// 记账热力图（一年 365 格）：纯计算与格子 HTML 已下沉 logic.js 的 heatmap 域，
+// 余下是视图与样式（那部分本就属于页面）。下一次再抬前，得先把内联 CSS 或页面脚本分出去。
+const INDEX_BUDGET = 410_000;
 
 function bytes(name) {
   return fs.statSync(path.join(ROOT, name)).size;
