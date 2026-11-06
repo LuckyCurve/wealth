@@ -3,11 +3,12 @@ const assert = require('node:assert');
 const fs = require('fs');
 const path = require('path');
 
-// 页面已拆成三份：markup（index.html）/ css（styles.css）/ js（app.js）。
+// 页面已拆成：markup（index.html）/ css（styles.css）/ js（五个 app-*.js，按加载顺序拼）/ logic.js。
 // html 是「一份文件时的全貌」，一条正则横跨多个文件时用它；只问其中一份时用对应的变量。
 const markup = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 const css = fs.readFileSync(path.join(__dirname, '..', 'styles.css'), 'utf8');
-const js = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
+const JS_FILES = ['app-core.js', 'app-assets.js', 'app-charts.js', 'app-settings.js', 'app-expenses.js'];
+const js = JS_FILES.map((f) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8')).join('\n');
 const html = markup + '\n' + css + '\n' + js;
 const count = (re) => (html.match(re) || []).length;
 // 取某顶层函数的完整源码段（函数体不含顶格的 "}"，故非贪婪匹配到行首 "}" 即函数结尾）。
@@ -2798,9 +2799,18 @@ describe('UI 接线契约：纸面质感与印刷细节', () => {
  * 比手写正则数重名可靠得多——正则只看同类声明，漏掉 let 与 const 撞名这类真错。
  */
 describe('UI 接线契约：页面脚本必须能通过解析', () => {
-  test('app.js 可解析（顶层声明重名会在此现形）', () => {
-    assert.ok(js.length > 10000, '应取到脚本全文（读文件是否失效？）');
-    assert.doesNotThrow(() => new Function(js), 'app.js 存在语法错误（顶层声明重名等）——整段脚本都不会执行');
+  // 逐个文件解析、再整体解析一次：跨文件的顶层重名只有拼起来才会显形。
+  for (const file of JS_FILES) {
+    test(`${file} 可解析`, () => {
+      const src = fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
+      assert.ok(src.length > 5000, `${file} 应取到全文（读文件是否失效？）`);
+      assert.doesNotThrow(() => new Function(src), `${file} 存在语法错误`);
+    });
+  }
+
+  test('五个脚本拼起来可解析（跨文件顶层声明重名会在此现形）', () => {
+    assert.ok(js.length > 10000, '应取到脚本全文');
+    assert.doesNotThrow(() => new Function(js), '顶层声明跨文件重名——整段脚本都不会执行');
   });
 
   test('logic.js 可解析', () => {

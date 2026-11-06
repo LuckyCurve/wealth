@@ -22,7 +22,12 @@ const ROOT = path.join(__dirname, '..');
 const BUDGETS = {
   'index.html': 82_000,
   'styles.css': 108_000,
-  'app.js': 226_000,
+  'app-core.js': 26_000,
+  'app-assets.js': 74_000,
+  'app-charts.js': 53_000,
+  'app-settings.js': 38_000,
+  'app-expenses.js': 39_000,
+  'logic.js': 145_000,
 };
 
 function bytes(name) {
