@@ -1,12 +1,12 @@
 /*
- * size-budget.test.js — 单文件的体积预算
+ * size-budget.test.js — 每个文件的体积预算
  * --------------------------------------------------------------------------
- * 单文件是这套架构的代价：没有构建步骤、没有模块边界，index.html 只会一直变大，
- * 而一个 AI 一次能稳妥改动的文件是有限的。预算卡在这里，超了就红，让「再塞一点」
- * 变成一件需要先说明理由的事。
+ * 没有构建步骤、没有模块边界，文件只会一直变大；一个 AI 一次能稳妥改动的文件是有限的。
+ * 页面拆成 markup（index.html）/ 样式（styles.css）/ 脚本（app.js）/ 纯逻辑（logic.js）之后，
+ * 拆文件不再是超预算的逃生口：拆出来的每一份也各有一道上限。
  *
- * 超了先做 AGENTS.md 的两步：逻辑下沉 logic.js → 合并重复结构/收回内联样式；
- * 确实需要时同一 commit 抬预算并写明为什么。只抬不改视为违规。
+ * 超了先下沉 logic.js，再按界面区域拆脚本；确实需要时同 commit 抬预算并写明为什么。
+ * 只抬不改视为违规。
  *
  * 跑在 node --test 下，只读文件，不碰浏览器。
  */
@@ -16,22 +16,29 @@ const fs = require('fs');
 const path = require('path');
 const ROOT = path.join(__dirname, '..');
 
-// 记账热力图（一年 365 格）：纯计算与格子 HTML 已下沉 logic.js 的 heatmap 域，
-// 余下是视图与样式（那部分本就属于页面）。下一次再抬前，得先把内联 CSS 或页面脚本分出去。
-const INDEX_BUDGET = 410_000;
+// 页面拆成 markup / css / js 三份后，预算按文件卡：单文件不再无限长大，
+// 也不再靠「拆出去」绕过预算——拆完照样各有一道上限。
+// 再抬之前先问：能不能再拆一层（按界面区域拆脚本）或下沉到 logic.js。
+const BUDGETS = {
+  'index.html': 82_000,
+  'styles.css': 108_000,
+  'app.js': 226_000,
+};
 
 function bytes(name) {
   return fs.statSync(path.join(ROOT, name)).size;
 }
 
 describe('体积预算', () => {
-  test('index.html 不超过预算', () => {
-    const size = bytes('index.html');
-    assert.ok(
-      size <= INDEX_BUDGET,
-      `index.html 已 ${size} 字节，超出预算 ${INDEX_BUDGET}。` +
-        `先把纯逻辑下沉 logic.js，再合并重复结构与内联样式；` +
-        `确实需要时在同一 commit 抬高 INDEX_BUDGET 并写明原因。`
-    );
-  });
+  for (const [name, budget] of Object.entries(BUDGETS)) {
+    test(`${name} 不超过预算`, () => {
+      const size = bytes(name);
+      assert.ok(
+        size <= budget,
+        `${name} 已 ${size} 字节，超出预算 ${budget}。` +
+          `先把纯逻辑下沉 logic.js，再按界面区域拆脚本；` +
+          `确实需要时在同一 commit 抬高 ${name} 的预算并写明原因。`
+      );
+    });
+  }
 });

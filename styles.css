@@ -1,0 +1,1412 @@
+  :root {
+    /* 原生控件（select 下拉弹层、滚动条、日期控件）的明暗由 color-scheme 决定。
+       按**页面自己的主题**声明，而不是写 light dark 跟随系统：主题是应用内自己切的，
+       两者不一致时（例如系统暗、页面亮）原生弹层会反色成一张白/黑面板。 */
+    color-scheme: light;
+    --bg: #ebe3d0;
+    --bg-2: #e4dbc3;
+    --fg: #211b10;
+    --muted: #6b5c3a;
+    --accent: #b4841a;
+    --accent-ink: #7f5c0e;
+    --accent-soft: #d9b25e;
+    /* 金底上的墨色（.btn-gold / .seg-btn.active / 弹层悬停项共用这一枚）。
+       亮暗同值：金是同一个金，压在它上面的墨也就只能是同一枚——分两套只会漂。 */
+    --on-accent: #211b10;
+    --verdigris: #446a5b;
+    --down: #a84943;
+    --usd: #86733f;
+    --card: #fffcf3;
+    --card-2: #f7f0dd;
+    --border: #ded2b4;
+    --rule: #d3c5a3;
+    --shadow: rgba(33, 27, 16, 0.10);
+    --shadow-soft: rgba(33, 27, 16, 0.10);
+    --shadow-lift: rgba(33, 27, 16, 0.15);
+    --card-edge: rgba(255, 255, 255, 0.55);
+    --tick: rgba(33, 27, 16, 0.22);
+    --scrim: rgba(13, 11, 8, 0.5);
+    /* 台灯（纸面掠光）: 一盏斜射的灯——两条平行光带随指针位置横扫纸面，
+       正落在指针处的一小枚圆芯是灯的中心。不用大圆霍：半径一大就变成「一圈发光背景」，
+       那是模板式光晕；斜光带有方向，才像一束真打在纸上的光。 */
+    --lamp-tint: rgba(255, 255, 255, 0.6);
+    --lamp-glow: rgba(176, 124, 16, 0.13);
+    /* 报头底纹（阴阳纹/机器雕版）: 线色与线宽。亮色下细金线在纸面上会向灰偏移，
+       故明度压深、线略粗（实测 0.7px 会脏成灰色，1.1px 才读得出是金色的） */
+    --engrave: rgba(163, 115, 10, 0.62);
+    --engrave-w: 1.1px;
+    /* ===== 卡片材质：液态玻璃（半透明 + 背光模糊 + 光泽边）=====
+       为什么半透明才是关键：纸纹与桌光要能透过卡片看见，卡面才会随背景与指针活起来；
+       纯色底无论怎么调都还是「一块白板」。六层各司其职（同 Liquid Glass 的材质分层）：
+         fill   半透明染色（让背后的纸与桌光透上来）
+         edge   玻璃的边缘（一根发丝线，不是描边）
+         rim    顶边受光（「玻璃有厚度」的第一条线）
+         sheen  左上角的柔光（光在玻璃厚度里漫开）
+         shade  底边与右下角的背光（远端边缘转开）——没有它四边等亮，就还是有描边的白板
+         inner  内描边辉光（光在玻璃内部的一圈漫射）
+       注意：**不得给 .card 写 background-image**——渐变底会让 AA 巡检对卡片内每一行字
+       静默跳过（上一轮页头就是这么漏检的）。所有光泽都只能走 box-shadow。
+       透光率有意过半（fill 的 alpha ≤ 0.5）：不过半时纸色与桌光都透不上来。
+       左上/右下的柔光只允许落在**内边距带**里（reach = 偏移 + 模糊 - 扩展，小于卡片内边距）——
+       它们会把局部底色提亮，而 AA 巡检按 fill 这个平底色算，故不能让柔光爬到正文底下。 */
+    /* 「太浅淡」的增强（实测旧值：卡内两角坡度仅 0.011、卡边与桌面差 0.047）：
+       fill 的 alpha 再降（透出更多纸色与桌光，blur 才有原料可揉）；
+       sheen/shade 两角柔光的半径与量级都加大（厚度感的主要来源）；
+       rim 受光边更亮、shade 背光边更深（受光方向的对比被拉大）。
+       二期（用户：「页面质感进步空间很大」）：亮色实测卡内 0.971 vs 紧邻桌面 0.958，
+       只差 0.013 —— 桌光把桌面洗到与卡面同色，「纸摊在桌上」这层关系根本看不见。
+       根因不在卡上而在**桌**上：--bg 本身就亮到 0.94，再叠一层 0.55 的近白桌光，
+       桌面就顶到卡面上去了（透光材质的天花板 = 背后多亮）。故把桌面整体压深
+       （--bg 与桌光一同收），card/desk 的明暗差才回得来。 */
+    --glass-fill: rgba(255, 253, 246, 0.42);
+    --glass-edge: rgba(172, 151, 110, 0.6);
+    --glass-rim: rgba(255, 255, 255, 1);
+    --glass-sheen: rgba(255, 255, 255, 0.52);
+    --glass-shade: rgba(74, 58, 26, 0.18);
+    --glass-inner: rgba(255, 255, 255, 0.30);
+    /* 桌面光照（静止的一层）：灯在头顶偏左，纸面向右下退光。
+       为什么必须存在：卡片是半透明玻璃，**透光材质得背后有东西可透**——原先背后只有
+       一层 3.5% 的纸纹，blur 揉过去等于空转，卡片就退化成一块白板。
+       为什么它是静的：跟指针走的光只允许出在 .lamp-layer 一处（见「只允许一盏灯」）。
+       为什么量级压到 0.35：近白的桌光叠在亮底上会把桌面顶到与卡面同色（见上面那段），
+       桌光只该是纸面上的一层明暗，不该是第二个白底。 */
+    --desk-lit: rgba(255, 252, 240, 0.35);
+    --desk-fall: rgba(72, 56, 24, 0.20);
+    /* 下拉框箭头（自绘）。为什么必须自绘：原生箭头由浏览器画在控件右侧，页面拿不到它的
+       位置——实测文字距左 18.5px、箭头距右 4px，左右永远对不齐（用户原话「左右都不对齐」）。
+       关掉 appearance 之后箭头就是我们自己的一张图，位置、颜色、留白全由页面决定。
+       色值走变量：写死则暗色下箭头仍是亮色的墨，且会被 theme 巡检判为越界。 */
+    --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 4.5 6 8l3.5-3.5' fill='none' stroke='%236b5c3a' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    /* 焦点环单独一枚色：原先直接借 --accent（#b4841a），压在纸底上实测 2.63:1，
+       低于 WCAG 1.4.11 对非文字元素要求的 3:1 —— 键盘走查时几乎看不见自己在哪。
+       --accent-ink（#7f5c0e）对纸底 4.78:1、对卡面 5.95:1，是同一色相里足够深的那一档。
+       为什么不直接把 --accent 压深：它是金色**文字**与装饰线的色，压深会连累报头与读数。 */
+    /* 选中态：**不透明**的深金底 + 墨字。
+       原先只有 background: rgba(180,132,26,.28)——压在纸纹与桌光上实测只让整片区域
+       变化 1.15:1（亮）/1.29:1（暗），框选一行金额几乎看不出选中了哪里；半透明还会
+       随背后底色深浅变色。
+       色值必须**不透明且够深**：--accent-soft(#d9b25e) 对纸底只有 1.57:1（比原来的
+       半透明还淡），--accent(#b4841a) 2.63:1 也不够；--select(#8f6713) 对纸底 3.99:1、
+       对卡面 4.97:1，而墨字压在上面仍有 3.35:1，两头都达标。 */
+    --select: #8f6713;
+    /* 焦点环单独一枚色：原先直接借 --accent（#b4841a），压在纸底上实测 2.63:1，
+       低于 WCAG 1.4.11 对非文字元素要求的 3:1 —— 键盘走查时几乎看不见自己在哪。
+       --accent-ink（#7f5c0e）对纸底 4.78:1、对卡面 5.95:1，是同一色相里足够深的那一档。
+       为什么不直接把 --accent 压深：它是金色**文字**与装饰线的色，压深会连累报头与读数。 */
+    --focus-ring: #7f5c0e;
+  }
+  :root.dark {
+    color-scheme: dark;
+    --bg: #15110a;
+    --bg-2: #1c1710;
+    --fg: #ece4d0;
+    --muted: #b0a078;
+    --accent: #d9b25e;
+    --accent-ink: #d9b25e;
+    --accent-soft: #e6c982;
+    --on-accent: #211b10;
+    --verdigris: #7ba995;
+    --down: #d98a86;
+    --usd: #9a8758;
+    --card: #211b10;
+    --card-2: #2a2214;
+    --border: #3a301d;
+    --rule: #473b28;
+    --shadow: rgba(0, 0, 0, 0.4);
+    /* 暗色浮层阴影：不能是纯黑（黑压深棕等于没有），也不能沿用亮色那套浅墨。
+       用更实的黑 + 略高的不透明度，浮层才「浮」得起来。 */
+    --shadow-soft: rgba(0, 0, 0, 0.45);
+    --shadow-lift: rgba(0, 0, 0, 0.6);
+    --card-edge: rgba(255, 255, 255, 0.04);
+    --tick: rgba(236, 228, 208, 0.22);
+    --scrim: rgba(6, 5, 3, 0.6);
+    /* 暗色纸是深棕，光要更弱、更黄：否则在漆黑夜纸上是一片刺眼的白斑 */
+    --lamp-tint: rgba(255, 240, 200, 0.08);
+    --lamp-glow: rgba(217, 178, 94, 0.08);
+    /* 暗色纸是深棕，金线可以直接用亮金（亮色下反而要压深才不泛灰） */
+    --engrave: rgba(217, 178, 94, 0.5);
+    --engrave-w: 1px;
+    /* 暗色玻璃：深棕半透明（不是黑——黑玻璃会把暖色纸面压死）；受光与背光的量级都压得很低，
+       否则在暗背景上会是一圈刺眼的白描边。透光率同样过半，桌光才透得上来。
+       底色比初版抬了一阶（58,47,30 → 66,54,35）：暗色纸纹把桌面整体提亮后，卡面与桌面只剩 0.011
+       亮度差，「纸摊在桌上」就不成立了——把卡面抬起来比把桌面再压黑更安全（后者会让四角发黑）。 */
+    --glass-fill: rgba(66, 54, 35, 0.40);
+    --glass-edge: rgba(150, 128, 86, 0.5);
+    --glass-rim: rgba(255, 246, 214, 0.22);
+    --glass-sheen: rgba(255, 246, 214, 0.12);
+    --glass-shade: rgba(0, 0, 0, 0.34);
+    --glass-inner: rgba(255, 240, 200, 0.09);
+    /* 暗色桌面：纸已经很暗，桌光只能是一点点暖调（压太狠会让四角发黑发脏）。
+        二期：与亮色同一套深度语言（受光更聚、退光更沉）。
+        暗色纸纹（0.09）把桌光又提亮了一层，实测桌面 0.152 / 卡面 0.163（仅差 0.011），
+        于是桌光折半回到 0.045：桌面回到 0.122，离边测得卡面比桌面亮 0.033。
+        不要再改回 0.09——那是「桌面被洗到与卡面同色」的根。 */
+    --desk-lit: rgba(255, 240, 200, 0.045);
+    --desk-fall: rgba(0, 0, 0, 0.44);
+    /* 暗色下箭头改用 muted 的亮版（#b0a078）：沿用亮色的深墨会在深棕底上看不见 */
+    --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 4.5 6 8l3.5-3.5' fill='none' stroke='%23b0a078' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    /* 暗色下金环本身就够亮（#d9b25e 对 #15110a 是 9.39:1），不必换色 */
+    --focus-ring: #d9b25e;
+    --select: #d9b25e;
+  }
+  /* 卡片的边缘色不再另设一套（原先 .dark .card 改回 --border，等于材质的边缘有两处定义） */
+  /* ===== 排版 token（字号 / 字重 / 字体族）=====
+     放在 :root, :root.dark 合并选择器上：它们与明暗无关，写进两套主题块就等于同一个值
+     声明两遍，改一处忘一处。主题变量（颜色）仍各自成块，theme.spec.js 的「两套变量一一
+     对应」巡检只扫 :root / :root.dark，不会把这三个 token 算进去。
+     字体族为何必须显式写 CJK 回落：body 是等宽字体（拉丁/数字），而 IBM Plex Mono 没有
+     中文字形——不写这一层，中文会落到 monospace 的宋体兜底，12px 下笔画极细、发灰，
+     正是「字很浅、字重不够」的根因；显式落到 PingFang/雅黑/Noto Sans 才有屏显黑体。 */
+  :root, :root.dark {
+    /* 纸纤维（非周期的 feTurbulence 噪点）。只此一份：纸面与页头各用一次。
+       alpha 由噪声自己的 alpha 通道反相得来，故是稀疏墨点而不是一层灰膜。 */
+    --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='f'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.32' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 -1.4 0.95'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23f)'/%3E%3C/svg%3E");
+    --font-body: 'IBM Plex Mono', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', monospace;
+    --font-display: 'Noto Serif SC', 'Songti SC', serif;
+    --font-numeric: 'Cormorant Garamond', 'Noto Serif SC', serif;
+    --fs-micro: 12px;
+    --fs-body: 14px;
+    /* 展示档：卡片内小标题 / 卡片标题 / 区块标题 / 弹窗标题 / 卡片主读数——
+       层级靠字号与颜色，不靠 1px 差。主读数（hero-figure）与弹窗标题必须分开：
+       曾把两者并成同一个 token，结果卡片主读数被压到 22px（原 32px），
+       E2E 的「同字号」断言只看 .hero-figure 彼此一致，抓不到这种跨角色坍缩。 */
+    --fs-card-sm: 15px;
+    --fs-card: 17px;
+    --fs-section: 20px;
+    --fs-modal: 22px;
+    --fs-hero: 32px;
+    /* 字重三档：正文基准提到 500（原 400，观感发虚）；层级靠颜色与字重，不靠 1px 字号差 */
+    --fw-medium: 500;
+    --fw-strong: 600;
+    --fw-bold: 700;
+    /* 内容栏宽度与左右边距（页头/子 Tab/正文共用）；
+       与明暗无关，故与字体档位同处一块，不进两套主题块 */
+    --content-max: 72rem;
+    --content-pad: 1.5rem;
+    /* 时长三档 + 一枚缓动：全站的过渡/动画只允许取这几枚 token（判据见 consistency.spec.js
+       「节奏」）。此前并存 12 个档位、19 处过渡还都静默吃 `ease`——同一页上两个近似时长
+       说不出哪里错，只觉得飘。档位语义：fast=指针反馈、mid=状态改变、slow=结构性移动。
+       为什么这枚缓动只此一份：入场是「快出慢收」，全站同一条曲线。 */
+    --mo-fast: 0.15s;
+    --mo-mid: 0.25s;
+    --mo-slow: 0.4s;
+    --mo-ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+    /* 三枚例外，各自理由不同（不进三档）：stagger=开屏错峰的两段缝隙；press=按下要「跟手」
+       故比 fast 更短；pulse=心跳点的循环周期，与一次性过渡没有可比性。 */
+    --mo-stagger: 0.06s;
+    --mo-press: 0.05s;
+    --mo-pulse: 2.6s;
+  }
+  /* 排版档位类：页面一律挂这两个字号 + 两个字重，不再写裸字号/裸字重，也不再用
+     Tailwind 的 text-* / font-* 工具类（CDN 空壳下不可测、且会和自有档位漂移）。
+     强调（600）不走档位类而由 strong/b 与语义类（.readout-strong/.tag-val…）承担：
+     它只在「行内读数」出现，没有需要挂类的场景，预设一个空转类反而是死代码。 */
+  .t-micro { font-size: var(--fs-micro); }
+  .t-body { font-size: var(--fs-body); }
+  .t-medium { font-weight: var(--fw-medium); }
+  .t-bold { font-weight: var(--fw-bold); }
+  /* 行内强调统一走设计字重 600：浏览器默认是 700，比本设计的强调档还重一档，
+     弹窗标题行里的「总净值/合计」会明显压过正文 */
+  strong, b { font-weight: var(--fw-strong); }
+  /* 唯一 muted 文字出口：说明性/次要文字统一挂 .muted, 不再逐处内联 color */
+  .muted { color: var(--muted); }
+  /* 文字色角色: 金色读数（现金口径/还差金额）/ 柔化读数（同一数字的次要出现）/ 正向收益 各一处 */
+  .ink-accent { color: var(--accent-ink); }
+  .ink-up { color: var(--verdigris); }
+  .text-value { color: var(--fg); opacity: 0.85; }
+  .readout-strong { font-weight: var(--fw-strong); }
+  .hint-xs { font-size: var(--fs-micro); }
+  /* 表单字段标签唯一写法（原 13 处内联 block text-xs font-medium mb-1.5 的收敛处）。
+     .tight: 与右侧读数同排的标签（如现金比例那一行），下间距由父行承担，标签自身不留白，
+     否则居中排布时标签文字会相对读数上移半个间距 */
+  .field-label { display: block; font-size: var(--fs-body); font-weight: var(--fw-medium); color: var(--muted); margin-bottom: 6px; }
+  .field-label.tight { margin-bottom: 0; }
+  /* 下拉框统一规格（宽度只此一处，页面不再逐个内联 min-width） */
+  .select-field { min-width: 160px; }
+  /* 小号元信息标签（收益摘要口径名 / 对比弹窗筛选标签）: 字号+字距只此一处 */
+  .meta-label { font-size: var(--fs-body); font-weight: var(--fw-medium); letter-spacing: 0.06em; }
+  .compare-hero-row {
+    display: flex; align-items: flex-end; justify-content: space-between;
+    gap: 16px; flex-wrap: wrap; padding-bottom: 20px; margin-bottom: 20px;
+    border-bottom: 1px solid var(--rule);
+  }
+  hr { color: var(--border); border: none; border-top: 1px solid var(--border); }
+  .sort-indicator { margin-left: 2px; font-size: var(--fs-micro); color: var(--muted); }
+  .sort-indicator.active { color: var(--accent-ink); }
+  /* 可点击行/表头禁用文字选中：快速点击(双击)排序表头时避免浏览器选中文本（<button> 原生即不选中，无需处理） */
+  [onclick]:not(button) { user-select: none; -webkit-user-select: none; }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; -webkit-tap-highlight-color: transparent; }
+  /* ===== 系统层：浏览器/系统画的那一圈 =====
+     画布之外才是「像 App 还是像网页」的分界线：点击高亮的灰块、默认黑插入符、系统灰的
+     placeholder、纯黑的原生控件强调色——它们不跟主题，在暖色纸面上格外显眼。 */
+  /* 滚动条槽位**永远**预留：锁定背景滚动时经典滚动条会消失，内容整块右移几像素
+     （最容易被当成「弹窗一开页面跳一下」）。用 gutter 而不是「锁定时加 padding」——
+     后者要量滚动条宽度、还要在解锁时原样撤回，两处对不上就又跳一次。 */
+  html { scrollbar-gutter: stable; }
+  /* 弹窗开着时背景不可滚（真正的锁在 JS：按「还有几层开着」派生，见 syncScrollLock）。
+     这里只声明锁住时的形态，条件类名由那一处写。 */
+  html.modal-open, html.modal-open body { overflow: hidden; }
+  body { background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: var(--fs-body); font-weight: var(--fw-medium); font-feature-settings: 'tnum' 1; padding-bottom: env(safe-area-inset-bottom, 0px); text-autospace: normal; }
+  [hidden] { display: none !important; }
+  /* ===== 纸纹与桌光：这个产品的隐喻是「一张摊在桌面上、被灯照着的账页」=====
+     三层各司其职：
+     ①  body::after  = 桌面（静止的、铺满视口的**光照层次**）
+     ②  body::before = 纸纤维（静止的、材质的; 原有的十字纹保留）
+     ③  .lamp-layer  = 台灯（跟随指针的、唯一「活」的一层）
+     分开的理由：桌光属于环境、纸纹属于纸张、灯属于工具；三者合一后就再也调不动任何一个。
+     桌光为什么是必需的（不是装饰）：卡片是半透明玻璃，**透光材质得背后有东西可透**。
+       原先背后只有一层 3.5% 的纸纹与纯色 --bg，blur 揉过去等于空转——卡面与背景只差
+       一个色号，看着就是「一块白板」（用户原话「看着比较廉价」）。桌光给出大尺度的
+       明暗（左上受光、右下退光），纸纹给出小尺度的纹理，两者相加卡片才有东西可透。
+     为何三层都用负 z-index 却仍可见（实测，不是推论）：负 z-index 只是落到
+     **在流内容的后面**，并不会落到根背景后面；根背景（html/body 的 background）先画，
+     所以 -1 / -2 的固定层依然在纸面上显形。这样写的好处是不必给任何内容抬 z-index，
+     日后新增的元素天然在灯之上，不存在「忘了抬就被盖住」的隐陷阱。 */
+  body::after {
+    content: ''; position: fixed; inset: 0; z-index: -2; pointer-events: none;
+    /* 光的落点与退光的起点都要**避开页头**：页头为了让 AA 巡检看得见字，底色必须是不透明
+       纯色（见 .app-header），于是桌光在它下边沿会露出一道台阶（实测：退光起得早、落点在
+       页头那一带时，页头右端底下有 4/255 的台阶——看着就是一道淡淡的边）。
+       故落点压到内容区（椭圆的纵向半径也只有视口的 62%），退光推到 46% 之后。 */
+    background-image:
+      radial-gradient(115% 62% at 14% 58%, var(--desk-lit), transparent 62%),
+      linear-gradient(168deg, transparent 46%, var(--desk-fall));
+  }
+  /* 纸纹 = 非周期纤维（定义在 --grain）。为何不用周期十字纹：同一根笔画每隔 60px 精确复现一次，
+     最亮眼的就是那个周期（读起来是坐标纸）。为何平铺而不是全屏 filter：后者每帧重新求值。 */
+  body::before {
+    content: ''; position: fixed; inset: 0; z-index: -1; opacity: 0.07; pointer-events: none;
+    background-image: var(--grain);
+  }
+  /* 暗色纸是深棕，黑墨点叠上去等于没叠（旧版的纸纹在暗色下完全不可见）。
+     反相把墨点翻成亮点：纤维在暗纸上本就是更亮的一点反光。 */
+  .dark body::before, .dark .app-header::after { filter: invert(1); opacity: 0.09; }
+  /* 台灯掠光: 两条斜光带（同一角度、错开位置） + 指针处的小圆芯。
+     带子用 calc(var(--lamp-x) ± …) 定位——光带跟着指针的横向位置扫，纵向只由圆芯微调，
+     所以鼠标横移时纸面像被灯拂过，而不是一个球在跳。
+     坐标只认 --lamp-x/--lamp-y（percent），由 updateLamp 写入（换算在 logic.js ui.lampPos）。
+     默认 50% 50% = 居中，故未启用（触屏/减动效）时它就是一层静止的柔和照射。 */
+  .lamp-layer {
+    position: fixed; inset: 0; z-index: -1; pointer-events: none;
+    background-image:
+      linear-gradient(104deg, transparent calc(var(--lamp-x, 50%) - 34%), var(--lamp-glow) calc(var(--lamp-x, 50%) - 16%), transparent calc(var(--lamp-x, 50%) - 2%)),
+      linear-gradient(104deg, transparent calc(var(--lamp-x, 50%) + 6%), var(--lamp-glow) calc(var(--lamp-x, 50%) + 20%), transparent calc(var(--lamp-x, 50%) + 36%)),
+      radial-gradient(110px 110px at var(--lamp-x, 50%) var(--lamp-y, 50%), var(--lamp-tint), transparent 72%);
+    opacity: 0; transition: opacity var(--mo-slow) var(--mo-ease);
+  }
+  /* 指针进入后淡入（避免首帧在 50%/50% 处闪一下） */
+  .lamp-layer.on { opacity: 1; }
+  /* 减动效：明确要求安静就不画灯（与 logic.js ui.lampEnabled 同一道闸，双重保险） */
+  @media (prefers-reduced-motion: reduce) { .lamp-layer { display: none; } }
+  .font-display { font-family: var(--font-display); }
+  /* 内容栏（页头/子 Tab/正文共用同一套宽度与左右边距）。
+     为什么必须提成单一来源：原先 max-w-6xl + px-6 在 4 处各写一遍，改一处就会让某一行
+     单独错位；「页面的左边缘在哪」必须只有一个答案。而 Tailwind 走 CDN、在 E2E 里是空壳
+     （工具类完全不生效），所以页头/正文的左右轴只能靠自有 CSS 保证。
+     token 声明在 :root, :root.dark 那块里：它与明暗无关，故意不进两套主题块。 */
+  .app-header-inner, .content-column {
+    width: 100%;
+    max-width: var(--content-max);
+    margin-inline: auto;
+    padding-inline: var(--content-pad);
+    /* 刘海/圆角屏：左右边距与安全区取 max，不加相（否则窄条上内容被顶出屏幕） */
+    padding-inline: max(var(--content-pad), env(safe-area-inset-left, 0px)) max(var(--content-pad), env(safe-area-inset-right, 0px));
+  }
+  .font-masthead { font-family: var(--font-numeric); font-feature-settings: 'lnum' 1, 'tnum' 1; }
+  .tabular { font-variant-numeric: tabular-nums; font-feature-settings: 'tnum' 1; }
+  /* 数字列（表格里的金额/折算值）：账本的习惯是**右对齐、小数点对齐**。
+     左对齐时 42.00 与 3,200.00 的小数点错开，读数要一位一位数——这是账本里最费眼的一件事，
+     与列宽给多大无关。故「数字列右对齐 + 等宽数字」提成一个角色类，两处各自手写会漂。
+     .amount-cell 已经在做 tabular 与 padding-left（铅笔批注的留白），这里只补对齐。 */
+  .num { text-align: right; font-variant-numeric: tabular-nums; font-feature-settings: 'tnum' 1; }
+  /* 焦点环只画环，**不改元素自身的形状**：曾在这里写 border-radius: 4px，于是控件一聚焦
+     圆角就从 6px 跳成 4px、失焦再跳回来——焦点本不该改变控件的外观，只该在它外面加一圈。
+     环的形状由浏览器跟随元素自己的 border-radius，无需在此声明。 */
+  :focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+  /* 视觉隐藏但仍留在 Tab 序 / 可被脚本点击。
+     为什么不能用 display:none：它会把元素从 Tab 序里摘掉——文件选择框正是这样
+     让键盘用户整块够不到「导入数据」的（label 不可聚焦 + input display:none = 无路可走）。 */
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+  }
+  /* 包住隐藏 input 的 label：焦点在里面的 input 上，环要画在能看见的 label 上。
+     用 :focus-within 而不是给 label 加 tabindex——那会多出一个空的 Tab 停靠点。 */
+  .file-label:focus-within { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+  /* 超长列表的滚动上限：用 dvh，vh 在移动端地址栏收缩时会把底部按钮顶出屏幕 */
+  .scroll-cap { max-height: 44dvh; overflow-y: auto; }
+  /* 选中态：见 --select 的注释（不透明深金 + 墨字，两头都过 3:1） */
+  ::selection { background: var(--select); color: var(--on-accent); }
+  button:focus-visible, .btn-gold:focus-visible, .btn-ghost:focus-visible, .btn-danger:focus-visible { outline-offset: 2px; }
+  @media (prefers-reduced-motion: reduce) {
+    /* 延迟也要归零：只关时长的话，带 delay 的入场会先停在「还没出来」的状态（延迟仍生效） */
+    *, *::before, *::after { animation-duration: 0.001ms !important; animation-delay: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; transition-delay: 0.001ms !important; scroll-behavior: auto !important; }
+  }
+  .btn-gold {
+    background: linear-gradient(180deg, #d9b25e, #b4841a);
+    color: var(--on-accent); border: 1px solid #8f6713; border-radius: 6px; padding: 8px 20px;
+    font-weight: var(--fw-strong); cursor: pointer; transition: filter var(--mo-fast), box-shadow var(--mo-fast), transform var(--mo-press);
+    font-family: var(--font-body); font-size: var(--fs-body); letter-spacing: 0.01em;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.4), inset 0 -1px 0 rgba(33,27,16,0.22), 0 1px 2px var(--shadow);
+  }
+  .btn-gold:hover { filter: brightness(1.04); box-shadow: inset 0 1px 0 rgba(255,255,255,0.45), inset 0 -1px 0 rgba(33,27,16,0.22), 0 2px 10px rgba(180,132,26,0.22); }
+  .btn-gold:active { transform: translateY(1px); box-shadow: inset 0 2px 5px rgba(33,27,16,0.3); }
+  /* 按压反馈只有一档：其余可点控件共享这一条（金色主按钮另有一套压印，见上一行）。
+     用 transform 而不是 padding/margin：按压不该推动邻居，也不该产生一次重排。
+     下沉量比主按钮小（0.5px vs 1px）——主按钮是「盖章」，次级控件只是「被指尖按了一下」。 */
+  .btn-ghost:active, .btn-danger:active, .row-btn:active, .seg-btn:active { transform: translateY(0.5px); }
+  .btn-ghost, .btn-danger {
+    background: transparent; border-radius: 6px; cursor: pointer; font-family: var(--font-body);
+    transition: background var(--mo-fast), border-color var(--mo-fast), color var(--mo-fast);
+  }
+  .btn-ghost { color: var(--muted); border: 1px solid var(--border); padding: 8px 20px; font-size: var(--fs-body); }
+  .btn-ghost:hover { border-color: var(--accent); color: var(--accent-ink); }
+  .btn-danger { color: var(--down); border: 1px solid #dcb6b4; padding: 6px 14px; font-size: var(--fs-micro); }
+  .btn-danger:hover { background: var(--down); color: white; border-color: var(--down); }
+  .dark .btn-danger { color: #d98a86; border-color: #5a3a39; }
+  .dark .btn-danger:hover { color: #fff; }
+  /* 行内操作按钮（统一规格, 颜色区分操作层级） */
+  .row-btn { border: none; background: transparent; font-size: var(--fs-micro); padding: 3px 6px; border-radius: 5px; cursor: pointer; font-family: var(--font-body); white-space: nowrap; flex-shrink: 0; transition: background var(--mo-fast), color var(--mo-fast); }
+  .row-btn:hover { background: var(--bg-2); }
+  .row-btn.edit { color: var(--accent-ink); }
+  .row-btn.copy { color: var(--verdigris); }
+  .row-btn.danger { color: var(--down); }
+  .row-btn.danger:hover { background: var(--down); color: #fff; }
+  .dark .row-btn.danger { color: #d98a86; }
+  .dark .row-btn.danger:hover { color: #fff; }
+  /* 卡片 = 一块压在纸上的玻璃（材质变量与理由见 :root 的 --glass-* 注释）。
+     --glass-shadow 把「受光边 + 背光边 + 两角柔光 + 内描边」打包：一是 :hover 只换外阴影
+     而不必重抄一遍材质（重抄就会出现第二处材质定义，材质就不再是单一定义了），
+     二是让「光泽只走 box-shadow」这条约束在源码里一眼可见。
+     自定义属性写在 .card 自身，:hover 的规则里照样读得到。 */
+  .card {
+    --glass-shadow:
+      inset 0 1px 0 var(--glass-rim),
+      inset 0 -1px 0 var(--glass-shade),
+      inset 14px 14px 22px -14px var(--glass-sheen),
+      inset -14px -14px 22px -14px var(--glass-shade),
+      inset 0 0 0 1px var(--glass-inner);
+    --glass-depth: 0 1px 1px -1px var(--glass-shade), 0 2px 4px -2px var(--shadow), 0 18px 34px -20px var(--shadow);
+    --glass-depth-lift: 0 1px 1px -1px var(--glass-shade), 0 4px 8px -2px var(--shadow), 0 26px 46px -22px var(--shadow);
+    background: var(--glass-fill);
+    border: 1px solid var(--glass-edge);
+    border-radius: 10px;
+    /* 背光模糊 + 提饱和：玻璃会把背后的颜色揉开并让它更「润」。
+       半径从 10px 提到 14px（用户反馈玻璃太浅淡）：桌光的明暗层次被揉得更开，
+       折射感才出得来。上限现在只受「别把纸纹揉成一块平色」约束——纤维是非周期的，
+       没有周期上限；但模糊半径远超斑点尺度时，透上来的就只剩一层匀色。 */
+    backdrop-filter: blur(14px) saturate(1.8);
+    -webkit-backdrop-filter: blur(14px) saturate(1.8);
+    box-shadow: var(--glass-shadow), var(--glass-depth);
+    padding: 24px;
+    transition: box-shadow var(--mo-mid), border-color var(--mo-mid);
+  }
+  .app-header { background: var(--bg); border-bottom: 1px solid var(--border); position: relative; }
+  /* 页头必须是**同一张纸**：页头底面为了 AA 巡检是不透明纯色，它把 body::before 的纸纹遮住了，
+     于是那里是一块平色、下沿横着一条台阶（实测 4.5/255）。故把同一张纹再髹一遍。 */
+  .app-header::after {
+    content: ''; position: absolute; inset: 0; pointer-events: none;
+    background-image: var(--grain); opacity: 0.07;
+  }
+  /* 卡片悬停：**只给真能点的卡片**（.card-interactive）。
+     裸 .card:hover 曾经也会抬阴影，于是纯展示的卡片（图表、汇总、明细）同样摆出「可点」
+     的样子，点了却没反应——那是「假可点」，不是质感：它让真可点的那几张淹没在一片都在动的
+     卡里。抬升是承诺，不给就一次也不给。
+     抬升本身只动外阴影（玻璃自身的高光不动，否则卡片会在指针下「变色」）；
+     不做跟随指针的卡片光晕——全站只此一盏灯，逐卡片再加一层 radial-gradient
+     会变成一屏十几个光源、互相打架 */
+  .card-interactive { cursor: pointer; }
+  .card-interactive:hover { box-shadow: var(--glass-shadow), var(--glass-depth-lift); border-color: var(--accent-soft); }
+  /* 表单控件（输入框 / 下拉框）统一规格。**必须限定在一处容器前缀下**：
+     Tailwind CDN 的 preflight 在 <style> 之后注入，其中 `input,select,button,textarea{padding:0}`
+     与裸选择器同特异性但位置更后，会把内边距整片抹掉——实测输入框塌成 23px、下拉框 22px，
+     而旁边的金色按钮仍是 39px，同一行里三种高度。E2E 里 Tailwind 是空壳、永远看不见这一幕。
+     限定为 `body input` 后特异性高出两级，不再依赖注入次序。 */
+  body input, body select {
+    font-family: var(--font-body); font-size: var(--fs-body); font-variant-numeric: tabular-nums;
+    /* line-height 必须写死：select 的默认值是 normal、input 是浏览器给的数值行高，同一套
+       padding 下两者会差 1px（实测 39px vs 38px），并排时底边对不齐。 */
+    line-height: 1.5;
+    border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px;
+    background: var(--card); color: var(--fg); transition: border-color var(--mo-fast), box-shadow var(--mo-fast);
+    caret-color: var(--accent); accent-color: var(--accent);
+    outline: none;
+  }
+  /* placeholder 不是内容，是提示：用 muted 而不是 UA 的系统灰；UA 自带半透明，opacity 需显式。 */
+  body input::placeholder, body textarea::placeholder { color: var(--muted); opacity: 1; }
+  /* 下拉框：外观由页面接管（理由见 --chevron）。关掉原生外观后浏览器不再画箭头，
+     箭头位置就是「right 10px」，与左侧 12px 的内边距成为一对，左右才对称。
+     background-image 只在这一处（背景色仍是 --card，AA 巡检按它算对比度）。 */
+  body select {
+    -webkit-appearance: none; appearance: none;
+    padding-right: 32px;
+    background-image: var(--chevron);
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    background-size: 12px 12px;
+    /* 固有宽度（由 freezeSelectWidths 量一次写进 --sel-w）。缺省 auto = 不干预。
+       为什么需要它：下面的 base-select 让 select 不再按最长选项取宽，实测换选中项宽度
+       在 160/186/214 之间跳（原生恒定 231），筛选条会跟着左右抖。 */
+    width: var(--sel-w, auto);
+  }
+  /* ===== 下拉弹层（picker）跟主题走 =====
+     用户原话：「我看一下现在下拉框的配色，都是纯白色的，和主题一点不符合」。
+     闭合态早就是 var(--card)，纯白只可能来自**弹层**——那张选项列表由浏览器/系统绘制，
+     页面拿不到它的底色，只能 opt-in `appearance: base-select` 由页面接管（Chrome 135+）。
+
+     **先声明 none、再在 @supports 里覆盖**，顺序不可颠倒：Chromium 的 UA 弹层
+     appearance 计算值就是 `none`，若只写 base-select 而不给基线，Firefox/Safari 会撞上
+     「同特异性后写者胜」的 `none`，上色规则白写（写了、也不报错、就是不生效）。
+     反过来先 none 再 @supports 判定，两条路都落对。
+
+     代价（改这块前必须知道）：
+       ① 闭合态不再按最长选项取宽——见上面 --sel-w 的补偿；
+       ② UA 的 ::picker-icon 会多出一枚箭头，显式隐掉，统一用自绘 --chevron；
+       ③ 弹层里的 option 才开始接受 :hover 底色（原生弹层不吃），三态见下。
+     只 opt-in 弹层、不 opt-in 控件是不生效的：实测计算样式全对、画面不变。 */
+  @supports (appearance: base-select) {
+    /* [data-measuring] 是 freezeSelectWidth 建的量本：它必须留在原生外观下，
+       否则量到的是「被钉过的宽度」（实测返回 160 而不是 231）——这正是“冻结了还是跳”的根因。 */
+    body select:not([data-measuring]),
+    body select:not([data-measuring])::picker(select) { appearance: base-select; }
+    body select::picker-icon { display: none; }
+    /* 弹层本身的材质：纸色卡面 + 一根描边的边，不另设一套颜色 */
+    body select::picker(select) {
+      background: var(--card); color: var(--fg);
+      border: 1px solid var(--border); border-radius: 8px; padding: 4px;
+      margin-top: 4px; box-shadow: 0 10px 28px var(--shadow);
+    }
+    /* 三态：默认透明（露弹层的纸色）→ 悬停/键盘聚焦铺金 → 选中只加粗。
+       选中必须单独写，不能依赖“悬停高亮”：弹层一打开，选中项就同时命中 :hover，
+       于是整个弹层里那块金一开始就亮着（实测 bg #d9b25e）。
+       左内边距 28px 是给 UA 的勾选标记（::checkmark）留位，否则勾会贴着文字。 */
+    body select option {
+      background: transparent; color: var(--fg);
+      padding: 6px 10px 6px 28px; border-radius: 4px;
+    }
+    body select optgroup { color: var(--muted); background: transparent; }
+    body select option:hover,
+    body select option:focus { background: var(--accent-soft); color: var(--on-accent); }
+    body select option:checked { font-weight: var(--fw-strong); }
+  }
+  /* 数字输入：去掉 UA 的上下箭头。它是浏览器画的灰块，只在 hover/聚焦时出现，
+     与纸面主题无关，还会把右侧内边距挤掉——这里的数字由键盘输入，不需要步进器。 */
+  body input[type=number] { -webkit-appearance: none; appearance: textfield; }
+  body input[type=number]::-webkit-inner-spin-button,
+  body input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+  body input:focus, body select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(180,132,26,0.14); }
+  /* 只改背景色，**不能用 background 简写**：简写会把自绘箭头的 background-image 一并重置成
+     none——暗色下箭头会凭空消失（实测 bgImg: none）。这类「简写吃掉长写」的坑在主题覆盖里
+     最常见，凡是别处有 background-image 的元素，覆盖时一律只写 background-color。 */
+  .dark input, .dark select { background-color: var(--bg-2); }
+  .flatpickr-calendar {
+    font-family: var(--font-body) !important;
+    border-radius: 10px !important;
+    border: 1px solid var(--border) !important;
+    box-shadow: 0 8px 32px var(--shadow-lift), 0 2px 8px var(--shadow-soft) !important;
+    background: var(--card) !important;
+    overflow: hidden;
+  }
+  .flatpickr-months .flatpickr-month {
+    background: var(--card-2) !important;
+    border-bottom: 1px solid var(--border);
+    height: 40px !important;
+    line-height: 40px !important;
+  }
+  .flatpickr-current-month {
+    font-family: var(--font-body) !important;
+    font-size: var(--fs-body) !important;
+    font-weight: var(--fw-strong) !important;
+    color: var(--fg) !important;
+    padding-top: 0 !important;
+  }
+  .flatpickr-current-month .flatpickr-monthDropdown-months,
+  .flatpickr-current-month input.cur-year {
+    font-family: var(--font-body) !important;
+    font-weight: var(--fw-strong) !important;
+    color: var(--fg) !important;
+    background: transparent !important;
+    border: none !important;
+  }
+  .flatpickr-current-month .flatpickr-monthDropdown-months:hover,
+  .flatpickr-current-month input.cur-year:hover {
+    color: var(--accent-ink) !important;
+  }
+  span.flatpickr-weekday {
+    font-family: var(--font-body) !important;
+    font-size: var(--fs-micro) !important;
+    font-weight: var(--fw-medium) !important;
+    color: var(--muted) !important;
+    background: transparent !important;
+    padding: 8px 0 4px !important;
+  }
+  /* 每天宽度必须与星期表头**同源**，不能写死像素。
+     原先是 max-width: 36px：日历容器 308px、表头 7 等分各 43.97px（合计 307.8px 正好铺满），
+     而 36×8 = 288 < 308 —— 于是**一行塞进 8 天**，表头却是 7 个。
+     实测每行天数 = [8,8,8,8,8,2]，整月错位：2026-10-18（周日）被排到「周五」那一列下面，
+     用户看到的就是「18 号明明是周日」。改法：宽度取表头的 1/7，两侧不留 margin
+     （margin 会与百分比宽度相加，同样能把 8 个塞进一行）。 */
+  .flatpickr-day {
+    font-family: var(--font-body) !important;
+    font-size: var(--fs-body) !important;
+    font-weight: var(--fw-medium) !important;
+    color: var(--fg) !important;
+    border-radius: 6px !important;
+    border: none !important;
+    max-width: calc(100% / 7) !important;
+    height: 34px !important;
+    line-height: 34px !important;
+    margin: 1px 0 !important;
+    transition: background var(--mo-fast), color var(--mo-fast), box-shadow var(--mo-fast);
+  }
+  .flatpickr-day:hover {
+    background: var(--card-2) !important;
+    color: var(--fg) !important;
+    border-color: transparent !important;
+  }
+  .flatpickr-day.today {
+    border-color: var(--accent) !important;
+    color: var(--accent-ink) !important;
+    font-weight: var(--fw-strong) !important;
+  }
+  .flatpickr-day.selected, .flatpickr-day.selected:hover {
+    background: var(--accent) !important;
+    color: var(--fg) !important;
+    border-color: var(--accent) !important;
+    box-shadow: 0 2px 8px rgba(180,132,26,0.3) !important;
+    font-weight: var(--fw-strong) !important;
+  }
+  .flatpickr-day.prevMonthDay, .flatpickr-day.nextMonthDay {
+    color: var(--muted) !important;
+    opacity: 0.5;
+  }
+  .flatpickr-day.prevMonthDay:hover, .flatpickr-day.nextMonthDay:hover {
+    opacity: 0.8;
+  }
+  .flatpickr-day.inRange {
+    box-shadow: none !important;
+    background: var(--accent-soft) !important;
+    border-color: transparent !important;
+  }
+  .flatpickr-months .flatpickr-prev-month,
+  .flatpickr-months .flatpickr-next-month {
+    fill: var(--muted) !important;
+    transition: fill var(--mo-fast);
+    padding: 8px !important;
+  }
+  .flatpickr-months .flatpickr-prev-month:hover,
+  .flatpickr-months .flatpickr-next-month:hover {
+    fill: var(--accent-ink) !important;
+  }
+  .flatpickr-months .flatpickr-prev-month svg,
+  .flatpickr-months .flatpickr-next-month svg {
+    width: 14px !important;
+    height: 14px !important;
+  }
+  .dark .flatpickr-calendar {
+    border-color: var(--border) !important;
+    box-shadow: 0 8px 32px var(--shadow-lift), 0 2px 8px var(--shadow-soft) !important;
+  }
+  .dark .flatpickr-day.selected, .dark .flatpickr-day.selected:hover {
+    color: var(--bg) !important;
+    box-shadow: 0 2px 8px rgba(217,178,94,0.35) !important;
+  }
+  .dark .flatpickr-day.inRange {
+    background: rgba(230,201,130,0.15) !important;
+  }
+  .search-wrap { position: relative; display: inline-block; }
+  .search-wrap svg { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); width: 13px; height: 13px; color: var(--muted); pointer-events: none; }
+  .search-wrap input { padding-left: 30px; min-width: 180px; }
+  .search-wrap input.has-clear { padding-right: 30px; }
+  .search-clear {
+    position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
+    width: 22px; height: 22px; border: none; background: transparent; border-radius: 4px;
+    color: var(--muted); font-size: var(--fs-body); line-height: 1; cursor: pointer; padding: 0;
+    display: flex; align-items: center; justify-content: center;
+    transition: color var(--mo-fast), background var(--mo-fast);
+  }
+  .search-clear:hover { color: var(--accent-ink); background: var(--card-2); }
+  /* 搜索命中: 金笔划线, 如账本上以金笔勾过的字样, 不覆盖字形 */
+  mark.search-hit { background: linear-gradient(transparent 58%, var(--accent-soft) 58%); color: inherit; padding: 0; }
+  /* 弹窗遮罩 = 压暗 + 磨砂：背后的账页退到「隔着磨砂玻璃」的深处，弹窗才浮得起来。
+     颜色走 --scrim（原先写死：主题巡检的清理清单里长期挂着一行，亮暗同步全靠手动）。
+     磨砂半径从 4px 提到 8px——4px 时背后的标题与数字仍隐约可辨，会抢弹窗正文的注意力。 */
+  .modal-overlay {
+    position: fixed; inset: 0; background: var(--scrim);
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); z-index: 100; display: flex;
+    align-items: center; justify-content: center;
+    /* 遮罩自己不是滚动容器：滚轮/触摸到这里不得链到背后的账页。
+       配合 html.modal-open 的 overflow:hidden 双保险——纯 overflow:hidden 在
+       部分浏览器的触屏拖拽下仍会让 body 跟着动（滚到头的链式滚动）。 */
+    overscroll-behavior: contain;
+    animation: fadeIn var(--mo-mid) var(--mo-ease);
+  }
+  .modal-content {
+    background: var(--card); border-radius: 10px; padding: 32px;
+    max-width: 560px; width: 90%; max-height: 85dvh; overflow-y: auto;
+    /* 弹窗正文是**自己的**滚动上下文，滚到头的滚轮/触摸不得冒泡给页面（否则在弹窗里
+       滚到底，背后的账页会接着滚——这正是「背景冻住」最容易被漏掉的一条路径） */
+    overscroll-behavior: contain;
+    box-shadow: 0 20px 60px var(--shadow-lift), 0 2px 8px var(--shadow-soft); animation: slideUp var(--mo-mid) var(--mo-ease);
+    border: 1px solid var(--border);
+    /* 弹窗是这页上最大的一块纸，却一直是不透明平涂（纸纹只铺在桌面与页头）。
+       这里把同一张纤维髹回**内边距带**，让它重新「是一张纸」。
+       为什么必须用 mask 收到内边距带：纤维会改变局部底色，而 AA 巡检按平底色算
+       文字对比度——纤维爬到正文底下，那块字会被巡检静默跳过（页头曾这么漏检）。 */
+    position: relative;
+  }
+  .modal-content::before {
+    content: ''; position: absolute; inset: 0; z-index: 0; pointer-events: none;
+    border-radius: inherit; background-image: var(--grain); opacity: 0.5;
+    -webkit-mask-image: radial-gradient(120% 120% at 50% 50%, transparent 0 62%, #000 88%);
+    mask-image: radial-gradient(120% 120% at 50% 50%, transparent 0 62%, #000 88%);
+  }
+  .modal-content > * { position: relative; z-index: 1; }
+  /* 弹窗宽度四档（默认 560px）: 尺寸语汇收在这里, 弹窗结构里不再逐个内联 max-width。
+     **必须定义在 .modal-content 之后**：两边的特异性都是单类，同特异性下后写者胜——
+     写在前面的时候四档全部阵亡、所有弹窗恒为 560px（实测 17 个弹窗无一例外）。
+     consistency.spec 里有一条量实际宽度的巡检把守「档位真的生效」。 */
+  .modal-sm { max-width: 400px; }
+  .modal-md { max-width: 480px; }
+  .modal-lg { max-width: 720px; }
+  .modal-xl { max-width: 960px; }
+  /* 弹窗标题下间距与页脚布局收在这里: 原先标题有 mb-2/3/4/6 四种、页脚 mt-6/mt-8 混用、
+     有的页脚忘写 gap-3 两按钮贴在一起, 同类弹窗高矮不一 */
+  .modal-title { font-size: var(--fs-modal); font-weight: var(--fw-bold); margin-bottom: 24px; text-wrap: balance; }
+  .modal-footer { display: flex; align-items: center; justify-content: flex-end; gap: 12px; margin-top: 32px; }
+  .modal-footer.between { justify-content: space-between; }
+  .modal-title::before {
+    content: ''; display: block; width: 28px; height: 2px; border-radius: 1px;
+    background: var(--accent-soft); margin-bottom: 12px;
+  }
+  /* 门槛箴言：整张弹窗里唯一需要照抄的文字，故单列一档（题名体 + 居中 + 浅底框 = 像一句引文）。 */
+  .gate-phrase {
+    font-family: var(--font-display); font-size: var(--fs-section); color: var(--fg);
+    background: var(--card-2); border: 1px solid var(--border); border-radius: 8px;
+    padding: 14px 16px; margin: 0 0 20px; line-height: 1.5; letter-spacing: 0.04em; text-align: center;
+  }
+  .gate-error { font-size: var(--fs-body); color: var(--down); margin: 8px 0 0; }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+  /* ===== 开屏：落纸 =====
+     不做遮挡数据的 splash——这个应用的全部价值就是首屏那几个数字，遮住它等于扣分。
+     改做一次**非阻塞**入场，两拍：三段纸面（页头 / 子 Tab 栏 / 正文）依次落定，然后台灯升起来。
+
+     为什么用 transition 而不是 @keyframes：动画会在**隐藏容器**（另一个模式的 Tab 栏）里
+     停在起始帧——元素不参与渲染时动画不跑，fill 却把 from 帧留着，那块东西会一直是隐形的。
+     改成两态 transition 后，隐藏元素只是「还没到最终值」而已，不会卡住。
+     为什么要 booting 这一态（而不是直接挂在 :not(.ready)）：脚本万一没跑（报错、或这页面被当
+     静态文件打开），booting 根本不会加上，内容就是正常可见的；即使加上了，<head> 里还有一道
+     看门狗（1.5s 后自己放行）——开屏出问题是小，页面空白是大。
+     ready 由 renderAll 之后那一步加：账号是真的可用了才落纸。 */
+  html.booting:not(.ready) .app-header-inner,
+  html.booting:not(.ready) .tab-bar,
+  html.booting:not(.ready) main.content-column { opacity: 0; transform: translateY(10px); }
+  /* 第二拍：账本落定了，灯才亮（台灯是唯一一盏灯，见「只允许一盏灯」；
+     它本来的 opacity 过渡就是 0.5s，所以这里只需在未落定那一态把它压住）。
+     为什么不拿报头的构成标尺做「落墨」：它在默认（消费）模式里是隐藏的（属于资产侧报头），
+     做出来用户根本看不见——效果不能只存在于另一个模式的 DOM 里。 */
+  html.booting:not(.ready) .lamp-layer { opacity: 0; }
+  html.ready .app-header-inner { transition: opacity var(--mo-slow) var(--mo-ease), transform var(--mo-slow) var(--mo-ease); }
+  html.ready .tab-bar { transition: opacity var(--mo-slow) var(--mo-ease) var(--mo-stagger), transform var(--mo-slow) var(--mo-ease) var(--mo-stagger); }
+    /* 正文最后落：延迟是两段错峰（0.12s），不是 fast 档——这是同一次入场的节拍，不是过渡时长 */
+  html.ready main.content-column { transition: opacity var(--mo-slow) var(--mo-ease) calc(var(--mo-stagger) * 2), transform var(--mo-slow) var(--mo-ease) calc(var(--mo-stagger) * 2); }
+  /* 悬停说明（标题旁 ? 图标）: 自绘提示唯一实现, 说明性文字一律进气泡、不写正文, 后续提示复用它 */
+  .tip { position: relative; display: inline-flex; align-items: center; margin-left: 7px; vertical-align: middle; }
+  .tip-mark {
+    display: inline-flex; align-items: center; justify-content: center; width: 15px; height: 15px;
+    padding: 0; border-radius: 50%; border: 1px solid var(--border); background: transparent;
+    color: var(--muted); font-family: var(--font-body); font-size: var(--fs-micro); line-height: 1;
+    cursor: help; transition: color var(--mo-fast), border-color var(--mo-fast);
+  }
+  .tip-mark:hover, .tip-mark:focus-visible { color: var(--fg); border-color: var(--accent); }
+  /* 气泡**相对视口**定位（position: fixed），不挂在 ? 图标上：
+     ① 卡片自身有 backdrop-filter，会自成层叠上下文——气泡的 z-index 只在卡片内部有效，
+        后面那张卡片就整块盖上来（用户实测：「缺口」旁气泡的下半被下面的表格盖住）；
+     ② 弹窗正文 overflow-y:auto、窄屏表格 overflow-x:auto 会直接裁掉溢出的气泡。
+     fixed 一次解决这两类；坐标由 JS 调 logic.js ui.tipBubblePos 写入（--tip-x/--tip-y），
+     故这里不写 left/top（写了会与内联变量打架）。 */
+  .tip-bubble {
+    /* z-index 必须高于弹窗（.modal-overlay 是 100）与遮罩：气泡要能从弹窗正文里
+       探到弹窗之外（它现在是 fixed 挂在 body 下），层级不够就会被遮罩压住。
+       仍低于便条（200）——便条是全局知会，应当永远压在最上层。 */
+    position: fixed; inset: var(--tip-y, 0) auto auto var(--tip-x, 0); z-index: 150; width: max-content; max-width: 250px;
+    padding: 8px 10px; border-radius: 6px; background: var(--card-2); border: 1px solid var(--border);
+    box-shadow: 0 4px 14px var(--shadow); color: var(--fg); font-size: var(--fs-body); font-weight: var(--fw-medium);
+    letter-spacing: 0; line-height: 1.7; text-align: left; white-space: normal;
+    opacity: 0; visibility: hidden; pointer-events: none; transition: opacity var(--mo-fast) var(--mo-ease), visibility var(--mo-fast);
+  }
+  /* 显示条件：**已定位**（.placed 由 placeTipBubble 在 hover/focus 时加上）。
+     为什么不再用 `.tip:hover .tip-bubble`：气泡展示时要搬到 body 下（见 placeTipBubble 注释），
+     那时它已不是 .tip 的子孙，这条选择器自然失效。收起时 unplaceTipBubble 会摘掉 .placed
+     并把它搬回原处，所以两条状态不会同时成立。 */
+  .tip-bubble.placed { opacity: 0.96; visibility: visible; }
+  @media (prefers-reduced-motion: reduce) { .tip-mark, .tip-bubble { transition: none; } .tab-indicator { transition: none; } [id^="tab-"].enter { animation: none; } .modal-overlay, .modal-content { animation: none; } .toast { animation: none; transition: none; } }
+  .tag-pill {
+    display: inline-flex; align-items: center; gap: 3px;
+    padding: 3px 7px 3px 5px; border-radius: 4px; font-size: var(--fs-micro);
+    font-weight: var(--fw-medium); font-family: var(--font-body);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--border);
+    /* 不能含 box-shadow：长按进度是每帧写内联 box-shadow，补间会让墨线拖在手指后面 */
+    transition: filter var(--mo-fast), border-color var(--mo-fast); white-space: nowrap; line-height: 1.5;
+    /* 长标签名要能在容器里收窄并省略，否则把胶囊、金额、整行推出弹窗右缘（实测 77px）。
+       父容器 min-width:0 是前提，胶囊自身也要 max-width:100% + min-width:0 才真被约束。 */
+    max-width: 100%; min-width: 0;
+  }
+  /* 分类名（key）与标签值（val）同字号，层级只靠字重区分：
+     曾用 opacity .55 把 key 压淡，实测对比掉到 1.6–2.1:1 —— 分类名恰恰是用户要读的信息。 */
+  .tag-pill .tag-key {
+    font-size: var(--fs-micro); font-weight: var(--fw-medium);
+    letter-spacing: 0.02em; margin-right: 4px;
+    /* 长分类名/长标签名在胶囊里收窄并省略，而不是把胶囊撑开 */
+    min-width: 0; overflow: hidden; text-overflow: ellipsis;
+  }
+  .tag-pill .tag-val { font-weight: var(--fw-strong); min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .tag-pill.active { border-color: var(--accent); border-left-color: var(--accent); }
+  /* 长按改名：按住期间给一条金墨进度线（进度比例来自 logic.js ui.pressProgress，宽度由 JS 写内联 box-shadow）。
+     为什么必须有：长按是**无声的**手势——不给进度，用户按到一半就放手，永远学不会这个入口。
+     与「进资产页」的长按门槛同一套视觉语言（底边墨线浸满），按住时整枚胶囊微微抬起。
+     用 box-shadow 而非伪元素：胶囊自身有 border-radius 与背景，伪元素还要再对付 overflow。 */
+  .tag-pill:hover { filter: brightness(0.94); }
+  .tag-pill[data-rename] { cursor: pointer; }
+  /* 长按进度：底边一道金墨 + 一层从左向右涨满的浅金。
+     **不能用 background-***：胶囊的底色来自内联 style（分类色 tint），内联优先级更高，
+     任何 background-image/size 都会被它盖掉（实测 backgroundImage: none）。
+     故进度走 box-shadow 的 inset——天然贴边、不吃布局空间。
+     宽度必须由 JS 按胶囊实宽算（box-shadow 的 inset 宽度无法用百分比表达），
+     这里的类只负责按下态的提亮（内联 box-shadow 会盖住本规则里的阴影，故不写）。 */
+  .tag-pill.pressing {
+    filter: brightness(0.94);
+    transition: filter var(--mo-fast);
+  }
+  /* pill 内的行内控件（✕ 删除）：只给 color 的话 background/border 会走浏览器 UA
+     默认（灰底黑边的系统按钮），在暖色古纸主题上很突兀。这里剥掉原生外观，只留一个字形。
+     不设 opacity：它们是真控件，压淡会让它们从 pill 上「消失」（实测 2.8:1）。
+     color 必须显式 inherit：按钮默认不继承字色，漏了就会吃到 UA 的 ButtonText。 */
+  .tag-pill button {
+    background: none; border: none; padding: 0; margin-left: 2px;
+    color: inherit; cursor: pointer; font-size: var(--fs-micro); line-height: 1; font-family: inherit;
+    transition: opacity var(--mo-fast);
+  }
+  /* 悬停语义分色：✕ 删除是破坏性操作，走警示色 */
+  .tag-pill button:hover { color: var(--accent-ink); }
+  .tag-pill .pill-del:hover { color: var(--down); }
+  /* 标签就地重命名输入框：整枚 pill 被它替换（不嵌进去——pill 的浅 tint 底会和输入框底色打架），
+     尺寸沿用 pill 那一档 */
+  .tag-rename-input {
+    padding: 3px 7px 3px 5px; border-radius: 4px; border: 1px solid var(--accent);
+    background: var(--card); color: var(--fg);
+    font-size: var(--fs-micro); font-family: var(--font-body); font-weight: var(--fw-medium);
+    width: 9em;
+  }
+  /* 表单内平铺标签选择器: 账页「虚线空栏 = 待选, 实心盖印 = 已选」; 颜色由 JS 以 --chip-* 变量注入。
+     未选中态**不套分类色**：曾把 --chip-fg 用在空栏上，结果同一支 picker 里棕/绿/黄绿
+     三种字色并存——暖色卡面上黄色系亮度最低，用户实测第三个分类「特别浅」（对比度虽达标，
+     肉眼仍发白）。分类色只留给「已选」这个承载语义的状态；空栏统一 muted + 中性虚线，
+     于是每个分类的待选项长得完全一样，选中项才盖印出分类色。 */
+  .tag-picker { display: flex; flex-wrap: wrap; gap: 6px; }
+  .tag-choice {
+    display: inline-flex; align-items: center;
+    padding: 3px 7px 3px 5px; border-radius: 4px; font-size: var(--fs-micro);
+    font-weight: var(--fw-medium); font-family: var(--font-body);
+    line-height: 1.5; white-space: nowrap; cursor: pointer;
+    background: transparent; color: var(--muted);
+    border: 1px dashed var(--border);
+    transition: background var(--mo-fast), border-color var(--mo-fast), box-shadow var(--mo-fast), color var(--mo-fast);
+    /* 与 .tag-pill 同一处病因：单个选项没有宽度上限，超长名比一行还宽、溢出右缘（实测 19px） */
+    max-width: 100%; min-width: 0;
+    overflow: hidden; text-overflow: ellipsis;
+  }
+  .tag-choice:hover { color: var(--fg); border-color: var(--accent-soft); }
+  /* 已选态 = 实心盖印：浅 tint 底 + **分类字色**的实线描边。
+     描边为何不能用 --chip-border：color.pillColors 的 border 与 bg 同为 90%+ 明度的浅 tint，
+     与弹窗卡面只差 1.04–1.09:1，而待选空栏的中性虚线有 1.38:1 —— 选择指示一度是倒挂的，
+     用户原话「已经选中了日常但快看不出来了」。用分类字色做描边后实测 4.99–7.46:1，
+     既明显强于空栏，又满足 WCAG 非图形文字 3:1 的下限。 */
+  .tag-choice[aria-pressed="true"]:hover { filter: brightness(0.96); }
+  .tag-choice[aria-pressed="true"] {
+    background: var(--chip-bg); color: var(--chip-fg);
+    border: 1px solid var(--chip-fg);
+    box-shadow: 0 0 0 1.5px var(--chip-ring);
+  }
+
+  .tagcheck-bar {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px; flex-wrap: wrap; margin-bottom: 16px; padding: 9px 14px;
+    border: 1px dashed var(--accent-soft); border-radius: 8px;
+    background: var(--bg-2); font-size: var(--fs-body);
+  }
+  .tagcheck-strip {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 10px; margin-top: 12px; padding-top: 10px;
+    border-top: 1px dashed var(--rule);
+  }
+  .tagcheck-group {
+    border: 1px solid var(--border); border-radius: 8px;
+    padding: 14px 16px 6px; background: var(--card);
+    box-shadow: inset 0 1px 0 var(--card-edge);
+  }
+  .tagcheck-row {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px; flex-wrap: wrap; padding: 9px 0; border-top: 1px solid var(--rule);
+  }
+  .tagcheck-meta { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+  .tagcheck-note { max-width: 24ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .asset-row {
+    display: grid; grid-template-columns: 2fr 1fr 1fr 1.5fr 1.5fr;
+    align-items: center; padding: 14px 0; border-bottom: 1px solid var(--rule);
+    transition: background var(--mo-fast);
+  }
+  /* 表格列宽模板单一来源：表头与数据行挂同一个 class, 不再各自硬编码同一串列宽
+     （两边各写一遍的后果是改一处忘一处, 表头与内容错位）。
+     必须定义在 .asset-row 之后：同特异性下后者胜。
+
+     消费记录的列宽按**内容量**分配（不是按下标均分）：实测 fr 版把备注列撑到 336px
+     而文本只有 28px（冗余 12 倍），金额列只得 168px 却要装 3,200.00——中间一大片空、
+     右边挤成一团。故：日期与金额是定长数字，给定宽（数字不缩）；备注与标签才是会长的两栏，
+     拿剩下的弹性；操作列也是定长（三个按钮，与其它表同一档）。 */
+  .cols-expenses { grid-template-columns: 96px 108px minmax(0, 1fr) minmax(0, 1.6fr) 148px; }
+  .cols-expense-month { grid-template-columns: 96px 1fr 2fr 1.5fr; }
+  .cols-income { grid-template-columns: 1.8fr 1fr 0.8fr 0.8fr 1fr 1fr 1fr; }
+  .cols-segment { grid-template-columns: 2fr 1fr 0.7fr 1.3fr 0.7fr; }
+  .cols-compare { grid-template-columns: 2fr 1.2fr 1.2fr 1.5fr 1fr; }
+  /* 快照详情（弹窗里）：名称会换行的只有它，金额/预期年化定宽不缩，标签列要装两枚 pill */
+  .cols-snapshot { grid-template-columns: 1.6fr 104px 52px 104px 2fr; }
+  .cols-expense-segment { grid-template-columns: 96px 1fr 0.8fr 2.6fr; }
+  /* 构成明细表（三张表都只在 560px 的弹窗里出现）：列宽按 fr 分配时单元格之间**没有留白**，
+     全靠内容本身短才显得有空隙 —— 内容一长就贴在一起。实测：日期栏 90px vs 日期文本 77.8px，
+     金额紧贴日期只剩 13.7px；资产侧金额拉长后与货币码之间只剩 2.7px。给真正的列间距，
+     并把日期栏定宽（日期是定长文本 YYYY-MM-DD，按 fr 分配就永远贴着内容宽、挤不出白）。 */
+  /* 列间距：**所有**列宽模板统一的规格（不只是弹窗里那三张窄表）。
+     列宽按 fr 分配时单元格之间是紧贴的，「看着有空隙」只是因为内容短——内容一长就贴在一起。
+     实测（列表页三张表原先完全没有 gap）：`50,000.00CNY`、`¥50,000.000-0%`；
+     表头也连成「金额货币」「金额 (CNY)预期年化」。间距只在这一处定义，
+     consistency.spec.js 量「相邻单元格的文本间隙」把守。 */
+  .cols-expenses, .cols-expense-month, .cols-income, .cols-segment, .cols-compare, .cols-expense-segment,
+  .cols-snapshot, .asset-row.grid-wide { column-gap: 16px; }
+  /* 资产宽表：列数最多（8 列），列间距吃掉 7×16=112px —— 定宽列（拖拽把手 28 / 操作 92）
+     与列间距都先让出来，剩下的才按 fr 分。fr 是在**扣掉 gap 之后**的余量里按比例分，
+     故模板不必为 gap 补偿；需要补偿的是「标签列要装下两枚 pill」（实测合计 232px，
+     挤窄就会换行，整行高度从 19px 跳到 52px，表格立刻失去横向对齐）。 */
+  .asset-row.grid-wide {
+    /* 定宽列先让出（拖拽把手 / 操作 / 货币码），余量再按 fr 分。
+       标签列必须装得下「资产类型 活期现金」+「风险等级 低风险」两枚 pill（实测合计 232px）：
+       给不够就会换行，整行高度从 19px 跳到 52px，表格立刻失去横向对齐。
+       名称列是短中文（实测最长 6 字 ≈ 90px），不必与标签列争宽。 */
+    grid-template-columns: 28px 1.1fr 0.85fr 62px 0.9fr 1.05fr 2.1fr 92px;
+  }
+  .asset-row.is-unrated { opacity: 0.4; }
+  .drag-handle { user-select: none; -webkit-user-select: none; cursor: grab; display: inline-flex; align-items: center; justify-content: center; color: var(--muted); font-size: var(--fs-body); }
+  .asset-row.dragging { opacity: 0.35; background: var(--border); border-radius: 6px; }
+  .asset-row.drag-over { border-top: 2px solid var(--accent); }
+  .drag-handle:active { cursor: grabbing; }
+  /* 小号按钮两档（工具条次级 / 行内微操作）: 同一规格只此一处，页面不再逐处内联 padding 与字号
+     （原来同规格按钮有 6px 14px / 6px 10px / 6px 12px / 4px 12px / 2px 8px / 2px 10px 六种写法） */
+  .btn-sm, .btn-xs { padding: 6px 14px; font-size: var(--fs-micro); white-space: nowrap; }
+  .btn-xs { padding: 4px 10px; }
+  /* 「新增标签」行：输入框的宽度**按标签体量**给（一个标签只有 2–4 个字），
+     不靠 flex-1 撑满整行——那样它会把「添加」按钮推到整页右端，一件控件被拉成两半。
+     宽度上限写在自有 CSS 里（Tailwind 空壳下 flex-1 既不生效也不可测）。
+     资产/消费两侧的标签录入共用这一套（两侧行为必须一致）。 */
+  .new-tag-row { display: flex; gap: 8px; max-width: 320px; }
+  .new-tag-row input { flex: 1 1 auto; min-width: 0; padding: 6px 10px; }
+  .amount-cell { position: relative; padding-left: 16px; display: flex; justify-content: flex-end; align-items: center; cursor: pointer; border-bottom: 1px dashed transparent; transition: border-bottom-color var(--mo-fast); }
+  /* 编辑态 input 要占满整格（整格右靠之后，inline 宽度会让光标停在半空） */
+  .amount-cell .inline-edit-input { width: 100%; }
+  .amount-cell:hover { border-bottom-color: var(--accent-soft); }
+  .amount-cell:focus-within { border-bottom-color: transparent; cursor: text; }
+  /* 铅笔批注: 绝对定位于左侧留白（padding-left 让金额统一右移 16px, 铅笔不占布局空间、不推挤文本, 窄列不溢出）;
+     hover/键盘聚焦时淡入; 呼应 chips「虚线=待选→实心=已选」 */
+  .edit-pencil { position: absolute; left: 2px; top: 50%; width: 11px; height: 11px; transform: translateY(-50%) translateX(-3px); color: var(--accent-ink); opacity: 0; transition: opacity var(--mo-fast), transform var(--mo-fast); }
+  .amount-cell:hover .edit-pencil, .amount-cell:focus-visible .edit-pencil { opacity: 1; transform: translateY(-50%) translateX(0); }
+  .inline-edit-input { width: 100%; padding: 2px 6px; font-size: var(--fs-body); user-select: text; -webkit-user-select: text; }
+  .asset-row:hover { background: var(--card-2); }
+  .asset-row:last-child { border-bottom: none; }
+  .asset-row.editing { background: rgba(217, 178, 94, 0.12); }
+  .dark .asset-row.editing { background: rgba(230, 201, 130, 0.08); }
+  .list-head {
+    border-bottom: 2px solid var(--rule); letter-spacing: 0.05em;
+    font-size: var(--fs-micro); font-weight: var(--fw-medium); color: var(--muted);
+  }
+  /* 统一提示便条: 全站唯一出口在右下角。#toast-area 竖排堆叠（新便条贴角、旧便条上移，
+     容器以 bottom 锚定向上生长）；容器 pointer-events:none 穿透不挡角落点击，便条自身恢复 */
+  #toast-area { position: fixed; right: 24px; bottom: 24px; z-index: 200; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; pointer-events: none; }
+  .toast {
+    position: static; max-width: min(360px, calc(100vw - 48px));
+    padding: 12px 24px; border-radius: 8px; font-size: var(--fs-body);
+    animation: slideUp var(--mo-mid) var(--mo-ease); box-shadow: 0 4px 20px var(--shadow-lift), 0 1px 3px var(--shadow-soft);
+    font-family: var(--font-body); border: 1px solid;
+    pointer-events: auto; transition: transform var(--mo-slow) var(--mo-ease), visibility 0s var(--mo-slow);
+  }
+  /* 退场只用位移，不用透明度：压淡文字会让便条在消失前的一瞬掉到 1.06:1
+     （Lighthouse 实测抓到），而它承载的是刚发生的结论。visibility 延迟到动画结束才切，
+     中间没有「半透明但仍占位」的样式。 */
+  .toast.leaving { transform: translateY(6px); visibility: hidden; }
+  /* 与 mo-badge 同色系: 提示即一张盖在账页上的便条。三种墨色=三种语义:
+     绿=操作已落账 / 红=出错待处理 / 金墨边注(info)=系统自己的中性知会，注意但不报警 */
+  .toast-success, .mo-badge.up { background: #e8f5ec; color: #3d7a52; border-color: #b8dfc4; }
+  .toast-error, .mo-badge.down { background: #fce8e0; color: var(--down); border-color: #f0c8b8; }
+  .toast-info { background: #f8f1de; color: var(--accent-ink); border-color: #e3d3a3; }
+  .dark .toast-success, .dark .mo-badge.up { background: #1c2a20; color: #7ba995; border-color: #2d4435; }
+  .dark .toast-error, .dark .mo-badge.down { background: #2a1c1a; color: #d98a86; border-color: #4a2c2a; }
+  .dark .toast-info { background: #292214; color: var(--accent-ink); border-color: #453a20; }
+  /* 图标：尺寸/描边只在此处定义（24 网格线稿，1em 跟随所在档位字号）。
+     inline 用 baseline 微调，免得图标把行高顶起来（Tab 栏高度会连带跳）。 */
+  .ico { width: 1em; height: 1em; flex: 0 0 auto; vertical-align: -0.125em; fill: none; stroke: currentColor;
+    stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .seg-btn, .tab-btn, .btn-ghost { display: inline-flex; align-items: center; gap: 6px; }
+  .tab-btn {
+    padding: 10px 22px; font-size: var(--fs-body); border: none; background: transparent;
+    color: var(--muted); cursor: pointer;
+    font-family: var(--font-body); transition: color var(--mo-mid);
+    /* 标签是最短的定长词汇，折行只会让它更难读（420px 下曾折成「消费记 录」）；
+       放不下就由 Tab 栏横滚，按钮本身既不换行也不被压扁 */
+    white-space: nowrap; flex: 0 0 auto;
+  }
+  /* 两套模式的 Tab 栏同一种结构（原先每处拼 border-b + 内联 border-color）。
+     overflow-x 让窄屏能横滚；滚动条藏起来（触屏是滑动、指针可拖）。
+     为什么指示条改成 bottom:0（原 -1px 压在 border 上）：滚动容器会把溢出的一像素
+     算成可滚动区，可能冒出一道竖向滚动条——宁可让黄条贴在边线之上。 */
+  .tab-bar { position: relative; display: flex; border-bottom: 1px solid var(--border); overflow-x: auto; scrollbar-width: none; }
+  .tab-bar::-webkit-scrollbar { display: none; }
+  /* 滚动容器会裁掉向外的焦点环（Tab 键走查时会看不到自己在哪）：环改画在按钮内侧 */
+  .tab-btn:focus-visible { outline-offset: -3px; }
+  .tab-btn.active { color: var(--fg); }
+  .tab-btn:hover { color: var(--fg); }
+  /* 当前 Tab 的黄条是**唯一的**一个元素（不再是每个按钮自己的 border-bottom）：
+     切换时 transform 从旧位置滑到新位置——按钮各自的 border 只能跳变，
+     用户要求的是「从左边顺滑移动到右边」。位置由 JS moveTabIndicator 写入变量；
+     过渡只挂 transform/left（减动效时归零，直接到位）。 */
+  /* Tab/模式切换的入场过渡：内容轻抬 + 淡入（0.22s，一次）。
+     display:none 翻转没法过渡——两步走：先显示，下一帧加 .enter 播动画。
+     距离刻意小（8px）：这是「翻到下一页」的呼吸感，不是「跳出来吓一跳」；
+     大距离的入场在频繁切 Tab 时会显得拖沓。
+     方向感：往右翻页内容自右滑入、往回翻自左滑入——方向由 enterTab 写进 --pane-x，
+     判定在 logic.js ui.paneEnterShift（按目标按钮的实测位置），横向距离同样刻意小（10px）。 */
+  [id^="tab-"].enter { animation: paneEnter var(--mo-mid) var(--mo-ease); }
+  @keyframes paneEnter {
+    from { opacity: 0; transform: translate(calc(var(--pane-x, 0) * 10px), 8px); }
+    to { opacity: 1; transform: translate(0, 0); }
+  }
+  .tab-indicator {
+    position: absolute; bottom: 0; left: var(--tab-x, 0); width: var(--tab-w, 0);
+    height: 2px; background: var(--accent); z-index: 1;
+    transition: left var(--mo-mid) var(--mo-ease), width var(--mo-mid) var(--mo-ease);
+  }
+  .seg-control { display: inline-flex; padding: 3px; border-radius: 8px; background: var(--bg-2); border: 1px solid var(--border); gap: 2px; }
+  .seg-btn { border: none; background: transparent; color: var(--muted); font-size: var(--fs-micro); font-family: var(--font-body); padding: 5px 18px; border-radius: 6px; cursor: pointer; transition: background var(--mo-fast), color var(--mo-fast); white-space: nowrap; }
+  .seg-btn:hover { color: var(--fg); }
+  .seg-btn.active { background: linear-gradient(180deg, #d9b25e, #b4841a); color: var(--on-accent); font-weight: var(--fw-strong); box-shadow: inset 0 1px 0 rgba(255,255,255,0.25), 0 1px 2px var(--shadow); }
+  /* ===== 进入资产页的长按门槛：按住时金色墨线沿底边自左向右浸满按钮 =====
+     填充宽度 = --mode-press × 100%（JS 每帧只同步这个变量，百分比换算只此一处）。
+     刻意不做 CSS transition：它跟随手指的按住时长，不是装饰动效——reduced-motion 下也保留，
+     它同时是「还要按多久」的唯一反馈，去掉就把门槛变成了黑箱。
+     资产已在前台时入口整体失效（见 assetsEntryOpen），所以 .pressing 与 .seg-btn.active
+     不会同时出现，按下态用不提亮的底色即可。 */
+  .mode-press {
+    position: relative; overflow: hidden;
+    user-select: none; -webkit-user-select: none;
+    /* 长按在触屏上不该被浏览器当作滚动/菜单：吃掉默认手势，让 pointerdown 按住不放 */
+    touch-action: manipulation; -webkit-touch-callout: none;
+  }
+  .mode-press::after {
+    content: ''; position: absolute; left: 0; bottom: 0; height: 2px; border-radius: 0 2px 2px 0;
+    width: calc(var(--mode-press, 0) * 100%); background: var(--accent-ink);
+  }
+  .mode-press.pressing { color: var(--fg); background: var(--card-2); }
+  /* ===== 设置弹窗: 账本「凡例」页 —— 每条设置如一条目录, 标签居左、控件居右、发丝线分章 ===== */
+  .setting-row { display: flex; align-items: center; justify-content: space-between; gap: 14px 24px; flex-wrap: wrap; }
+  /* 标签列 / 控件列：控件**永远贴右**，换行时也贴右——左对齐会让一组按钮看着像说明文字的一部分
+     （英文界面下 Auto backup 行就是这样：描述一长，Daily/Weekly/Close 掉到下一行贴左，
+     与上下两行的右对齐控件对不上，整页就显得「潦草」）。
+     flex: 0 0 auto 不让控件被压窄：一压窄，段控件的文字就折行，按钮变成两个字的竖柱。 */
+  .setting-row > .seg-control, .setting-row > .setting-actions { margin-left: auto; flex: 0 1 auto; max-width: 100%; }
+  .modal-content hr { margin: 20px 0; }
+  /* min-width: 0 是「控件优先」的另一半：不给 0 时信息列的 flex-basis 会把控件挤到下一行，
+     而 description 本来就该 wrap，它没有「最小可读宽度」这回事 */
+  .setting-info { flex: 1 1 260px; min-width: 0; }
+  .setting-label { font-size: var(--fs-body); font-weight: var(--fw-strong); }
+  .setting-desc { font-size: var(--fs-body); color: var(--muted); margin-top: 4px; line-height: 1.7; }
+  .setting-note { display: inline-flex; align-items: center; gap: 7px; margin-top: 10px; font-size: var(--fs-micro); letter-spacing: 0.04em; color: var(--muted); }
+  .setting-note::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: var(--accent-soft); flex-shrink: 0; }
+  .setting-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
+  .safety-control { display: inline-flex; align-items: center; gap: 10px; padding: 5px 10px; border-radius: 8px; background: var(--bg-2); border: 1px solid var(--border); }
+  .safety-label { font-family: var(--font-body); font-size: var(--fs-micro); color: var(--muted); letter-spacing: 0.08em; }
+  .safety-control .scale-input { width: 150px; }
+  .snap-days { display: inline-flex; align-items: center; gap: 6px; }
+  .snap-days input { width: 58px; text-align: center; }
+  /* ===== 比例尺滑块: 账页刻度量尺 =====
+     刻度线 0/25/50/75/100% 与货币构成条同语言; 菱形拇指呼应报头裁切标记;
+     填充段表示当前比例 (--fill 由 JS 同步), 读数用等宽 tabular */
+  .scale-input {
+    /* 轨道背景由伪元素承载: 填充段必须画在轨道上（input 自身背景会被轨道盖住）;
+       层序: 填充(顶) → 刻度(中) → bg-2(底); --fill 由 JS 同步 */
+    -webkit-appearance: none; appearance: none;
+    height: 24px; padding: 0; border: none; cursor: pointer; border-radius: 2px;
+  }
+  .scale-input:focus-visible { outline: none; }
+  .scale-input:focus-visible::-webkit-slider-thumb,
+  .scale-input:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 3px var(--accent-soft), 0 1px 3px var(--shadow); }
+  .scale-input::-webkit-slider-runnable-track {
+    height: 4px; border-radius: 2px;
+    background:
+      linear-gradient(var(--accent-soft), var(--accent-soft)) 0 0 / var(--fill, 0%) 100% no-repeat,
+      linear-gradient(90deg, var(--tick) 0 100%, transparent 0) 0% 0 / 1px 100% no-repeat,
+      linear-gradient(90deg, var(--tick) 0 100%, transparent 0) 25% 0 / 1px 100% no-repeat,
+      linear-gradient(90deg, var(--tick) 0 100%, transparent 0) 50% 0 / 1px 100% no-repeat,
+      linear-gradient(90deg, var(--tick) 0 100%, transparent 0) 75% 0 / 1px 100% no-repeat,
+      linear-gradient(90deg, var(--tick) 0 100%, transparent 0) 100% 0 / 1px 100% no-repeat,
+      var(--bg-2);
+  }
+  .scale-input::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 12px; height: 12px; margin-top: -4px;
+    border-radius: 2px; transform: rotate(45deg);
+    background: var(--accent);
+    border: 1.5px solid var(--card);
+    box-shadow: 0 1px 3px var(--shadow);
+    cursor: grab;
+  }
+  .scale-input::-moz-range-track { height: 4px; border-radius: 2px; background: var(--bg-2); }
+  .scale-input::-moz-range-progress { height: 4px; border-radius: 2px; background: var(--accent-soft); }
+  .scale-input::-moz-range-thumb {
+    width: 12px; height: 12px; border-radius: 2px; transform: rotate(45deg);
+    background: var(--accent); border: 1.5px solid var(--card);
+    box-shadow: 0 1px 3px var(--shadow); cursor: grab;
+  }
+  .scale-reading {
+    font-family: var(--font-body); font-variant-numeric: tabular-nums;
+    font-size: var(--fs-body); font-weight: var(--fw-strong); color: var(--accent-ink); letter-spacing: 0.02em;
+    min-width: 3.4em; text-align: right;
+  }
+  /* ===== 压测（账页边注式的情景标记）=====
+     条横贯全部资产 Tab（只放报头旁会在切到收益测算时看不见）；印徽在页头，
+     两种模式下都挂着——压测是**全局状态**，它的指示器不能挂在某个读数上。 */
+  .stress-bar {
+    display: flex; align-items: center; flex-wrap: wrap; gap: 10px;
+    padding: 7px 12px; margin-bottom: 12px;
+    border: 1px dashed var(--accent-soft); border-radius: 8px; background: var(--bg-2);
+    font-size: var(--fs-micro); /* 徽/条的文字都走这一档（与 .cov-label 同语言） */
+  }
+  .stress-mark {
+    width: 6px; height: 6px; border-radius: 50%; background: var(--down); flex-shrink: 0;
+  }
+  .stress-text { color: var(--fg); letter-spacing: 0.02em; }
+  .stress-actions { margin-left: auto; }
+  .stress-badge { color: var(--accent-ink); }
+  .drop-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; }
+  .drop-head { display: flex; align-items: baseline; gap: 8px; min-width: 0; flex: 1 1 180px; }
+  .drop-amount { font-size: var(--fs-micro); color: var(--muted); font-variant-numeric: tabular-nums; }
+  .drop-scale { display: inline-flex; align-items: center; gap: 10px; }
+  .drop-scale .scale-input { width: 130px; }
+  .empty-state { text-align: center; padding: 56px 24px; }
+  .empty-state::before {
+    content: ''; display: block; width: 36px; height: 36px; margin: 0 auto 14px;
+    color: var(--accent); opacity: 0.55;
+    background: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%20fill='none'%20stroke='currentColor'%20stroke-width='1.4'%20stroke-linecap='round'%20stroke-linejoin='round'%3E%3Cpath%20d='M4%205.5A2.5%202.5%200%200%201%206.5%203H20v15H6.5A2.5%202.5%200%200%200%204%2020.5z'/%3E%3Cpath%20d='M4%205.5v15'/%3E%3Cpath%20d='M8.5%207.5h7M8.5%2011h7M8.5%2014.5h4.5'/%3E%3C/svg%3E") center/contain no-repeat;
+  }
+  .empty-state .empty-rule { width: 36px; height: 2px; background: var(--accent-soft); border-radius: 1px; margin: 0 auto 18px; }
+  .empty-state .empty-title { color: var(--muted); font-size: var(--fs-card); font-weight: var(--fw-strong); }
+  .empty-state .empty-sub { color: var(--muted); font-size: var(--fs-body); margin-top: 6px; }
+  .empty-state .empty-action { margin-top: 22px; }
+  @media (max-width: 900px) {
+    #assets-list { overflow-x: auto; }
+    #assets-list .asset-row { min-width: 780px; }
+    #income-table-container { overflow-x: auto; }
+    #income-table-container .asset-row { min-width: 820px; }
+    #snapshot-detail-content { overflow-x: auto; }
+    #snapshot-detail-content .asset-row { min-width: 620px; }
+    /* 窄屏列表横向滚动, 金额列收窄（~91px）: 隐藏铅笔并取消 padding, 避免大金额等宽文本溢出压到货币列 */
+    .amount-cell { padding-left: 0; }
+    .edit-pencil { display: none; }
+  }
+  @media (max-width: 640px) {
+    #expenses-list { overflow-x: auto; }
+    #expenses-list .asset-row { min-width: 600px; }
+    /* 收益摘要双 hero 改纵向堆叠，避免窄屏挤爆 */
+    #income-summary .grid { grid-template-columns: 1fr; }
+    #income-summary .grid > div { padding: 6px 0; }
+    #income-summary .grid > div:nth-child(2) {
+      border-left: none !important;
+      border-top: 1px solid var(--rule);
+    }
+  }
+  /* 滚动条：两套属性都要写。
+     -webkit- 那套只有 Blink 认，Firefox/Safari 完全走 UA 默认（暗色页面上是一道亮条）；
+     标准 scrollbar-color 两处都认，故它才是真正的来源，-webkit- 只作 Blink 的细调。
+     拇指原先用 --rule（对纸底 1.34:1，几乎看不见），换成 --muted（5.11:1 / 暗色 7.30:1）。 */
+  html { scrollbar-color: var(--muted) transparent; scrollbar-width: thin; }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--muted); border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--fg); }
+
+  /* ===== Masthead / net-worth hero =====
+     签名语言是报头底纹（::before，阴阳纹/机器雕版）+ 四角裁切标记（::after）——
+     底纹共用最显眼的两条曲线，把眼睛从空白引向大数字；它是本页唯一的装饰性印刷语言，
+     其余部分保持素面（全站只此一处，第二个元素再刻就变成了壁纸）。 */
+  .masthead { position: relative; padding: 30px 28px 26px; border-radius: 12px; overflow: hidden; }
+  /* 报头底纹：两枚同心的重复径向渐变（模拟机器雕版的阴阳纹）错开叠合，
+     干涉出牡丹纹般的细密线簇。用 mask 让它只管右半张纸（不碰左侧的读数与小字），
+     衰减到 72% 处收干净，线条自然消失而非被硬边切断。 */
+  .masthead::before {
+    content: ''; position: absolute; inset: 0; z-index: 0; pointer-events: none;
+    background-image:
+      repeating-radial-gradient(circle at 145% 46%, transparent 0 7px, var(--engrave) 7px calc(7px + var(--engrave-w))),
+      repeating-radial-gradient(circle at 165% 58%, transparent 0 7px, var(--engrave) 7px calc(7px + var(--engrave-w)));
+    -webkit-mask-image: radial-gradient(140% 180% at 155% 52%, #000 0%, transparent 72%);
+    mask-image: radial-gradient(140% 180% at 155% 52%, #000 0%, transparent 72%);
+  }
+  .masthead > * { position: relative; z-index: 1; }
+  .masthead-eyebrow {
+    font-family: var(--font-body); font-size: var(--fs-micro); letter-spacing: 0.22em;
+    text-transform: uppercase; color: var(--muted); margin-bottom: 6px; display: flex; align-items: center; gap: 8px;
+  }
+  /* 心跳点：全站唯一的常驻循环动画。它是「呼吸」，不是过渡，故用自己的周期
+     （--mo-pulse），不进 fast/mid/slow 三档——循环动画与一次性过渡没有可比性。 */
+  .masthead-eyebrow .live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--verdigris); box-shadow: 0 0 0 3px rgba(68,106,91,0.18); animation: livePulse var(--mo-pulse) ease-out infinite; }
+  @keyframes livePulse { 0% { box-shadow: 0 0 0 0 rgba(68,106,91,0.4); } 70% { box-shadow: 0 0 0 7px rgba(68,106,91,0); } 100% { box-shadow: 0 0 0 0 rgba(68,106,91,0); } }
+  .masthead-amount {
+    font-family: var(--font-numeric); font-weight: var(--fw-medium);
+    font-size: clamp(38px, 7vw, 64px); line-height: 1; letter-spacing: -0.01em;
+    color: var(--fg); font-variant-numeric: tabular-nums; display: flex; align-items: baseline; gap: 6px;
+    /* 大数字压印感: 纸面受光凸起的错觉（暗色模式反转为下压阴影） */
+    text-shadow: 0 1px 0 rgba(255, 255, 255, 0.45);
+  }
+  .masthead-amount .currency-mark { font-size: 0.42em; color: var(--accent-ink); font-weight: var(--fw-strong); transform: translateY(-0.55em); }
+  .masthead-amount .cents { font-size: 0.4em; color: var(--muted); font-weight: var(--fw-medium); }
+  /* 报头四角裁切标记（register ticks）: 像一张刚从印刷版上裁下的账页。
+     z-index 必须高于底纹（同名属性下后写的胜，故这里的 1 与 ::before 的 0 不冲突） */
+  .masthead::after {
+    content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 1;
+    background:
+      linear-gradient(var(--rule), var(--rule)) 12px 10px / 16px 1px no-repeat,
+      linear-gradient(90deg, var(--rule), var(--rule)) 12px 10px / 1px 16px no-repeat,
+      linear-gradient(var(--rule), var(--rule)) calc(100% - 28px) 10px / 16px 1px no-repeat,
+      linear-gradient(90deg, var(--rule), var(--rule)) calc(100% - 28px) 10px / 1px 16px no-repeat,
+      linear-gradient(var(--rule), var(--rule)) 12px calc(100% - 11px) / 16px 1px no-repeat,
+      linear-gradient(90deg, var(--rule), var(--rule)) 12px calc(100% - 27px) / 1px 16px no-repeat,
+      linear-gradient(var(--rule), var(--rule)) calc(100% - 28px) calc(100% - 11px) / 16px 1px no-repeat,
+      linear-gradient(90deg, var(--rule), var(--rule)) calc(100% - 28px) calc(100% - 27px) / 1px 16px no-repeat;
+  }
+  .dark .masthead-amount { text-shadow: 0 1px 0 rgba(0, 0, 0, 0.6); }
+  .masthead-sub { margin-top: 14px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; font-size: var(--fs-body); color: var(--muted); }
+  /* 分布图两栏：旭日图 + 构成清单。
+     为什么并列：旭日要正圆，外径受**高度**限制（容器 520 高 → 直径至多 ~458），
+     而卡片宽 1100+——实测 1054×520 的画布里左右各有 293px 纯白（占 56% 宽度）。
+     那一片白正好放「谁占多少」：图给比例直觉，清单给确切金额与占比（不必悬停）。
+     窄屏回落单栏：图形正圆优先，清单接在下面。 */
+  /* 图纸列按**内容**收缩（auto），不按 fr 分：aspect-ratio 1:1 + max-height 把 canvas 压成
+     440px 见方后，fr 轨道仍按剩余空间分——多出来的 191px 全变成轨道内空隙，
+     观感就是「图和右边的清单离得太远」（实测间隙 207px，其中 CSS gap 只占 16px）。 */
+  /* 图纸 + 构成清单是**一整组**，在卡片里居中：卡面上方的合计本来就是居中的，
+     整组再靠左就会与它错开轴线，右侧空出一大片（用户实拍：留白 309px）。 */
+  /* 图纸 + 构成清单两栏。右栏**必须有上限**：原先 max-content 让列宽由最长名字决定，
+     超长标签把右栏撑到 500px+，配上 justify-content:center 就把**左边的图挤向左**
+     （实测图位移 153.9px）。上限收成 --legend-max，超长名在名称格里 ellipsis 收边。 */
+  .chart-split {
+    --legend-max: min(38%, 320px);
+    display: grid; grid-template-columns: auto minmax(0, var(--legend-max));
+    gap: 16px; align-items: start; justify-content: center;
+  }
+  /* 图纸高度**由列宽推出来**（宽高比 + 上限），不写死像素：圆是正圆、尺寸由 ECharts 按容器算，
+     而容器的像素高度一旦写死就与「这张卡实际有多少内容」脱钩——先前的 520px 让分类很少时
+     整卡被空白撑起（右侧清单只有一行 35px）。
+     但**只给比例也不行**：单栏宽度下 1:1 会把圆放到 624px，卡片反而更高（实测 619→723）。
+     故比例 + max-height 双管：宽的时候不超上限（圆不会失控），窄的时候按列宽自然收小。 */
+  .chart-split > .chart-canvas {
+    min-width: 0; aspect-ratio: 1 / 1;
+    /* 图纸定宽（=max-height 的值）：grid 轨道 auto 由此取宽。
+       不能靠 aspect-ratio 反推——auto 列与内容宽度互为因果，会循环压成 0。 */
+    width: 520px; max-width: 100%;
+  }
+  .chart-split > .chart-canvas > div { width: 100%; height: 100%; }
+  .chart-canvas.chart-canvas-compact { aspect-ratio: 16 / 9; max-height: 300px; }
+  @media (max-width: 900px) {
+    .chart-split { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  }
+  .chart-legend { display: flex; flex-direction: column; gap: 2px; margin-top: 6px; }
+  .chart-legend-row {
+    /* 名称列 max-content：名称与金额必须贴着（1fr / min() 会把名称格拉满整列，
+       实测 CNY 文字 30px、格宽 304px，两段信息被空白拆散——有既有巡检把守）。
+       超长名靠**整行**只占内容宽且不越过右栏：width:fit-content + max-width:100%。 */
+    display: grid; grid-template-columns: 10px minmax(0, max-content) auto auto;
+    width: fit-content; max-width: 100%;
+    align-items: center; gap: 10px; padding: 7px 8px; border-radius: 6px;
+    cursor: default; transition: background var(--mo-fast);
+  }
+  .chart-legend-row:hover { background: var(--bg-2); }
+  .chart-legend-swatch { width: 10px; height: 10px; border-radius: 2px; }
+  .chart-legend-name { font-size: var(--fs-body); color: var(--fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .chart-legend-amt { font-size: var(--fs-body); color: var(--fg); font-variant-numeric: tabular-nums; }
+  .chart-legend-pct { font-size: var(--fs-micro); color: var(--muted); font-variant-numeric: tabular-nums; min-width: 3.6em; text-align: right; }
+  /* 清单标题槽：未选中时就是「构成」二字，选中某分类后换成「‹ 全部分类 + 当前分类名」。
+     返回入口必须显式给（否则用户钻进去之后不知道自己在哪一层、也回不去） */
+  .chart-legend-head { display: flex; align-items: center; gap: 8px; margin: 0; min-height: 1.6em; }
+  .chart-legend-head .legend-scope { font-size: var(--fs-body); font-weight: var(--fw-strong); color: var(--fg); }
+  .legend-back {
+    border: 1px solid var(--border); background: transparent; color: var(--muted);
+    font-family: var(--font-body); font-size: var(--fs-micro); border-radius: 6px;
+    padding: 2px 8px; cursor: pointer; transition: color var(--mo-fast), border-color var(--mo-fast);
+  }
+  .legend-back:hover { color: var(--accent-ink); border-color: var(--accent); }
+  /* 清单行可点（选中分类 / 返回）：指针与键盘都要能看出来 */
+  /* 行级可点元素：「点这一行会被带到别处」。指针与键盘两条路一起给。
+     为什么收成一个类：原先 6 处各写一遍内联 cursor:pointer，键盘可达性于是也各漏一遍——
+     旭日图清单早就写好了 :focus-visible 规则，却因为行拿不到焦点而**永远无法命中**
+     （样式在、路不在，正是「以为做了键盘可达、其实没做」留下的化石）。
+     焦点环用负 offset：行是整幅宽，正的会顶出卡片边缘。 */
+  .row-hit { cursor: pointer; }
+  .row-hit:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
+  .chart-legend-row[data-top] .chart-legend-name { font-weight: var(--fw-strong); }
+  /* 分布图总数（资产/消费旭日图共用）：旭日图只给各部分占比，卡片上方补一个合计。
+     与扇区同源、随右上角筛选联动；字号沿用主读数档，颜色走 fg（不抢报头的主角）。 */
+  .chart-total {
+    margin: 0 0 14px; text-align: center;
+    font-family: var(--font-numeric); font-size: var(--fs-hero);
+    line-height: 1.1; font-weight: var(--fw-medium);
+    font-variant-numeric: tabular-nums; color: var(--fg);
+  }
+  .composition-rule { margin-top: 18px; display: flex; height: 5px; border-radius: 3px; overflow: hidden; gap: 2px; position: relative; }
+  .composition-rule::before {
+    content: ''; position: absolute; inset: 0; z-index: 1; pointer-events: none;
+    background:
+      linear-gradient(90deg, var(--tick) 0 100%, transparent 0) 25% 0 / 1px 100% no-repeat,
+      linear-gradient(90deg, var(--tick) 0 100%, transparent 0) 50% 0 / 1px 100% no-repeat,
+      linear-gradient(90deg, var(--tick) 0 100%, transparent 0) 75% 0 / 1px 100% no-repeat;
+  }
+  .composition-rule > span { display: block; transition: flex-grow var(--mo-slow) var(--mo-ease); }
+  .seg-cny { background: var(--accent); }
+  .seg-hkd { background: var(--verdigris); }
+  .seg-usd { background: var(--usd); }
+  .seg-other { background: var(--rule); }
+  .composition-legend { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: var(--fs-micro); color: var(--muted); font-variant-numeric: tabular-nums; }
+  .composition-legend .dot { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 5px; transform: translateY(0px); }
+  /* 涨跌徽章（历史净值环比 / 目标达成） */
+  /* 与 mo-badge 同色系（二者共用上面 .toast-* 那两条本体，故上色只写一次） */
+  .mo-badge { display: inline-flex; align-items: center; padding: 1px 7px; border-radius: 4px; font-size: var(--fs-micro); font-weight: var(--fw-strong); font-family: var(--font-body); border: 1px solid; line-height: 1.6; white-space: nowrap; }
+  .mo-badge.first { background: var(--bg-2); color: var(--muted); border-color: var(--border); }
+  .dark .mo-badge.first { background: var(--card-2); color: var(--muted); border-color: var(--border); }
+  /* 目标净资产面板（独立浅色底容器, 与货币构成条区分）。
+     空态与满态同为「一行」：左写这行是什么、右放动作——只塞一枚按钮的大框会被读成输入框。 */
+  .target-panel { background: var(--card-2); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; }
+  .target-panel-empty { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .target-progress { height: 10px; border-radius: 4px; background: repeating-linear-gradient(90deg, var(--border) 0 1px, transparent 1px 25%), var(--bg-2); border: 1px solid var(--border); overflow: hidden; }
+  .target-progress-fill { height: 100%; border-radius: 3px; transition: width var(--mo-slow) var(--mo-ease); }
+  /* ===== 覆盖标尺: 收益对预期月消费的覆盖测量 =====
+     实心 verdigris 填充 = 已被利息养起的部分; 虚线发丝 = 尚未走到的地方(标签空栏同语言);
+     25/50/75% 刻度与货币构成条/比例尺同语言; 菱形站点标记呼应比例尺拇指与报头裁切标记 */
+  .cov-section { margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--rule); }
+  .cov-label-row { display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+  /* 公式内嵌口径切换器: 缩至句内字号, 不抢标尺的视觉主角 */
+  .cov-label-row .seg-control { padding: 2px; border-radius: 6px; }
+  .cov-label-row .seg-btn { padding: 2px 10px; font-size: var(--fs-micro); border-radius: 4px; }
+  .cov-label { font-size: var(--fs-micro); font-weight: var(--fw-medium); color: var(--muted); letter-spacing: 0.08em; }
+  .cov-track { position: relative; height: 9px; margin: 0 4px; }
+  .cov-track::before { content: ''; position: absolute; left: 0; right: 0; top: 50%; border-top: 1px dashed var(--border); }
+  .cov-fill { position: absolute; left: 0; top: 50%; transform: translateY(-50%); width: 0; height: 3px; background: var(--verdigris); border-radius: 2px; transition: width var(--mo-mid) var(--mo-ease); }
+  .cov-tick { position: absolute; top: -2px; bottom: -2px; width: 1px; background: var(--tick); pointer-events: none; }
+  .cov-tick-end { left: 100%; transform: translateX(-1px); }
+  .cov-marker {
+    position: absolute; left: 0; top: 50%; width: 9px; height: 9px; border-radius: 1px;
+    background: var(--accent); border: 1.5px solid var(--card); box-shadow: 0 1px 3px var(--shadow);
+    transform: translate(-50%, -50%) rotate(45deg); transition: left var(--mo-mid) var(--mo-ease);
+  }
+  .cov-anchors { display: flex; justify-content: space-between; gap: 12px; margin-top: 8px; font-size: var(--fs-micro); color: var(--muted); font-variant-numeric: tabular-nums; }
+  .cov-anchors span { font-weight: var(--fw-medium); color: var(--fg); opacity: 0.85; }
+  .cov-reading { text-align: center; margin-top: 10px; font-size: var(--fs-body); color: var(--muted); }
+  /* 读数行（所选标签的钱 ÷ 预期月消费）: 没有刻度可测, 故不沿用锚点两端对齐（中间空档会显得突兀）,
+     整句公式居中呈现, 窄屏按顿读点换行 */
+  .runway-line { display: flex; flex-wrap: wrap; justify-content: center; align-items: baseline; gap: 6px; margin-top: 0; }
+  /* 本月预算卡（消费趋势）: 尺子语义是预算容器, 故不带「今天」站点;
+     hero 借报头同一支 display 字, 把「本月已花」抬成这张卡的读数主角（分母降级为小号）,
+     百分比落在尺子右端作刻度读数——同一行里读数与尺子互为表里 */
+  .pace-hero { display: flex; justify-content: center; align-items: baseline; gap: 10px; margin: 0 0 14px; }
+  .pace-hero #pace-num { font-family: var(--font-numeric); font-weight: var(--fw-medium); font-size: clamp(26px, 4.4vw, 34px); line-height: 1; color: var(--fg); }
+  .pace-hero-div { font-size: var(--fs-body); color: var(--muted); }
+  .pace-hero #pace-expense { font-size: var(--fs-body); color: var(--muted); }
+  .pace-meter { display: flex; align-items: center; gap: 12px; }
+  .pace-meter .cov-track { flex: 1; }
+  .pace-pct { min-width: 3.8em; text-align: right; font-size: var(--fs-micro); font-weight: var(--fw-strong); color: var(--accent-ink); }
+  /* 透明度画在 ::before 上：降 button 自己的 opacity 会连焦点环一起洗淡。 */
+  .hm-scroll { --hm-cell: 12px; --hm-gap: 2px; overflow-x: auto; padding-bottom: 6px; }
+  .hm-months, .hm-grid { min-width: max-content; }
+  .hm-months { display: flex; margin-bottom: 4px; }
+  .hm-months span { flex: none; white-space: nowrap; font-size: var(--fs-micro); color: var(--muted); }
+  .hm-grid { display: grid; grid-auto-flow: column; grid-template-rows: repeat(7, var(--hm-cell)); gap: var(--hm-gap); }
+  .hm-cell { position: relative; width: var(--hm-cell); height: var(--hm-cell); padding: 0; border: 0; border-color: transparent; color: inherit; border-radius: 2px; background: var(--card-2); box-shadow: inset 0 0 0 1px var(--rule); cursor: pointer; }
+  .hm-cell::before { content: ''; position: absolute; inset: 0; border-radius: inherit; background: var(--accent); opacity: 0; }
+  .hm-cell[data-lv="1"]::before { opacity: .30; }
+  .hm-cell[data-lv="2"]::before { opacity: .52; }
+  .hm-cell[data-lv="3"]::before { opacity: .76; }
+  .hm-cell[data-lv="4"]::before { opacity: 1; }
+  .hm-cell.is-future { visibility: hidden; }
+  .hm-legend { display: flex; align-items: center; gap: 3px; font-size: var(--fs-micro); color: var(--muted); }
+  .hm-legend .hm-cell { cursor: default; }
+  @media (prefers-reduced-motion: reduce) { .cov-fill, .cov-marker { transition: none; } }
+  .cmp-bar-track { height: 3px; border-radius: 2px; background: var(--bg-2); margin-top: 4px; overflow: hidden; }
+  .cmp-bar { height: 100%; border-radius: 2px; }
+  @media (max-width: 640px) {
+    .masthead { padding: 24px 20px 22px; }
+    .masthead-amount { font-size: clamp(34px, 12vw, 48px); }
+    /* 窄屏收紧 Tab 内边距：四个（资产侧五个）标签通常就装得下，不必动用横滚 */
+    .tab-btn { padding: 10px 13px; }
+  }
+
+  .card-title { font-family: var(--font-display); font-size: var(--fs-card); font-weight: var(--fw-bold); letter-spacing: -0.005em; }
+  .card-title-sm { font-family: var(--font-display); font-size: var(--fs-card-sm); font-weight: var(--fw-bold); }
+  .hero-figure { font-size: var(--fs-hero); line-height: 1.1; font-weight: var(--fw-medium); }
+
+  /* ===== Section headers (eyebrow + title) =====
+     布局（左标题组 / 右操作区、窄屏换行）归 CSS: 原先每处复制一遍类串, 还漏过一处 */
+  .section-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+  .section-head h2 { font-size: var(--fs-section); font-weight: var(--fw-bold); letter-spacing: -0.005em; text-wrap: balance; }
+  .eyebrow, .section-head .eyebrow {
+    font-family: var(--font-body); font-size: var(--fs-micro); letter-spacing: 0.22em;
+    text-transform: uppercase; color: var(--muted); display: block;
+  }
+  .section-head .eyebrow { margin-bottom: 4px; }
+  .brand-title { font-family: var(--font-display); font-size: var(--fs-section); font-weight: var(--fw-bold); letter-spacing: -0.005em; line-height: 1; }
+  .section-head .sub { font-size: var(--fs-body); color: var(--muted); margin-top: 2px; }
+  /* 章节头右侧的操作行（筛选下拉 / 搜索 / 主操作按钮）：放不下时整组换行。
+     为什么不用 Tailwind 的 flex gap-3：CDN 空壳下它在 E2E 里根本不生效（等于没写这个版式），
+     窄屏上 390px 实测会挤成「按钮变 56×123 的字柱」——那正是工具类在这儿帮不上忙的证明。
+     对齐用 center，控件高度差 1–2px 时两端不会各自错位。 */
+  .toolbar { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 12px; }
+  /* 换行后仍贴右：工具行单独占一行时，space-between 会把它顶到最左边。 */
+  .section-head .toolbar { margin-left: auto; }
+  /* ===== 打印：账本是最该能印出来的东西 =====
+     为什么必须单独一段：浏览器打印**默认不印背景色**，而本页的配色全部建立在
+     「底色在、文字压在上面」之上。暗色主题下 --fg 是 #ece4d0，印在白纸上只有 1.27:1
+     —— 用户拿到的是一张白纸（实测 page.pdf + 解压内容流，暗色 token 确实原样进了纸面）。
+     故打印形态不沿用当前主题，而是**强制回落到亮色那套纸墨**：
+       ① 前景/次要色重绑到亮色 token（不写死色值，主题变量仍是单一来源）；
+       ② 玻璃材质退场（backdrop-filter 关掉、底色改不透明 --card）——
+          纸张印不出模糊，半透明压在纸上只是一片脏灰；
+       ③ 装饰层与操作面不进纸（灯层/便条/页签栏/筛选操作行/报头底纹）。
+     只处理「印出来读不读得清」，不改屏幕上的任何形态。 */
+  @media print {
+    :root, :root.dark {
+      --bg: #fff; --bg-2: #fff; --fg: #211b10; --muted: #5e5034; --card: #fff; --card-2: #fff;
+      --border: #b9a87e; --rule: #b9a87e; --accent-ink: #7f5c0e; --accent: #8f6713;
+      --accent-soft: #d9b25e; --on-accent: #211b10;
+    }
+    html, body { background: #fff !important; color: var(--fg); }
+    /* 纸张不印背景图/阴影：纸纹、桌光、台灯三层全撤 */
+    body::before, body::after, .lamp-layer { display: none !important; }
+    .card, .modal-content {
+      background: #fff !important;
+      backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
+      box-shadow: none !important; border: 1px solid var(--border) !important;
+    }
+    /* 操作面与装饰进不了纸：页签栏、筛选行、便条、导入导出按钮、报头底纹 */
+    .tab-bar, .toolbar, #toast-area, .masthead::before, .masthead::after,
+    .no-print { display: none !important; }
+    .app-header { background: #fff !important; border-bottom: 1px solid var(--border); }
+    /* 表格跨页时不要把一个资产拆成两半 */
+    .asset-row { break-inside: avoid; }
+    a[href]::after { content: ''; } /* 不打印 URL 后缀（本页没有可点外链，留着只会脏） */
+    @page { margin: 14mm; }
+  }

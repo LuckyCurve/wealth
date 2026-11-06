@@ -3,7 +3,12 @@ const assert = require('node:assert');
 const fs = require('fs');
 const path = require('path');
 
-const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+// 页面已拆成三份：markup（index.html）/ css（styles.css）/ js（app.js）。
+// html 是「一份文件时的全貌」，一条正则横跨多个文件时用它；只问其中一份时用对应的变量。
+const markup = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+const css = fs.readFileSync(path.join(__dirname, '..', 'styles.css'), 'utf8');
+const js = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
+const html = markup + '\n' + css + '\n' + js;
 const count = (re) => (html.match(re) || []).length;
 // 取某顶层函数的完整源码段（函数体不含顶格的 "}"，故非贪婪匹配到行首 "}" 即函数结尾）。
 // 找不到必须报错：返回空串会让该函数的所有「不得出现 X」负向断言永久假绿——测试看着在、
@@ -2792,17 +2797,10 @@ describe('UI 接线契约：纸面质感与印刷细节', () => {
  * 这里用 new Function 做**真正的解析**（只解析、不执行，也不需要 DOM）：
  * 比手写正则数重名可靠得多——正则只看同类声明，漏掉 let 与 const 撞名这类真错。
  */
-describe('UI 接线契约：内联脚本必须能通过解析', () => {
-  const inlineScript = () => {
-    const i = html.lastIndexOf('<script>');
-    const j = html.lastIndexOf('</script>');
-    return html.slice(i + '<script>'.length, j);
-  };
-
-  test('内联脚本可解析（顶层声明重名会在此现形）', () => {
-    const src = inlineScript();
-    assert.ok(src.length > 10000, '应取到内联脚本全文（正则/切片是否失效？）');
-    assert.doesNotThrow(() => new Function(src), '内联脚本存在语法错误（顶层声明重名等）——整段脚本都不会执行');
+describe('UI 接线契约：页面脚本必须能通过解析', () => {
+  test('app.js 可解析（顶层声明重名会在此现形）', () => {
+    assert.ok(js.length > 10000, '应取到脚本全文（读文件是否失效？）');
+    assert.doesNotThrow(() => new Function(js), 'app.js 存在语法错误（顶层声明重名等）——整段脚本都不会执行');
   });
 
   test('logic.js 可解析', () => {
@@ -3405,8 +3403,8 @@ describe('UI 接线契约：多语言（默认英文，设置里切中文）', (
   const L = require('../logic.js');
   const CJK = /[\u4e00-\u9fff]/;
   const scriptStart = html.indexOf('<script src="logic.js"></script>');
-  const inline = html.slice(html.indexOf('<script>', scriptStart) + '<script>'.length, html.lastIndexOf('</script>'));
-  const bodySrc = html.slice(html.indexOf('<body'), scriptStart);
+  const inline = js;
+  const bodySrc = markup.slice(markup.indexOf('<body'), markup.indexOf('<script src="logic.js">'));
 
   // 去掉 JS 注释（字符串里的 // 不算注释：按引号状态机走，避免把 URL 当注释截断）
   const stripJsComments = (src) => {
@@ -3513,6 +3511,7 @@ describe('UI 接线契约：多语言（默认英文，设置里切中文）', (
   });
 
   test('静态文案：body 里每一段中文都挂在 data-i18n 上（否则英文界面留中文）', () => {
+    assert.ok(bodySrc.length > 10000, '应取到 body 全文（切片失效时下面会全绿的假象）');
     const leftovers = [];
     const re = />([^<>]+)</g;
     let m;
