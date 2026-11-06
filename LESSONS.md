@@ -28,6 +28,7 @@
 - **判据从页面自身求值**（`consistency.spec.js`）：同类元素样式集合、列宽、对比度 AA——新增同类结构自动纳入，所以不必改测试；但点对点的 `fnSource` 断言只钉住当前几处，当成全覆盖就会留洞。
 - **临时探针 `e2e/_probe.spec.js`**（`e2e/_*.spec.js` 已 ignore）：量几何、抓 DOM 比读 CSS 猜快；慢用例用 `--reporter=json` 按 duration 排序定位。
 - **OPFS 句柄不能跨 reload 读回** — headless Chromium 从 IndexedDB 反序列化 `navigator.storage.getDirectory()` 的句柄会让渲染进程崩，目录用例只断言记录已写入。
+- **替身要照真实 API 的参数校验抄一遍** — 用户报「导出失败」查了三轮：`showSaveFilePicker` 的 `startIn` 传 `null` 会被当成枚举值校验（`null` 不等于省略），真实 Chrome 直接 `TypeError`；而 E2E 的 picker 替身照单全收，于是「没设备份文件夹 → 导出」这条路径替身全绿、真机必红。替身只替掉窗口本身，**参数形状不合格就得抛同样的错**：不然验的不是同一件事，而且用户会被拉来当复现器（他的原话反饋：“让我自己看了这么多回”）。同类：`types` 的 MIME / 扩展名校验、`startIn` 只接受句柄或已知目录名。
 - **静态服务器验明正身** — `webServer.url` 指向 `/__e2e_health__`（只本服务器提供）：`reuseExistingServer` 只看端口，端口被别的服务占用会静默连错。不用 `file://`（localStorage 在 file origin 下不可靠）。
 - **单测的状态注入** — 依赖全局 `state` / `incomeMode` 的函数经 `globalThis` 注入；`freshState()` 固定 `lang: 'zh'`。
 - **内联脚本要真解析** — 单文件没有构建步骤，一个顶层声明重名就让整段脚本死在解析期（症状是「页面在、但没数字」，且 `renderAll` 之后的接线全不存在）；`ui-wiring` 用 `new Function` 把守。
