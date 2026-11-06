@@ -216,7 +216,6 @@ test('设了导出密钥：落盘的是密文信封，账本原文一个字都�
   expect(text).not.toContain('a-fund');
   expect(text).not.toContain('assets');
 
-  // 同一串密钥能解开，解出来的就是平时那份备份（totalCNY 仍被剥离）
   const plain = JSON.parse(await L.vault.decryptBackup(env, 'correct horse battery'));
   expect(plain.assets.length).toBe(3);
   expect(plain.snapshots.every((s) => !('totalCNY' in s))).toBe(true);
@@ -249,13 +248,13 @@ test('导入加密备份：先要密钥；错了不动数据、框不关；对�
 
   await page.setInputFiles('#import-file', file);
   await expect(page.locator('#pass-modal')).toBeVisible();
-  await expect(page.locator('#confirm-modal')).toBeHidden(); // 没过密钥不得先问覆盖
+  await expect(page.locator('#confirm-modal')).toBeHidden();
 
   await page.fill('#pass-modal-input', 'wrong passphrase');
   await page.click('#pass-modal-ok');
   await expect(page.locator('#toast-area')).toContainText('密钥不对，或文件已损坏');
   await expect(page.locator('#pass-modal')).toBeVisible();
-  await expect(page.locator('#pass-modal-input')).toHaveValue(''); // 原地重试，输入清空
+  await expect(page.locator('#pass-modal-input')).toHaveValue('');
   expect((await readAppState(page)).assets).toHaveLength(3);
 
   await page.fill('#pass-modal-input', 'correct horse battery');
@@ -274,7 +273,7 @@ test('写不进去时说清是文件被占，而不是笼统的「导出失败�
   await page.evaluate(() => { window.__fs.writeError = 'NoModificationAllowedError'; });
   await openExport(page);
   await expect(page.locator('#toast-area')).toContainText('这个文件现在写不进去（可能正被其他程序打开），换个位置再试');
-  expect((await readBackup(page)).lastBackup).toBe(null); // 没写成就不记「已备份」
+  expect((await readBackup(page)).lastBackup).toBe(null);
 });
 
 test('位置不可写时提示换文件夹（权限类错误各管各的）', async ({ page }) => {
@@ -307,7 +306,7 @@ test('设了密钥却没有 WebCrypto：拒绝导出（绝不默默写明文）'
   await page.evaluate(() => localStorage.setItem('wealth-manager-passphrase', 'correct horse battery'));
   await openExport(page);
   await expect(page.locator('#toast-area')).toContainText('这个页面不是安全环境（https 或 localhost），不能加密');
-  expect(await readRootFile(page, `wealth-data-${today()}.json`)).toBe(''); // 一个字节都没写进去
+  expect(await readRootFile(page, `wealth-data-${today()}.json`)).toBe('');
 });
 
 test('自动备份写失败：说出原因，且不记「已备份」（当天再进还会再问）', async ({ page }) => {

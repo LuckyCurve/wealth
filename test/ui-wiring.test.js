@@ -617,7 +617,6 @@ describe('UI 接线契约：导入/导出（纯原始格式 + 迁移兜底共用
     assert.ok(fnSrc, 'logic.js 必须有 backupJSONText');
     assert.match(stripComments(fnSrc[0]), /delete sn\.totalCNY/,
       '导出前必须逐条剥离 totalCNY：它的唯一真相是 assets × currencyRates，写进文件后一旦导入端不重算就会留下与资产脱节的旧值');
-    // 加密只此一处：设了密钥才包一层信封，没设就是原样的明文 JSON
     const text = stripComments(fnSource('backupFileText'));
     assert.match(text, /backup\.backupJSONText\(state\)/, 'backupFileText 是落盘内容的唯一出口，必须从这里取内容');
     assert.match(text, /vault\.encryptBackup\(/, '设了密钥必须走 logic.js 的加密实现');
@@ -630,7 +629,6 @@ describe('UI 接线契约：导入/导出（纯原始格式 + 迁移兜底共用
   });
 
   test('导入合并后必须走 migrateState()（与 loadState 共用同一套迁移/兜底）', () => {
-    // 明文与解密后的内容都汇到 confirmImport：迁移只有一个入口，加一条导入路径不得绕过它
     const src = stripComments(fnSource('confirmImport'));
     const mergeIdx = src.indexOf('state = { ...state, ...data }');
     const migrateIdx = src.indexOf('migrateState()');
@@ -656,7 +654,6 @@ describe('UI 接线契约：导入/导出（纯原始格式 + 迁移兜底共用
     assert.match(submit, /vault\.decryptBackup\(/, '解密走 logic.js');
     assert.match(submit, /confirmImport\(data\)/, '解开后与明文导入同一条路');
     assert.match(submit, /catch[\s\S]*pendingImportEnv/, '密钥不对就原地重试（保留待导入的文件）');
-    // 无手势消耗：入口只挂同步包装
     assert.strictEqual(count(/onclick="submitPassImportAsync/g), 0);
     assert.match(html, /onclick="submitPassImport\(\)"/);
   });
@@ -3826,8 +3823,6 @@ describe('UI 接线契约：破坏性入口一律二次确认', () => {
   // 豁免：只清视图态（筛选 / 搜索），不落盘、不删账本内容，弹确认只会添堵。
   const VIEW_ONLY = ['clearExpenseSearch', 'clearExpenseFilters'];
 
-  // 委托：入口只负责「把文件读进来」，覆盖确认在下游的 confirmImport（加密备份要先过密钥）。
-  // 显式登记而不是把入口改名绕过巡检——登记后仍要求它真的调了那个确认函数。
   const DELEGATED = { importData: 'confirmImport' };
 
   test('入口收集器本身有效（扫不到入口就会假绿）', () => {

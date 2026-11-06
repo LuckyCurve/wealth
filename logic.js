@@ -1836,7 +1836,6 @@
       : t('已选择「{p1}」，但当前浏览器不支持指定目录，文件窗口从默认位置打开', { p1: n });
   }
 
-  // ========== 备份加密（密钥不随备份走）==========
   const BACKUP_ENC_FORMAT = 'wealth-backup-encrypted';
   const BACKUP_ENC_VERSION = 1;
   const BACKUP_KDF_ITERATIONS = 300000;
@@ -1886,7 +1885,6 @@
     return out;
   }
 
-  // 头部进 AAD：改过的版本号/迭代数解不开，而不是照改过的参数继续解
   function backupAad(version) { return utf8Bytes(BACKUP_ENC_FORMAT + '/v' + version); }
 
   async function deriveBackupKey(passphrase, salt, iterations) {

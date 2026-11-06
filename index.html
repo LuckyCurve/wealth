@@ -5619,7 +5619,6 @@ async function clearBackupDirAsync() {
   toast(i18n.t('已清除备份文件夹'), 'success');
 }
 
-// ========== 导出密钥（加密备份）==========
 const PASS_KEY = 'wealth-manager-passphrase';
 
 function exportPassphrase() {
@@ -5643,14 +5642,14 @@ function saveExportPassphrase() {
     toast(i18n.t('保存失败：浏览器不允许本地存储'), 'error');
     return;
   }
-  input.value = ''; // 落点就是 localStorage，页面上不再留一份
+  input.value = '';
   syncBackupControls();
   toast(i18n.t('已设置导出密钥，之后的导出都会加密'), 'success');
 }
 
 function clearExportPassphrase() {
   showConfirm(i18n.t('确认清除导出密钥？清除后导出的是明文文件；已加密的备份仍要原密钥才能打开。'), () => {
-    try { localStorage.removeItem(PASS_KEY); } catch (e) { /* 存不进也就清不掉，回显仍会说未设置 */ }
+    try { localStorage.removeItem(PASS_KEY); } catch (e) {}
     syncBackupControls();
     toast(i18n.t('已清除导出密钥'), 'success');
   });
@@ -5725,7 +5724,7 @@ function markBackedUp(today) {
 // 于是当天再进来还会再问一次（旧实现用 lastAutoDownload 节流，取消后当天就「没了」）
 function applyBackupResult(notice, today) {
   if (notice.recordBackup) markBackedUp(today);
-  if (notice.recordBackup) { try { saveState(); } catch (e) { /* 存档写不下也不该把已写好的备份报成失败 */ } }
+  if (notice.recordBackup) { try { saveState(); } catch (e) {} }
   syncBackupControls();
   toast(notice.msg, notice.type);
 }
@@ -5883,7 +5882,6 @@ function importData(e) {
       toast(i18n.t('解析文件失败'), 'error');
       return;
     }
-    // 加密的先去问密钥；明文的一路走到确认（旧备份照旧能导）
     if (vault.isEncryptedBackup(data)) { askImportPassphrase(data); return; }
     confirmImport(data);
   };
@@ -6076,7 +6074,7 @@ document.addEventListener('click', e => {
     } else if (e.target.id === 'asset-gate-modal') {
       cancelAssetGate(); // 点遮罩 = 放弃本次（与 Esc 同一条出口）
     } else if (e.target.id === 'pass-modal') {
-      cancelPassImport(); // 密钥框点遮罩 = 取消这次导入
+      cancelPassImport();
     } else {
       closeModal(e.target.id); // 必须走 closeModal：直接改 display 会把焦点管理整个绕过
     }
