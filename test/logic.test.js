@@ -1367,6 +1367,46 @@ describe('备份加密 vault（密钥不随备份走）', () => {
     assert.strictEqual(L.vault.backupModeText(true), '导出加密');
     assert.strictEqual(L.vault.backupModeText(false), '导出明文');
   });
+
+  test('非安全环境下拒绝加密，而不是默默写成明文', async () => {
+    const saved = Object.getOwnPropertyDescriptor(globalThis.crypto, 'subtle');
+    Object.defineProperty(globalThis.crypto, 'subtle', { value: undefined, configurable: true });
+    try {
+      await assert.rejects(() => L.vault.encryptBackup(plain, PASS), (e) => e.name === 'no-webcrypto');
+    } finally {
+      if (saved) Object.defineProperty(globalThis.crypto, 'subtle', saved);
+    }
+  });
+});
+
+describe('导出失败的对外口径 exportErrorNotice', () => {
+  const notice = (e, stage) => L.backup.exportErrorNotice(e, stage);
+  const named = (name) => Object.assign(new Error('x'), { name });
+
+  test('环境类错误各说该改什么：开窗口 / 写位置 / 文件被占 / 磁盘满 / 不能加密', () => {
+    assert.strictEqual(notice(named('NotAllowedError'), 'picker').msg,
+      '浏览器没允许打开保存窗口（多半是扩展或策略拦下了），换 Chrome / Edge 或先清空「备份文件夹」再试');
+    assert.strictEqual(notice(named('NotAllowedError'), 'write').msg, '浏览器不允许写入这个位置，换一个文件夹再试');
+    assert.strictEqual(notice(named('NoModificationAllowedError'), 'write').msg,
+      '这个文件现在写不进去（可能正被其他程序打开），换个位置再试');
+    assert.strictEqual(notice(named('QuotaExceededError'), 'write').msg, '磁盘没有空间了，无法写入');
+    assert.strictEqual(notice(named('no-webcrypto'), 'write').msg,
+      '这个页面不是安全环境（https 或 localhost），不能加密；换地址打开，或先清空导出密钥');
+  });
+
+  test('认不出来的错误也带上错误名（一句反馈就能定位，不用猜是哪一步）', () => {
+    assert.strictEqual(notice(named('TypeError'), 'write').msg, '导出失败，请重试（TypeError）');
+    assert.strictEqual(notice(null, 'write').msg, '导出失败，请重试');
+    assert.strictEqual(notice(undefined).msg, '导出失败，请重试');
+  });
+
+  test('失败一律不记「已备份」（当天再进来还会再问一次）', () => {
+    for (const n of ['NotAllowedError', 'NoModificationAllowedError', 'QuotaExceededError', 'no-webcrypto', 'TypeError']) {
+      const r = notice(named(n), 'write');
+      assert.deepStrictEqual([r.type, r.recordBackup], ['error', false], n);
+      assert.ok(r.msg.length > 0);
+    }
+  });
 });
 
 describe('汇率刷新提示决策 rateFallbackNotice（统一提示便条）', () => {

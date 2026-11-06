@@ -29,10 +29,18 @@ async function setup(page, opts = {}) {
       window.__fs.startInIsDir = !!o && !!o.startIn;
       window.__fs.startInSameHandle = !!o && !!o.startIn && o.startIn === window.__fs.dirHandle;
       if (window.__fs.cancelSave) throw new DOMException('user aborted', 'AbortError');
+      if (window.__fs.pickerError) throw new DOMException('blocked', window.__fs.pickerError);
       const root = await navigator.storage.getDirectory();
-      return await root.getFileHandle(o.suggestedName, { create: true });
+      const fh = await root.getFileHandle(o.suggestedName, { create: true });
+      return {
+        createWritable: async () => {
+          if (window.__fs.writeError) throw new DOMException('cannot write', window.__fs.writeError);
+          return await fh.createWritable();
+        },
+      };
     };
     if (cfg.noFsa) { delete window.showDirectoryPicker; delete window.showSaveFilePicker; }
+    if (cfg.noSubtle) Object.defineProperty(window.crypto, 'subtle', { value: undefined });
   }, opts);
   if (opts.clock) await page.clock.install();
   await page.goto(INDEX_URL);
@@ -262,6 +270,46 @@ test('导入加密备份：先要密钥；错了不动数据、框不关；对�
   const after = await readAppState(page);
   expect(after.assets).toHaveLength(0);
   expect(after.categories.map((c) => c.id)).toEqual(['currency']);
+});
+
+// ===== 导出失败要说得出口（用户实测：只看到「导出失败」，无从下手） =====
+test('写不进去时说清是文件被占，而不是笼统的「导出失败」', async ({ page }) => {
+  await setup(page);
+  await page.evaluate(() => { window.__fs.writeError = 'NoModificationAllowedError'; });
+  await openExport(page);
+  await expect(page.locator('#toast-area')).toContainText('这个文件现在写不进去（可能正被其他程序打开），换个位置再试');
+  expect((await readBackup(page)).lastBackup).toBe(null); // 没写成就不记「已备份」
+});
+
+test('位置不可写时提示换文件夹（权限类错误各管各的）', async ({ page }) => {
+  await setup(page);
+  await page.evaluate(() => { window.__fs.writeError = 'NotAllowedError'; });
+  await openExport(page);
+  await expect(page.locator('#toast-area')).toContainText('浏览器不允许写入这个位置，换一个文件夹再试');
+});
+
+test('保存窗口打不开时提示换个浏览器或清掉备份文件夹', async ({ page }) => {
+  await setup(page);
+  await page.evaluate(() => { window.__fs.pickerError = 'SecurityError'; });
+  await openExport(page);
+  await expect(page.locator('#toast-area')).toContainText('浏览器没允许打开保存窗口');
+});
+
+test('设了密钥却没有 WebCrypto：拒绝导出（绝不默默写明文）', async ({ page }) => {
+  await setup(page, { noSubtle: true });
+  await page.evaluate(() => localStorage.setItem('wealth-manager-passphrase', 'correct horse battery'));
+  await openExport(page);
+  await expect(page.locator('#toast-area')).toContainText('这个页面不是安全环境（https 或 localhost），不能加密');
+  expect(await readRootFile(page, `wealth-data-${today()}.json`)).toBe(''); // 一个字节都没写进去
+});
+
+test('自动备份写失败：说出原因，且不记「已备份」（当天再进还会再问）', async ({ page }) => {
+  await setup(page, { autoFreq: 'daily', clock: true });
+  await page.clock.runFor(4200);
+  await page.evaluate(() => { window.__fs.writeError = 'QuotaExceededError'; });
+  await confirmOk(page);
+  await expect(page.locator('#toast-area')).toContainText('磁盘没有空间了，无法写入');
+  expect((await readBackup(page)).lastBackup).toBe(null);
 });
 
 test('加密文件解开了却不是账本：报格式错，不动当前数据（别人的密钥能造出任何信封）', async ({ page }) => {

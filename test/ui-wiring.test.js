@@ -661,6 +661,18 @@ describe('UI 接线契约：导入/导出（纯原始格式 + 迁移兜底共用
     assert.match(html, /onclick="submitPassImport\(\)"/);
   });
 
+  test('导出失败要说得出是哪一步（权限 / 占用 / 空间 / 不能加密），收尾不算进失败', () => {
+    const src = stripComments(fnSource('saveBackupToFile'));
+    assert.match(src, /backup\.exportErrorNotice\(e, stage\)/, '失败文案按阶段分口径，不只报「请重试」');
+    assert.match(src, /stage = 'write'/, '要记录卡在哪一步');
+    assert.match(src, /console\.error\(/, '控制台要留真相（一句反馈就能定位）');
+    assert.ok(src.indexOf('applyBackupResult(') > src.indexOf('finally'),
+      'applyBackupResult 必须在 try 之外：文件已写好之后出错不得报成导出失败');
+    const dl = stripComments(fnSource('exportViaDownload'));
+    assert.match(dl, /try \{[\s\S]*catch/, '回退下载也不能让异常静默消失（之前是未处理的 rejection，用户什么都看不到）');
+    assert.match(dl, /backup\.exportErrorNotice\(e/);
+  });
+
   test('设置里的导出密钥：保存 / 清除两个入口，清除要二次确认', () => {
     assert.strictEqual(count(/id="pass-input"/g), 1);
     assert.match(html, /id="pass-input"[^>]*aria-label="导出密钥"/);

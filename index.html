@@ -2120,7 +2120,7 @@ tailwind.config = {
   </div>
 </div>
 
-<!-- 加密备份的密钥口：解不开就原地重试，不动当前数据 -->
+<!-- 加密备份的密钥口：解不开就原地重试 -->
 <div id="pass-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="pass-modal-title" style="display:none;">
   <div class="modal-content modal-sm">
     <h3 class="font-display modal-title" id="pass-modal-title" data-i18n="输入密钥">输入密钥</h3>
@@ -5629,7 +5629,7 @@ function exportPassphrase() {
   try { return localStorage.getItem(PASS_KEY) || ''; } catch (e) { return ''; }
 }
 
-// 落盘内容的唯一出口：加不加密只在这一处判
+// 落盘内容的唯一出口：加不加密只在这里判
 async function backupFileText() {
   const text = backup.backupJSONText(state);
   const pass = exportPassphrase();
@@ -5665,20 +5665,26 @@ function clearExportPassphrase() {
 async function saveBackupToFile(today, mode) {
   if (backupInFlight) return 'cancelled';
   backupInFlight = true;
+  let notice;
+  let stage = 'picker'; // 卡在哪一步（开窗口 / 写文件 / 加密）决定该怎么救
   try {
     const handle = await window.showSaveFilePicker({
       suggestedName: backup.backupFileName(today),
       startIn: backupDirHandle, // undefined = 浏览器按 origin 记住的上次目录
       types: [{ description: 'JSON', accept: { 'application/json': ['.json'] } }],
     });
+    stage = 'write';
     await writeFileHandleText(handle, await backupFileText());
-    applyBackupResult(backup.backupResultNotice({ mode, target: 'file', status: 'written' }), today);
-    return 'written';
+    notice = backup.backupResultNotice({ mode, target: 'file', status: 'written' });
   } catch (e) {
+    console.error('[backup] export failed at ' + stage, e);
     const cancelled = e && e.name === 'AbortError';
-    applyBackupResult(backup.backupResultNotice({ mode, target: 'file', status: cancelled ? 'cancelled' : 'error' }), today);
-    return cancelled ? 'cancelled' : 'error';
+    notice = cancelled
+      ? backup.backupResultNotice({ mode, target: 'file', status: 'cancelled' })
+      : backup.exportErrorNotice(e, stage);
   } finally { backupInFlight = false; }
+  // 收尾在 try 之外：文件已写好，记状态出错也不该报成「导出失败」
+  applyBackupResult(notice, today);
 }
 
 // close() 成功才算写入完成；中途失败不会提交半截文件
@@ -5688,7 +5694,7 @@ async function writeFileHandleText(fh, text) {
   await w.close();
 }
 
-// 触发一次浏览器下载（兜底路径：无回执，绝不能据此记「已备份」）
+// 触发一次浏览器下载（无回执，不能据此记「已备份」）
 async function downloadBackupJSON() {
   const blob = new Blob([await backupFileText()], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
@@ -5710,7 +5716,7 @@ function markBackedUp(today) {
 // 于是当天再进来还会再问一次（旧实现用 lastAutoDownload 节流，取消后当天就「没了」）
 function applyBackupResult(notice, today) {
   if (notice.recordBackup) markBackedUp(today);
-  if (notice.recordBackup) saveState();
+  if (notice.recordBackup) { try { saveState(); } catch (e) { /* 存档写不下也不该把已写好的备份报成失败 */ } }
   syncBackupControls();
   toast(notice.msg, notice.type);
 }
@@ -5843,8 +5849,15 @@ async function exportDataAsync() {
 
 // 不支持文件窗口时的兜底：<a download> 无回执，只提示「已开始下载」，不记「已备份」
 async function exportViaDownload(today) {
-  await downloadBackupJSON();
-  applyBackupResult(backup.backupResultNotice({ mode: 'manual', target: 'download', status: 'downloaded' }), today);
+  let notice;
+  try {
+    await downloadBackupJSON();
+    notice = backup.backupResultNotice({ mode: 'manual', target: 'download', status: 'downloaded' });
+  } catch (e) {
+    console.error('[backup] download did not start', e);
+    notice = backup.exportErrorNotice(e, 'write');
+  }
+  applyBackupResult(notice, today);
 }
 
 function importData(e) {
@@ -5868,7 +5881,7 @@ function importData(e) {
   reader.readAsText(file);
 }
 
-// 明文与解密后的内容共用的唯一收尾：认格式 → 覆盖确认 → 迁移
+// 明文与解密后共用的唯一收尾：认格式 → 确认 → 迁移
 function confirmImport(data) {
   if (data && Array.isArray(data.categories) && Array.isArray(data.assets)) {
     showConfirm(i18n.t('导入将覆盖当前所有数据，确认继续？'), () => {
@@ -5884,7 +5897,7 @@ function confirmImport(data) {
   }
 }
 
-// 密钥只活在这层弹窗里：不写 localStorage（用户的导出密钥是设置里那颗，不是这颗）
+// 这里的密钥不写 localStorage（设置里那颗是另一回事）
 let pendingImportEnv = null;
 function askImportPassphrase(env) {
   pendingImportEnv = env;

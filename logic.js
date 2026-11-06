@@ -1806,6 +1806,21 @@
     return { msg: t('数据已导出'), type: 'success', recordBackup: true };
   }
 
+  // 导出没完成时的对外口径：环境类错误各说该改什么（权限 / 占用 / 空间 / 不能加密），
+  // 其余带一个错误名——一句反馈就能定位，不用再去猜「失败」是哪一步。
+  function exportErrorNotice(e, stage) {
+    const name = (e && e.name) || '';
+    const notice = (msg) => ({ msg: msg, type: 'error', recordBackup: false });
+    if (name === 'no-webcrypto') return notice(t('这个页面不是安全环境（https 或 localhost），不能加密；换地址打开，或先清空导出密钥'));
+    if (stage === 'picker' && (name === 'NotAllowedError' || name === 'SecurityError')) {
+      return notice(t('浏览器没允许打开保存窗口（多半是扩展或策略拦下了），换 Chrome / Edge 或先清空「备份文件夹」再试'));
+    }
+    if (name === 'NoModificationAllowedError') return notice(t('这个文件现在写不进去（可能正被其他程序打开），换个位置再试'));
+    if (name === 'NotAllowedError' || name === 'SecurityError') return notice(t('浏览器不允许写入这个位置，换一个文件夹再试'));
+    if (name === 'QuotaExceededError') return notice(t('磁盘没有空间了，无法写入'));
+    return notice(name ? t('导出失败，请重试（{p1}）', { p1: name }) : t('导出失败，请重试'));
+  }
+
   // 设置里「备份文件夹」边注：它现在是**文件窗口的起点目录**，不再是「直接写入」的开关
   function backupDirNoteText(hasDir, name, supported) {
     if (!hasDir) {
@@ -1843,8 +1858,7 @@
       !!o.cipher && typeof o.cipher.iv === 'string';
   }
 
-  function passphraseNoteText(set) {
-    return set
+  function passphraseNoteText(set) {    return set
       ? t('已设置：导出与自动备份都会加密，导入时要输入这串密钥')
       : t('未设置：导出与自动备份都是明文文件');
   }
@@ -1886,6 +1900,12 @@
   }
 
   async function encryptBackup(jsonText, passphrase) {
+    // 非安全环境（非 https / localhost）没有 crypto.subtle：宁可报错，不能默默写成明文
+    if (!globalThis.crypto || !globalThis.crypto.subtle) {
+      const e = new Error('no-webcrypto');
+      e.name = 'no-webcrypto';
+      throw e;
+    }
     const salt = randomBytes(16);
     const iv = randomBytes(12);
     const key = await deriveBackupKey(passphrase, salt, BACKUP_KDF_ITERATIONS);
@@ -2483,6 +2503,12 @@
     '解密': 'Decrypt',
     '密钥不对，或文件已损坏': 'Wrong passphrase, or the file is damaged',
     '解开了，但里面不是账本 JSON': 'Decrypted, but that is not a ledger JSON',
+    '导出失败，请重试（{p1}）': 'Export failed; try again ({p1})',
+    '这个页面不是安全环境（https 或 localhost），不能加密；换地址打开，或先清空导出密钥': 'This page is not a secure context (https or localhost), so it cannot encrypt. Open it via a secure address, or clear the export passphrase first',
+    '浏览器没允许打开保存窗口（多半是扩展或策略拦下了），换 Chrome / Edge 或先清空「备份文件夹」再试': 'The browser blocked its save dialog (usually an extension or a policy). Try Chrome / Edge, or clear the backup folder first',
+    '这个文件现在写不进去（可能正被其他程序打开），换个位置再试': 'That file cannot be written right now (it may be open in another app). Pick another location',
+    '浏览器不允许写入这个位置，换一个文件夹再试': 'The browser cannot write to that location; pick another folder',
+    '磁盘没有空间了，无法写入': 'Out of disk space; nothing was written',
     // 月度快照提醒（文案只报月份，不报金额）
     '快照提醒': 'Snapshot reminder',
     '本月快照还没记。上次快照：{p1}。在「资产 → 历史净值」记录本月快照，净值曲线才连得上。':
@@ -2627,6 +2653,7 @@
       backupDirNoteText,
       rateFallbackNotice,
       ratesFromApi,
+      exportErrorNotice,
     },
     vault: {
       BACKUP_ENC_FORMAT,
