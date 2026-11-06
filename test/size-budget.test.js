@@ -16,7 +16,7 @@ const fs = require('fs');
 const path = require('path');
 const ROOT = path.join(__dirname, '..');
 
-const INDEX_BUDGET = 396_000;
+const INDEX_BUDGET = 401_000;
 
 function bytes(name) {
   return fs.statSync(path.join(ROOT, name)).size;

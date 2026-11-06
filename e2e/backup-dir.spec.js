@@ -1,5 +1,7 @@
-const { test, expect, stubCdn, seed, waitReady, disableMotion, sampleState, INDEX_URL } = require('./fixtures');
-const { date } = require('../logic.js');
+const { test, expect, stubCdn, seed, waitReady, disableMotion, sampleState, INDEX_URL, readAppState } = require('./fixtures');
+const assert = require('node:assert');
+const L = require('../logic.js');
+const { date } = L;
 
 // 备份落点 E2E：自动与手动**统一**先弹确认框、再走系统文件窗口，窗口位置由设置里的目录决定。
 // headless 里没有原生选择器，用 OPFS（navigator.storage.getDirectory）提供**真实可写句柄**，
@@ -180,4 +182,110 @@ test('自动备份点取消：不写盘、不记状态，当天再进来还会�
   await waitReady(page);
   await page.clock.runFor(4200);
   await expect(confirmBox(page)).toBeVisible();
+});
+
+// ===== 导出密钥（加密备份）=====
+// 这些用例要验的是**文件里到底是什么字节**：只有真实浏览器 + OPFS 写出的那份文件能答。
+// 加密在页面里跑 WebCrypto，在 Node 里用同一份 logic.js 解开——两边算的不是同一份实现就报错。
+
+async function setPassphrase(page, pass) {
+  await page.evaluate(() => showSettings());
+  await page.fill('#pass-input', pass);
+  await page.click('#pass-save');
+  await page.evaluate(() => closeModal('settings-modal'));
+}
+
+test('设了导出密钥：落盘的是密文信封，账本原文一个字都看不见', async ({ page }) => {
+  await setup(page);
+  await setPassphrase(page, 'correct horse battery');
+  await page.evaluate(() => showSettings());
+  await expect(page.locator('#settings-pass-note')).toHaveText('已设置：导出与自动备份都会加密，导入时要输入这串密钥');
+  await page.evaluate(() => closeModal('settings-modal'));
+
+  await openExport(page);
+  await expect(page.locator('#toast-area')).toContainText('数据已导出');
+  const name = (await page.evaluate(() => window.__fs.saveCalls))[0];
+  const text = await readRootFile(page, name);
+  const env = JSON.parse(text);
+  expect(env.format).toBe('wealth-backup-encrypted');
+  expect(text).not.toContain('a-fund');
+  expect(text).not.toContain('assets');
+
+  // 同一串密钥能解开，解出来的就是平时那份备份（totalCNY 仍被剥离）
+  const plain = JSON.parse(await L.vault.decryptBackup(env, 'correct horse battery'));
+  expect(plain.assets.length).toBe(3);
+  expect(plain.snapshots.every((s) => !('totalCNY' in s))).toBe(true);
+  await assert.rejects(() => L.vault.decryptBackup(env, 'correct horse batterY'));
+});
+
+test('自动备份也加密：密钥设了就不存明文（自动与手动同一份内容）', async ({ page }) => {
+  await setup(page, { autoFreq: 'daily', clock: true });
+  await setPassphrase(page, 'correct horse battery');
+  const base = `wealth-data-${today()}.json`;
+
+  await page.clock.runFor(4200);
+  await confirmOk(page);
+  await expect(page.locator('#toast-area')).toContainText('已自动备份');
+  await expect.poll(async () => (await listRoot(page)).includes(base), { timeout: 5000 }).toBe(true);
+  const env = JSON.parse(await readRootFile(page, base));
+  expect(env.format).toBe('wealth-backup-encrypted');
+  expect(await readBackup(page)).toEqual({ autoFreq: 'daily', lastBackup: today() });
+});
+
+test('导入加密备份：先要密钥；错了不动数据、框不关；对了才进覆盖确认', async ({ page }) => {
+  await setup(page);
+  await page.evaluate(() => showImportExport());
+  const payload = {
+    categories: [{ id: 'currency', name: '货币类型', builtin: true, tags: ['CNY'] }],
+    assets: [], snapshots: [], expenseCategories: [], expenses: [],
+  };
+  const envelope = await L.vault.encryptBackup(JSON.stringify(payload), 'correct horse battery');
+  const file = { name: 'backup.json', mimeType: 'application/json', buffer: Buffer.from(envelope) };
+
+  await page.setInputFiles('#import-file', file);
+  await expect(page.locator('#pass-modal')).toBeVisible();
+  await expect(page.locator('#confirm-modal')).toBeHidden(); // 没过密钥不得先问覆盖
+
+  await page.fill('#pass-modal-input', 'wrong passphrase');
+  await page.click('#pass-modal-ok');
+  await expect(page.locator('#toast-area')).toContainText('密钥不对，或文件已损坏');
+  await expect(page.locator('#pass-modal')).toBeVisible();
+  await expect(page.locator('#pass-modal-input')).toHaveValue(''); // 原地重试，输入清空
+  expect((await readAppState(page)).assets).toHaveLength(3);
+
+  await page.fill('#pass-modal-input', 'correct horse battery');
+  await page.click('#pass-modal-ok');
+  await expect(page.locator('#pass-modal')).toBeHidden();
+  await confirmOk(page);
+  await expect(page.locator('#toast-area')).toContainText('数据已导入');
+  await expect(page.locator('#io-modal')).toBeHidden();
+  const after = await readAppState(page);
+  expect(after.assets).toHaveLength(0);
+  expect(after.categories.map((c) => c.id)).toEqual(['currency']);
+});
+
+test('加密文件解开了却不是账本：报格式错，不动当前数据（别人的密钥能造出任何信封）', async ({ page }) => {
+  await setup(page);
+  await page.evaluate(() => showImportExport());
+  const envelope = await L.vault.encryptBackup('not a ledger at all', 'any key');
+  await page.setInputFiles('#import-file', { name: 'x.json', mimeType: 'application/json', buffer: Buffer.from(envelope) });
+  await page.fill('#pass-modal-input', 'any key');
+  await page.click('#pass-modal-ok');
+  await expect(page.locator('#toast-area')).toContainText('解开了，但里面不是账本 JSON');
+  await expect(page.locator('#confirm-modal')).toBeHidden();
+  expect((await readAppState(page)).assets).toHaveLength(3);
+});
+
+test('导入加密备份取密钥，但不动设置里的导出密钥（导入别人的备份不得换掉你的密钥）', async ({ page }) => {
+  await setup(page);
+  await setPassphrase(page, 'my own passphrase');
+  const before = await page.evaluate(() => exportPassphrase());
+  await page.evaluate(() => showImportExport());
+  const envelope = await L.vault.encryptBackup(
+    JSON.stringify({ categories: [], assets: [], snapshots: [], expenseCategories: [], expenses: [] }), 'someone else key');
+  await page.setInputFiles('#import-file', { name: 'b.json', mimeType: 'application/json', buffer: Buffer.from(envelope) });
+  await page.fill('#pass-modal-input', 'someone else key');
+  await page.click('#pass-modal-ok');
+  await confirmOk(page);
+  expect(await page.evaluate(() => exportPassphrase())).toBe(before);
 });

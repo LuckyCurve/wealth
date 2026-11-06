@@ -1305,6 +1305,70 @@ describe('备份文件夹 / 文件名 / 写入目标 / 结果文案', () => {
   });
 });
 
+describe('备份加密 vault（密钥不随备份走）', () => {
+  const PASS = 'correct horse battery';
+  const plain = JSON.stringify({ categories: [{ id: 'c1', name: '现金' }], assets: [{ id: 'a1', amount: 1 }] });
+
+  test('isEncryptedBackup：只认结构标记，明文备份与半成品都不算', () => {
+    assert.strictEqual(L.vault.isEncryptedBackup(JSON.parse(plain)), false);
+    for (const bad of [null, undefined, {}, 'x', { format: L.vault.BACKUP_ENC_FORMAT },
+      { format: L.vault.BACKUP_ENC_FORMAT, payload: 'x' }]) {
+      assert.strictEqual(L.vault.isEncryptedBackup(bad), false, JSON.stringify(bad) + ' 不得被当成密文');
+    }
+  });
+
+  test('passphraseTooShort：少于下限才算短，空与 null 同样算短', () => {
+    const min = L.vault.BACKUP_PASSPHRASE_MIN;
+    assert.strictEqual(L.vault.passphraseTooShort('a'.repeat(min)), false);
+    assert.strictEqual(L.vault.passphraseTooShort('a'.repeat(min - 1)), true);
+    assert.strictEqual(L.vault.passphraseTooShort(''), true);
+    assert.strictEqual(L.vault.passphraseTooShort(null), true);
+  });
+
+  test('加密→解密往返：内容一致，文件里看不到明文', async () => {
+    const text = await L.vault.encryptBackup(plain, PASS);
+    const env = JSON.parse(text);
+    assert.strictEqual(L.vault.isEncryptedBackup(env), true);
+    assert.ok(!text.includes('现金'), '密文里不得出现账本原文');
+    assert.ok(!text.includes('amount'), '密文里不得出现字段名');
+    assert.strictEqual(await L.vault.decryptBackup(env, PASS), plain);
+  });
+
+  test('每次加密的盐与 IV 都不同（同一密钥同一内容也不得产出同一份密文）', async () => {
+    const a = JSON.parse(await L.vault.encryptBackup(plain, PASS));
+    const b = JSON.parse(await L.vault.encryptBackup(plain, PASS));
+    assert.notStrictEqual(a.kdf.salt, b.kdf.salt);
+    assert.notStrictEqual(a.cipher.iv, b.cipher.iv);
+    assert.notStrictEqual(a.payload, b.payload);
+  });
+
+  test('密钥不对 / 密文被改 / 头部被改：一律解不开（不返回半真半假的内容）', async () => {
+    const env = JSON.parse(await L.vault.encryptBackup(plain, PASS));
+    await assert.rejects(() => L.vault.decryptBackup(env, PASS + 'x'));
+
+    const flipped = Object.assign({}, env, { payload: env.payload.slice(0, -4) + (env.payload.slice(-4) === 'AAAA' ? 'BBBB' : 'AAAA') });
+    await assert.rejects(() => L.vault.decryptBackup(flipped, PASS), '密文被改必须失败');
+
+    const retitled = Object.assign({}, env, { version: env.version + 1 });
+    await assert.rejects(() => L.vault.decryptBackup(retitled, PASS), '版本号是认证数据的一部分，改过就不是同一把钥匙');
+  });
+
+  test('外来文件里天文的迭代数先把页面卡死：超上限按上限算（很快就会失败而不是挂住）', async () => {
+    const env = JSON.parse(await L.vault.encryptBackup(plain, PASS));
+    const hostile = Object.assign({}, env, { kdf: Object.assign({}, env.kdf, { iterations: 1e12 }) });
+    const t0 = Date.now();
+    await assert.rejects(() => L.vault.decryptBackup(hostile, PASS));
+    assert.ok(Date.now() - t0 < 15000, '超过上限的迭代数不得真的跑完（那样等于让一个文件卡死页面）');
+  });
+
+  test('文案：export 模式与设置边注都指向同一条事实（设了就加密）', () => {
+    assert.strictEqual(L.vault.passphraseNoteText(true), '已设置：导出与自动备份都会加密，导入时要输入这串密钥');
+    assert.strictEqual(L.vault.passphraseNoteText(false), '未设置：导出与自动备份都是明文文件');
+    assert.strictEqual(L.vault.backupModeText(true), '导出加密');
+    assert.strictEqual(L.vault.backupModeText(false), '导出明文');
+  });
+});
+
 describe('汇率刷新提示决策 rateFallbackNotice（统一提示便条）', () => {
   test('有缓存可回退 → 中性便条 info「使用缓存汇率」（注意但不报警）', () => {
     assert.deepStrictEqual(L.backup.rateFallbackNotice(true), { msg: '使用缓存汇率', type: 'info' });

@@ -2099,15 +2099,14 @@ tailwind.config = {
         <p class="t-body mb-3 muted" data-i18n="导出当前所有数据为 JSON 文件">导出当前所有数据为 JSON 文件</p>
         <button onclick="exportData()" class="btn-gold" data-i18n="导出数据">导出数据</button>
         <span id="backup-last-text" class="t-micro ml-3 muted"></span>
+        <span id="io-pass-note" class="t-micro ml-3 muted"></span>
       </div>
       <hr>
       <div>
         <p class="t-body mb-3 muted" data-i18n="从 JSON 文件导入数据（将覆盖当前数据）">从 JSON 文件导入数据（将覆盖当前数据）</p>
-        <!-- 键盘可达的做法：让 label **包住** file input。
-             原先 label[for] 的 tabIndex 是 -1（label 不是控件），而 input 又是 display:none
-             ——两头都进不了 Tab 序，于是键盘用户整块够不到「导入数据」（实测 Shift+Tab 直接跳过）。
-             包住之后只有**一个** Tab 停靠点（input），浏览器原生负责 Enter/Space 打开选择框，
-             不必自己写转发 click 的脚本；焦点环走 :focus-within 画在 label 上。 -->
+        <!-- label 必须**包住** file input：label[for] 的 tabIndex 是 -1、input 又是 display:none，
+             两头都进不了 Tab 序（实测 Shift+Tab 直接跳过）。包住后只有 input 一个停靠点，
+             Enter/Space 由浏览器负责，焦点环画在 label 上（:focus-within）。 -->
         <label class="btn-gold file-label">
           <span data-i18n="选择文件">选择文件</span>
           <input type="file" id="import-file" class="sr-only" accept=".json" onchange="importData(event)">
@@ -2117,6 +2116,20 @@ tailwind.config = {
     </div>
     <div class="modal-footer">
       <button type="button" onclick="closeModal('io-modal')" class="btn-ghost" data-i18n="关闭">关闭</button>
+    </div>
+  </div>
+</div>
+
+<!-- 加密备份的密钥口：解不开就原地重试，不动当前数据 -->
+<div id="pass-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="pass-modal-title" style="display:none;">
+  <div class="modal-content modal-sm">
+    <h3 class="font-display modal-title" id="pass-modal-title" data-i18n="输入密钥">输入密钥</h3>
+    <p class="t-body muted" style="margin-bottom:20px;" data-i18n="这个备份是加密的，输入导出时用的那串密钥才能打开。">这个备份是加密的，输入导出时用的那串密钥才能打开。</p>
+    <label class="field-label" for="pass-modal-input" data-i18n="密钥">密钥</label>
+    <input type="password" id="pass-modal-input" class="w-full" autocomplete="off" onkeydown="passModalKey(event)">
+    <div class="modal-footer">
+      <button type="button" onclick="cancelPassImport()" class="btn-ghost" data-i18n="取消">取消</button>
+      <button type="button" id="pass-modal-ok" onclick="submitPassImport()" class="btn-gold" data-i18n="解密">解密</button>
     </div>
   </div>
 </div>
@@ -2346,6 +2359,19 @@ tailwind.config = {
         <div class="setting-actions">
           <button type="button" id="backup-dir-choose" onclick="chooseBackupDir()" class="btn-ghost btn-sm" data-i18n="选择文件夹">选择文件夹</button>
           <button type="button" id="backup-dir-clear" onclick="clearBackupDir()" class="btn-danger btn-sm" hidden data-i18n="清除">清除</button>
+        </div>
+      </div>
+      <hr>
+      <div class="setting-row">
+        <div class="setting-info">
+          <p class="setting-label" data-i18n="导出密钥">导出密钥</p>
+          <p class="setting-desc" data-i18n="导出与自动备份存成密文，导入时输入这串密钥才能打开。密钥只在本机、不随备份走；忘了就打不开。未设置时导出明文。">导出与自动备份存成密文，导入时输入这串密钥才能打开。密钥只在本机、不随备份走；忘了就打不开。未设置时导出明文。</p>
+          <p id="settings-pass-note" class="setting-note"></p>
+        </div>
+        <div class="setting-actions">
+          <input type="password" id="pass-input" autocomplete="new-password" aria-label="导出密钥" data-i18n-aria-label="导出密钥" onkeydown="if(event.key==='Enter'&&!event.isComposing){event.preventDefault();saveExportPassphrase();}">
+          <button type="button" id="pass-save" onclick="saveExportPassphrase()" class="btn-ghost btn-sm" data-i18n="保存密钥">保存密钥</button>
+          <button type="button" id="pass-clear" onclick="clearExportPassphrase()" class="btn-danger btn-sm" hidden data-i18n="清除">清除</button>
         </div>
       </div>
       <hr>
@@ -5594,6 +5620,46 @@ async function clearBackupDirAsync() {
   toast(i18n.t('已清除备份文件夹'), 'success');
 }
 
+// ========== 导出密钥（加密备份）==========
+// 密钥只存这个 localStorage 键，不进 state：导入是整份 state 覆盖，跟着走就换掉了对方的密钥。
+// 设了就加密（三条落盘路径同一份内容），没设就照旧明文，所以旧的明文备份永远能导。
+const PASS_KEY = 'wealth-manager-passphrase';
+
+function exportPassphrase() {
+  try { return localStorage.getItem(PASS_KEY) || ''; } catch (e) { return ''; }
+}
+
+// 落盘内容的唯一出口：加不加密只在这一处判
+async function backupFileText() {
+  const text = backup.backupJSONText(state);
+  const pass = exportPassphrase();
+  return pass ? await vault.encryptBackup(text, pass) : text;
+}
+
+function saveExportPassphrase() {
+  const input = document.getElementById('pass-input');
+  const pass = input.value;
+  if (vault.passphraseTooShort(pass)) {
+    toast(i18n.t('密钥至少 {p1} 位', { p1: vault.BACKUP_PASSPHRASE_MIN }), 'error');
+    return;
+  }
+  try { localStorage.setItem(PASS_KEY, pass); } catch (e) {
+    toast(i18n.t('保存失败：浏览器不允许本地存储'), 'error');
+    return;
+  }
+  input.value = ''; // 落点就是 localStorage，页面上不再留一份
+  syncBackupControls();
+  toast(i18n.t('已设置导出密钥，之后的导出都会加密'), 'success');
+}
+
+function clearExportPassphrase() {
+  showConfirm(i18n.t('确认清除导出密钥？清除后导出的是明文文件；已加密的备份仍要原密钥才能打开。'), () => {
+    try { localStorage.removeItem(PASS_KEY); } catch (e) { /* 存不进也就清不掉，回显仍会说未设置 */ }
+    syncBackupControls();
+    toast(i18n.t('已清除导出密钥'), 'success');
+  });
+}
+
 // ===== 落盘 =====
 // 唯一落盘入口：调用前不得有 await（手势会被消耗掉）；close() 成功才算写完；取消返回 'cancelled'，不记任何状态。
 async function saveBackupToFile(today, mode) {
@@ -5605,7 +5671,7 @@ async function saveBackupToFile(today, mode) {
       startIn: backupDirHandle, // undefined = 浏览器按 origin 记住的上次目录
       types: [{ description: 'JSON', accept: { 'application/json': ['.json'] } }],
     });
-    await writeFileHandleText(handle, backup.backupJSONText(state));
+    await writeFileHandleText(handle, await backupFileText());
     applyBackupResult(backup.backupResultNotice({ mode, target: 'file', status: 'written' }), today);
     return 'written';
   } catch (e) {
@@ -5623,8 +5689,8 @@ async function writeFileHandleText(fh, text) {
 }
 
 // 触发一次浏览器下载（兜底路径：无回执，绝不能据此记「已备份」）
-function downloadBackupJSON() {
-  const blob = new Blob([backup.backupJSONText(state)], { type: 'application/json' });
+async function downloadBackupJSON() {
+  const blob = new Blob([await backupFileText()], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
@@ -5722,6 +5788,13 @@ function syncBackupControls() {
   }
   const clearBtn = document.getElementById('backup-dir-clear');
   if (clearBtn) clearBtn.hidden = !backupDirHandle;
+  const passSet = !!exportPassphrase();
+  const passNote = document.getElementById('settings-pass-note');
+  if (passNote) passNote.textContent = vault.passphraseNoteText(passSet);
+  const passClear = document.getElementById('pass-clear');
+  if (passClear) passClear.hidden = !passSet;
+  const ioNote = document.getElementById('io-pass-note');
+  if (ioNote) ioNote.textContent = vault.backupModeText(passSet);
 }
 
 function setBackupFreq(v) {
@@ -5769,8 +5842,8 @@ async function exportDataAsync() {
 }
 
 // 不支持文件窗口时的兜底：<a download> 无回执，只提示「已开始下载」，不记「已备份」
-function exportViaDownload(today) {
-  downloadBackupJSON();
+async function exportViaDownload(today) {
+  await downloadBackupJSON();
   applyBackupResult(backup.backupResultNotice({ mode: 'manual', target: 'download', status: 'downloaded' }), today);
 }
 
@@ -5781,25 +5854,79 @@ function importData(e) {
   document.getElementById('import-file-name').textContent = file.name;
   const reader = new FileReader();
   reader.onload = function(ev) {
+    let data;
     try {
-      const data = JSON.parse(ev.target.result);
-      if (data && Array.isArray(data.categories) && Array.isArray(data.assets)) {
-        showConfirm(i18n.t('导入将覆盖当前所有数据，确认继续？'), () => {
-          state = { ...state, ...data };
-          migrate.migrateState();
-          saveState();
-          renderAll();
-          closeModal('io-modal');
-          toast(i18n.t('数据已导入'), 'success');
-        }, null, { onCancel: () => { document.getElementById('import-file-name').textContent = ''; } });
-      } else {
-        toast(i18n.t('文件格式不正确'), 'error');
-      }
+      data = JSON.parse(ev.target.result);
     } catch(err) {
       toast(i18n.t('解析文件失败'), 'error');
+      return;
     }
+    // 加密的先去问密钥；明文的一路走到确认（旧备份照旧能导）
+    if (vault.isEncryptedBackup(data)) { askImportPassphrase(data); return; }
+    confirmImport(data);
   };
   reader.readAsText(file);
+}
+
+// 明文与解密后的内容共用的唯一收尾：认格式 → 覆盖确认 → 迁移
+function confirmImport(data) {
+  if (data && Array.isArray(data.categories) && Array.isArray(data.assets)) {
+    showConfirm(i18n.t('导入将覆盖当前所有数据，确认继续？'), () => {
+      state = { ...state, ...data };
+      migrate.migrateState();
+      saveState();
+      renderAll();
+      closeModal('io-modal');
+      toast(i18n.t('数据已导入'), 'success');
+    }, null, { onCancel: () => { document.getElementById('import-file-name').textContent = ''; } });
+  } else {
+    toast(i18n.t('文件格式不正确'), 'error');
+  }
+}
+
+// 密钥只活在这层弹窗里：不写 localStorage（用户的导出密钥是设置里那颗，不是这颗）
+let pendingImportEnv = null;
+function askImportPassphrase(env) {
+  pendingImportEnv = env;
+  const input = document.getElementById('pass-modal-input');
+  input.value = '';
+  openModal('pass-modal');
+  input.focus();
+}
+
+function cancelPassImport() {
+  pendingImportEnv = null;
+  document.getElementById('import-file-name').textContent = '';
+  closeModal('pass-modal');
+}
+
+function passModalKey(e) {
+  if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); submitPassImport(); }
+}
+
+function submitPassImport() { submitPassImportAsync(); }
+
+async function submitPassImportAsync() {
+  const env = pendingImportEnv;
+  if (!env) return;
+  const input = document.getElementById('pass-modal-input');
+  let text;
+  try {
+    text = await vault.decryptBackup(env, input.value);
+  } catch (err) {
+    input.value = '';
+    input.focus();
+    toast(i18n.t('密钥不对，或文件已损坏'), 'error');
+    return;
+  }
+  pendingImportEnv = null;
+  closeModal('pass-modal');
+  let data;
+  try { data = JSON.parse(text); } catch (err) {
+    toast(i18n.t('解开了，但里面不是账本 JSON'), 'error');
+    return;
+  }
+  confirmImport(data);
 }
 
 // ========== UTILS ==========
@@ -5928,6 +6055,8 @@ document.addEventListener('click', e => {
       confirmCancel(); // 统一走 confirmCancel：隐藏 + 清空 _confirmCallback
     } else if (e.target.id === 'asset-gate-modal') {
       cancelAssetGate(); // 点遮罩 = 放弃本次（与 Esc 同一条出口）
+    } else if (e.target.id === 'pass-modal') {
+      cancelPassImport(); // 密钥框点遮罩 = 取消这次导入
     } else {
       closeModal(e.target.id); // 必须走 closeModal：直接改 display 会把焦点管理整个绕过
     }
@@ -5957,6 +6086,7 @@ document.addEventListener('keydown', e => {
   if (!top) return;
   if (top.id === 'asset-gate-modal') cancelAssetGate(); // 作废本次抄写（下次抬闸重新抽句）
   else if (top.id === 'confirm-modal') confirmCancel();
+  else if (top.id === 'pass-modal') cancelPassImport();
   else closeModal(top.id); // 同上：ESC 也要还焦点，不能只改 display
 });
 

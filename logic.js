@@ -1819,6 +1819,98 @@
       : t('已选择「{p1}」，但当前浏览器不支持指定目录，文件窗口从默认位置打开', { p1: n });
   }
 
+  // ========== 备份加密（密钥不随备份走）==========
+  // 密钥只存在页面自己的 localStorage 键里，**不进 state**：导入是把整份 state 覆盖掉，
+  // 密钥若跟着走，别人的备份会把你的密钥换掉（反之亦然）。用法是「设了就加密，没设就照旧明文」，
+  // 所以旧的明文备份永远能导。
+  const BACKUP_ENC_FORMAT = 'wealth-backup-encrypted';
+  const BACKUP_ENC_VERSION = 1;
+  const BACKUP_KDF_ITERATIONS = 300000;
+  const BACKUP_PASSPHRASE_MIN = 8;
+  // 迭代上限：文件是外来的，一个 1e12 的迭代数会先把页面卡死再报错
+  const BACKUP_KDF_ITERATIONS_MAX = 1000000;
+
+  function passphraseTooShort(p) {
+    return String(p == null ? '' : p).length < BACKUP_PASSPHRASE_MIN;
+  }
+
+  // 只认结构标记，不猜字段：把明文备份误判成密文，等于一个本来能导的文件打不开
+  function isEncryptedBackup(o) {
+    return !!o && typeof o === 'object' &&
+      o.format === BACKUP_ENC_FORMAT &&
+      typeof o.payload === 'string' &&
+      !!o.kdf && typeof o.kdf.salt === 'string' && typeof o.kdf.iterations === 'number' &&
+      !!o.cipher && typeof o.cipher.iv === 'string';
+  }
+
+  function passphraseNoteText(set) {
+    return set
+      ? t('已设置：导出与自动备份都会加密，导入时要输入这串密钥')
+      : t('未设置：导出与自动备份都是明文文件');
+  }
+
+  function backupModeText(set) {
+    return set ? t('导出加密') : t('导出明文');
+  }
+
+  function utf8Bytes(str) { return new TextEncoder().encode(str); }
+
+  function bytesToBase64(bytes) {
+    let s = '';
+    for (let i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
+    return btoa(s);
+  }
+
+  function base64ToBytes(str) {
+    const bin = atob(str);
+    const out = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out;
+  }
+
+  function randomBytes(n) {
+    const out = new Uint8Array(n);
+    globalThis.crypto.getRandomValues(out);
+    return out;
+  }
+
+  // 头部与密文一起认证：改了版本号/迭代数就不再是同一把钥匙，解出来是失败而不是「按改过的参数照解」
+  function backupAad(version) { return utf8Bytes(BACKUP_ENC_FORMAT + '/v' + version); }
+
+  async function deriveBackupKey(passphrase, salt, iterations) {
+    const subtle = globalThis.crypto.subtle;
+    const base = await subtle.importKey('raw', utf8Bytes(passphrase), 'PBKDF2', false, ['deriveKey']);
+    return subtle.deriveKey(
+      { name: 'PBKDF2', salt, iterations, hash: 'SHA-256' },
+      base, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+  }
+
+  async function encryptBackup(jsonText, passphrase) {
+    const salt = randomBytes(16);
+    const iv = randomBytes(12);
+    const key = await deriveBackupKey(passphrase, salt, BACKUP_KDF_ITERATIONS);
+    const ct = await globalThis.crypto.subtle.encrypt(
+      { name: 'AES-GCM', iv, additionalData: backupAad(BACKUP_ENC_VERSION) }, key, utf8Bytes(jsonText));
+    return JSON.stringify({
+      format: BACKUP_ENC_FORMAT,
+      version: BACKUP_ENC_VERSION,
+      kdf: { name: 'PBKDF2', hash: 'SHA-256', iterations: BACKUP_KDF_ITERATIONS, salt: bytesToBase64(salt) },
+      cipher: { name: 'AES-GCM', iv: bytesToBase64(iv) },
+      payload: bytesToBase64(new Uint8Array(ct)),
+    }, null, 2);
+  }
+
+  // 解不开只有一种对外口径（密钥错 / 文件被改 / 格式不对）：抛错，调用方一律提示重试
+  async function decryptBackup(env, passphrase) {
+    if (!isEncryptedBackup(env)) throw new Error('not-an-encrypted-backup');
+    const iterations = Math.min(Math.max(Math.trunc(env.kdf.iterations), 1), BACKUP_KDF_ITERATIONS_MAX);
+    const key = await deriveBackupKey(passphrase, base64ToBytes(env.kdf.salt), iterations);
+    const plain = await globalThis.crypto.subtle.decrypt(
+      { name: 'AES-GCM', iv: base64ToBytes(env.cipher.iv), additionalData: backupAad(env.version) },
+      key, base64ToBytes(env.payload));
+    return new TextDecoder().decode(plain);
+  }
+
   // ========== 汇率刷新提示决策 ==========
   // 拉取失败时的便条文案与类型：有缓存可回退 → info「使用缓存汇率」（中性金墨边注，注意但不报警）；
   // 连缓存都没有 → error「汇率获取失败」（报警红）。fetchRates 的 catch 只做 DOM 副作用，
@@ -2373,6 +2465,24 @@
     '已选择「{p1}」，但当前浏览器不支持指定目录，文件窗口从默认位置打开': '“{p1}” chosen, but this browser cannot target folders; the save dialog opens at the default location',
     '使用缓存汇率': 'Using cached rates',
     '汇率获取失败': 'Exchange rates unavailable',
+    '导出密钥': 'Export passphrase',
+    '导出与自动备份存成密文，导入时输入这串密钥才能打开。密钥只在本机、不随备份走；忘了就打不开。未设置时导出明文。': 'Exports and auto backups are encrypted; importing asks for this passphrase. It stays on this device and never travels with the file. Forget it and the files stay shut. While unset, exports are plain text.',
+    '已设置：导出与自动备份都会加密，导入时要输入这串密钥': 'Set: exports and auto backups are encrypted; importing asks for it',
+    '未设置：导出与自动备份都是明文文件': 'Not set: exports and auto backups are plain text',
+    '导出加密': 'Encrypted export',
+    '导出明文': 'Plain-text export',
+    '保存密钥': 'Save passphrase',
+    '密钥': 'Passphrase',
+    '密钥至少 {p1} 位': 'Use at least {p1} characters',
+    '已设置导出密钥，之后的导出都会加密': 'Passphrase saved; exports will be encrypted',
+    '保存失败：浏览器不允许本地存储': 'Could not save: this browser blocks local storage',
+    '确认清除导出密钥？清除后导出的是明文文件；已加密的备份仍要原密钥才能打开。': 'Clear the export passphrase? Exports become plain text; encrypted backups still need the old passphrase.',
+    '已清除导出密钥': 'Export passphrase cleared',
+    '输入密钥': 'Enter passphrase',
+    '这个备份是加密的，输入导出时用的那串密钥才能打开。': 'This backup is encrypted; enter the passphrase used when exporting it.',
+    '解密': 'Decrypt',
+    '密钥不对，或文件已损坏': 'Wrong passphrase, or the file is damaged',
+    '解开了，但里面不是账本 JSON': 'Decrypted, but that is not a ledger JSON',
     // 月度快照提醒（文案只报月份，不报金额）
     '快照提醒': 'Snapshot reminder',
     '本月快照还没记。上次快照：{p1}。在「资产 → 历史净值」记录本月快照，净值曲线才连得上。':
@@ -2517,6 +2627,18 @@
       backupDirNoteText,
       rateFallbackNotice,
       ratesFromApi,
+    },
+    vault: {
+      BACKUP_ENC_FORMAT,
+      BACKUP_ENC_VERSION,
+      BACKUP_KDF_ITERATIONS,
+      BACKUP_PASSPHRASE_MIN,
+      passphraseTooShort,
+      isEncryptedBackup,
+      passphraseNoteText,
+      backupModeText,
+      encryptBackup,
+      decryptBackup,
     },
     stress: {
       stressDimensions,

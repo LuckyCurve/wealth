@@ -339,7 +339,7 @@ describe('UI 接线契约：logic.js 导出清单与筛选同步时序', () => {
     const domains = Object.keys(api);
     assert.deepStrictEqual(
       domains.slice().sort(),
-      ['backup', 'category', 'chartData', 'color', 'date', 'demo', 'expense', 'i18n', 'income', 'migrate', 'money', 'motion', 'snapshot', 'stress', 'text', 'ui'],
+      ['backup', 'category', 'chartData', 'color', 'date', 'demo', 'expense', 'i18n', 'income', 'migrate', 'money', 'motion', 'snapshot', 'stress', 'text', 'ui', 'vault'],
       '域清单：新增域要在这里显式登记（防编辑残留悄悄多一个袋子）'
     );
     const seen = new Map();
@@ -617,21 +617,60 @@ describe('UI 接线契约：导入/导出（纯原始格式 + 迁移兜底共用
     assert.ok(fnSrc, 'logic.js 必须有 backupJSONText');
     assert.match(stripComments(fnSrc[0]), /delete sn\.totalCNY/,
       '导出前必须逐条剥离 totalCNY：它的唯一真相是 assets × currencyRates，写进文件后一旦导入端不重算就会留下与资产脱节的旧值');
+    // 加密只此一处：设了密钥才包一层信封，没设就是原样的明文 JSON
+    const text = stripComments(fnSource('backupFileText'));
+    assert.match(text, /backup\.backupJSONText\(state\)/, 'backupFileText 是落盘内容的唯一出口，必须从这里取内容');
+    assert.match(text, /vault\.encryptBackup\(/, '设了密钥必须走 logic.js 的加密实现');
     for (const fn of ['downloadBackupJSON', 'saveBackupToFile']) {
-      assert.match(stripComments(fnSource(fn)), /(?:[A-Za-z_$][A-Za-z0-9_$]*\.)?backupJSONText\(state\)/,
-        `${fn} 必须用同一份 backupJSONText 生成内容`);
+      assert.match(stripComments(fnSource(fn)), /await backupFileText\(\)/,
+        `${fn} 必须用同一份内容（加密与否由 backupFileText 一处决定）`);
     }
     assert.match(stripComments(fnSource('exportDataAsync')), /saveBackupToFile\(/,
       '手动导出必须汇到同一落盘出口，不得另写一份写盘');
   });
 
   test('导入合并后必须走 migrateState()（与 loadState 共用同一套迁移/兜底）', () => {
-    const src = stripComments(fnSource('importData'));
+    // 明文与解密后的内容都汇到 confirmImport：迁移只有一个入口，加一条导入路径不得绕过它
+    const src = stripComments(fnSource('confirmImport'));
     const mergeIdx = src.indexOf('state = { ...state, ...data }');
     const migrateIdx = src.indexOf('migrateState()');
     assert.ok(mergeIdx >= 0, '导入应先合并顶层字段');
     assert.ok(migrateIdx > mergeIdx,
       '合并后必须调用 migrateState（旧 expectedRate、旧快照格式、缺字段、孤儿标签的兜底唯一入口）');
+  });
+
+  test('密钥不进 state：备份加密的密钥只存页面自己的 localStorage 键，随备份导出就等于换掉对方的密钥', () => {
+    assert.strictEqual(count(/state\.[\w.]*pass/i), 0, '密钥不得挂在 state 上（state 整份会被导入覆盖、且整份被导出）');
+    const fresh = stripComments(fnSource('freshAppState'));
+    assert.doesNotMatch(fresh, /pass/i, 'state 初始值不得出现密钥字段');
+    assert.match(html, /const PASS_KEY = '/, '密钥的落点是独立的 localStorage 键');
+    assert.match(stripComments(fnSource('exportPassphrase')), /localStorage\.getItem\(PASS_KEY\)/);
+  });
+
+  test('加密备份的导入：先问密钥、解不开原地重试，确认与迁移仍走 confirmImport', () => {
+    const src = stripComments(fnSource('importData'));
+    assert.match(src, /vault\.isEncryptedBackup\(data\)/, '先认信封，再决定要不要问密钥');
+    assert.ok(src.indexOf('isEncryptedBackup') < src.indexOf('confirmImport'), '加密的文件必须先过密钥，不能直接覆盖');
+    assert.match(src, /confirmImport\(data\)/, '明文备份与旧文件照旧：直接进确认');
+    const submit = stripComments(fnSource('submitPassImportAsync'));
+    assert.match(submit, /vault\.decryptBackup\(/, '解密走 logic.js');
+    assert.match(submit, /confirmImport\(data\)/, '解开后与明文导入同一条路');
+    assert.match(submit, /catch[\s\S]*pendingImportEnv/, '密钥不对就原地重试（保留待导入的文件）');
+    // 无手势消耗：入口只挂同步包装
+    assert.strictEqual(count(/onclick="submitPassImportAsync/g), 0);
+    assert.match(html, /onclick="submitPassImport\(\)"/);
+  });
+
+  test('设置里的导出密钥：保存 / 清除两个入口，清除要二次确认', () => {
+    assert.strictEqual(count(/id="pass-input"/g), 1);
+    assert.match(html, /id="pass-input"[^>]*aria-label="导出密钥"/);
+    assert.match(html, /onclick="saveExportPassphrase\(\)"/);
+    assert.match(html, /id="pass-clear"[^>]*onclick="clearExportPassphrase\(\)"/);
+    assert.match(stripComments(fnSource('saveExportPassphrase')), /vault\.passphraseTooShort\(/,
+      '短密钥在保存这一步就挡（不得存进去再在下一次导出才发现）');
+    const sync = stripComments(fnSource('syncBackupControls'));
+    assert.match(sync, /vault\.passphraseNoteText\(/, '边注文案单一来源');
+    assert.match(sync, /settings-pass-note/);
   });
 });
 
@@ -3775,15 +3814,24 @@ describe('UI 接线契约：破坏性入口一律二次确认', () => {
   // 豁免：只清视图态（筛选 / 搜索），不落盘、不删账本内容，弹确认只会添堵。
   const VIEW_ONLY = ['clearExpenseSearch', 'clearExpenseFilters'];
 
+  // 委托：入口只负责「把文件读进来」，覆盖确认在下游的 confirmImport（加密备份要先过密钥）。
+  // 显式登记而不是把入口改名绕过巡检——登记后仍要求它真的调了那个确认函数。
+  const DELEGATED = { importData: 'confirmImport' };
+
   test('入口收集器本身有效（扫不到入口就会假绿）', () => {
     assert.ok(destructive.length >= 10, `应扫到一批破坏性入口（实得 ${destructive.length}）`);
     for (const n of VIEW_ONLY) assert.ok(destructive.includes(n), `${n} 应仍在清单里，否则豁免名单已失效`);
   });
 
   test('所有清空/删除/覆盖入口都经 showConfirm（取消即什么都没发生）', () => {
-    const missing = destructive.filter(
-      (n) => !VIEW_ONLY.includes(n) && !/showConfirm\(/.test(stripComments(fnSource(n)))
-    );
+    const missing = destructive.filter((n) => {
+      if (VIEW_ONLY.includes(n)) return false;
+      if (DELEGATED[n]) {
+        assert.match(fnSource(n), new RegExp(DELEGATED[n] + '\\('), `${n} 应委托给 ${DELEGATED[n]}`);
+        return !/showConfirm\(/.test(stripComments(fnSource(DELEGATED[n])));
+      }
+      return !/showConfirm\(/.test(stripComments(fnSource(n)));
+    });
     assert.deepStrictEqual(missing, [], '未二次确认的破坏性入口：' + missing.join(', '));
   });
 
