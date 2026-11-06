@@ -241,6 +241,33 @@ test('已设置密钥后输入框收起，只留更换与清除；点更换再�
   await expect(page.locator('#pass-input')).toBeHidden();
 });
 
+test('密钥不进备份文件，导入也改不动它', async ({ page }) => {
+  await setup(page);
+  await openExport(page);
+  await expect(page.locator('#toast-area')).toContainText('数据已导出');
+  const plainName = (await page.evaluate(() => window.__fs.saveCalls))[0];
+  const plain = await readRootFile(page, plainName);
+  expect(plain).not.toContain('wealth-manager-passphrase');
+  expect(Object.keys(JSON.parse(plain))).not.toContain('passphrase');
+
+  await setPassphrase(page, 'correct horse battery');
+  await page.evaluate(() => document.getElementById('toast-area').textContent = '');
+  await openExport(page);
+  await expect(page.locator('#toast-area')).toContainText('数据已导出');
+  const calls = await page.evaluate(() => window.__fs.saveCalls);
+  const cipher = await readRootFile(page, calls[1]);
+  expect(cipher).not.toContain('correct horse battery');
+  const inner = JSON.parse(await L.vault.decryptBackup(JSON.parse(cipher), 'correct horse battery'));
+  expect(JSON.stringify(inner)).not.toContain('correct horse battery');
+
+  const hostile = { categories: [], assets: [], snapshots: [], expenseCategories: [], expenses: [], passphrase: 'evil key' };
+  await page.evaluate(() => showImportExport());
+  await page.setInputFiles('#import-file', { name: 'b.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(hostile)) });
+  await confirmOk(page);
+  expect(await page.evaluate(() => exportPassphrase())).toBe('correct horse battery');
+  expect(await page.evaluate(() => localStorage.getItem('wealth-manager-passphrase'))).toBe('correct horse battery');
+});
+
 test('自动备份也加密：密钥设了就不存明文（自动与手动同一份内容）', async ({ page }) => {
   await setup(page, { autoFreq: 'daily', clock: true });
   await setPassphrase(page, 'correct horse battery');
