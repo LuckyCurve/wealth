@@ -1520,6 +1520,7 @@
     state.expenseExpectation = Number(state.expenseExpectation) || 0;
     state.netWorthTarget = Number(state.netWorthTarget) || 0;
     state.expenseGapDays = normalizeGapDays(state.expenseGapDays);
+    state.gateLang = state.gateLang === 'zh' || state.gateLang === 'en' ? state.gateLang : '';
     if (state.incomeSafetyFactor == null) state.incomeSafetyFactor = 100;
     state.incomeSafetyFactor = Math.min(100, Math.max(1, Number(state.incomeSafetyFactor) || 100));
     state.assets.forEach(a => {
@@ -2621,6 +2622,8 @@
     '升序': 'ascending',
     '降序': 'descending',
     '长按 {sec} 秒进入资产页': 'Press and hold for {sec}s to open assets',
+    '换英文': 'Type English instead',
+    '换中文': 'Type Chinese instead',
     '盈余': 'Surplus',
     '缺口': 'Shortfall',
     '不足 1 个月': 'Less than a month',

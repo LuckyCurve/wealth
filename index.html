@@ -778,7 +778,10 @@ tailwind.config = {
   <div class="modal-content modal-sm">
     <h3 class="font-display modal-title" id="asset-gate-title" data-i18n="进入资产页">进入资产页</h3>
     <p class="t-body muted" style="margin-bottom:20px;" data-i18n="资产波动大，反复看容易被涨跌牵着走。抄下这一句再进去。">资产波动大，反复看容易被涨跌牵着走。抄下这一句再进去。</p>
-    <p id="asset-gate-phrase" class="gate-phrase"></p>
+    <div class="gate-phrase-row">
+      <p id="asset-gate-phrase" class="gate-phrase"></p>
+      <button type="button" id="asset-gate-lang" onclick="toggleAssetGatePhraseLang()" class="btn-ghost btn-xs" data-i18n="换英文">换英文</button>
+    </div>
     <label class="field-label" for="asset-gate-input" data-i18n="抄写这句话">抄写这句话</label>
     <!-- 禁止粘贴：允许粘贴就把这道闸变成一次性的（抄过一次就永远 Ctrl+V） -->
     <input type="text" id="asset-gate-input" class="w-full" autocomplete="off" spellcheck="false" onpaste="event.preventDefault()" onkeydown="assetGateKey(event)">

@@ -1870,7 +1870,8 @@ describe('UI 接线契约：资产页只能靠长按送达（提高日常查看�
     const src = fnSource('submitAssetGate');
     assert.match(src, /input\.value = ''/, '不一致就清空重抄');
     assert.match(src, /setAssetGateError\(true\)/, '要明文说「不一致」，不能默默驳回');
-    assert.match(fnSource('openAssetGate'), /assetGatePhrase = ui\.entryPhrase\(state\.lang\)/, '每次抬闸重新抽句（界面语言决定取哪一池）');
+    assert.match(fnSource('openAssetGate'), /drawAssetGatePhrase\(\)/, '每次抬闸重新抽句');
+    assert.match(fnSource('drawAssetGatePhrase'), /assetGatePhrase = ui\.entryPhrase\(lang\)/, '取哪一池由选定的语言决定');
     assert.strictEqual(count(/assetGatePhrase = ui\.entryPhrase/g), 1, '抽句只此一处');
     assert.doesNotMatch(src, /assetGatePhrase =/, '重试不得换句（换句等于惩罚手误，还给背句子的人开口子）');
     assert.match(fnSource('cancelAssetGate'), /assetGatePhrase = ''/, '放弃后收尾旧句');
@@ -1894,7 +1895,18 @@ describe('UI 接线契约：资产页只能靠长按送达（提高日常查看�
 
   test('门槛箴言池不在 index.html（下沉 logic.js 才能单测长度/标点/句数）', () => {
     assert.doesNotMatch(html, /账面起落皆是暂相|Numbers rise and fall/, '箴言池写进页面就成了第二份真相');
-    assert.match(fnSource('openAssetGate'), /ui\.entryPhrase\(/, '唯一取句入口');
+    assert.match(fnSource('drawAssetGatePhrase'), /ui\.entryPhrase\(/, '唯一取句入口');
+  });
+
+  test('拄写闸：可以换成英文取句（中文输入法难打），选择记住', () => {
+    assert.strictEqual(count(/id="asset-gate-lang"/g), 1, '换语言只有一个入口');
+    assert.match(html, /onclick="toggleAssetGatePhraseLang\(\)"/, '按钮直接接到切换上');
+    const toggle = fnSource('toggleAssetGatePhraseLang');
+    assert.match(toggle, /state\.gateLang = assetGateLang/, '记住这次的选择');
+    assert.match(toggle, /saveState\(\)/, '要落盘（下次进来别再换一遍）');
+    assert.match(toggle, /drawAssetGatePhrase\(\)/, '换语言 = 换一句新的');
+    assert.match(fnSource('drawAssetGatePhrase'), /asset-gate-input'\)\.value = ''/, '换句要把已抄的那半清掉');
+    assert.match(fnSource('openAssetGate'), /state\.gateLang === 'zh'/, '上次选的语言优先于界面语言');
   });
 
   test('共用确认框的文案/色调每次重置（金调不得粘到下一个删除确认上）', () => {

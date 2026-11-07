@@ -685,6 +685,8 @@
     background: var(--accent-soft); margin-bottom: 12px;
   }
   /* 门槛箴言：整张弹窗里唯一需要照抄的文字，故单列一档（题名体 + 居中 + 浅底框 = 像一句引文）。 */
+  .gate-phrase-row { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
+  .gate-phrase-row .gate-phrase { flex: 1 1 220px; margin-bottom: 0; }
   .gate-phrase {
     font-family: var(--font-display); font-size: var(--fs-section); color: var(--fg);
     background: var(--card-2); border: 1px solid var(--border); border-radius: 8px;

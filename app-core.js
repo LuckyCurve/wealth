@@ -7,7 +7,7 @@ function freshAppState() {
     categories: [], assets: [], snapshots: [],
     expenseCategories: [], expenses: [],
     rates: { CNY: 1, HKD: 1, USD: 1, fetchedAt: null },
-    expenseExpectation: 0, netWorthTarget: 0, incomeSafetyFactor: 100, expenseGapDays: 3,
+    expenseExpectation: 0, netWorthTarget: 0, incomeSafetyFactor: 100, expenseGapDays: 3, gateLang: '',
     runwayTags: [], runwayExpectation: 0,
     snapshotReminder: { window: 'end', days: 5 }, snapshotReminderLastPrompted: null,
     lang: 'en',
@@ -320,6 +320,7 @@ function switchTab(tab, shift) {
 let modePressStart = null;
 let modePressRaf = 0;
 let assetGatePhrase = ''; // 本次要抄的那一句：抬闸时抽定，抄错也**不换句**
+let assetGateLang = '';   // 抄写用哪种语言取句：'' = 跟界面语言
 
 // 已经在资产页时入口整体失效：再问一次「现在确实要看？」是荒谬的。
 // 抽成函数是因为按下与进门两条路径都要这道闸，而它是「门的语义」而非权限校验
@@ -404,12 +405,33 @@ document.addEventListener('pointerup', endModePress);
 document.addEventListener('pointercancel', cancelModePress);
 
 // 抬闸：抽一句箴言、清空输入、打开抄写框。已在资产页时不弹（入口整体失效）。
-function openAssetGate() {
-  if (!assetsEntryOpen()) return;
-  assetGatePhrase = ui.entryPhrase(state.lang);
+function gatePhraseLang() {
+  return assetGateLang || i18n.normalizeLang(state.lang);
+}
+
+// 抽句与换句只走这里：换语言等于换一句全新的，已抄的一半不能留着
+function drawAssetGatePhrase() {
+  const lang = gatePhraseLang();
+  assetGatePhrase = ui.entryPhrase(lang);
   document.getElementById('asset-gate-phrase').textContent = assetGatePhrase;
   document.getElementById('asset-gate-input').value = '';
   setAssetGateError(false);
+  const btn = document.getElementById('asset-gate-lang');
+  if (btn) btn.textContent = lang === 'zh' ? i18n.t('换英文') : i18n.t('换中文');
+}
+
+function toggleAssetGatePhraseLang() {
+  assetGateLang = gatePhraseLang() === 'zh' ? 'en' : 'zh';
+  state.gateLang = assetGateLang;
+  saveState();
+  drawAssetGatePhrase();
+  document.getElementById('asset-gate-input').focus();
+}
+
+function openAssetGate() {
+  if (!assetsEntryOpen()) return;
+  assetGateLang = state.gateLang === 'zh' || state.gateLang === 'en' ? state.gateLang : '';
+  drawAssetGatePhrase();
   openModal('asset-gate-modal');
 }
 
