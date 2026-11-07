@@ -243,11 +243,18 @@ test.describe('模式与 Tab 导航', () => {
     await page.keyboard.press('Enter');
     await expect(page.locator('#asset-gate-modal')).toBeVisible();
     const toggle = page.locator('#asset-gate-lang');
-    await expect(toggle).toHaveText('换英文');
+    const bubble = page.locator('#asset-gate-lang-tip');
+    await expect(toggle).toHaveAttribute('aria-label', '换英文');
+
+    // 换句入口是图标：文案只在悬停/聚焦时露出来，先验它真的露出来且说的是「换成什么」
+    await toggle.hover();
+    await expect(bubble).toBeVisible();
+    await expect(bubble).toHaveText('换英文');
 
     await page.locator('#asset-gate-input').fill('抄了一半');
     await toggle.click();
-    await expect(toggle).toHaveText('换中文');
+    await expect(toggle).toHaveAttribute('aria-label', '换中文');
+    await expect(bubble).toHaveText('换中文');
     const phrase = ((await page.locator('#asset-gate-phrase').textContent()) || '').trim();
     expect(phrase, '换成英文后必须是不用输入法的纯 ASCII').toMatch(/^[ -~]+$/);
     await expect(page.locator('#asset-gate-input'), '换句要把已抄的那半清掉').toHaveValue('');

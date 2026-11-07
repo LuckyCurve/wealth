@@ -416,8 +416,17 @@ function drawAssetGatePhrase() {
   document.getElementById('asset-gate-phrase').textContent = assetGatePhrase;
   document.getElementById('asset-gate-input').value = '';
   setAssetGateError(false);
+  // 换句入口是标题旁的图标：无可见文字，文案只进气泡与 aria-label
   const btn = document.getElementById('asset-gate-lang');
-  if (btn) btn.textContent = lang === 'zh' ? i18n.t('换英文') : i18n.t('换中文');
+  if (btn) {
+    const label = lang === 'zh' ? i18n.t('换英文') : i18n.t('换中文');
+    btn.setAttribute('aria-label', label);
+    const bubble = document.getElementById('asset-gate-lang-tip');
+    if (bubble) bubble.textContent = label;
+    // 气泡亮着时换文案会改宽度，按新宽度重挂一次（否则钉在旧位置）
+    const tip = btn.closest('.tip');
+    if (tip && tip.querySelector('.tip-bubble.placed')) placeTipBubble(tip);
+  }
 }
 
 function toggleAssetGatePhraseLang() {

@@ -1931,11 +1931,17 @@ describe('UI 接线契约：菜单图标（内联 Lucide symbol，一个来源�
     assert.deepStrictEqual([...symbols].filter((i) => !uses.includes(i)), [], '定义了却没人用的图标会悄悄腐烂');
   });
 
-  test('图标一律 aria-hidden，且紧跟着文字标签（图标不许当唯一标签）', () => {
+  test('图标一律 aria-hidden，且要么紧跟文字标签，要么按钮自带无障碍名', () => {
     const pairs = [...html.matchAll(
       /<svg class="ico" aria-hidden="true"><use href="#ic-[\w-]+"\/><\/svg><span data-i18n="([^"]+)">([^<]+)<\/span>/g
     )];
-    assert.strictEqual(pairs.length, uses.length, '每个 <use> 都要配一个紧跟的文字标签');
+    // 图标作按钮的唯一内容（门槛里那枚换句图标）：可见文字没了，名字只能来自 aria-label，
+    // 且必须挂 data-i18n-aria-label，否则英文界面下读屏器听到的仍是中文。
+    const iconOnly = [...html.matchAll(
+      /<button\b([^>]*)><svg class="ico" aria-hidden="true"><use href="#ic-[\w-]+"\/><\/svg><\/button>/g
+    )].filter((m) => /aria-label="[^"]+"/.test(m[1]) && /data-i18n-aria-label="[^"]+"/.test(m[1]));
+    assert.strictEqual(pairs.length + iconOnly.length, uses.length,
+      '每个 <use> 都要有名字：紧跟的文字标签，或按钮自带的 aria-label');
     const bad = pairs.filter((m) => m[1] !== m[2]).map((m) => m[1]);
     assert.deepStrictEqual(bad, [], 'span 的 data-i18n 与可见文字必须一致（否则换语言会错位）');
   });
@@ -3617,7 +3623,7 @@ describe('UI 接线契约：多语言（默认英文，设置里切中文）', (
       used.add(m[1].replace(/\\'/g, "'"));
     }
     // 这些键由三元表达式按当前状态选，静态扫描看不到；改动它们要同步这份清单
-    const DYNAMIC = ['总收益', '现金收益', '每天', '每周', '升序', '降序'];
+    const DYNAMIC = ['总收益', '现金收益', '每天', '每周', '升序', '降序', '换中文'];
     const dead = Object.keys(L.i18n.I18N_EN).filter((k) => !used.has(k) && !DYNAMIC.includes(k));
     assert.deepStrictEqual(dead, [], '没人用的词条会悄悄腐烂：' + dead.join(' | '));
   });

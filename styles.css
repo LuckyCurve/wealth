@@ -685,9 +685,12 @@
     content: ''; display: block; width: 28px; height: 2px; border-radius: 1px;
     background: var(--accent-soft); margin-bottom: 12px;
   }
+  /* 换句图标：标题旁一枚 30px 圆钮。比 .tip-mark 的 15px 大一号，因为这里放的是图形而不是一个 ?。
+     仍叫 .tip-mark（定位、悬停/聚焦、搬去 body 那一套都由它驱动），只在这里改尺寸与字号。
+     两个类并列而不是单个：与 .tip-mark 同特异性，单类会输给后写的那份（它在本文件后面）。 */
+  .gate-lang { margin-left: 10px; }
+  .tip-mark.gate-lang-mark { width: 30px; height: 30px; font-size: 16px; }
   /* 门槛箴言：整张弹窗里唯一需要照抄的文字，故单列一档（题名体 + 居中 + 浅底框 = 像一句引文）。 */
-  .gate-phrase-row { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
-  .gate-phrase-row .gate-phrase { flex: 1 1 220px; margin-bottom: 0; }
   .gate-phrase {
     font-family: var(--font-display); font-size: var(--fs-section); color: var(--fg);
     background: var(--card-2); border: 1px solid var(--border); border-radius: 8px;

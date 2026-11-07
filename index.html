@@ -76,6 +76,7 @@ tailwind.config = {
   <symbol id="ic-settings" viewBox="0 0 24 24"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/> <circle cx="12" cy="12" r="3"/></symbol>
   <symbol id="ic-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/> <path d="M12 2v2"/> <path d="M12 20v2"/> <path d="m4.93 4.93 1.41 1.41"/> <path d="m17.66 17.66 1.41 1.41"/> <path d="M2 12h2"/> <path d="M20 12h2"/> <path d="m6.34 17.66-1.41 1.41"/> <path d="m19.07 4.93-1.41 1.41"/></symbol>
   <symbol id="ic-moon" viewBox="0 0 24 24"><path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401"/></symbol>
+  <symbol id="ic-languages" viewBox="0 0 24 24"><path d="m5 8 6 6"/> <path d="m4 14 6-6 2-3"/> <path d="M2 5h12"/> <path d="M7 2h1"/> <path d="m22 22-5-10-5 10"/> <path d="M14 18h6"/></symbol>
   <symbol id="ic-database-backup" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/> <path d="M3 12a9 3 0 0 0 5 2.69"/> <path d="M21 9.3V5"/> <path d="M3 5v14a9 3 0 0 0 6.47 2.88"/> <path d="M12 12v4h4"/> <path d="M13 20a5 5 0 0 0 9-3 4.5 4.5 0 0 0-4.5-4.5c-1.33 0-2.54.54-3.41 1.41L12 16"/></symbol>
 </svg>
 
@@ -777,12 +778,15 @@ tailwind.config = {
      第一段闸（长按）在顶部按钮上；这一道对指针/键盘/读屏器同价。 -->
 <div id="asset-gate-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="asset-gate-title" style="display:none;">
   <div class="modal-content modal-sm">
-    <h3 class="font-display modal-title" id="asset-gate-title" data-i18n="进入资产页">进入资产页</h3>
+    <!-- 换句入口：标题旁一枚图标，悬停/聚焦才展开「换成哪一池」的文案（气泡走 .tip 那一套）。
+         不把它常驻在箴言下面：贴在那句话底下的按钮看起来像它的一部分，也让这道门显得可绕过。
+         没有 aria-describedby：气泡文案与按钮的 aria-label 是同一句，再绑一次只是让读屏器说两遍。 -->
+    <h3 class="font-display modal-title" id="asset-gate-title"><span data-i18n="进入资产页">进入资产页</span><span class="tip gate-lang">
+      <button type="button" id="asset-gate-lang" class="tip-mark gate-lang-mark" aria-label="换英文" data-i18n-aria-label="换英文" onclick="toggleAssetGatePhraseLang()"><svg class="ico" aria-hidden="true"><use href="#ic-languages"/></svg></button>
+      <span class="tip-bubble" id="asset-gate-lang-tip" role="tooltip" data-i18n="换英文">换英文</span>
+    </span></h3>
     <p class="t-body muted" style="margin-bottom:20px;" data-i18n="资产波动大，反复看容易被涨跌牵着走。抄下这一句再进去。">资产波动大，反复看容易被涨跌牵着走。抄下这一句再进去。</p>
-    <div class="gate-phrase-row">
-      <p id="asset-gate-phrase" class="gate-phrase"></p>
-      <button type="button" id="asset-gate-lang" onclick="toggleAssetGatePhraseLang()" class="btn-ghost btn-xs" data-i18n="换英文">换英文</button>
-    </div>
+    <p id="asset-gate-phrase" class="gate-phrase"></p>
     <label class="field-label" for="asset-gate-input" data-i18n="抄写这句话">抄写这句话</label>
     <!-- 禁止粘贴：允许粘贴就把这道闸变成一次性的（抄过一次就永远 Ctrl+V） -->
     <input type="text" id="asset-gate-input" class="w-full" autocomplete="off" spellcheck="false" onpaste="event.preventDefault()" onkeydown="assetGateKey(event)">
