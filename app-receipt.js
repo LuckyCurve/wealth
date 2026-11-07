@@ -27,13 +27,28 @@ function exportMonthReceipt(month) {
   saveReceiptImage(model, m);
 }
 
+function dataUrlToBlob(dataUrl) {
+  const parts = String(dataUrl || '').split(',');
+  const mime = (parts[0].match(/data:([^;]+)/) || [])[1] || 'image/png';
+  const bin = atob(parts[1] || '');
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new Blob([bytes], { type: mime });
+}
+
 function saveReceiptImage(model, tag) {
-  const canvas = drawReceipt(model);
-  canvas.toBlob(blob => {
-    if (!blob) return;
+  const dataUrl = drawReceipt(model).toDataURL('image/png');
+  const blob = dataUrlToBlob(dataUrl);
+  const url = URL.createObjectURL(blob);
+  const win = window.open(url, '_blank');
+  if (!win) {
+    URL.revokeObjectURL(url);
     downloadReceiptBlob(blob, receipt.fileName(tag));
-    toast(i18n.t('小票已导出'), 'success');
-  }, 'image/png');
+    toast(i18n.t('小票已导出'), 'info');
+    return;
+  }
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+  toast(i18n.t('小票已打开，可另存为'), 'info');
 }
 
 function downloadReceiptBlob(blob, name) {

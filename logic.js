@@ -2658,6 +2658,7 @@
     '消费小票': 'Spending receipt',
     '小票': 'Receipt',
     '小票已导出': 'Receipt exported',
+    '小票已打开，可另存为': 'Receipt opened — save it if you want',
     '谢谢惠顾': 'Thank you',
     '{n} 件': '{n} items',
     '{n} 笔': '{n} entries',

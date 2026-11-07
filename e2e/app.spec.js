@@ -1,4 +1,3 @@
-const fs = require('fs');
 const {
   test, expect, LS_KEY, INDEX_URL,
   stubCdn, seed, waitReady, disableMotion, readAppState, sampleState, gotoAssets, openExpenseTable,
@@ -899,31 +898,36 @@ test.describe('消费月份图（日历）', () => {
     await expect(page.locator('#day-panel'), '长按是「记一笔」，不该顺带展开详情').toBeHidden();
   });
 
-  test('小票：导出当天那一张 PNG，文件名带日期', async ({ page }) => {
+  test('小票：默认在新标签里打开那张图（不是默认下载）', async ({ page }) => {
     await openWith(page, twoOnToday());
     await page.locator(`#month-grid .mg-cell[data-date="${today}"]`).click();
-    const [download] = await Promise.all([
-      page.waitForEvent('download'),
-      page.locator('#day-panel').getByRole('button', { name: '小票' }).click(),
-    ]);
-    expect(download.suggestedFilename()).toBe('receipt-' + today + '.png');
-    const buf = fs.readFileSync(await download.path());
-    expect(buf.slice(0, 8)).toEqual(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
-    expect(buf.readUInt32BE(16), '宽度：384 CSS px × 2 倍尘点').toBe(768);
-    expect(buf.readUInt32BE(20), '小票是一条，不是一张方片').toBeGreaterThan(300);
-    await expect(page.locator('#toast-area .toast', { hasText: '小票已导出' })).toBeVisible();
+    const opened = page.waitForEvent('popup');
+    await page.locator('#day-panel').getByRole('button', { name: '小票' }).click();
+    const popup = await opened;
+    await popup.waitForLoadState();
+    expect(popup.url(), '打开的应该是当场生成的那张图').toMatch(/^blob:/);
+    const png = await popup.evaluate(async () => {
+      const res = await fetch(location.href);
+      const buf = new Uint8Array(await res.arrayBuffer());
+      return { type: res.headers.get('content-type'), head: [...buf.slice(0, 4)], size: buf.length };
+    });
+    expect(png.type).toContain('image/png');
+    expect(png.head).toEqual([0x89, 0x50, 0x4e, 0x47]);
+    expect(png.size, '一张真图，不是空壳').toBeGreaterThan(2000);
+    await page.locator('#expense-modal').waitFor({ state: 'hidden' }).catch(() => {});
+    await popup.close();
   });
 
-  test('小票：整月一张（不只能导单天），文件名带月份', async ({ page }) => {
+  test('小票：整月一张（不只能导单天），也是新标签里打开', async ({ page }) => {
     await openWith(page, twoOnToday());
-    const [download] = await Promise.all([
-      page.waitForEvent('download'),
-      page.locator('#month-grid-card').getByRole('button', { name: '小票' }).click(),
-    ]);
-    expect(download.suggestedFilename()).toBe('receipt-' + today.slice(0, 7) + '.png');
-    const buf = fs.readFileSync(await download.path());
-    expect(buf.slice(0, 4)).toEqual(Buffer.from([0x89, 0x50, 0x4e, 0x47]));
-    expect(buf.readUInt32BE(16)).toBe(768);
+    const opened = page.waitForEvent('popup');
+    await page.locator('#month-grid-card').getByRole('button', { name: '小票' }).click();
+    const popup = await opened;
+    await popup.waitForLoadState();
+    expect(popup.url()).toMatch(/^blob:/);
+    const head = await popup.evaluate(async () => [...new Uint8Array(await (await fetch(location.href)).arrayBuffer()).slice(0, 4)]);
+    expect(head).toEqual([0x89, 0x50, 0x4e, 0x47]);
+    await popup.close();
   });
 
   test('连续没记录到阈值才提一句，天数在设置里配', async ({ page }) => {
