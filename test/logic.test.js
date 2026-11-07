@@ -3436,11 +3436,26 @@ describe('小票：一天的记录摊成一张小票', () => {
     assert.strictEqual(m.rows[0].amount, '0.00');
   });
 
-  test('文件名带日期；日期不合法时退回一个通用的', () => {
+  test('文件名带日期或月份；不合法时退回一个通用的', () => {
     assert.strictEqual(L.receipt.fileName('2026-03-01'), 'receipt-2026-03-01.png');
+    assert.strictEqual(L.receipt.fileName('2026-03'), 'receipt-2026-03.png', '整月小票用月份做名字');
     assert.strictEqual(L.receipt.fileName('2026-3-1'), 'receipt.png');
     assert.strictEqual(L.receipt.fileName(''), 'receipt.png');
     assert.strictEqual(L.receipt.fileName(undefined), 'receipt.png');
+  });
+
+  test('整月小票的行：按日期升序，同一天金额大的在前', () => {
+    const list = [
+      { id: 'c', date: '2026-03-02', amount: 5 },
+      { id: 'a', date: '2026-03-01', amount: 5 },
+      { id: 'b', date: '2026-03-01', amount: 30 },
+      { id: 'x', date: '2026-02-28', amount: 99 },
+      { id: 'bad', date: '2026-3-1', amount: 1 },
+    ];
+    const rows = L.monthGrid.monthEntries(list, '2026-03');
+    assert.deepStrictEqual(rows.map((e) => e.id), ['b', 'a', 'c']);
+    assert.deepStrictEqual(L.monthGrid.monthEntries(list, '2026-13'), [], '脏月份不当成整个库');
+    assert.deepStrictEqual(L.monthGrid.monthEntries(null, '2026-03'), []);
   });
 });
 

@@ -1373,6 +1373,18 @@
     };
   }
 
+  // 整月小票：按日期升序（同一天金额大的在前），读起来像流水账。
+  function monthEntries(expenses, month) {
+    const key = String(month || '');
+    if (!/^\d{4}-\d{2}$/.test(key)) return [];
+    return (expenses || [])
+      .filter(e => e && String(e.date || '').slice(0, 7) === key)
+      .sort((a, b) => {
+        if (a.date !== b.date) return a.date < b.date ? -1 : 1;
+        return (Number(b.amount) || 0) - (Number(a.amount) || 0);
+      });
+  }
+
   function dayEntries(expenses, day) {
     const key = String(day || '');
     if (!/^\d{4}-\d{2}-\d{2}$/.test(key)) return [];
@@ -1420,9 +1432,9 @@
     };
   }
 
-  function receiptFileName(dateStr) {
-    const d = String(dateStr || '');
-    return /^\d{4}-\d{2}-\d{2}$/.test(d) ? 'receipt-' + d + '.png' : 'receipt.png';
+  function receiptFileName(tag) {
+    const t = String(tag || '');
+    return /^\d{4}-\d{2}(-\d{2})?$/.test(t) ? 'receipt-' + t + '.png' : 'receipt.png';
   }
 
   function monthGridCellText(cell) {
@@ -2800,6 +2812,7 @@
       cellValue,
       cellText: monthGridCellText,
       dayEntries,
+      monthEntries,
       shortCNY,
     },
     expense: {

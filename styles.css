@@ -874,7 +874,7 @@
      而文本只有 28px（冗余 12 倍），金额列只得 168px 却要装 3,200.00——中间一大片空、
      右边挤成一团。故：日期与金额是定长数字，给定宽（数字不缩）；备注与标签才是会长的两栏，
      拿剩下的弹性；操作列也是定长（三个按钮，与其它表同一档）。 */
-  .cols-expenses { grid-template-columns: 96px 108px minmax(0, 1fr) minmax(0, 1.6fr) 180px; }
+  .cols-expenses { grid-template-columns: 96px 108px minmax(0, 1fr) minmax(0, 1.6fr) 13rem; }
   .cols-expense-month { grid-template-columns: 96px 1fr 2fr 1.5fr; }
   .cols-income { grid-template-columns: 1.8fr 1fr 0.8fr 0.8fr 1fr 1fr 1fr; }
   .cols-segment { grid-template-columns: 2fr 1fr 0.7fr 1.3fr 0.7fr; }
@@ -1398,7 +1398,7 @@
   .day-panel { max-width: 820px; margin: 14px auto 0; padding-top: 12px; border-top: 1px solid var(--rule); }
   .day-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 6px; }
   .day-panel-actions { display: flex; align-items: center; gap: 8px; }
-  .cols-day { grid-template-columns: 108px minmax(0, 1fr) minmax(0, 1.4fr) 180px; }
+  .cols-day { grid-template-columns: 108px minmax(0, 1fr) minmax(0, 1.8fr) 13rem; }
 
   .filter-bar { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 12px; margin-bottom: 12px; }
 

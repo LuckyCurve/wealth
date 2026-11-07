@@ -914,6 +914,18 @@ test.describe('消费月份图（日历）', () => {
     await expect(page.locator('#toast-area .toast', { hasText: '小票已导出' })).toBeVisible();
   });
 
+  test('小票：整月一张（不只能导单天），文件名带月份', async ({ page }) => {
+    await openWith(page, twoOnToday());
+    const [download] = await Promise.all([
+      page.waitForEvent('download'),
+      page.locator('#month-grid-card').getByRole('button', { name: '小票' }).click(),
+    ]);
+    expect(download.suggestedFilename()).toBe('receipt-' + today.slice(0, 7) + '.png');
+    const buf = fs.readFileSync(await download.path());
+    expect(buf.slice(0, 4)).toEqual(Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+    expect(buf.readUInt32BE(16)).toBe(768);
+  });
+
   test('连续没记录到阈值才提一句，天数在设置里配', async ({ page }) => {
     const daysAgo = (n) => {
       const d = new Date();

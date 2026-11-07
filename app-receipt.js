@@ -16,10 +16,22 @@ function exportDayReceipt(dayStr) {
   const items = monthGrid.dayEntries(state.expenses, dayStr);
   const model = receipt.model(items, { date: dayStr, describe: receiptDescribe });
   if (!model) return;
+  saveReceiptImage(model, dayStr);
+}
+
+function exportMonthReceipt(month) {
+  const m = month || monthGridView || date.getCurrentMonth();
+  const items = monthGrid.monthEntries(state.expenses, m);
+  const model = receipt.model(items, { date: date.monthLabel(m), describe: receiptDescribe });
+  if (!model) return;
+  saveReceiptImage(model, m);
+}
+
+function saveReceiptImage(model, tag) {
   const canvas = drawReceipt(model);
   canvas.toBlob(blob => {
     if (!blob) return;
-    downloadReceiptBlob(blob, receipt.fileName(model.date));
+    downloadReceiptBlob(blob, receipt.fileName(tag));
     toast(i18n.t('小票已导出'), 'success');
   }, 'image/png');
 }
@@ -37,6 +49,7 @@ function downloadReceiptBlob(blob, name) {
 
 function receiptRows(model) {
   const rows = [
+    { kind: 'brand', h: 46 },
     { kind: 'title', text: i18n.t('消费小票'), h: 34 },
     { kind: 'meta', text: model.date, h: 22 },
     { kind: 'rule', h: 18 },
@@ -49,7 +62,7 @@ function receiptRows(model) {
   rows.push({ kind: 'total', label: i18n.t('合计'), amount: '¥' + model.totalText, h: 30 });
   rows.push({ kind: 'rule', h: 18 });
   rows.push({ kind: 'footer', text: i18n.t('{n} 件', { n: model.count }) + ' · ' + i18n.t('谢谢惠顾'), h: 26 });
-  rows.push({ kind: 'barcode', text: model.date.replace(/-/g, ''), h: 74 });
+  rows.push({ kind: 'barcode', text: model.date.replace(/\D/g, ''), h: 74 });
   return rows;
 }
 
@@ -113,6 +126,37 @@ function drawReceiptBarcode(ctx, centerX, top, width, text) {
   ctx.restore();
 }
 
+// 品牌标记：孔方铜钱（金圆 + 方孔 + 四角裁切标记），与页头同一枚，只是画在画布上
+function drawReceiptBrand(ctx, cx, top, size) {
+  const r = size / 2;
+  const cy = top + r;
+  const gold = ctx.createLinearGradient(cx - r, cy - r, cx + r, cy + r);
+  gold.addColorStop(0, '#d9b25e');
+  gold.addColorStop(1, '#8f6713');
+  ctx.save();
+  ctx.fillStyle = gold;
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.fill();
+  const half = r * 0.34;
+  ctx.fillStyle = RECEIPT_PAPER;
+  ctx.fillRect(cx - half, cy - half, half * 2, half * 2);
+  ctx.strokeStyle = RECEIPT_INK;
+  ctx.lineWidth = 1.4;
+  ctx.lineCap = 'round';
+  const tick = r * 0.26;
+  [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([sx, sy]) => {
+    const x = cx + sx * half;
+    const y = cy + sy * half;
+    ctx.beginPath();
+    ctx.moveTo(x, y - sy * tick);
+    ctx.lineTo(x, y);
+    ctx.lineTo(x - sx * tick, y);
+    ctx.stroke();
+  });
+  ctx.restore();
+}
+
 function drawReceipt(model) {
   const rows = receiptRows(model);
   const height = RECEIPT_PAD * 2 + rows.reduce((s, r) => s + r.h, 0);
@@ -135,7 +179,9 @@ function drawReceipt(model) {
 
   rows.forEach(row => {
     const mid = y + row.h / 2;
-    if (row.kind === 'title') {
+    if (row.kind === 'brand') {
+      drawReceiptBrand(ctx, width / 2, y + 6, 34);
+    } else if (row.kind === 'title') {
       ctx.font = '17px ' + RECEIPT_FONT;
       ctx.textAlign = 'center';
       ctx.fillText(row.text, width / 2, mid);

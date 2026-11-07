@@ -2492,7 +2492,7 @@ describe('UI 接线契约：版式一致性（同类结构同一套 class）', (
     // 内联 style 里不得再出现列宽（原先表头与数据行各写一遍同一串 = 改一处漏一处）
     assert.strictEqual(count(/style="[^"]*grid-template-columns/g), 0, '列宽不许内联');
     for (const [cls, tpl] of [
-      ['cols-expenses', '96px 108px minmax(0, 1fr) minmax(0, 1.6fr) 180px'],
+      ['cols-expenses', '96px 108px minmax(0, 1fr) minmax(0, 1.6fr) 13rem'],
       ['cols-expense-month', '96px 1fr 2fr 1.5fr'],
       ['cols-income', '1.8fr 1fr 0.8fr 0.8fr 1fr 1fr 1fr'],
       ['cols-segment', '2fr 1fr 0.7fr 1.3fr 0.7fr'],
