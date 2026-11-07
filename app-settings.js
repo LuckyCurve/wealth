@@ -80,6 +80,10 @@ function applyI18nDom() {
       el.setAttribute(attr, i18n.t(el.getAttribute('data-i18n-' + attr)));
     });
   });
+  // 展开了的气泡换了文案就换了宽度，位置按新宽度重算（它挂在 body 下，不在 .tip 里）
+  document.querySelectorAll('.tip').forEach(tip => {
+    if (tip.__bubble) placeTipBubble(tip);
+  });
 }
 
 function syncLangSeg() {
@@ -643,7 +647,9 @@ async function submitPassImportAsync() {
    九个 tip 共用这一套（气泡是单一实现，不再逐个写定位）。 */
 function placeTipBubble(tip) {
   if (!tip) return;
-  const bubble = tip.querySelector('.tip-bubble');
+  // 已展开的气泡挂在 body 下（见下），不再是 .tip 的子孙；这时只能从 __bubble 取回。
+  // 换语言 / 换句都会改文案宽度，重挂位置靠的正是这一条。
+  const bubble = tip.__bubble || tip.querySelector('.tip-bubble');
   const mark = tip.querySelector('.tip-mark');
   if (!bubble || !mark) return;
   // **先搬家再量**：`fixed` 的包含块不是视口本身——祖先若带 backdrop-filter（卡片就有），

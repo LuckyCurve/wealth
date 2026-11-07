@@ -2,7 +2,7 @@
   "name": "wealth-management",
   "version": "1.0.0",
   "private": true,
-  "description": "单文件个人资产管理 SPA（无构建步骤；node --test 跑单测，Playwright 跑端到端）",
+  "description": "本地个人资产与消费记账 SPA（无构建步骤；node --test 跑单测，Playwright 跑端到端）",
   "scripts": {
     "test": "node --test",
     "test:e2e": "playwright test",

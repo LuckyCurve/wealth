@@ -275,6 +275,28 @@ test.describe('模式与 Tab 导航', () => {
     await expect(page.locator('#asset-gate-modal')).toBeHidden();
   });
 
+  test('气泡亮着时换语言：文案变宽后位置跟着重挂，不会钉在旧宽度上', async ({ appPage: page }) => {
+    await page.locator('#mode-assets').focus();
+    await page.keyboard.press('Enter');
+    const toggle = page.locator('#asset-gate-lang');
+    await toggle.hover();
+    const bubble = page.locator('#asset-gate-lang-tip');
+    await expect(bubble).toBeVisible();
+    // 展开中气泡挂在 body 下（不在 .tip 里）：这是「重挂」这条路径的前提
+    expect(await page.evaluate(() => document.getElementById('asset-gate-lang-tip').parentElement.tagName)).toBe('BODY');
+    const measure = () => bubble.evaluate(el => ({
+      w: el.getBoundingClientRect().width,
+      x: parseFloat(getComputedStyle(el).getPropertyValue('--tip-x')),
+    }));
+    const before = await measure();
+    // 中文四字 → 英文长句，宽度必变；applyI18nDom 刷文案后应当按新宽度重算位置
+    await page.evaluate(() => setLang('en'));
+    await expect(bubble).toHaveText('Type English instead');
+    const after = await measure();
+    expect(after.w, '两种文案宽度不同，才有「要不要重挂」这件事').not.toBe(before.w);
+    expect(after.x, '文案变宽后 --tip-x 必须重算，否则气泡钉在旧位置').not.toBe(before.x);
+  });
+
   test('长按中途取消：指针移开即放弃，不留满格墨线', async ({ appPage: page }) => {
     const assets = page.locator('#mode-assets');
     const box = await assets.boundingBox();
@@ -919,17 +941,17 @@ test.describe('消费月份图（日历）', () => {
     await expect(page.locator('#day-panel'), '长按是「记一笔」，不该顺带展开详情').toBeHidden();
   });
 
-  test('小票：默认在新标签里打开那张图（不是默认下载）', async ({ page }) => {
-    await openWith(page, twoOnToday());
-    await page.locator(`#month-grid .mg-cell[data-date="${today}"]`).click();
+  // 两个入口（当天 / 整月）走同一个渲染，出网性质也一样：监听各自点击期间的外呼。
+  const watchOutbound = (page) => {
     const outbound = [];
     page.on('request', (r) => {
       const url = r.url();
       if (/^https?:\/\//.test(url) && !url.startsWith('http://127.0.0.1')) outbound.push(r.method() + ' ' + url);
     });
-    const opened = page.waitForEvent('popup');
-    await page.locator('#day-panel').getByRole('button', { name: '小票' }).click();
-    const popup = await opened;
+    return outbound;
+  };
+
+  const openedReceipt = async (popup) => {
     await popup.waitForLoadState();
     expect(popup.url(), '打开的应该是当场生成的那张图').toMatch(/^blob:/);
     const png = await popup.evaluate(async () => {
@@ -940,6 +962,17 @@ test.describe('消费月份图（日历）', () => {
     expect(png.type).toContain('image/png');
     expect(png.head).toEqual([0x89, 0x50, 0x4e, 0x47]);
     expect(png.size, '一张真图，不是空壳').toBeGreaterThan(2000);
+  };
+
+  test('小票：默认在新标签里打开那张图（不是默认下载）', async ({ page }) => {
+    await openWith(page, twoOnToday());
+    await page.locator(`#month-grid .mg-cell[data-date="${today}"]`).click();
+    const outbound = watchOutbound(page);
+    const opened = page.waitForEvent('popup');
+    await page.locator('#day-panel').getByRole('button', { name: '小票' }).click();
+    const popup = await opened;
+    await openedReceipt(popup);
+    await expect(page.locator('#toast-area .toast', { hasText: '小票已打开，可另存为' })).toBeVisible();
     expect(outbound, '导出小票不该有任何外呼（账本不出机器）').toEqual([]);
     await page.locator('#expense-modal').waitFor({ state: 'hidden' }).catch(() => {});
     await popup.close();
@@ -947,14 +980,33 @@ test.describe('消费月份图（日历）', () => {
 
   test('小票：整月一张（不只能导单天），也是新标签里打开', async ({ page }) => {
     await openWith(page, twoOnToday());
+    const outbound = watchOutbound(page);
     const opened = page.waitForEvent('popup');
     await page.locator('#month-grid-card').getByRole('button', { name: '小票' }).click();
     const popup = await opened;
-    await popup.waitForLoadState();
-    expect(popup.url()).toMatch(/^blob:/);
-    const head = await popup.evaluate(async () => [...new Uint8Array(await (await fetch(location.href)).arrayBuffer()).slice(0, 4)]);
-    expect(head).toEqual([0x89, 0x50, 0x4e, 0x47]);
+    await openedReceipt(popup);
+    expect(outbound, '整月小票同样不许有外呼').toEqual([]);
     await popup.close();
+  });
+
+  test('小票：弹窗被拦才回落下载，文件名仍跟着范围走', async ({ page }) => {
+    await openWith(page, twoOnToday());
+    await page.evaluate(() => { window.open = () => null; });
+    const [day] = await Promise.all([
+      page.waitForEvent('download'),
+      (async () => {
+        await page.locator(`#month-grid .mg-cell[data-date="${today}"]`).click();
+        await page.locator('#day-panel').getByRole('button', { name: '小票' }).click();
+      })(),
+    ]);
+    expect(day.suggestedFilename()).toBe('receipt-' + today + '.png');
+    await expect(page.locator('#toast-area .toast', { hasText: '小票已导出' })).toBeVisible();
+
+    const [month] = await Promise.all([
+      page.waitForEvent('download'),
+      page.locator('#month-grid-card .toolbar').getByRole('button', { name: '小票' }).click(),
+    ]);
+    expect(month.suggestedFilename()).toBe('receipt-' + today.slice(0, 7) + '.png');
   });
 
   test('连续没记录到阈值才提一句，天数在设置里配', async ({ page }) => {

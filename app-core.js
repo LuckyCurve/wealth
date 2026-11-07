@@ -423,9 +423,9 @@ function drawAssetGatePhrase() {
     btn.setAttribute('aria-label', label);
     const bubble = document.getElementById('asset-gate-lang-tip');
     if (bubble) bubble.textContent = label;
-    // 气泡亮着时换文案会改宽度，按新宽度重挂一次（否则钉在旧位置）
+    // 展开的气泡挂在 body 下，不在 .tip 里，只认 __bubble；换文案改了宽度就重挂一次
     const tip = btn.closest('.tip');
-    if (tip && tip.querySelector('.tip-bubble.placed')) placeTipBubble(tip);
+    if (tip && tip.__bubble) placeTipBubble(tip);
   }
 }
 

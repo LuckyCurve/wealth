@@ -3,7 +3,7 @@ const assert = require('node:assert');
 const fs = require('fs');
 const path = require('path');
 
-// 页面已拆成：markup（index.html）/ css（styles.css）/ js（五个 app-*.js，按加载顺序拼）/ logic.js。
+// 页面已拆成：markup（index.html）/ css（styles.css）/ js（按加载顺序拼的 app-*.js）/ logic.js。
 // html 是「一份文件时的全貌」，一条正则横跨多个文件时用它；只问其中一份时用对应的变量。
 const markup = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 const css = fs.readFileSync(path.join(__dirname, '..', 'styles.css'), 'utf8');
@@ -2119,6 +2119,18 @@ describe('UI 接线契约：所选标签的钱 ÷ 预期月消费（消费趋势
     assert.match(html, /document\.addEventListener\('mouseout'/, '收起时把气泡搬回原处（否则它会一直显示）');
   });
 
+  test('文案换了要按新宽度重挂气泡：亮着的那份只从 __bubble 取', () => {
+    // 回归：展开时气泡已被 append 到 body，不再在 .tip 里。旧代码用
+    // tip.querySelector('.tip-bubble.placed') 判「亮着」，恒为 null，重挂从不发生——
+    // 换语言 / 换句之后气泡仍钉在旧宽度的位置。
+    const place = fnSource('placeTipBubble');
+    assert.match(place, /tip\.__bubble \|\| tip\.querySelector\('\.tip-bubble'\)/,
+      '取气泡要先认搬到 body 下的那一份');
+    assert.doesNotMatch(js, /tip\.querySelector\('\.tip-bubble\.placed'\)/, '判「亮着」不许再查 .tip 的子孙（那里永远没有）');
+    assert.match(fnSource('drawAssetGatePhrase'), /tip\.__bubble\) placeTipBubble/, '换句改宽度后重挂');
+    assert.match(fnSource('applyI18nDom'), /tip\.__bubble\) placeTipBubble/, '换语言改宽度后重挂');
+  });
+
   test('弹窗正文不再写说明段落（标题→chips→预览，说明交给 ? 提示）', () => {
     const head = html.match(/id="runway-modal"[\s\S]*?id="runway-tag-groups"/)[0];
     assert.doesNotMatch(head, /<p /, '标题到标签之间不留说明段落');
@@ -2840,7 +2852,7 @@ describe('UI 接线契约：页面脚本必须能通过解析', () => {
     });
   }
 
-  test('五个脚本拼起来可解析（跨文件顶层声明重名会在此现形）', () => {
+  test('页面脚本拼起来可解析（跨文件顶层声明重名会在此现形）', () => {
     assert.ok(js.length > 10000, '应取到脚本全文');
     assert.doesNotThrow(() => new Function(js), '顶层声明跨文件重名——整段脚本都不会执行');
   });
@@ -3442,6 +3454,38 @@ describe('UI 接线契约：下拉弹层跟主题（base-select）', () => {
  */
 describe('UI 接线契约：导出全在本机', () => {
   const receiptSrc = fs.readFileSync(path.join(__dirname, '..', 'app-receipt.js'), 'utf8');
+  const RUNTIME_FILES = ['index.html', ...JS_FILES, 'logic.js'];
+  const runtimeSrc = RUNTIME_FILES.map(f => fs.readFileSync(path.join(__dirname, '..', f), 'utf8')).join('\n');
+
+  // 逐文件钉住两个导出入口不够：新增一个页面脚本就又是一块没人看守的地方。
+  // 这里改成对**整份运行时**求值——账本不出机器应当是全局性质，不是两个文件的性质。
+  test('全仓只有一处 GET（汇率），没有能带数据的外呼', () => {
+    const clean = stripComments(runtimeSrc);
+    const fetches = clean.match(/\bfetch\s*\(/g) || [];
+    assert.strictEqual(fetches.length, 1, '运行时只允许 fetchRates 一处 fetch；新增外呼必须在这里登记');
+    assert.match(clean, /fetch\('https:\/\/[^']*cny\.json',\s*\{\s*cache:\s*'no-store'\s*\}\)/,
+      '唯一的那一处必须是取汇率的 GET（无 method / body）');
+    assert.doesNotMatch(clean, /\b(?:method|body)\s*:/, '不得构造带方法或请求体的请求');
+    assert.doesNotMatch(clean, /XMLHttpRequest|sendBeacon|new WebSocket|FormData|navigator\.send/,
+      '不得出现其它能带数据出去的通道');
+  });
+
+  test('外部地址只许是登记过的那几个库/字体，纯逻辑里一个都不许有', () => {
+    const ALLOWED = [
+      'https://cdn.tailwindcss.com',
+      'https://cdn.jsdelivr.net/npm/flatpickr',
+      'https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js',
+      'https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/cny.json',
+      'https://fonts.googleapis.cn',
+      'https://fonts.gstatic.cn',
+      'http://www.w3.org/2000/svg', // data: SVG 里的命名空间，不是请求
+    ];
+    const urls = [...new Set(stripComments(runtimeSrc).match(/https?:\/\/[^"'`)\s>]*/g) || [])];
+    const unknown = urls.filter(u => !ALLOWED.some(a => u === a || u.startsWith(a + '/') || u.startsWith(a + '?') || u.startsWith(a + '&')));
+    assert.deepStrictEqual(unknown, [], '新增外部地址要在这里登记并说明它带不带账本数据：' + unknown.join(' | '));
+    assert.doesNotMatch(fs.readFileSync(path.join(__dirname, '..', 'logic.js'), 'utf8'), /https?:\/\//,
+      '纯逻辑层不碰网络');
+  });
 
   test('小票画在画布上，不许任何网络调用', () => {
     assert.doesNotMatch(receiptSrc, /fetch\s*\(|XMLHttpRequest|sendBeacon|new WebSocket|new Image\s*\(|\.src\s*=/, '导出路径不得有网络/外部资源');
