@@ -3061,6 +3061,21 @@ describe('多语言词条 t / normalizeLang / langTag', () => {
       globalThis.state = saved;
     }
   });
+
+  test('日期选择器的第一天同样是周一（与月份图同一条轴）', () => {
+    const l10ns = {
+      default: { weekdays: { shorthand: ['Sun', 'Mon'], longhand: ['Sunday', 'Monday'] }, firstDayOfWeek: 0 },
+      zh: { weekdays: { shorthand: ['周日', '周一'], longhand: ['周日', '周一'] }, firstDayOfWeek: 1 },
+    };
+    const en = L.i18n.flatpickrLocale(l10ns, 'en');
+    assert.strictEqual(en.firstDayOfWeek, 1, '英文 locale 自带周日开头，必须改正');
+    assert.deepStrictEqual(en.weekdays.shorthand, ['Sun', 'Mon'], '只改起点，不改星期名');
+    assert.strictEqual(l10ns.default.firstDayOfWeek, 0, '不得改写库自带的 locale（全局共享，改了影响别处）');
+    assert.deepStrictEqual(L.i18n.flatpickrLocale(l10ns, 'zh').weekdays.shorthand, ['周日', '周一'], '中文取 zh 那一份');
+    const none = L.i18n.flatpickrLocale(undefined, 'en');
+    assert.strictEqual(none.firstDayOfWeek, 1, '库没加载（词条表为空）也要给出周一起点');
+    assert.strictEqual(L.i18n.flatpickrLocale({ zh: {} }, 'en').firstDayOfWeek, 1, '缺 default 一份时不崩');
+  });
 });
 
 describe('migrateState：语言设置的归一', () => {
@@ -3327,6 +3342,85 @@ describe('月份图：分档、周对齐与漏记天数', () => {
   test('脏月份与脏今天都不崩', () => {
     assert.strictEqual(L.monthGrid.build([], 'x', 'count', ''), null);
     assert.strictEqual(L.monthGrid.build([ex('bad', 1)], '2026-13', 'count', ''), null);
+  });
+
+  test('漏记的日子点得出是哪几天（一个数看不出今天算不算）', () => {
+    const view = L.monthGrid.build([ex('2026-03-01', 1), ex('2026-03-05', 1)], '2026-03', 'count', '2026-03-05');
+    assert.deepStrictEqual(view.missingDays, [2, 3, 4], '今天（5 号）有记录，2-4 号才是空的');
+    assert.strictEqual(view.missing, 3, '数字与清单同源');
+    assert.deepStrictEqual(L.monthGrid.build([], '2026-02', 'count', '2026-03-05').missingDays.length, 28, '过去的月份全算');
+  });
+
+  test('漏记文案：少的时候点名，多的时候回到一个数', () => {
+    const saved = globalThis.state;
+    globalThis.state = freshState({ lang: 'zh' });
+    try {
+      assert.strictEqual(L.monthGrid.missingDaysLabel([2, 3, 4]), '2、3、4 日没有记录');
+      assert.strictEqual(L.monthGrid.missingDaysLabel([1, 2, 3, 4, 5, 6, 7, 8]), '1、2、3、4、5、6、7、8 日没有记录', '8 天还在点名档');
+      assert.strictEqual(L.monthGrid.missingDaysLabel([1, 2, 3, 4, 5, 6, 7, 8, 9]), '9 天没有记录');
+      assert.strictEqual(L.monthGrid.missingDaysLabel([]), '', '一天不缺就不提这句');
+      assert.strictEqual(L.monthGrid.missingDaysLabel(null), '');
+    } finally {
+      globalThis.state = saved;
+    }
+  });
+
+  test('点一天：取那天的全部记录，金额大的在前', () => {
+    const list = [
+      ex('2026-03-01', 10), ex('2026-03-02', 5), ex('2026-03-01', 30), null,
+      { id: 'dirty', date: '2026-3-1', amount: 9 },
+    ];
+    const day = L.monthGrid.dayEntries(list, '2026-03-01');
+    assert.deepStrictEqual(day.map((e) => e.amount), [30, 10]);
+    assert.deepStrictEqual(L.monthGrid.dayEntries(list, '2026-03-09'), []);
+    assert.deepStrictEqual(L.monthGrid.dayEntries(null, '2026-03-01'), []);
+  });
+});
+
+// ========== 小票 ==========
+describe('小票：一天的记录摊成一张小票', () => {
+  const ex = (note, amount) => ({ id: note + amount, date: '2026-03-01', amount, note, tags: {} });
+
+  test('行按调用方给的顺序，金额恒为两位小数；缺备注落到占位', () => {
+    const saved = globalThis.state;
+    globalThis.state = freshState({ lang: 'zh' });
+    try {
+      const m = L.receipt.model([ex('晚饭', 30), ex('', 12.5)], { date: '2026-03-01' });
+      assert.strictEqual(m.count, 2);
+      assert.deepStrictEqual(m.rows.map((r) => r.label), ['晚饭', '（无备注）']);
+      assert.deepStrictEqual(m.rows.map((r) => r.amount), ['30.00', '12.50']);
+      assert.strictEqual(m.totalText, '42.50');
+      assert.strictEqual(m.date, '2026-03-01');
+    } finally {
+      globalThis.state = saved;
+    }
+  });
+
+  test('describe 供 label 与副行；空串不当真值', () => {
+    const m = L.receipt.model([ex('', 5)], { describe: () => ({ label: '   ', sub: '' }) });
+    assert.strictEqual(m.rows[0].label, '（无备注）');
+    assert.strictEqual(m.rows[0].sub, '');
+    const withSub = L.receipt.model([ex('晚饭', 5)], { describe: (e) => ({ label: e.note, sub: '餐饮' }) });
+    assert.strictEqual(withSub.rows[0].sub, '餐饮');
+  });
+
+  test('一分钱都没有（一堆空值）就没有小票', () => {
+    assert.strictEqual(L.receipt.model([]), null);
+    assert.strictEqual(L.receipt.model([null, undefined]), null);
+    assert.strictEqual(L.receipt.model(null), null);
+  });
+
+  test('脏金额不把合计算成 NaN', () => {
+    const m = L.receipt.model([{ amount: 'abc' }, { amount: 3 }]);
+    assert.strictEqual(m.total, 3);
+    assert.strictEqual(m.rows[0].amount, '0.00');
+  });
+
+  test('文件名带日期；日期不合法时退回一个通用的', () => {
+    assert.strictEqual(L.receipt.fileName('2026-03-01'), 'receipt-2026-03-01.png');
+    assert.strictEqual(L.receipt.fileName('2026-3-1'), 'receipt.png');
+    assert.strictEqual(L.receipt.fileName(''), 'receipt.png');
+    assert.strictEqual(L.receipt.fileName(undefined), 'receipt.png');
   });
 });
 

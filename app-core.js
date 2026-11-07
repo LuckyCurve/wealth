@@ -81,7 +81,7 @@ function observeChartSize(chart) {
     moveTabIndicator('#tabs-expenses', 'expenses');
     if (typeof flatpickr !== 'undefined') {
       flatpickr('#expense-date', {
-        locale: i18n.normalizeLang(state.lang) === 'zh' && flatpickr.l10ns && flatpickr.l10ns.zh ? flatpickr.l10ns.zh : 'default',
+        locale: i18n.flatpickrLocale(flatpickr.l10ns, state.lang),
         dateFormat: 'Y-m-d',
         defaultDate: date.getLocalDateStr(),
         disableMobile: true,

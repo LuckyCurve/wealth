@@ -28,6 +28,12 @@
     return normalizeLang(lang) === 'zh' ? 'zh-CN' : 'en';
   }
 
+  function flatpickrLocale(l10ns, lang) {
+    const table = l10ns && typeof l10ns === 'object' ? l10ns : {};
+    const base = normalizeLang(lang) === 'zh' ? table.zh : table.default;
+    return Object.assign({}, base && typeof base === 'object' ? base : {}, { firstDayOfWeek: 1 });
+  }
+
   // 取词条并插值。vars 里的 {name} 占位符按名替换；值为数组时选单/复数
   // （英文才有单复数，中文词条永远是字符串）。
   // 单复数的计数只认 vars.n（推荐）或 vars.p1（绝大多数计数句的第一个占位符就是数量），
@@ -1314,7 +1320,7 @@
     let count = 0;
     let amount = 0;
     let maxAmount = 0;
-    let missing = 0;
+    const missingDays = [];
     for (let d = 1; d <= total; d++) {
       const key = month + '-' + String(d).padStart(2, '0');
       const hit = totals[key];
@@ -1324,7 +1330,7 @@
       amount += a;
       if (a > maxAmount) maxAmount = a;
       const future = !!today && key > today;
-      if (!future && c === 0 && key !== today) missing += 1;
+      if (!future && c === 0 && key !== today) missingDays.push(d);
       cells.push({ day: d, date: key, count: c, amount: a, future: future });
     }
     cells.forEach(cell => {
@@ -1336,8 +1342,28 @@
     for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7));
     return {
       month: month, days: total, weeks: weeks, mode: mode,
-      count: count, amount: amount, maxAmount: maxAmount, missing: missing,
+      count: count, amount: amount, maxAmount: maxAmount,
+      missing: missingDays.length, missingDays: missingDays,
     };
+  }
+
+  function missingDaysLabel(days) {
+    const list = Array.isArray(days) ? days.map(Number).filter(d => isFinite(d) && d > 0) : [];
+    if (!list.length) return '';
+    if (list.length > 8) return t('{n} 天没有记录', { n: list.length });
+    return t('{days} 日没有记录', { days: list.join(t('、')) });
+  }
+
+  function dayEntries(expenses, day) {
+    const key = String(day || '');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(key)) return [];
+    return (expenses || [])
+      .filter(e => e && String(e.date || '') === key)
+      .sort((a, b) => {
+        const byAmount = (Number(b.amount) || 0) - (Number(a.amount) || 0);
+        if (byAmount) return byAmount;
+        return String(a.id) < String(b.id) ? -1 : String(a.id) > String(b.id) ? 1 : 0;
+      });
   }
 
   // 格子上的数字：笔数直接写，金额折成整元/k——六位数塞不进一个几十像素的格子。
@@ -1352,6 +1378,32 @@
     if (n < 1000) return '¥' + Math.round(n);
     if (n < 10000) return '¥' + (n / 1000).toFixed(1).replace(/\.0$/, '') + 'k';
     return '¥' + Math.round(n / 1000) + 'k';
+  }
+
+  // ========== 小票（消费页导出的那张热敏纸）==========
+  function receiptModel(items, opts) {
+    const o = opts || {};
+    const list = (items || []).filter(e => e && typeof e === 'object');
+    if (!list.length) return null;
+    const rows = list.map(e => {
+      const d = typeof o.describe === 'function' ? (o.describe(e) || {}) : {};
+      const label = String(d.label == null ? (e.note == null ? '' : e.note) : d.label).trim();
+      const sub = String(d.sub == null ? '' : d.sub).trim();
+      return { label: label || t('（无备注）'), sub: sub, amount: money2(Number(e.amount) || 0) };
+    });
+    const total = list.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+    return {
+      date: String(o.date || ''),
+      rows: rows,
+      count: rows.length,
+      total: total,
+      totalText: money2(total),
+    };
+  }
+
+  function receiptFileName(dateStr) {
+    const d = String(dateStr || '');
+    return /^\d{4}-\d{2}-\d{2}$/.test(d) ? 'receipt-' + d + '.png' : 'receipt.png';
   }
 
   function monthGridCellText(cell) {
@@ -2563,8 +2615,15 @@
     '上个月': 'Previous month',
     '下个月': 'Next month',
     '一': 'Mon', '二': 'Tue', '三': 'Wed', '四': 'Thu', '五': 'Fri', '六': 'Sat', '日': 'Sun',
-    '点一格，就在那天补记一笔': 'Tap a day to add an entry for it',
+    '点一格看当天的记录，长按一格记一笔': 'Tap a day to see its entries; press and hold to add one',
     '{n} 天没有记录': '{n} days with no entries',
+    '{days} 日没有记录': 'No entries on {days}',
+    '消费小票': 'Spending receipt',
+    '小票': 'Receipt',
+    '小票已导出': 'Receipt exported',
+    '谢谢惠顾': 'Thank you',
+    '{n} 件': '{n} items',
+    '、': ', ',
     '{n} 笔': '{n} entries',
     '这天没有记录': 'No entries that day',
     '{m} 月 {d} 日': '{m}/{d}',
@@ -2641,6 +2700,7 @@
       t,
       normalizeLang,
       langTag,
+      flatpickrLocale,
       I18N_LANGS,
       I18N_DEFAULT,
       I18N_EN,
@@ -2704,6 +2764,10 @@
       SNAPSHOT_REMINDER_MAX_DAYS,
       SNAPSHOT_REMINDER_DEFAULT_DAYS,
     },
+    receipt: {
+      model: receiptModel,
+      fileName: receiptFileName,
+    },
     monthGrid: {
       countLevel,
       amountLevel,
@@ -2711,6 +2775,8 @@
       build: monthGrid,
       cellValue,
       cellText: monthGridCellText,
+      missingDaysLabel,
+      dayEntries,
       shortCNY,
     },
     expense: {

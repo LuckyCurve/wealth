@@ -1,3 +1,4 @@
+const fs = require('fs');
 const {
   test, expect, LS_KEY, INDEX_URL,
   stubCdn, seed, waitReady, disableMotion, readAppState, sampleState, gotoAssets, openExpenseTable,
@@ -758,6 +759,130 @@ test.describe('消费记录', () => {
 
     await page.locator('[onclick="toggleExpenseSort(\'date\')"]').click(); // 第三次：取消排序
     await expect(page.locator('#expense-sort-date')).toBeEmpty();
+  });
+});
+
+test.describe('消费月份图（日历）', () => {
+  const pad = (n) => String(n).padStart(2, '0');
+  const now = new Date();
+  const today = now.getFullYear() + '-' + pad(now.getMonth() + 1) + '-' + pad(now.getDate());
+  // 过去的月份：整月都已过去，未来日期的禁用规则不会把要点的格子挡掉
+  const pastMonth = (now.getFullYear() - 1) + '-' + pad(now.getMonth() + 1);
+  const lastDay = new Date(now.getFullYear() - 1, now.getMonth() + 1, 0).getDate();
+  const dayOf = (month, n) => month + '-' + pad(n);
+
+  const pastState = () => ({
+    ...sampleState(),
+    expenses: Array.from({ length: lastDay - 3 }, (_, i) => ({
+      id: 'p-' + (i + 1),
+      date: dayOf(pastMonth, i + 1),
+      amount: 10,
+      note: '补记',
+      tags: { 'ec-pay': '微信', 'ec-type': '餐饮' },
+    })),
+  });
+
+  const twoOnToday = () => ({
+    ...sampleState(),
+    expenses: [
+      { id: 't-1', date: today, amount: 12, note: '当天午饭', tags: { 'ec-pay': '微信', 'ec-type': '餐饮' } },
+      { id: 't-2', date: today, amount: 30, note: '当天晚饭', tags: { 'ec-pay': '微信', 'ec-type': '餐饮' } },
+      { id: 't-3', date: today.slice(0, 8) + '01', amount: 5, note: '本月别的日子', tags: { 'ec-pay': '支付宝', 'ec-type': '餐饮' } },
+    ],
+  });
+
+  test('日历不贴在左边：左右留白相等且没被撑满', async ({ appPage: page }) => {
+    const gap = await page.evaluate(() => {
+      const card = document.getElementById('month-grid-card');
+      const cs = getComputedStyle(card);
+      const rect = card.getBoundingClientRect();
+      const grid = document.getElementById('month-grid').getBoundingClientRect();
+      return {
+        left: grid.left - (rect.left + parseFloat(cs.paddingLeft)),
+        right: rect.right - parseFloat(cs.paddingRight) - grid.right,
+      };
+    });
+    expect(Math.abs(gap.left - gap.right), `左 ${gap.left} / 右 ${gap.right}`).toBeLessThanOrEqual(1);
+    expect(gap.left, '宽屏下它不是撑满的：撑满时居中与否看不出区别，这条会把两边都变成 0').toBeGreaterThan(20);
+  });
+
+  test('筛选控件跟着明细走，不在页面顶部', async ({ appPage: page }) => {
+    for (const id of ['expense-search', 'expense-month-filter', 'expense-tag-filter']) {
+      const inDetail = await page.evaluate((x) => !!document.getElementById(x).closest('#expenses-detail'), id);
+      expect(inDetail, id + ' 应在明细块内').toBe(true);
+      const inHead = await page.evaluate((x) => !!document.getElementById(x).closest('.section-head'), id);
+      expect(inHead, id + ' 不该在页头').toBe(false);
+    }
+    await expect(page.locator('#expenses-detail .filter-bar')).toBeVisible();
+  });
+
+  test('点一格看当天的记录（金额大的在前），再点一次收起', async ({ page }) => {
+    await openWith(page, twoOnToday());
+    const cell = page.locator(`#month-grid .mg-cell[data-date="${today}"]`);
+    await expect(cell).toBeVisible();
+
+    await cell.click();
+    const panel = page.locator('#day-panel');
+    await expect(panel).toBeVisible();
+    await expect(panel).toContainText('2 笔');
+    await expect(panel).toContainText('¥42.00');
+    await expect(panel.locator('.asset-row:not(.list-head)')).toHaveCount(2);
+    await expect(panel.locator('.asset-row:not(.list-head)').first()).toContainText('当天晚饭');
+    await expect(page.locator('#expense-modal')).toBeHidden();
+
+    await cell.click();
+    await expect(panel).toBeHidden();
+  });
+
+  test('点空格子直接开录入，日期预填那天', async ({ page }) => {
+    await openWith(page, pastState());
+    await page.evaluate((n) => shiftMonthGrid(-n), 12);
+    const empty = dayOf(pastMonth, lastDay);
+    await page.locator(`#month-grid .mg-cell[data-date="${empty}"]`).click();
+    await expect(page.locator('#expense-modal')).toBeVisible();
+    await expect(page.locator('#expense-date')).toHaveValue(empty);
+    await expect(page.locator('#day-panel')).toBeHidden();
+  });
+
+  test('长按格子 = 记一笔（按满就开录入，松手不会再叠一层详情）', async ({ page }) => {
+    await openWith(page, twoOnToday());
+    const cell = page.locator(`#month-grid .mg-cell[data-date="${today}"]`);
+    const box = await cell.boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    // 不等松手就该看到弹窗：按时长推进，而不是靠松手触发
+    await expect(page.locator('#expense-modal')).toBeVisible();
+    await expect(page.locator('#expense-date')).toHaveValue(today);
+    await page.mouse.up();
+    await expect(page.locator('#expense-modal'), '松手那一刻的 click 不能把刚开的弹窗关掉').toBeVisible();
+    await expect(page.locator('#expense-modal-title')).toHaveText('记录消费');
+
+    await page.locator('#expense-form button:has-text("取消")').click();
+    await expect(page.locator('#expense-modal')).toBeHidden();
+    await expect(page.locator('#day-panel'), '长按是「记一笔」，不该顺带展开详情').toBeHidden();
+  });
+
+  test('小票：导出当天那一张 PNG，文件名带日期', async ({ page }) => {
+    await openWith(page, twoOnToday());
+    await page.locator(`#month-grid .mg-cell[data-date="${today}"]`).click();
+    const [download] = await Promise.all([
+      page.waitForEvent('download'),
+      page.locator('#day-panel').getByRole('button', { name: '小票' }).click(),
+    ]);
+    expect(download.suggestedFilename()).toBe('receipt-' + today + '.png');
+    const buf = fs.readFileSync(await download.path());
+    expect(buf.slice(0, 8)).toEqual(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+    expect(buf.readUInt32BE(16), '宽度：384 CSS px × 2 倍尘点').toBe(768);
+    expect(buf.readUInt32BE(20), '小票是一条，不是一张方片').toBeGreaterThan(300);
+    await expect(page.locator('#toast-area .toast', { hasText: '小票已导出' })).toBeVisible();
+  });
+
+  test('漏记一句话点名哪几天（一个数看不出漏的是不是今天）', async ({ page }) => {
+    await openWith(page, pastState());
+    await page.evaluate((n) => shiftMonthGrid(-n), 12);
+    const named = [lastDay - 2, lastDay - 1, lastDay].join('、');
+    await expect(page.locator('#month-grid-summary')).toContainText(named + ' 日没有记录');
+    await expect(page.locator('#month-grid-summary')).toContainText((lastDay - 3) + ' 笔');
   });
 });
 

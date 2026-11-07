@@ -96,8 +96,7 @@ function syncFlatpickrLocale() {
   const el = document.getElementById('expense-date');
   const fp = el && el._flatpickr;
   if (!fp || typeof flatpickr === 'undefined') return;
-  const zh = flatpickr.l10ns && flatpickr.l10ns.zh;
-  fp.set('locale', i18n.normalizeLang(state.lang) === 'zh' && zh ? zh : 'default');
+  fp.set('locale', i18n.flatpickrLocale(flatpickr.l10ns, state.lang));
 }
 
 // 语言切换与主题同一套「先落盘、后重绘」路径。

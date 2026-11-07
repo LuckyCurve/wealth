@@ -7,7 +7,7 @@ const path = require('path');
 // html 是「一份文件时的全貌」，一条正则横跨多个文件时用它；只问其中一份时用对应的变量。
 const markup = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 const css = fs.readFileSync(path.join(__dirname, '..', 'styles.css'), 'utf8');
-const JS_FILES = ['app-core.js', 'app-assets.js', 'app-charts.js', 'app-settings.js', 'app-expenses.js'];
+const JS_FILES = ['app-core.js', 'app-assets.js', 'app-charts.js', 'app-settings.js', 'app-expenses.js', 'app-calendar.js', 'app-receipt.js'];
 const js = JS_FILES.map((f) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8')).join('\n');
 const html = markup + '\n' + css + '\n' + js;
 const count = (re) => (html.match(re) || []).length;
@@ -345,7 +345,7 @@ describe('UI 接线契约：logic.js 导出清单与筛选同步时序', () => {
     const domains = Object.keys(api);
     assert.deepStrictEqual(
       domains.slice().sort(),
-      ['backup', 'category', 'chartData', 'color', 'date', 'demo', 'expense', 'i18n', 'income', 'migrate', 'money', 'monthGrid', 'motion', 'snapshot', 'stress', 'text', 'ui', 'vault'],
+      ['backup', 'category', 'chartData', 'color', 'date', 'demo', 'expense', 'i18n', 'income', 'migrate', 'money', 'monthGrid', 'motion', 'receipt', 'snapshot', 'stress', 'text', 'ui', 'vault'],
       '域清单：新增域要在这里显式登记（防编辑残留悄悄多一个袋子）'
     );
     const seen = new Map();
@@ -810,11 +810,12 @@ describe('UI 接线契约：Flatpickr 日期选择器', () => {
     assert.strictEqual(count(/flatpickr\.min\.js/g), 0, '不应引用 flatpickr.min.js（主包已含）');
   });
 
-  test('DOMContentLoaded 初始化 Flatpickr，locale zh + disableMobile', () => {
+  test('DOMContentLoaded 初始化 Flatpickr，locale 跟界面语言 + 周一开头 + disableMobile', () => {
     assert.match(html, /flatpickr\('#expense-date'/, '应初始化 #expense-date');
     const initBlock = html.match(/flatpickr\('#expense-date'[\s\S]*?\}\);/);
     assert.ok(initBlock, '初始化块存在');
-    assert.match(initBlock[0], /locale: i18n\.normalizeLang\(state\.lang\)/, 'locale 跟当前界面语言走（zh 需要 l10n 就绪才切）');
+    assert.match(initBlock[0], /locale: i18n\.flatpickrLocale\(flatpickr\.l10ns, state\.lang\)/, 'locale 走 helper（周一起点与月份图同轴，语言跟界面走）');
+    assert.match(fnSource('syncFlatpickrLocale'), /i18n\.flatpickrLocale\(flatpickr\.l10ns, state\.lang\)/, '换语言后重建 locale 也走同一个 helper（否则又回到周日开头）');
     assert.match(initBlock[0], /disableMobile: true/, '移动端禁用原生日历，统一桌面样式');
   });
 

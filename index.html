@@ -377,13 +377,6 @@ tailwind.config = {
           <p class="sub" id="expense-total-line"></p>
         </div>
         <div class="toolbar">
-          <span class="search-wrap">
-            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><line x1="10.5" y1="10.5" x2="14" y2="14"/></svg>
-            <input type="text" id="expense-search" placeholder="搜索备注 / 标签 / 分类" data-i18n-placeholder="搜索备注 / 标签 / 分类" class="t-body" autocomplete="off" oninput="setExpenseFilter({query:this.value})" onkeydown="if(event.key==='Escape')clearExpenseSearch()">
-            <button type="button" id="expense-search-clear" class="search-clear" onclick="clearExpenseSearch()" tabindex="-1" aria-label="清除搜索" data-i18n-aria-label="清除搜索" style="display:none;">×</button>
-          </span>
-          <select id="expense-month-filter" onchange="setExpenseFilter({month:this.value})" class="select-field" aria-label="消费月份筛选" data-i18n-aria-label="消费月份筛选"></select>
-          <select id="expense-tag-filter" onchange="setExpenseFilter({tag:this.value})" class="select-field" aria-label="按标签筛选" data-i18n-aria-label="按标签筛选"></select>
           <button onclick="openExpenseModal()" class="btn-gold" data-i18n="＋ 记录消费">＋ 记录消费</button>
         </div>
       </div>
@@ -407,7 +400,8 @@ tailwind.config = {
           <span data-i18n="一">一</span><span data-i18n="二">二</span><span data-i18n="三">三</span><span data-i18n="四">四</span><span data-i18n="五">五</span><span data-i18n="六">六</span><span data-i18n="日">日</span>
         </div>
         <div id="month-grid" class="mg-grid"></div>
-        <p class="t-micro mt-3 muted" data-i18n="点一格，就在那天补记一笔">点一格，就在那天补记一笔</p>
+        <p class="t-micro mt-3 muted mg-hint" data-i18n="点一格看当天的记录，长按一格记一笔">点一格看当天的记录，长按一格记一笔</p>
+        <div id="day-panel" class="day-panel" style="display:none;"></div>
       </div>
 
 
@@ -428,12 +422,22 @@ tailwind.config = {
         </div>
       </div>
 
-      <div id="expense-table-toggle" class="table-toggle" role="button" tabindex="0" aria-expanded="false" aria-controls="expense-table" onclick="toggleExpenseTable()" onkeydown="if(ui.activateKeyAction(event.key)){event.preventDefault();toggleExpenseTable();}">
-        <span class="t-micro" data-i18n="明细">明细</span>
-        <span id="expense-table-summary" class="t-micro muted tabular"></span>
-        <span class="table-toggle-chev" aria-hidden="true">▾</span>
-      </div>
-      <div id="expense-table" style="display:none;">
+      <div id="expenses-detail">
+        <div id="expense-table-toggle" class="table-toggle" role="button" tabindex="0" aria-expanded="false" aria-controls="expense-table" onclick="toggleExpenseTable()" onkeydown="if(ui.activateKeyAction(event.key)){event.preventDefault();toggleExpenseTable();}">
+          <span class="t-micro" data-i18n="明细">明细</span>
+          <span id="expense-table-summary" class="t-micro muted tabular"></span>
+          <span class="table-toggle-chev" aria-hidden="true">▾</span>
+        </div>
+        <div class="filter-bar">
+          <span class="search-wrap">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><line x1="10.5" y1="10.5" x2="14" y2="14"/></svg>
+            <input type="text" id="expense-search" placeholder="搜索备注 / 标签 / 分类" data-i18n-placeholder="搜索备注 / 标签 / 分类" class="t-body" autocomplete="off" oninput="setExpenseFilter({query:this.value})" onkeydown="if(event.key==='Escape')clearExpenseSearch()">
+            <button type="button" id="expense-search-clear" class="search-clear" onclick="clearExpenseSearch()" tabindex="-1" aria-label="清除搜索" data-i18n-aria-label="清除搜索" style="display:none;">×</button>
+          </span>
+          <select id="expense-month-filter" onchange="setExpenseFilter({month:this.value})" class="select-field" aria-label="消费月份筛选" data-i18n-aria-label="消费月份筛选"></select>
+          <select id="expense-tag-filter" onchange="setExpenseFilter({tag:this.value})" class="select-field" aria-label="按标签筛选" data-i18n-aria-label="按标签筛选"></select>
+        </div>
+        <div id="expense-table" style="display:none;">
         <div id="expenses-list" class="card">
           <div class="asset-row list-head cols-expenses">
             <div onclick="toggleExpenseSort('date')" role="button" tabindex="0" aria-sort="none" onkeydown="if(ui.activateKeyAction(event.key)){event.preventDefault();toggleExpenseSort('date');}" class="row-hit"><span data-i18n="日期">日期</span><span class="sort-indicator" id="expense-sort-date"></span></div>
@@ -443,6 +447,7 @@ tailwind.config = {
           <div id="expenses-rows"></div>
         </div>
         </div>
+      </div>
     </section>
 
     <!-- Expense Categories Tab -->
@@ -1047,6 +1052,8 @@ tailwind.config = {
 <script src="app-charts.js"></script>
 <script src="app-settings.js"></script>
 <script src="app-expenses.js"></script>
+<script src="app-calendar.js"></script>
+<script src="app-receipt.js"></script>
 
 </body>
 </html>

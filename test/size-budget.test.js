@@ -26,7 +26,9 @@ const BUDGETS = {
   'app-assets.js': 74_000,
   'app-charts.js': 53_000,
   'app-settings.js': 38_000,
-  // 月份图 + 明细节（表默认收起）落在这一份里；再抬之前先把「录入」与「报表」拆开。
+  // 月份图 + 当天的记录（点一格展开）；明细列表与录入在 app-expenses.js 里。
+  'app-calendar.js': 12_000,
+  'app-receipt.js': 10_000,
   'app-expenses.js': 42_000,
   'logic.js': 145_000,
 };
