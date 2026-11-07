@@ -901,6 +901,11 @@ test.describe('消费月份图（日历）', () => {
   test('小票：默认在新标签里打开那张图（不是默认下载）', async ({ page }) => {
     await openWith(page, twoOnToday());
     await page.locator(`#month-grid .mg-cell[data-date="${today}"]`).click();
+    const outbound = [];
+    page.on('request', (r) => {
+      const url = r.url();
+      if (/^https?:\/\//.test(url) && !url.startsWith('http://127.0.0.1')) outbound.push(r.method() + ' ' + url);
+    });
     const opened = page.waitForEvent('popup');
     await page.locator('#day-panel').getByRole('button', { name: '小票' }).click();
     const popup = await opened;
@@ -914,6 +919,7 @@ test.describe('消费月份图（日历）', () => {
     expect(png.type).toContain('image/png');
     expect(png.head).toEqual([0x89, 0x50, 0x4e, 0x47]);
     expect(png.size, '一张真图，不是空壳').toBeGreaterThan(2000);
+    expect(outbound, '导出小票不该有任何外呼（账本不出机器）').toEqual([]);
     await page.locator('#expense-modal').waitFor({ state: 'hidden' }).catch(() => {});
     await popup.close();
   });

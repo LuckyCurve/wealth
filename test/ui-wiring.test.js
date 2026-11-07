@@ -3432,6 +3432,24 @@ describe('UI 接线契约：下拉弹层跟主题（base-select）', () => {
  * 不影响功能、也不报错，只有用户看得见。这里把三种漏法都变成红灯：
  *   ① 静态文案没挂 data-i18n；② 脚本里游离的中文字面量；③ 用到的键没有英文词条。
  */
+describe('UI 接线契约：导出全在本机', () => {
+  const receiptSrc = fs.readFileSync(path.join(__dirname, '..', 'app-receipt.js'), 'utf8');
+
+  test('小票画在画布上，不许任何网络调用', () => {
+    assert.doesNotMatch(receiptSrc, /fetch\s*\(|XMLHttpRequest|sendBeacon|new WebSocket|new Image\s*\(|\.src\s*=/, '导出路径不得有网络/外部资源');
+    assert.match(receiptSrc, /createElement\('canvas'\)/, '画在本地画布上');
+    assert.match(receiptSrc, /createObjectURL/, '用本地 blob 打开，不过网络');
+    assert.match(receiptSrc, /window\.open\(url, '_blank'\)/, '默认在新标签打开');
+  });
+
+  test('备份导出也不过网络：文件窗口或下载，加密在本机', () => {
+    const settingsSrc = fs.readFileSync(path.join(__dirname, '..', 'app-settings.js'), 'utf8');
+    assert.doesNotMatch(settingsSrc, /fetch\s*\(/, '导出导入不得向外发送');
+    assert.match(settingsSrc, /showSaveFilePicker/, '先走系统文件窗口');
+    assert.match(settingsSrc, /new Blob\(/, '回落下载也是本地 blob');
+  });
+});
+
 describe('UI 接线契约：多语言（默认英文，设置里切中文）', () => {
   const logicSrc = fs.readFileSync(path.join(__dirname, '..', 'logic.js'), 'utf8');
   const L = require('../logic.js');
