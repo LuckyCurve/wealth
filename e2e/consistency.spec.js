@@ -153,6 +153,7 @@ test.describe('版式一致性', () => {
     // 弹层在 top-layer 里，getComputedStyle 读得到颜色但读不到布局
     // （返回 width:fit-content、top:0），故这里只查色与形，不碰尺寸。
     await visitAllTabs(page);
+    await openExpenseTable(page);
 
     const pickerOf = () =>
       page.evaluate(() => {
@@ -216,6 +217,7 @@ test.describe('版式一致性', () => {
       renderAll();
     });
     await visitAllTabs(page);
+    await openExpenseTable(page);
 
     const sel = page.locator('#expense-tag-filter');
     const widths = [];

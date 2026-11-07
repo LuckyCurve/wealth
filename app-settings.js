@@ -149,6 +149,7 @@ function showSettings() {
   syncLangSeg();
   syncBackupControls();
   syncSnapshotReminderControls();
+  syncExpenseGapDays();
   openModal('settings-modal');
 }
 
@@ -502,6 +503,18 @@ function setSnapshotReminderWindow(v) { setSnapshotReminder({ window: v }); }
 function setSnapshotReminderDays(v) { setSnapshotReminder({ days: v }); }
 
 // 回显：seg 的 aria-pressed 与天数输入框同一来源，不各读一遍 state
+function setExpenseGapDays(v) {
+  state.expenseGapDays = expense.normalizeGapDays(v);
+  saveState();
+  syncExpenseGapDays();
+  renderExpenses();
+}
+
+function syncExpenseGapDays() {
+  const el = document.getElementById('expense-gap-days');
+  if (el) el.value = String(expense.normalizeGapDays(state.expenseGapDays));
+}
+
 function syncSnapshotReminderControls() {
   const r = snapshot.normalizeSnapshotReminder(state.snapshotReminder);
   ['off', 'start', 'end'].forEach(v => {

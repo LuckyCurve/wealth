@@ -9,8 +9,11 @@ function applyExpenseTableState() {
   const wrap = document.getElementById('expense-table');
   const bar = document.getElementById('expense-table-toggle');
   if (!wrap || !bar) return;
+  const wasHidden = wrap.style.display === 'none';
   wrap.style.display = expenseTableOpen ? '' : 'none';
   bar.setAttribute('aria-expanded', expenseTableOpen ? 'true' : 'false');
+  // 刚显示出来的下拉才有布局，现在才量得到固有宽度（隐藏时量出来是 0，钉宽也就没钉上）
+  if (expenseTableOpen && wasHidden) freezeSelectWidths();
 }
 
 // ========== EXPENSE CRUD ==========
@@ -156,11 +159,9 @@ function renderExpenses() {
   const total = filtered.reduce((s, e) => s + e.amount, 0);
   renderMonthGrid();
 
-  const detail = document.getElementById('expenses-detail');
-  if (detail) detail.style.display = state.expenses.length ? '' : 'none';
   const tableBar = document.getElementById('expense-table-toggle');
   const tableSummary = document.getElementById('expense-table-summary');
-  if (tableBar) tableBar.style.display = filtered.length ? '' : 'none';
+  if (tableBar) tableBar.style.display = state.expenses.length ? '' : 'none';
   if (tableSummary) {
     tableSummary.textContent = i18n.t('{n} 笔', { n: filtered.length }) + ' · ' + money.formatCNY(total);
   }

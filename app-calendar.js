@@ -21,8 +21,9 @@ function renderMonthGrid() {
   if (summary) {
     const parts = [i18n.t('{n} 笔', { n: view.count })];
     if (view.amount > 0) parts.push(money.formatCNY(view.amount));
-    const miss = monthGrid.missingDaysLabel(view.missingDays);
-    if (miss) parts.push(miss);
+    const gap = month === date.getCurrentMonth() ? expense.gapDays(state.expenses, date.getLocalDateStr()) : null;
+    const limit = expense.normalizeGapDays(state.expenseGapDays);
+    if (gap != null && limit > 0 && gap >= limit) parts.push(i18n.t('已连续 {n} 天没有记录', { n: gap }));
     summary.textContent = parts.join(' · ');
   }
   if (selectedDay && selectedDay.slice(0, 7) !== month) selectedDay = '';

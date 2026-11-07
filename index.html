@@ -422,12 +422,12 @@ tailwind.config = {
         </div>
       </div>
 
-      <div id="expenses-detail">
-        <div id="expense-table-toggle" class="table-toggle" role="button" tabindex="0" aria-expanded="false" aria-controls="expense-table" onclick="toggleExpenseTable()" onkeydown="if(ui.activateKeyAction(event.key)){event.preventDefault();toggleExpenseTable();}">
-          <span class="t-micro" data-i18n="明细">明细</span>
-          <span id="expense-table-summary" class="t-micro muted tabular"></span>
-          <span class="table-toggle-chev" aria-hidden="true">▾</span>
-        </div>
+      <div id="expense-table-toggle" class="table-toggle" role="button" tabindex="0" aria-expanded="false" aria-controls="expense-table" onclick="toggleExpenseTable()" onkeydown="if(ui.activateKeyAction(event.key)){event.preventDefault();toggleExpenseTable();}">
+        <span class="t-micro" data-i18n="明细">明细</span>
+        <span id="expense-table-summary" class="t-micro muted tabular"></span>
+        <span class="table-toggle-chev" aria-hidden="true">▾</span>
+      </div>
+      <div id="expense-table" style="display:none;">
         <div class="filter-bar">
           <span class="search-wrap">
             <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><line x1="10.5" y1="10.5" x2="14" y2="14"/></svg>
@@ -437,7 +437,6 @@ tailwind.config = {
           <select id="expense-month-filter" onchange="setExpenseFilter({month:this.value})" class="select-field" aria-label="消费月份筛选" data-i18n-aria-label="消费月份筛选"></select>
           <select id="expense-tag-filter" onchange="setExpenseFilter({tag:this.value})" class="select-field" aria-label="按标签筛选" data-i18n-aria-label="按标签筛选"></select>
         </div>
-        <div id="expense-table" style="display:none;">
         <div id="expenses-list" class="card">
           <div class="asset-row list-head cols-expenses">
             <div onclick="toggleExpenseSort('date')" role="button" tabindex="0" aria-sort="none" onkeydown="if(ui.activateKeyAction(event.key)){event.preventDefault();toggleExpenseSort('date');}" class="row-hit"><span data-i18n="日期">日期</span><span class="sort-indicator" id="expense-sort-date"></span></div>
@@ -445,7 +444,6 @@ tailwind.config = {
             <div data-i18n="备注">备注</div><div data-i18n="标签">标签</div><div></div>
           </div>
           <div id="expenses-rows"></div>
-        </div>
         </div>
       </div>
     </section>
@@ -1029,6 +1027,19 @@ tailwind.config = {
           </div>
           <span class="snap-days">
             <input type="number" id="snapshot-reminder-days" data-no-autofocus min="1" max="28" step="1" onchange="setSnapshotReminderDays(this.value)" aria-label="快照提醒天数" data-i18n-aria-label="快照提醒天数">
+            <span class="t-micro muted" data-i18n="天">天</span>
+          </span>
+        </div>
+      </div>
+      <hr>
+      <div class="setting-row">
+        <div class="setting-info">
+          <p class="setting-label" data-i18n="记账中断提醒">记账中断提醒</p>
+          <p class="setting-desc" data-i18n="连续这么多天一笔都没记时，在消费页的月份图上提一句；填 0 关掉。">连续这么多天一笔都没记时，在消费页的月份图上提一句；填 0 关掉。</p>
+        </div>
+        <div class="setting-actions">
+          <span class="snap-days">
+            <input type="number" id="expense-gap-days" data-no-autofocus min="0" max="60" step="1" onchange="setExpenseGapDays(this.value)" aria-label="连续没记账天数" data-i18n-aria-label="连续没记账天数">
             <span class="t-micro muted" data-i18n="天">天</span>
           </span>
         </div>

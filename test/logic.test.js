@@ -3325,13 +3325,6 @@ describe('月份图：分档、周对齐与漏记天数', () => {
     assert.strictEqual(view.weeks[1][3].future, false, '今天是未来吗？不是');
   });
 
-  test('漏记天数不含今天（一天还没过完，不能算漏了）', () => {
-    const view = L.monthGrid.build([ex('2026-03-01', 1)], '2026-03', 'count', '2026-03-05');
-    assert.strictEqual(view.missing, 3, '2/3/4 号空着，5 号是今天不算');
-    assert.strictEqual(L.monthGrid.build([], '2026-02', 'count', '2026-03-05').missing, 28, '过去的月份全算');
-    assert.strictEqual(L.monthGrid.build([], '2026-04', 'count', '2026-03-05').missing, 0, '未来的月份不算');
-  });
-
   test('格子上的数字：笔数直接写，金额折成 k', () => {
     const cell = { day: 1, date: '2026-03-01', count: 3, amount: 1280 };
     assert.strictEqual(L.monthGrid.cellValue(cell, 'count'), '3');
@@ -3344,27 +3337,6 @@ describe('月份图：分档、周对齐与漏记天数', () => {
     assert.strictEqual(L.monthGrid.build([ex('bad', 1)], '2026-13', 'count', ''), null);
   });
 
-  test('漏记的日子点得出是哪几天（一个数看不出今天算不算）', () => {
-    const view = L.monthGrid.build([ex('2026-03-01', 1), ex('2026-03-05', 1)], '2026-03', 'count', '2026-03-05');
-    assert.deepStrictEqual(view.missingDays, [2, 3, 4], '今天（5 号）有记录，2-4 号才是空的');
-    assert.strictEqual(view.missing, 3, '数字与清单同源');
-    assert.deepStrictEqual(L.monthGrid.build([], '2026-02', 'count', '2026-03-05').missingDays.length, 28, '过去的月份全算');
-  });
-
-  test('漏记文案：少的时候点名，多的时候回到一个数', () => {
-    const saved = globalThis.state;
-    globalThis.state = freshState({ lang: 'zh' });
-    try {
-      assert.strictEqual(L.monthGrid.missingDaysLabel([2, 3, 4]), '2、3、4 日没有记录');
-      assert.strictEqual(L.monthGrid.missingDaysLabel([1, 2, 3, 4, 5, 6, 7, 8]), '1、2、3、4、5、6、7、8 日没有记录', '8 天还在点名档');
-      assert.strictEqual(L.monthGrid.missingDaysLabel([1, 2, 3, 4, 5, 6, 7, 8, 9]), '9 天没有记录');
-      assert.strictEqual(L.monthGrid.missingDaysLabel([]), '', '一天不缺就不提这句');
-      assert.strictEqual(L.monthGrid.missingDaysLabel(null), '');
-    } finally {
-      globalThis.state = saved;
-    }
-  });
-
   test('点一天：取那天的全部记录，金额大的在前', () => {
     const list = [
       ex('2026-03-01', 10), ex('2026-03-02', 5), ex('2026-03-01', 30), null,
@@ -3374,6 +3346,54 @@ describe('月份图：分档、周对齐与漏记天数', () => {
     assert.deepStrictEqual(day.map((e) => e.amount), [30, 10]);
     assert.deepStrictEqual(L.monthGrid.dayEntries(list, '2026-03-09'), []);
     assert.deepStrictEqual(L.monthGrid.dayEntries(null, '2026-03-01'), []);
+  });
+});
+
+// ========== 记账中断 ==========
+describe('记账中断：连续几天一笔都没有', () => {
+  const ex = (date, amount) => ({ id: date + amount, date, amount });
+
+  test('最后一笔到今天之间空着的整天数', () => {
+    assert.strictEqual(L.expense.gapDays([ex('2026-03-01', 1)], '2026-03-05'), 3, '2/3/4 号空着');
+    assert.strictEqual(L.expense.gapDays([ex('2026-03-04', 1)], '2026-03-05'), 0, '昨天记过就不算中断');
+    assert.strictEqual(L.expense.gapDays([ex('2026-03-05', 1)], '2026-03-05'), 0, '今天记过');
+    assert.strictEqual(L.expense.gapDays([ex('2026-02-27', 1)], '2026-03-02'), 2, '跨月照样算（28 号与 3 月 1 号空着）');
+  });
+
+  test('一笔都没有 / 脏日期 → null（没记过就谈不上断）', () => {
+    assert.strictEqual(L.expense.gapDays([], '2026-03-05'), null);
+    assert.strictEqual(L.expense.gapDays([null, { date: 'bad' }], '2026-03-05'), null);
+    assert.strictEqual(L.expense.gapDays([ex('2026-03-01', 1)], 'x'), null);
+  });
+
+  test('未来日期的记录不参与（补记到明天不该把中断清零）', () => {
+    assert.strictEqual(L.expense.gapDays([ex('2026-03-09', 1), ex('2026-03-01', 1)], '2026-03-05'), 3);
+  });
+
+  test('设置里的天数：0 = 关闭，脏值回落默认，超出上限钳住', () => {
+    assert.strictEqual(L.expense.normalizeGapDays(0), 0);
+    assert.strictEqual(L.expense.normalizeGapDays('5'), 5);
+    assert.strictEqual(L.expense.normalizeGapDays('2.6'), 3);
+    assert.strictEqual(L.expense.normalizeGapDays(''), L.expense.GAP_DAYS_DEFAULT);
+    assert.strictEqual(L.expense.normalizeGapDays(undefined), L.expense.GAP_DAYS_DEFAULT);
+    assert.strictEqual(L.expense.normalizeGapDays('abc'), L.expense.GAP_DAYS_DEFAULT);
+    assert.strictEqual(L.expense.normalizeGapDays(999), L.expense.GAP_DAYS_MAX);
+    assert.strictEqual(L.expense.normalizeGapDays(-3), 0);
+  });
+
+  test('迁移：旧存档没有这个字段就补默认值，脏值归一', () => {
+    const saved = globalThis.state;
+    try {
+      globalThis.state = freshState();
+      delete globalThis.state.expenseGapDays;
+      L.migrate.migrateState();
+      assert.strictEqual(globalThis.state.expenseGapDays, L.expense.GAP_DAYS_DEFAULT);
+      globalThis.state.expenseGapDays = '9';
+      L.migrate.migrateState();
+      assert.strictEqual(globalThis.state.expenseGapDays, 9, '导入的字符串也要变数字');
+    } finally {
+      globalThis.state = saved;
+    }
   });
 });
 

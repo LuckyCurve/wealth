@@ -7,7 +7,7 @@ function freshAppState() {
     categories: [], assets: [], snapshots: [],
     expenseCategories: [], expenses: [],
     rates: { CNY: 1, HKD: 1, USD: 1, fetchedAt: null },
-    expenseExpectation: 0, netWorthTarget: 0, incomeSafetyFactor: 100,
+    expenseExpectation: 0, netWorthTarget: 0, incomeSafetyFactor: 100, expenseGapDays: 3,
     runwayTags: [], runwayExpectation: 0,
     snapshotReminder: { window: 'end', days: 5 }, snapshotReminderLastPrompted: null,
     lang: 'en',

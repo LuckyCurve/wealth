@@ -1397,7 +1397,7 @@
   .day-panel-actions { display: flex; align-items: center; gap: 8px; }
   .cols-day { grid-template-columns: 108px minmax(0, 1fr) minmax(0, 1.4fr) 148px; }
 
-  .filter-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 12px; }
+  .filter-bar { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 12px; margin-bottom: 12px; }
 
   /* 明细节：表格默认收起，那一行本身给总量，收起时不至于盲 */
   .table-toggle { display: flex; align-items: center; gap: 8px; padding: 9px 14px; margin-bottom: 12px;

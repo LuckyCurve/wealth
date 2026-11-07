@@ -1224,6 +1224,35 @@
     return found ? found.total : 0;
   }
 
+  // ========== 记账中断（连续多少天一笔都没有）==========
+  // 最后一笔（今天及以前）到今天之间空着的整天数：昨天记过 = 1，今天记过 = 0。
+  // 一笔都没有 → null（没记过就谈不上断）。
+  const GAP_DAYS_DEFAULT = 3;
+  const GAP_DAYS_MAX = 60;
+
+  function gapDays(expenses, todayStr) {
+    const today = String(todayStr || '');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(today)) return null;
+    let last = '';
+    (expenses || []).forEach(e => {
+      if (!e) return;
+      const d = String(e.date || '');
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(d) || d > today) return;
+      if (d > last) last = d;
+    });
+    if (!last) return null;
+    const diff = daysBetweenStr(last, today);
+    return diff == null ? null : Math.max(0, diff - 1);
+  }
+
+  // 设置里那个天数：0 = 关闭；缺失/脏值回落默认（旧存档没有这个字段）
+  function normalizeGapDays(v) {
+    if (v === '' || v == null) return GAP_DAYS_DEFAULT;
+    const n = Number(v);
+    if (!isFinite(n)) return GAP_DAYS_DEFAULT;
+    return Math.min(GAP_DAYS_MAX, Math.max(0, Math.round(n)));
+  }
+
   // 'YYYY-MM' → 当月天数。手动拆解构造 new Date(y, m, 0)（本地时区, 不走 toISOString 的 UTC 偏移）;
   // 年/月非法（含 13 月、0 月）返回 null
   function daysInMonthOf(month) {
@@ -1320,7 +1349,6 @@
     let count = 0;
     let amount = 0;
     let maxAmount = 0;
-    const missingDays = [];
     for (let d = 1; d <= total; d++) {
       const key = month + '-' + String(d).padStart(2, '0');
       const hit = totals[key];
@@ -1330,7 +1358,6 @@
       amount += a;
       if (a > maxAmount) maxAmount = a;
       const future = !!today && key > today;
-      if (!future && c === 0 && key !== today) missingDays.push(d);
       cells.push({ day: d, date: key, count: c, amount: a, future: future });
     }
     cells.forEach(cell => {
@@ -1343,15 +1370,7 @@
     return {
       month: month, days: total, weeks: weeks, mode: mode,
       count: count, amount: amount, maxAmount: maxAmount,
-      missing: missingDays.length, missingDays: missingDays,
     };
-  }
-
-  function missingDaysLabel(days) {
-    const list = Array.isArray(days) ? days.map(Number).filter(d => isFinite(d) && d > 0) : [];
-    if (!list.length) return '';
-    if (list.length > 8) return t('{n} 天没有记录', { n: list.length });
-    return t('{days} 日没有记录', { days: list.join(t('、')) });
   }
 
   function dayEntries(expenses, day) {
@@ -1500,6 +1519,7 @@
     // 数字归一：字符串会让 formatCNY 走 String.toLocaleString 丢掉两位小数，统一转数字
     state.expenseExpectation = Number(state.expenseExpectation) || 0;
     state.netWorthTarget = Number(state.netWorthTarget) || 0;
+    state.expenseGapDays = normalizeGapDays(state.expenseGapDays);
     if (state.incomeSafetyFactor == null) state.incomeSafetyFactor = 100;
     state.incomeSafetyFactor = Math.min(100, Math.max(1, Number(state.incomeSafetyFactor) || 100));
     state.assets.forEach(a => {
@@ -2616,14 +2636,15 @@
     '下个月': 'Next month',
     '一': 'Mon', '二': 'Tue', '三': 'Wed', '四': 'Thu', '五': 'Fri', '六': 'Sat', '日': 'Sun',
     '点一格看当天的记录，长按一格记一笔': 'Tap a day to see its entries; press and hold to add one',
-    '{n} 天没有记录': '{n} days with no entries',
-    '{days} 日没有记录': 'No entries on {days}',
+    '已连续 {n} 天没有记录': 'No entries for {n} days straight',
+    '记账中断提醒': 'Gap reminder',
+    '连续这么多天一笔都没记时，在消费页的月份图上提一句；填 0 关掉。': 'Flag it on the month grid once this many days pass without an entry; 0 turns it off.',
+    '连续没记账天数': 'Days without an entry',
     '消费小票': 'Spending receipt',
     '小票': 'Receipt',
     '小票已导出': 'Receipt exported',
     '谢谢惠顾': 'Thank you',
     '{n} 件': '{n} items',
-    '、': ', ',
     '{n} 笔': '{n} entries',
     '这天没有记录': 'No entries that day',
     '{m} 月 {d} 日': '{m}/{d}',
@@ -2775,11 +2796,14 @@
       build: monthGrid,
       cellValue,
       cellText: monthGridCellText,
-      missingDaysLabel,
       dayEntries,
       shortCNY,
     },
     expense: {
+      gapDays,
+      normalizeGapDays,
+      GAP_DAYS_DEFAULT,
+      GAP_DAYS_MAX,
       expenseMonths,
       monthlyExpenseTotals,
       prevExpenseMonthOf,

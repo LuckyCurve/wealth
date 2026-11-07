@@ -587,6 +587,7 @@ test.describe('消费记录', () => {
   });
 
   test('搜索命中备注并高亮；无结果与无数据是两种空态', async ({ appPage: page }) => {
+    await openExpenseTable(page);
     await page.fill('#expense-search', '房租');
     await expect(page.locator('#expenses-rows .asset-row')).toHaveCount(1);
     await expect(page.locator('#expenses-rows mark.search-hit')).toHaveCount(1);
@@ -598,6 +599,7 @@ test.describe('消费记录', () => {
   });
 
   test('月份筛选与搜索可叠加，无结果时「清除筛选」回到全量', async ({ appPage: page }) => {
+    await openExpenseTable(page);
     await page.selectOption('#expense-month-filter', '2026-01');
     await expect(page.locator('#expense-month-filter')).toHaveValue('2026-01');
     await expect(page.locator('#expenses-rows .asset-row')).toHaveCount(2);
@@ -626,6 +628,7 @@ test.describe('消费记录', () => {
     await expect(page.locator('#expense-month-filter')).toHaveValue(month);
     await expect(page.locator('#expenses-rows .asset-row')).toHaveCount(1);
     await expect(page.locator('#expenses-rows')).toContainText('当月咖啡');
+    await openExpenseTable(page);
     await expect(page.locator('#expense-total-line')).toContainText('¥10.00');
 
     // 历史仍在一项之外：切到「全部时间」就能看到，默认值不是收窄成唯一视野
@@ -659,11 +662,13 @@ test.describe('消费记录', () => {
     await page.locator('#expense-form button:has-text("保存")').click();
 
     await expect(page.locator('#expense-month-filter')).toHaveValue('2020-01');
+    await openExpenseTable(page);
     await expect(page.locator('#expenses-rows .asset-row')).toHaveCount(1);
     await expect(page.locator('#expenses-rows')).toContainText('补记上月');
   });
 
   test('搜索每按一个键不重建月份/标签下拉（无关控件被换掉会打断展开中的选择）', async ({ appPage: page }) => {
+    await openExpenseTable(page);
     await page.selectOption('#expense-month-filter', '2026-01');
     const optsBefore = await page.evaluate(() => {
       const s = document.getElementById('expense-month-filter');
@@ -806,14 +811,16 @@ test.describe('消费月份图（日历）', () => {
     expect(gap.left, '宽屏下它不是撑满的：撑满时居中与否看不出区别，这条会把两边都变成 0').toBeGreaterThan(20);
   });
 
-  test('筛选控件跟着明细走，不在页面顶部', async ({ appPage: page }) => {
+  test('筛选跟着明细：不在页头，明细收起时一起收起', async ({ appPage: page }) => {
     for (const id of ['expense-search', 'expense-month-filter', 'expense-tag-filter']) {
-      const inDetail = await page.evaluate((x) => !!document.getElementById(x).closest('#expenses-detail'), id);
-      expect(inDetail, id + ' 应在明细块内').toBe(true);
+      const inDetail = await page.evaluate((x) => !!document.getElementById(x).closest('#expense-table'), id);
+      expect(inDetail, id + ' 应在明细里').toBe(true);
       const inHead = await page.evaluate((x) => !!document.getElementById(x).closest('.section-head'), id);
       expect(inHead, id + ' 不该在页头').toBe(false);
     }
-    await expect(page.locator('#expenses-detail .filter-bar')).toBeVisible();
+    await expect(page.locator('#expense-table .filter-bar')).toBeHidden();
+    await openExpenseTable(page);
+    await expect(page.locator('#expense-table .filter-bar')).toBeVisible();
   });
 
   test('点一格看当天的记录（金额大的在前），再点一次收起', async ({ page }) => {
@@ -877,12 +884,31 @@ test.describe('消费月份图（日历）', () => {
     await expect(page.locator('#toast-area .toast', { hasText: '小票已导出' })).toBeVisible();
   });
 
-  test('漏记一句话点名哪几天（一个数看不出漏的是不是今天）', async ({ page }) => {
-    await openWith(page, pastState());
-    await page.evaluate((n) => shiftMonthGrid(-n), 12);
-    const named = [lastDay - 2, lastDay - 1, lastDay].join('、');
-    await expect(page.locator('#month-grid-summary')).toContainText(named + ' 日没有记录');
-    await expect(page.locator('#month-grid-summary')).toContainText((lastDay - 3) + ' 笔');
+  test('连续没记录到阈值才提一句，天数在设置里配', async ({ page }) => {
+    const daysAgo = (n) => {
+      const d = new Date();
+      d.setDate(d.getDate() - n);
+      return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+    };
+    await openWith(page, {
+      ...sampleState(),
+      expenses: [{ id: 'gap-1', date: daysAgo(3), amount: 10, note: '三天前', tags: { 'ec-pay': '微信', 'ec-type': '餐饮' } }],
+    });
+    const summary = page.locator('#month-grid-summary');
+    await expect(summary).not.toContainText('连续');
+
+    await openSettings(page);
+    await page.locator('#expense-gap-days').fill('2');
+    await page.locator('#expense-gap-days').press('Tab');
+    expect(await page.evaluate(() => state.expenseGapDays), '天数要落盘').toBe(2);
+    await page.evaluate(() => closeModal('settings-modal'));
+    await expect(summary).toContainText('已连续 2 天没有记录');
+
+    await openSettings(page);
+    await page.locator('#expense-gap-days').fill('0');
+    await page.locator('#expense-gap-days').press('Tab');
+    await page.evaluate(() => closeModal('settings-modal'));
+    await expect(summary).not.toContainText('连续');
   });
 });
 
