@@ -159,21 +159,22 @@ function renderExpenses() {
   const total = filtered.reduce((s, e) => s + e.amount, 0);
   renderMonthGrid();
 
-  const tableBar = document.getElementById('expense-table-toggle');
-  const tableSummary = document.getElementById('expense-table-summary');
-  if (tableBar) tableBar.style.display = state.expenses.length ? '' : 'none';
-  if (tableSummary) {
-    tableSummary.textContent = i18n.t('{n} 笔', { n: filtered.length }) + ' · ' + money.formatCNY(total);
-  }
-  applyExpenseTableState();
-
+  // 明细的范围（月份/标签/搜索）与笔数/合计必须写在同一行：它们是明细自己的读数，
+  // 而不是页面的总数——摆到页头时，月份图说「本月 0 笔」而头顶写「34 笔」，两个读数互相打脸。
   const parts = [];
   if (view.active.month) parts.push(date.monthLabel(view.active.month));
   if (view.active.tag) parts.push(view.active.tag);
   if (q) parts.push(i18n.t('匹配'));
-  const totalLabel = parts.length ? parts.join(' ') : i18n.t('合计');
-  document.getElementById('expense-total-line').innerHTML =
-    `${totalLabel} · <span class="tabular t-medium ink-accent">${money.formatCNY(total)}</span> · ${i18n.t('{p1} 笔', { p1: filtered.length })}`;
+
+  const tableBar = document.getElementById('expense-table-toggle');
+  const tableSummary = document.getElementById('expense-table-summary');
+  if (tableBar) tableBar.style.display = state.expenses.length ? '' : 'none';
+  if (tableSummary) {
+    // 范围内部用空格、三段之间用中点："2026年1月 匹配 · 1 笔 · ¥3,200.00"
+    tableSummary.textContent = [parts.join(' '), i18n.t('{n} 笔', { n: filtered.length }), money.formatCNY(total)]
+      .filter(Boolean).join(' · ');
+  }
+  applyExpenseTableState();
 
   // 数据校验条跟随记录/分类变化（全局口径，不随列表筛选缩小）
   renderTagCheckBar('expense');

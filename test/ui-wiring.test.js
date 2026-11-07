@@ -951,7 +951,9 @@ describe('UI 接线契约：消费标签筛选（单下拉分组，类别作不�
     const src = fnSource('renderExpenses');
     assert.match(src, /if \(view\.active\.month\) parts\.push/, '合计含月份维度');
     assert.match(src, /if \(view\.active\.tag\) parts\.push/, '合计含标签维度');
-    assert.match(src, /parts\.length/, '合计文案用 parts 数组拼接');
+    assert.match(src, /\[parts\.join\(' '\), i18n\.t\('\{n\} 笔'/, '范围与笔数/合计拼在同一行');
+    assert.match(src, /expense-table-summary/, '写进明细那一行，而不是页头');
+    assert.doesNotMatch(src, /expense-total-line/, '页头不再报合计（它会与月份图那个月对不上）');
   });
 
   test('标签筛选下拉与月份下拉、搜索框同级排列在筛选栏内', () => {

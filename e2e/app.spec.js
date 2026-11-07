@@ -614,12 +614,13 @@ test.describe('净资产目标', () => {
 });
 
 test.describe('消费记录', () => {
-  test('列表默认日期降序（最新在前），合计跟随全量', async ({ appPage: page }) => {
+  test('列表默认日期降序（最新在前），笔数与合计挂在明细那一行（页头不报数）', async ({ appPage: page }) => {
     const rows = page.locator('#expenses-rows .asset-row');
     await expect(rows).toHaveCount(3);
     await expect(rows.first()).toContainText('2026-02-03');
-    await expect(page.locator('#expense-total-line')).toContainText('3 笔');
-    await expect(page.locator('#expense-total-line')).toContainText('¥3,330.50');
+    await expect(page.locator('#expense-total-line')).toHaveCount(0);
+    await expect(page.locator('#expense-table-summary')).toContainText('3 笔');
+    await expect(page.locator('#expense-table-summary')).toContainText('¥3,330.50');
   });
 
   test('搜索命中备注并高亮；无结果与无数据是两种空态', async ({ appPage: page }) => {
@@ -642,7 +643,7 @@ test.describe('消费记录', () => {
 
     await page.fill('#expense-search', '房租');
     await expect(page.locator('#expenses-rows .asset-row')).toHaveCount(1);
-    await expect(page.locator('#expense-total-line')).toContainText('2026年1月 匹配');
+    await expect(page.locator('#expense-table-summary')).toContainText('2026年1月 匹配');
 
     await page.fill('#expense-search', '咖啡');
     await expect(page.locator('#expenses-empty-clear')).toBeVisible();
@@ -665,7 +666,7 @@ test.describe('消费记录', () => {
     await expect(page.locator('#expenses-rows .asset-row')).toHaveCount(1);
     await expect(page.locator('#expenses-rows')).toContainText('当月咖啡');
     await openExpenseTable(page);
-    await expect(page.locator('#expense-total-line')).toContainText('¥10.00');
+    await expect(page.locator('#expense-table-summary')).toContainText('¥10.00');
 
     // 历史仍在一项之外：切到「全部时间」就能看到，默认值不是收窄成唯一视野
     await page.selectOption('#expense-month-filter', '');
@@ -679,6 +680,19 @@ test.describe('消费记录', () => {
     });
     await expect(page.locator('#expense-month-filter')).toHaveValue('');
     await expect(page.locator('#expenses-rows .asset-row')).toHaveCount(1);
+  });
+
+  test('页头不报消费合计：范围与笔数/合计都写在明细那一行（不与月份图打架）', async ({ page }) => {
+    await openWith(page, {
+      ...sampleState(),
+      expenses: [{ id: 'e-old', date: '2020-01-05', amount: 20, note: '旧账', tags: { 'ec-pay': '微信', 'ec-type': '餐饮' } }],
+    });
+    // 当月一笔都没有（月份图报 0 笔）：页头再挂一个「合计 · 1 笔」就是两个读数互相打脸
+    await expect(page.locator('#month-grid-summary')).toContainText('0 笔');
+    await expect(page.locator('#tab-expenses .section-head')).not.toContainText('笔');
+    await expect(page.locator('#tab-expenses .eyebrow')).toHaveCount(0);
+    await expect(page.locator('#expense-table-summary')).toContainText('1 笔');
+    await expect(page.locator('#expense-table-summary')).toContainText('¥20.00');
   });
 
   test('记到筛选之外的月份：筛选跟过去，新记录不会当场消失', async ({ page }) => {
