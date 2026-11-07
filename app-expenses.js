@@ -147,7 +147,7 @@ function renderExpenses() {
         <div class="t-body num">${money.money2(e.amount)}</div>
         <div class="t-body muted">${e.note ? text.highlightMatch(e.note, q) : '—'}</div>
         <div class="flex flex-wrap gap-1">${tagHtml}</div>
-        <div class="flex gap-2 justify-end">
+        <div class="row-actions">
           <button onclick="editExpense('${text.jsAttr(e.id)}')" class="row-btn edit">${i18n.t('编辑')}</button>
           <button onclick="duplicateExpense('${text.jsAttr(e.id)}')" class="row-btn copy">${i18n.t('复制')}</button>
           <button onclick="deleteExpense('${text.jsAttr(e.id)}')" class="row-btn danger">${i18n.t('删除')}</button>

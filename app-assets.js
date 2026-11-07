@@ -59,7 +59,7 @@ function renderAssets() {
         <div class="t-micro tabular num muted">${money.formatCNY(cnyVal)}</div>
         <div class="t-body tabular num">${rateLabel}${cashTag}</div>
         <div class="flex flex-wrap gap-1">${tagHtml}</div>
-        <div class="flex gap-2 justify-end">
+        <div class="row-actions">
           <button onclick="editAsset('${text.jsAttr(a.id)}')" class="row-btn edit">${i18n.t('编辑')}</button>
           <button onclick="deleteAsset('${text.jsAttr(a.id)}')" class="row-btn danger">${i18n.t('删除')}</button>
         </div>

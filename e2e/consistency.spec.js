@@ -642,6 +642,29 @@ test.describe('版式一致性', () => {
     }
   });
 
+  test('行内操作按钮不越出自己那一列（窄列里换行，不许向左压住标签）', async ({ appPage: page }) => {
+    // 回归：操作列定宽，而英文的 Edit / Duplicate / Delete 比中文宽一倍。
+    // 只靠 flex + justify-end 会把溢出推到左边，最后一枚标签被压住半截。
+    // 故把操作列压到 60px 强制溢出，判据：每个按钮的框必须落在 .row-actions 里。
+    await openExpenseTable(page);
+    await page.addStyleTag({ content: '.cols-expenses{grid-template-columns:96px 108px minmax(0,1fr) minmax(0,1.6fr) 60px !important}' });
+    const bad = await page.evaluate(() => {
+      const out = [];
+      for (const group of document.querySelectorAll('#expenses-rows .row-actions')) {
+        const box = group.getBoundingClientRect();
+        for (const btn of group.querySelectorAll('button')) {
+          const b = btn.getBoundingClientRect();
+          if (!b.width) continue;
+          if (b.left < box.left - 1 || b.right > box.right + 1) {
+            out.push(`${(btn.textContent || '').trim()} 越界：${Math.round(b.left)}..${Math.round(b.right)} vs 列 ${Math.round(box.left)}..${Math.round(box.right)}`);
+          }
+        }
+      }
+      return out;
+    });
+    expect(bad, '操作按钮跑到自己的列外面：' + bad.join(' | ')).toEqual([]);
+  });
+
   test('弹窗里的构成明细表：相邻单元格之间留出列间距（日期不贴金额）', async ({ appPage: page }) => {
     await visitAllTabs(page);
     // 资产侧金额拉长（×100）才能复现「金额与货币码贴在一起」——列宽按 fr 分配，

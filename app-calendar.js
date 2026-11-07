@@ -84,7 +84,7 @@ function renderDayPanel() {
       { cls: 't-body muted', html: e.note ? text.esc(e.note) : '—' },
       { cls: 'flex flex-wrap gap-1', html: tagHtml },
       {
-        cls: 'flex gap-2 justify-end',
+        cls: 'row-actions',
         html: `<button onclick="editExpense('${text.jsAttr(e.id)}')" class="row-btn edit">${i18n.t('编辑')}</button>`
           + `<button onclick="duplicateExpense('${text.jsAttr(e.id)}')" class="row-btn copy">${i18n.t('复制')}</button>`
           + `<button onclick="deleteExpense('${text.jsAttr(e.id)}')" class="row-btn danger">${i18n.t('删除')}</button>`,

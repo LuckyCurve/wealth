@@ -2492,7 +2492,7 @@ describe('UI 接线契约：版式一致性（同类结构同一套 class）', (
     // 内联 style 里不得再出现列宽（原先表头与数据行各写一遍同一串 = 改一处漏一处）
     assert.strictEqual(count(/style="[^"]*grid-template-columns/g), 0, '列宽不许内联');
     for (const [cls, tpl] of [
-      ['cols-expenses', '96px 108px minmax(0, 1fr) minmax(0, 1.6fr) 148px'],
+      ['cols-expenses', '96px 108px minmax(0, 1fr) minmax(0, 1.6fr) 180px'],
       ['cols-expense-month', '96px 1fr 2fr 1.5fr'],
       ['cols-income', '1.8fr 1fr 0.8fr 0.8fr 1fr 1fr 1fr'],
       ['cols-segment', '2fr 1fr 0.7fr 1.3fr 0.7fr'],
@@ -2530,6 +2530,17 @@ describe('UI 接线契约：版式一致性（同类结构同一套 class）', (
       '新增标签输入框不得再靠 flex-1 撑满（Tailwind 空壳下不可测）');
     assert.match(html, /\n  \.new-tag-row \{[^}]*max-width/, '宽度上限在自有 CSS 里定义');
     assert.match(html, /class="new-tag-row"/, '那一行挂上同一套 class（资产/消费两侧共用）');
+  });
+
+  test('行内操作组统一 .row-actions：不得靠工具类的 flex + justify-end', () => {
+    assert.strictEqual(count(/flex gap-2 justify-end/g), 0, '旧写法在窄列里向左溢出，会压住上一列的标签');
+    const rule = html.match(/\n  \.row-actions \{[^}]*\}/);
+    assert.ok(rule, '.row-actions 规则存在');
+    assert.match(rule[0], /display:\s*flex/, '行内排列');
+    assert.match(rule[0], /flex-wrap:\s*wrap/, '放不下就换行（不换行就往左溢出）');
+    assert.match(rule[0], /justify-content:\s*flex-end/, '仍然靠右');
+    assert.ok(count(/class="row-actions"/g) >= 2, '至少资产与消费两处的行都用它');
+    assert.ok(count(/'row-actions'/g) >= 1, '当天记录的行也用它（模板参数形式）');
   });
 
   test('所有列宽模板共用一处列间距（列宽按 fr 分配时单元格是紧贴的）', () => {

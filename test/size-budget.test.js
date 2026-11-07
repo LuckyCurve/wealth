@@ -21,7 +21,7 @@ const ROOT = path.join(__dirname, '..');
 // 再抬之前先问：能不能再拆一层（按界面区域拆脚本）或下沉到 logic.js。
 const BUDGETS = {
   'index.html': 82_000,
-  'styles.css': 108_000,
+  'styles.css': 110_000,
   'app-core.js': 26_000,
   'app-assets.js': 74_000,
   'app-charts.js': 53_000,
