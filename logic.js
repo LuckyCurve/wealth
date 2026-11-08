@@ -645,6 +645,66 @@
     return map;
   }
 
+  // ========== 消费「平常」基线（近 12 个月同长度窗口）==========
+  const NORMAL_HISTORY_MIN_DAYS = 28;
+  const NORMAL_BASELINE_MONTHS = 12;
+  const NORMAL_EMPTY = { available: false, total: 0, normal: 0, diff: 0, elapsed: 0, baselineMonths: 0, inProgress: false, rows: [] };
+
+  // 未完成月对齐「同样已过天数」：按整月折算会把 1 号入账的房租判成暴增。
+  function expenseNormalWindow(month, todayStr) {
+    if (!/^\d{4}-(?:0[1-9]|1[0-2])$/.test(String(month || ''))) return null;
+    const days = daysInMonthOf(month);
+    const today = String(todayStr || '');
+    const inProgress = /^\d{4}-\d{2}-\d{2}$/.test(today) && today.slice(0, 7) === month;
+    return { month: month, elapsed: inProgress ? Math.max(1, Math.min(days, Number(today.slice(8)))) : days, inProgress: inProgress };
+  }
+
+  // 合计与逐标签同源：tag 给定时只算该维度下这一个标签，不另写一遍窗口口径。
+  function expenseNormalSum(expenses, month, elapsed, catId, tag) {
+    return (expenses || []).reduce((s, e) => {
+      const d = String(e && e.date || '');
+      if (d.slice(0, 7) !== month || Number(d.slice(8)) > elapsed) return s;
+      if (tag != null && (!e.tags || e.tags[catId] !== tag)) return s;
+      return s + (Number(e && e.amount) || 0);
+    }, 0);
+  }
+
+  // 基准只从第一笔消费所在月起：开户前的空月会把「平常」稀释成假的低消费。
+  function expenseNormalSnapshot(expenses, month, todayStr, catId, tags) {
+    const win = expenseNormalWindow(month, todayStr);
+    if (!win) return NORMAL_EMPTY;
+    const list = (expenses || []).filter(e => e && /^\d{4}-\d{2}-\d{2}$/.test(String(e.date || '')));
+    const first = list.reduce((m, e) => e.date < m ? e.date : m, '9999');
+    const firstMonth = first === '9999' ? null : first.slice(0, 7);
+    const baseline = [];
+    for (let i = 1; i <= NORMAL_BASELINE_MONTHS; i++) {
+      const m = addMonths(win.month, -i);
+      if (firstMonth && m < firstMonth) break;
+      baseline.push(m);
+    }
+    const span = firstMonth ? daysBetweenStr(firstMonth + '-01', win.month + '-01') : 0;
+    const available = !!firstMonth && baseline.length > 0 && span >= NORMAL_HISTORY_MIN_DAYS;
+    const elapsedOf = m => win.inProgress ? win.elapsed : daysInMonthOf(m);
+    const avg = (tag) => baseline.reduce((s, m) => s + expenseNormalSum(list, m, elapsedOf(m), catId, tag), 0) / baseline.length;
+    const total = expenseNormalSum(list, win.month, win.elapsed);
+    const normal = available ? avg() : 0;
+    const rows = available && tags ? tags.map(tag => {
+      const bv = expenseNormalSum(list, win.month, win.elapsed, catId, tag);
+      const av = avg(tag);
+      const d = bv - av;
+      return { tag: tag, av: av, bv: bv, d: d, p: av > 0 ? d / av * 100 : null };
+    }) : [];
+    return {
+      available: available, total: total, normal: normal, diff: total - normal,
+      elapsed: win.elapsed, baselineMonths: baseline.length, inProgress: win.inProgress, rows: rows,
+    };
+  }
+
+  // 涨跌榜按金额变动绝对值降序，同幅度按名称稳定；不改动调用方的数组。
+  function expenseNormalChanges(rows) {
+    return (rows || []).slice().sort((a, b) => Math.abs(b.d) - Math.abs(a.d) || String(a.tag).localeCompare(String(b.tag)));
+  }
+
   // ========== 消费标签筛选（分组下拉，纯函数）==========
   // 类别作 optgroup 头；选中值编码 catId + \u0001 + tag，DOM 侧不自行拼/拆（防两处漂移）。
   const TAG_FILTER_SEP = '\u0001';
@@ -2592,6 +2652,11 @@
     '预期 ': 'Expected ',
     '{p1} 条消费记录': [ '{p1} expense', '{p1} expenses' ],
     '至少需要两个月的消费记录才能对比': 'Comparing needs at least two months of expenses',
+    '基准': 'Baseline',
+    '近 12 个月平常': 'Usual (12 months)',
+    '平常': 'Usual',
+    '较平常 {p1}': 'vs usual {p1}',
+    '历史不足，暂无平常': 'Not enough history for a usual',
     '该维度下暂无标签': 'No tags in this dimension',
     '分类标签': 'Tag',
     '期初月': 'Opening month',
@@ -2833,6 +2898,9 @@
       monthlyExpenseTotals,
       prevExpenseMonthOf,
       expenseMoM,
+      expenseNormalTotals: expenseNormalSnapshot,
+      expenseNormalTagRows: expenseNormalSnapshot,
+      expenseNormalChanges,
       expenseMonthTagTotals,
       monthExpenseTotal,
       monthBudgetReading,

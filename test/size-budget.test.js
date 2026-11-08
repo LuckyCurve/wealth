@@ -29,7 +29,9 @@ const BUDGETS = {
   'app-calendar.js': 12_000,
   'app-receipt.js': 10_000,
   'app-expenses.js': 42_000,
-  'logic.js': 145_000,
+  // 消费「较平常」基线（窗口 / 逐标签 / 涨跌榜三个纯函数）下沉后越线：无构建步骤，
+  // 纯逻辑不另开文件，按约定同 commit 抬上限并写明用途。
+  'logic.js': 150_000,
 };
 
 function bytes(name) {

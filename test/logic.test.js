@@ -254,6 +254,118 @@ describe('expenseMonthTagTotals 按标签聚合', () => {
   });
 });
 
+// ========== 消费「平常」基线（近 12 个月同长度窗口）==========
+describe('消费「平常」基线（近 12 个月同长度窗口）', () => {
+  const catId = 'ec-type';
+  const monthsOf = (from, n) => Array.from({ length: n }, (_, i) => L.date.addMonths(from, i));
+  const ledger = (list, extra = {}) => list.flatMap((m, i) => [
+    { id: 'h' + i, date: m + '-01', amount: extra[m] && extra[m].rent != null ? extra[m].rent : 1000, tags: { [catId]: '住房' } },
+    { id: 'f' + i, date: m + '-15', amount: extra[m] && extra[m].food != null ? extra[m].food : 200, tags: { [catId]: '餐饮' } },
+  ]);
+  const year = ledger(monthsOf('2025-01', 14)); // 2025-01 .. 2026-02
+
+  test('完整月：平常是前 12 个自然月的月均，逐标签与合计同源', () => {
+    assert.strictEqual(L.expense.expenseNormalTotals(year, '2026-02', '2026-03-10').baselineMonths, 12);
+    const r = L.expense.expenseNormalTagRows(year, '2026-02', '2026-03-10', catId, ['住房', '餐饮']);
+    assert.strictEqual(r.available, true);
+    assert.strictEqual(r.normal, 1200);
+    assert.strictEqual(r.total, 1200);
+    assert.strictEqual(r.diff, 0);
+    const food = r.rows.find(x => x.tag === '餐饮');
+    assert.strictEqual(food.av, 200);
+    assert.strictEqual(food.bv, 200);
+    assert.strictEqual(food.d, 0);
+    assert.strictEqual(r.rows.reduce((s, x) => s + x.bv, 0), r.total, '逐标签合计应等于整体合计');
+  });
+
+  test('某类多花时，整体差额与该类差额对得上', () => {
+    const data = ledger(monthsOf('2025-01', 14), { '2026-02': { food: 700 } });
+    const r = L.expense.expenseNormalTagRows(data, '2026-02', '2026-03-10', catId, ['住房', '餐饮']);
+    assert.strictEqual(r.normal, 1200);
+    assert.strictEqual(r.total, 1700);
+    assert.strictEqual(r.diff, 500);
+    const food = r.rows.find(x => x.tag === '餐饮');
+    assert.strictEqual(food.av, 200);
+    assert.strictEqual(food.bv, 700);
+    assert.strictEqual(food.d, 500);
+    assert.ok(Math.abs(food.p - 250) < 1e-9);
+  });
+
+  test('未完成月对齐同样已过天数：1 号入账的固定支出不被判暴增', () => {
+    // 每个基线月另有一笔 20 号支出：按「已过 5 天」对齐时它不该进基准，
+    // 取了整月就会把「平常」抬成 1500、把 1 号的房租误判成 -500。
+    const rentOnly = monthsOf('2025-01', 12).flatMap((m, i) => [
+      { id: 'r' + i, date: m + '-01', amount: 1000, tags: { [catId]: '住房' } },
+      { id: 'x' + i, date: m + '-20', amount: 500, tags: { [catId]: '餐饮' } },
+    ]).concat({ id: 'now', date: '2026-01-01', amount: 1000, tags: { [catId]: '住房' } });
+    const r = L.expense.expenseNormalTotals(rentOnly, '2026-01', '2026-01-05');
+    assert.strictEqual(r.available, true);
+    assert.strictEqual(r.elapsed, 5);
+    assert.strictEqual(r.normal, 1000, '按整月折算会把 1000 压成约 161，月初房租天天暴增');
+    assert.strictEqual(r.total, 1000);
+    assert.strictEqual(r.diff, 0);
+  });
+
+  test('历史不足 28 天：没有「平常」，不拿空账当基准', () => {
+    const tiny = [
+      { date: '2026-01-01', amount: 100, tags: { [catId]: '住房' } },
+      { date: '2026-01-10', amount: 50, tags: { [catId]: '餐饮' } },
+    ];
+    const r = L.expense.expenseNormalTotals(tiny, '2026-01', '2026-01-20');
+    assert.strictEqual(r.available, false);
+    assert.strictEqual(r.normal, 0);
+    const tagged = L.expense.expenseNormalTagRows(tiny, '2026-01', '2026-01-20', catId, ['住房', '餐饮']);
+    assert.deepStrictEqual(tagged.rows, [], '无「平常」时不给逐标签差额表');
+  });
+
+  test('开户前的空月不进分母（短历史自动缩短基准）', () => {
+    const short = ledger(monthsOf('2025-11', 4)); // 2025-11 .. 2026-02
+    const r = L.expense.expenseNormalTotals(short, '2026-02', '2026-03-10');
+    assert.strictEqual(r.available, true);
+    assert.strictEqual(r.baselineMonths, 3, '2025-02..2025-10 早于首笔，不该把平均拉成 400');
+    assert.strictEqual(r.normal, 1200);
+  });
+
+  test('未来日期不进目标窗口', () => {
+    const data = year.concat({ id: 'future', date: '2026-03-01', amount: 99999, tags: { [catId]: '住房' } });
+    const r = L.expense.expenseNormalTotals(data, '2026-02', '2026-02-28');
+    assert.strictEqual(r.total, 1200, '目标月之后的记录不算进本月');
+    assert.strictEqual(r.normal, 1200);
+  });
+
+  test('当月未过完时，目标窗口截到今天；差额与逐标签同源', () => {
+    const data = monthsOf('2025-03', 12).flatMap((m, i) => [
+      { id: 'r' + i, date: m + '-01', amount: 1000, tags: { [catId]: '住房' } },
+      { id: 'x' + i, date: m + '-20', amount: 500, tags: { [catId]: '餐饮' } },
+    ]).concat(
+      { id: 'now', date: '2026-03-01', amount: 1000, tags: { [catId]: '住房' } },
+      { id: 'later', date: '2026-03-22', amount: 99999, tags: { [catId]: '餐饮' } }
+    );
+    const tot = L.expense.expenseNormalTotals(data, '2026-03', '2026-03-05');
+    const rows = L.expense.expenseNormalTagRows(data, '2026-03', '2026-03-05', catId, ['住房', '餐饮']);
+    assert.strictEqual(tot.total, 1000, '22 号那笔还没发生，不进目标窗口');
+    assert.strictEqual(tot.normal, 1000, '同样已过 5 天：20 号那笔也不进基准窗口');
+    assert.strictEqual(tot.diff, 0);
+    assert.deepStrictEqual(rows.rows.map(x => x.d), [0, 0], '逐标签差额与整体差额同源');
+  });
+
+  test('涨跌榜按绝对变动降序，同幅度按名称稳定，且不改动原数组', () => {
+    const rows = [
+      { tag: '住房', av: 1000, bv: 1000, d: 0, p: 0 },
+      { tag: '餐饮', av: 200, bv: 700, d: 500, p: 250 },
+      { tag: '交通', av: 100, bv: 0, d: -100, p: -100 },
+    ];
+    assert.deepStrictEqual(L.expense.expenseNormalChanges(rows).map(x => x.tag), ['餐饮', '交通', '住房']);
+    assert.strictEqual(rows[0].tag, '住房', '原数组不被改动');
+    assert.deepStrictEqual(L.expense.expenseNormalChanges([]), []);
+  });
+
+  test('脏数据（空日期 / NaN 金额 / 非法月）不炸，也不产出「平常」', () => {
+    assert.strictEqual(L.expense.expenseNormalTotals([{ date: '', amount: NaN }, { date: 'bad', amount: 'x' }], '2026-01', '2026-01-20').available, false);
+    assert.strictEqual(L.expense.expenseNormalTotals([], '不是月份', '2026-01-20').available, false);
+  });
+});
+
 // ========== 收益测算 ==========
 describe('收益测算', () => {
   const asset = () => ({

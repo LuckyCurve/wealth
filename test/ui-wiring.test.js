@@ -434,8 +434,44 @@ describe('UI 接线契约：明细弹窗与表格骨架（唯一主人）', () =
     }
     // 两个侧别的措辞不同（期初/期末 vs 期初月/期末月），作为参数传入，骨架里不写死
     assert.match(fnSource('renderCompareTable'), /periods: \[i18n\.t\('期初'\), i18n\.t\('期末'\)\]/, '资产侧措辞');
-    assert.match(fnSource('renderExpenseCompareTable'), /periods: \[i18n\.t\('期初月'\), i18n\.t\('期末月'\)\]/, '消费侧措辞');
+    assert.match(fnSource('renderExpenseCompareTable'), /i18n\.t\('期初月'\)/, '消费侧措辞（指定月基准）');
+    assert.match(fnSource('renderExpenseCompareTable'), /i18n\.t\('平常'\)/, '消费侧措辞（近 12 个月基准）');
     assert.strictEqual(count(/变动 %/g), 2, '注释一处 + 骨架一处');
+  });
+});
+
+describe('UI 接线契约：消费「较平常」基线（近 12 个月同长度窗口）', () => {
+  test('三个纯函数是唯一来源，页面不自己算窗口/差额/排序', () => {
+    for (const fn of ['expenseNormalTotals', 'expenseNormalTagRows', 'expenseNormalChanges']) {
+      assert.ok(typeof require('../logic.js').expense[fn] === 'function', fn + ' 必须下沉 logic.js');
+    }
+    assert.match(fnSource('renderExpenseTrendList'), /expense\.expenseNormalTotals\(/, '趋势列表读纯函数');
+    assert.match(fnSource('renderExpenseCompareTable'), /expense\.expenseNormalTagRows\(/, '对比表读纯函数');
+    assert.match(fnSource('renderExpenseTrendList'), /\.diff\b/, '趋势行的「较平常」差额直接取纯函数结果，不另算一遍');
+    assert.doesNotMatch(fnSource('renderExpenseCompareTable'), /state\.expenses\.filter\(/, '对比表不在页面里另算窗口');
+  });
+
+  test('涨跌榜排序只有一处：对比表与趋势列表都走同一个排序函数', () => {
+    const compare = fnSource('renderExpenseCompareTable');
+    assert.match(compare, /expense\.expenseNormalChanges\(/, '对比表按纯函数排序');
+    assert.doesNotMatch(compare, /\.sort\(\(a, b\)/, '对比表不再自己写排序比较器');
+  });
+
+  test('基准选项挂进现有对比弹窗，不另开卡片/弹窗/页头读数', () => {
+    assert.match(html, /id="exp-compare-base-mode"/, '基准模式下拉在原有对比弹窗里');
+    assert.match(fnSource('renderExpenseCompareTable'), /exp-compare-base-mode/, '渲染读得到基准模式');
+    assert.doesNotMatch(html, /id="exp-normal-card"/, '不新增「平常」卡片');
+    assert.doesNotMatch(html, /id="exp-normal-modal"/, '不新增「平常」弹窗');
+    const header = html.match(/<header class="app-header"[\s\S]*?<\/header>/);
+    assert.ok(header, '页头区块存在');
+    assert.doesNotMatch(header[0], /较平常|平常/, '页头不报消费合计/平常');
+  });
+
+  test('「较平常」不碰网络：运行时仍只有取汇率那一处 fetch', () => {
+    const clean = stripComments(js);
+    assert.strictEqual((clean.match(/\bfetch\s*\(/g) || []).length, 1, '新增读数不得带外呼');
+    const block = fnSource('renderExpenseTrendList') + fnSource('renderExpenseCompareTable');
+    assert.doesNotMatch(block, /fetch\s*\(|XMLHttpRequest|sendBeacon/, '两处渲染不碰网络');
   });
 });
 
@@ -2664,8 +2700,8 @@ describe('UI 接线契约：弹窗尺寸与筛选控件的档位', () => {
 
   test('筛选下拉统一 .select-field，搜索框宽度归 .search-wrap，都不再内联 min-width', () => {
     assert.strictEqual(count(/style="min-width:\d+px;"/g), 0, '筛选控件不再内联 min-width');
-    assert.strictEqual(count(/class="select-field( |")/g), 14, '14 个下拉都挂同一类');
-    assert.strictEqual(count(/class="select-field ml-2"/g), 5, '弹窗内下拉用既有 ml-2 工具类控制左间距');
+    assert.strictEqual(count(/class="select-field( |")/g), 15, '15 个下拉都挂同一类');
+    assert.strictEqual(count(/class="select-field ml-2"/g), 6, '弹窗内下拉用既有 ml-2 工具类控制左间距');
     assert.match(html, /<input[^>]*id="expense-search"[^>]*class="t-body"/, '搜索框不再带内联宽度');
     assert.match(html, /\n  \.select-field \{ min-width: 160px; \}/, '下拉宽度只此一处');
     assert.match(html, /id="stress-dimension"[^>]*class="select-field w-full"/, '压测维度下拉撑满弹窗宽度（表单字段，不是工具条筛选）');

@@ -727,10 +727,18 @@ function renderExpenseTrendList() {
   const list = document.getElementById('expense-trend-list');
   const months = expense.monthlyExpenseTotals(state.expenses);
   if (months.length === 0) { list.innerHTML = ''; return; }
+  const todayStr = date.getLocalDateStr();
   list.innerHTML = [...months].reverse().map(({ month, total, count }) => {
     const prevMonth = expense.prevExpenseMonthOf(month, months);
     const prevTotal = prevMonth ? months.find(x => x.month === prevMonth).total : null;
     const { badge, diffLine } = momCompareHtml(total, prevTotal, false);
+    const normal = expense.expenseNormalTotals(state.expenses, month, todayStr);
+    let normalLine = '';
+    if (normal.available) {
+      const d = normal.diff;
+      const shown = d === 0 ? '±' + money.formatCNY(0) : (d > 0 ? '+' : '-') + money.formatCNY(Math.abs(d));
+      normalLine = ` · <span style="color:${compareColor(d, false)};">${i18n.t('较平常 {p1}', { p1: shown })}</span>`;
+    }
     return `<div class="card card-interactive flex items-center justify-between">
       <div class="flex-1 row-hit" role="button" tabindex="0" onclick="viewExpenseMonth('${text.jsAttr(month)}')"
         onkeydown="if(ui.activateKeyAction(event.key)){event.preventDefault();viewExpenseMonth('${text.jsAttr(month)}');}">
@@ -738,10 +746,17 @@ function renderExpenseTrendList() {
           <span class="t-medium t-body">${date.monthLabel(month)}</span>
           ${badge}
         </div>
-        <div class="t-micro mt-0.5 muted">${money.formatCNY(total)} · ${i18n.t('{p1} 条消费记录', { p1: count })}${diffLine ? ' · ' + diffLine : ''}</div>
+        <div class="t-micro mt-0.5 muted">${money.formatCNY(total)} · ${i18n.t('{p1} 条消费记录', { p1: count })}${diffLine ? ' · ' + diffLine : ''}${normalLine}</div>
       </div>
     </div>`;
   }).join('');
+}
+
+function syncExpenseCompareBaseMode() {
+  const isNormal = document.getElementById('exp-compare-base-mode').value === 'normal';
+  document.getElementById('exp-compare-base-month-label').hidden = isNormal;
+  document.getElementById('exp-compare-arrow').hidden = isNormal;
+  renderExpenseCompareTable();
 }
 
 function openExpenseCompareModal() {
@@ -759,10 +774,11 @@ function openExpenseCompareModal() {
   baseSel.value = monthStrs[monthStrs.length - 2];
   targetSel.value = monthStrs[monthStrs.length - 1];
   openModal('expense-compare-modal');
-  renderExpenseCompareTable();
+  syncExpenseCompareBaseMode();
 }
 
 function renderExpenseCompareTable() {
+  const normalMode = document.getElementById('exp-compare-base-mode').value === 'normal';
   const base = document.getElementById('exp-compare-base-select').value;
   const target = document.getElementById('exp-compare-target-select').value;
   const catId = document.getElementById('exp-compare-cat-select').value;
@@ -770,22 +786,38 @@ function renderExpenseCompareTable() {
   const ctxEl = document.getElementById('exp-compare-context');
   const container = document.getElementById('exp-compare-detail-content');
   const cat = state.expenseCategories.find(c => c.id === catId);
-  if (!base || !target || !cat) { container.innerHTML = ''; return; }
+  if ((!normalMode && !base) || !target || !cat) { container.innerHTML = ''; return; }
 
-  const months = expense.monthlyExpenseTotals(state.expenses);
-  const baseTotal = (months.find(m => m.month === base) || { total: 0 }).total;
-  const compTotal = (months.find(m => m.month === target) || { total: 0 }).total;
+  let baseTotal, compTotal, rows, baseLabel;
+  if (normalMode) {
+    const r = expense.expenseNormalTagRows(state.expenses, target, date.getLocalDateStr(), catId, cat.tags);
+    baseTotal = r.normal;
+    compTotal = r.total;
+    rows = expense.expenseNormalChanges(r.rows);
+    baseLabel = r.available ? i18n.t('平常') : i18n.t('历史不足，暂无平常');
+    if (!r.available) {
+      heroEl.style.color = 'var(--muted)';
+      heroEl.textContent = '—';
+      ctxEl.textContent = baseLabel;
+      container.innerHTML = '<p class="text-center py-8 t-body muted">' + baseLabel + '</p>';
+      return;
+    }
+  } else {
+    const months = expense.monthlyExpenseTotals(state.expenses);
+    baseTotal = (months.find(m => m.month === base) || { total: 0 }).total;
+    compTotal = (months.find(m => m.month === target) || { total: 0 }).total;
+    const baseMap = expense.expenseMonthTagTotals(base, catId, state.expenses);
+    const compMap = expense.expenseMonthTagTotals(target, catId, state.expenses);
+    rows = cat.tags.map(tag => {
+      const av = baseMap[tag] || 0;
+      const bv = compMap[tag] || 0;
+      return { tag, av, bv, d: bv - av, p: av > 0 ? (bv - av) / av * 100 : null };
+    });
+    baseLabel = date.monthLabel(base);
+  }
   const diff = compTotal - baseTotal;
   // 消费语义：上涨=红(警示)、下降=绿(良好)，与 momCompareHtml(goodWhenUp=false) 一致
-  renderCompareHero(heroEl, ctxEl, diff, baseTotal, compTotal, date.monthLabel(base), date.monthLabel(target), false);
-
-  const baseMap = expense.expenseMonthTagTotals(base, catId, state.expenses);
-  const compMap = expense.expenseMonthTagTotals(target, catId, state.expenses);
-  const rows = cat.tags.map(tag => {
-    const av = baseMap[tag] || 0;
-    const bv = compMap[tag] || 0;
-    return { tag, av, bv, d: bv - av, p: av > 0 ? (bv - av) / av * 100 : null };
-  });
+  renderCompareHero(heroEl, ctxEl, diff, baseTotal, compTotal, baseLabel, date.monthLabel(target), false);
 
   if (rows.length === 0) {
     container.innerHTML = '<p class="text-center py-8 t-body muted">' + i18n.t('该维度下暂无标签') + '</p>';
@@ -794,7 +826,7 @@ function renderExpenseCompareTable() {
 
   container.innerHTML = compareTableHtml(rows, {
     firstLabel: i18n.t('分类标签'),
-    periods: [i18n.t('期初月'), i18n.t('期末月')],
+    periods: [normalMode ? i18n.t('平常') : i18n.t('期初月'), i18n.t('期末月')],
     color: v => compareColor(v, false),
     firstCellHtml: r => tagPillHtml(cat, r.tag, expenseCatColor, { showKey: false }),
   });

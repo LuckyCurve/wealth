@@ -2565,3 +2565,91 @@ test.describe('分布图的构成清单（与图同源）', () => {
     ]);
   });
 });
+
+test.describe('消费「较平常」（近 12 个月同长度窗口）', () => {
+  // 一直用 2025-01..2026-02 的账本 + 冻结到 2026-03-18：目标月选 2026-02（完整月），
+  // 每月 1 号房租 1000 + 15 号餐饮 200，平常 = 1200。月中对齐另用当月分支单测覆盖。
+  const mk = (over = {}) => {
+    const rows = [];
+    for (let i = 0; i < 14; i++) {
+      const m = date.addMonths('2025-01', i);
+      // 涨幅放在「住房」（标签表里排第二），这样「按变动排序」和「照标签原序」的首行不同
+      rows.push({ id: 'r' + i, date: m + '-01', amount: m === '2026-02' ? 1500 : 1000, note: '房租', tags: { 'ec-type': '住房', 'ec-pay': '支付宝' } });
+      rows.push({ id: 'f' + i, date: m + '-15', amount: 200, note: '餐饮', tags: { 'ec-type': '餐饮', 'ec-pay': '微信' } });
+    }
+    return {
+      ...sampleState(),
+      expenses: over.tiny ? [
+        { id: 't1', date: '2026-02-01', amount: 1000, tags: { 'ec-type': '住房' } },
+        { id: 't2', date: '2026-02-10', amount: 50, tags: { 'ec-type': '餐饮' } },
+      ] : rows,
+    };
+  };
+  const openTrend = async (page, state) => {
+    await page.clock.setFixedTime(new Date('2026-03-18T10:00:00'));
+    await openWith(page, state);
+    await page.locator('#tabs-expenses .tab-btn[data-tab="expense-trend"]').click();
+    await expect(page.locator('#expense-trend-list .row-hit').first()).toBeVisible();
+  };
+
+  test('趋势列表每月一行「较平常」，涨的那月差额真实可见', async ({ page }) => {
+    await openTrend(page, mk());
+    const feb = page.locator('#expense-trend-list .row-hit').filter({ hasText: '2026年2月' });
+    await expect(feb).toContainText('较平常 +¥500.00');
+    const jan = page.locator('#expense-trend-list .row-hit').filter({ hasText: '2026年1月' });
+    await expect(jan).toContainText('较平常 ±¥0.00');
+  });
+
+  test('对比弹窗切「近 12 个月平常」：沿用差额表，涨跌榜住房排第一', async ({ page }) => {
+    await openTrend(page, mk());
+    await page.getByRole('button', { name: '对比两月' }).click();
+    await page.selectOption('#exp-compare-target-select', '2026-02');
+    await page.selectOption('#exp-compare-cat-select', 'ec-type');
+    await page.selectOption('#exp-compare-base-mode', 'normal');
+    await expect(page.locator('#exp-compare-base-month-label')).toBeHidden();
+    await expect(page.locator('#exp-compare-hero')).toContainText('+¥500.00');
+    await expect(page.locator('#exp-compare-context')).toContainText('平常');
+    const first = page.locator('#exp-compare-detail-content .asset-row:not(.list-head)').first();
+    await expect(first).toContainText('住房');
+    await expect(first).toContainText('+500');
+  });
+
+  test('历史不足 28 天：不给「平常」，不报假差额', async ({ page }) => {
+    await openTrend(page, mk({ tiny: true }));
+    await expect(page.locator('#expense-trend-list')).not.toContainText('较平常');
+    // 页面跑的是同一份纯逻辑：不足 28 天就是没有基准，不给逐标签差额表
+    const r = await page.evaluate(() => expense.expenseNormalTagRows(state.expenses, '2026-02', '2026-02-20', 'ec-type', ['住房', '餐饮']));
+    expect(r.available).toBe(false);
+    expect(r.rows).toEqual([]);
+  });
+
+  test('月中：1 号入账的固定支出不被判「较平常暴增」', async ({ page }) => {
+    const rentOnly = [];
+    for (let i = 0; i < 12; i++) {
+      const m = date.addMonths('2025-03', i);
+      rentOnly.push({ id: 'r' + i, date: m + '-01', amount: 1000, tags: { 'ec-type': '住房' } });
+      rentOnly.push({ id: 'x' + i, date: m + '-20', amount: 500, tags: { 'ec-type': '餐饮' } });
+    }
+    rentOnly.push({ id: 'r-now', date: '2026-03-01', amount: 1000, tags: { 'ec-type': '住房' } });
+    await page.clock.setFixedTime(new Date('2026-03-05T10:00:00'));
+    await openWith(page, { ...sampleState(), expenses: rentOnly });
+    await page.locator('#tabs-expenses .tab-btn[data-tab="expense-trend"]').click();
+    const mar = page.locator('#expense-trend-list .row-hit').filter({ hasText: '2026年3月' });
+    await expect(mar).toContainText('较平常 ±¥0.00');
+  });
+
+  test('切回「起始月」基准：旧的两月对比照常工作', async ({ page }) => {
+    await openTrend(page, mk());
+    await page.getByRole('button', { name: '对比两月' }).click();
+    await page.selectOption('#exp-compare-target-select', '2026-02');
+    await page.selectOption('#exp-compare-cat-select', 'ec-type');
+    await page.selectOption('#exp-compare-base-select', '2026-01');
+    await page.selectOption('#exp-compare-base-mode', 'normal');
+    await page.selectOption('#exp-compare-base-mode', 'month');
+    await expect(page.locator('#exp-compare-base-month-label')).toBeVisible();
+    await expect(page.locator('#exp-compare-hero')).toContainText('+¥500.00');
+    // 两月模式沿用旧表（按标签原序，不排序）；住房那行仍给出 +500
+    await expect(page.locator('#exp-compare-detail-content .asset-row:not(.list-head)').first()).toContainText('餐饮');
+    await expect(page.locator('#exp-compare-detail-content .asset-row:not(.list-head)').filter({ hasText: '住房' })).toContainText('+500');
+  });
+});

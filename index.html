@@ -609,10 +609,16 @@ tailwind.config = {
   <div class="modal-content modal-xl">
     <h3 class="font-display modal-title" id="expense-compare-modal-title" data-i18n="消费对比">消费对比</h3>
     <div class="flex items-center gap-3 flex-wrap mb-6">
-      <label class="meta-label muted"><span data-i18n="起始月">起始月</span>
+      <label class="meta-label muted"><span data-i18n="基准">基准</span>
+        <select id="exp-compare-base-mode" onchange="syncExpenseCompareBaseMode()" class="select-field ml-2">
+          <option value="month" data-i18n="起始月">起始月</option>
+          <option value="normal" data-i18n="近 12 个月平常">近 12 个月平常</option>
+        </select>
+      </label>
+      <label id="exp-compare-base-month-label" class="meta-label muted"><span data-i18n="起始月">起始月</span>
         <select id="exp-compare-base-select" onchange="renderExpenseCompareTable()" class="select-field ml-2"></select>
       </label>
-      <span class="t-body muted">→</span>
+      <span id="exp-compare-arrow" class="t-body muted">→</span>
       <label class="meta-label muted"><span data-i18n="结束月">结束月</span>
         <select id="exp-compare-target-select" onchange="renderExpenseCompareTable()" class="select-field ml-2"></select>
       </label>
