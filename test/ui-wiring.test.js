@@ -10,6 +10,7 @@ const css = fs.readFileSync(path.join(__dirname, '..', 'styles.css'), 'utf8');
 const JS_FILES = ['app-core.js', 'app-assets.js', 'app-charts.js', 'app-settings.js', 'app-expenses.js', 'app-calendar.js', 'app-receipt.js'];
 const js = JS_FILES.map((f) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8')).join('\n');
 const html = markup + '\n' + css + '\n' + js;
+const L = require('../logic.js');
 const count = (re) => (html.match(re) || []).length;
 // 取某顶层函数的完整源码段（函数体不含顶格的 "}"，故非贪婪匹配到行首 "}" 即函数结尾）。
 // 找不到必须报错：返回空串会让该函数的所有「不得出现 X」负向断言永久假绿——测试看着在、
@@ -196,6 +197,35 @@ describe('UI 接线契约：共享层单一来源（防重复实现各自漂移�
       assert.doesNotMatch(fnSource(fn), /cmp(Bar|PctCell)\(/, `${fn} 只交数据，不自己拼单元格`);
     }
     assert.strictEqual(count(/class="cmp-bar-track"/g), 1, '量条模板只出现在 cmpBar helper 一处（CSS 类定义不计）');
+  });
+
+  test('对比差额条以零线为轴：符号/半宽口径只有 logic.js 一处', () => {
+    assert.ok(typeof L.ui.cmpDeltaBarModel === 'function', '双向条口径必须下沉 logic.js');
+    const bar = fnSource('cmpBar');
+    assert.match(bar, /ui\.cmpDeltaBarModel\(/, 'cmpBar 取纯函数结果，不自己算符号与宽度');
+    assert.match(bar, /cmp-bar-axis/, '模板里要有一根零线');
+    assert.match(bar, /cmp-bar-\$\{m\.side\}/, '条的涨跌侧由纯函数给的 side 决定');
+    const logicOnly = fs.readFileSync(path.join(__dirname, '..', 'logic.js'), 'utf8');
+    assert.strictEqual((logicOnly.match(/function cmpDeltaBarModel/g) || []).length, 1, '纯函数只定义一处');
+    assert.match(html, /\.cmp-bar-axis/, 'CSS 里定义零线');
+  });
+
+  test('趋势列表的环比 / 较平常各挂一根带符号小条，精确数字照旧留在行里', () => {
+    const trend = fnSource('renderExpenseTrendList');
+    assert.match(trend, /cmpMiniBar\(/, '趋势列表挂小条');
+    assert.match(trend, /较平常/, '「较平常」精确读数不能丢');
+    const mom = fnSource('momCompareHtml');
+    assert.match(mom, /cmpMiniBar\(/, '环比一句也挂小条（资产/消费趋势共用）');
+    assert.match(mom, /formatCNY\(m\.diff\)/, '环比精确金额照旧可见');
+    assert.strictEqual(count(/function cmpMiniBar/g), 1, '小条模板单一来源');
+  });
+
+  test('双向条不新增页头读数 / 卡片 / 图表实例 / 外呼', () => {
+    const header = html.match(/<header class="app-header"[\s\S]*?<\/header>/);
+    assert.ok(header, '页头区块存在');
+    assert.doesNotMatch(header[0], /cmp-bar|cmpMiniBar/, '页头不挂差额条');
+    assert.strictEqual(count(/echarts\.init\(/g), 1, '不新增图表实例');
+    assert.strictEqual((stripComments(js).match(/\bfetch\s*\(/g) || []).length, 1, '不新增外呼');
   });
 
   test('弹窗打开统一 openModal 与 closeModal 成对，散落的 display 赋值不回潮', () => {

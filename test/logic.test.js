@@ -3589,4 +3589,39 @@ describe('monthsDesc：新的在上', () => {
   });
 });
 
+// ========== 对比差额的双向条（以零线为轴，纯口径下沉 logic.js）==========
+describe('ui.cmpDeltaBarModel：带符号差额 → 零线两侧的半宽', () => {
+  test('正差额落右半、负差额落左半，零差额不画条', () => {
+    assert.deepStrictEqual(L.ui.cmpDeltaBarModel(40, 100), { side: 'up', width: 20 });
+    assert.deepStrictEqual(L.ui.cmpDeltaBarModel(-40, 100), { side: 'down', width: 20 });
+    assert.deepStrictEqual(L.ui.cmpDeltaBarModel(0, 100), { side: 'none', width: 0 });
+  });
+
+  test('按 maxAbs 归一到半幅 50%，最大值正好半满且不越轴', () => {
+    assert.strictEqual(L.ui.cmpDeltaBarModel(100, 100).width, 50);
+    assert.strictEqual(L.ui.cmpDeltaBarModel(-100, 100).width, 50);
+    assert.ok(L.ui.cmpDeltaBarModel(25, 100).width > L.ui.cmpDeltaBarModel(10, 100).width);
+  });
+
+  test('小幅差额仍给可见最小宽度（否则小变动看不见）', () => {
+    assert.ok(L.ui.cmpDeltaBarModel(1, 100000).width >= 1.5);
+    assert.ok(L.ui.cmpDeltaBarModel(-1, 100000).width >= 1.5);
+  });
+
+  test('脏输入不产生 NaN / 不越半幅（0、负数、null 的 maxAbs 都兜住）', () => {
+    for (const bad of [0, -1, null, undefined, NaN]) {
+      const m = L.ui.cmpDeltaBarModel(50, bad);
+      assert.ok(m.width >= 0 && m.width <= 50, 'maxAbs=' + bad + ' 不得越半幅');
+      assert.ok(Number.isFinite(m.width), 'width 不得是 NaN');
+    }
+    assert.strictEqual(L.ui.cmpDeltaBarModel(null, 100).side, 'none');
+    assert.strictEqual(L.ui.cmpDeltaBarModel(undefined, 100).side, 'none');
+  });
+
+  test('符号只看差额本身，与 goodWhenUp 无关（着色另由 compareColor 决定）', () => {
+    assert.strictEqual(L.ui.cmpDeltaBarModel(-8, 8).side, 'down');
+    assert.strictEqual(L.ui.cmpDeltaBarModel(8, 8).side, 'up');
+  });
+});
+
 require('./stress-logic-cases.js');

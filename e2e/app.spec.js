@@ -2653,3 +2653,71 @@ test.describe('消费「较平常」（近 12 个月同长度窗口）', () => {
     await expect(page.locator('#exp-compare-detail-content .asset-row:not(.list-head)').filter({ hasText: '住房' })).toContainText('+500');
   });
 });
+
+// 对比差额的「图形优先」：零线两侧各一根带符号条，精确数字仍留在表里。
+// 有涨有跌才能验出方向；住房 +800 / 餐饮 -100 分处零线两侧。
+test.describe('对比差额双向条（图形优先，数字不丢）', () => {
+  const rentOf = { '2026-01': 700, '2026-02': 1500 };
+  const foodOf = { '2026-01': 200, '2026-02': 100 };
+  const rows = [];
+  for (let i = 0; i < 14; i++) {
+    const m = date.addMonths('2025-01', i);
+    rows.push({ id: 'r' + i, date: m + '-01', amount: rentOf[m] || 1000, note: '房租', tags: { 'ec-type': '住房', 'ec-pay': '支付宝' } });
+    rows.push({ id: 'f' + i, date: m + '-15', amount: foodOf[m] || 200, note: '餐饮', tags: { 'ec-type': '餐饮', 'ec-pay': '微信' } });
+  }
+  const state = () => ({ ...sampleState(), expenses: rows });
+
+  test('消费对比：每行一根零轴条，涨右跌左，精确 ±¥ 仍在行里', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-03-18T10:00:00'));
+    await openWith(page, state());
+    await page.locator('#tabs-expenses .tab-btn[data-tab="expense-trend"]').click();
+    await page.getByRole('button', { name: '对比两月' }).click();
+    await page.selectOption('#exp-compare-base-select', '2026-01');
+    await page.selectOption('#exp-compare-target-select', '2026-02');
+    await page.selectOption('#exp-compare-cat-select', 'ec-type');
+    await expect(page.locator('#expense-compare-modal')).toBeVisible();
+    const body = page.locator('#exp-compare-detail-content .asset-row:not(.list-head)');
+    await expect(page.locator('#exp-compare-detail-content .cmp-bar-axis')).toHaveCount(2);
+    await expect(page.locator('#exp-compare-detail-content .cmp-bar-up')).toHaveCount(1);
+    await expect(page.locator('#exp-compare-detail-content .cmp-bar-down')).toHaveCount(1);
+    // 精确数字原样保留：住房涨、餐饮跌，条不能替代读数
+    await expect(body.filter({ hasText: '住房' })).toContainText('+800');
+    await expect(body.filter({ hasText: '餐饮' })).toContainText('-100');
+    await expect(body.filter({ hasText: '住房' }).locator('.cmp-bar-up')).toHaveCount(1);
+    await expect(body.filter({ hasText: '餐饮' }).locator('.cmp-bar-down')).toHaveCount(1);
+  });
+
+  test('快照对比：同一套零轴条，资产一涨一跌各在一侧', async ({ page }) => {
+    await openWith(page, state());
+    await gotoAssets(page, 'history');
+    await page.evaluate(() => {
+      const a = state.assets;
+      state.snapshots = [
+        { month: '2026-01', note: '', totalCNY: 0, currencyRates: { ...state.rates },
+          assets: a.map(x => ({ ...x, amount: x.id === 'a-cash' ? 40000 : x.amount })), updatedAt: '2026-01-01T00:00:00.000Z' },
+        { month: '2026-02', note: '', totalCNY: 0, currencyRates: { ...state.rates },
+          assets: a.map(x => ({ ...x, amount: x.id === 'a-cash' ? 60000 : (x.id === 'a-fund' ? 60000 : x.amount) })), updatedAt: '2026-02-01T00:00:00.000Z' },
+      ];
+      openCompareModal();
+    });
+    await expect(page.locator('#compare-modal')).toBeVisible();
+    await expect(page.locator('#compare-detail-content .cmp-bar-up')).toHaveCount(1);
+    await expect(page.locator('#compare-detail-content .cmp-bar-down')).toHaveCount(1);
+    // 精确差额与「新增/移除」徽章照旧
+    await expect(page.locator('#compare-detail-content .asset-row:not(.list-head)').filter({ hasText: '招商银行活期' })).toContainText('+20,000');
+    await expect(page.locator('#compare-detail-content')).toContainText('变动 %');
+  });
+
+  test('趋势列表：环比与较平常各配一根带符号小条，精确值仍是辅助文字', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-03-18T10:00:00'));
+    await openWith(page, state());
+    await page.locator('#tabs-expenses .tab-btn[data-tab="expense-trend"]').click();
+    await expect(page.locator('#expense-trend-list .row-hit').first()).toBeVisible();
+    await expect(page.locator('#expense-trend-list .cmp-mini-up').first()).toBeVisible();
+    await expect(page.locator('#expense-trend-list .cmp-mini-down').first()).toBeVisible();
+    // 精确读数没被图形吃掉（既有断言守住「较平常 +¥X」，这里补环比）
+    const feb = page.locator('#expense-trend-list .row-hit').filter({ hasText: '2026年2月' });
+    await expect(feb).toContainText('较上月 +¥700.00');
+    await expect(feb).toContainText('较平常');
+  });
+});

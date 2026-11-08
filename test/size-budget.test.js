@@ -28,7 +28,9 @@ const BUDGETS = {
   // 月份图 + 当天的记录（点一格展开）；明细列表与录入在 app-expenses.js 里。
   'app-calendar.js': 12_000,
   'app-receipt.js': 10_000,
-  'app-expenses.js': 42_000,
+  // 对比差额「图形优先」在趋势行的「较平常」句前挂零轴小条，多出的模板串超了 42000；
+  // 纯逻辑（cmpDeltaBarModel）已下沉 logic.js，剩下的只是这一行渲染，按约定同 commit 抬上限。
+  'app-expenses.js': 42_400,
   // 消费「较平常」基线（窗口 / 逐标签 / 涨跌榜三个纯函数）下沉后越线：无构建步骤，
   // 纯逻辑不另开文件，按约定同 commit 抬上限并写明用途。
   'logic.js': 150_000,

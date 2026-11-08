@@ -737,7 +737,9 @@ function renderExpenseTrendList() {
     if (normal.available) {
       const d = normal.diff;
       const shown = d === 0 ? '±' + money.formatCNY(0) : (d > 0 ? '+' : '-') + money.formatCNY(Math.abs(d));
-      normalLine = ` · <span style="color:${compareColor(d, false)};">${i18n.t('较平常 {p1}', { p1: shown })}</span>`;
+      // 与环比同一零轴小条；精确 ±¥ 仍在文字里（条不替代读数）。
+      const c = compareColor(d, false);
+      normalLine = ` · <span style="color:${c};">${cmpMiniBar(d, Math.max(total, normal.normal) || 1, () => c)}${i18n.t('较平常 {p1}', { p1: shown })}</span>`;
     }
     return `<div class="card card-interactive flex items-center justify-between">
       <div class="flex-1 row-hit" role="button" tabindex="0" onclick="viewExpenseMonth('${text.jsAttr(month)}')"

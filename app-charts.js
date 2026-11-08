@@ -447,7 +447,10 @@ function momCompareHtml(curr, prev, goodWhenUp) {
   const badgeClass = good ? 'up' : 'down';
   const diffColor = good ? 'var(--verdigris)' : 'var(--down)';
   const badge = '<span class="mo-badge ' + badgeClass + '" title="' + i18n.t('较上月 ') + sign + money.formatCNY(m.diff) + '（' + sign + m.pct.toFixed(1) + '%）">' + (m.up ? '▲' : '▼') + ' ' + sign + m.pct.toFixed(1) + '%</span>';
-  const diffLine = '<span style="color:' + diffColor + ';">' + i18n.t('较上月 ') + sign + money.formatCNY(m.diff) + '</span>';
+  // 小条按「本月差额 / 本月总额」相对归一（与前月同量级才可比），精确金额仍在文字里。
+  // 条挂在文字前：先看到方向，再读到数；零差额不画条。
+  const bar = cmpMiniBar(m.diff, Math.max(Math.abs(curr), Math.abs(prev)) || 1, () => diffColor);
+  const diffLine = '<span style="color:' + diffColor + ';">' + bar + i18n.t('较上月 ') + sign + money.formatCNY(m.diff) + '</span>';
   return { badge: badge, diffLine: diffLine };
 }
 

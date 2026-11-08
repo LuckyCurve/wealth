@@ -1344,8 +1344,17 @@
   .pace-pct { min-width: 3.8em; text-align: right; font-size: var(--fs-micro); font-weight: var(--fw-strong); color: var(--accent-ink); }
 
   @media (prefers-reduced-motion: reduce) { .cov-fill, .cov-marker { transition: none; } }
-  .cmp-bar-track { height: 3px; border-radius: 2px; background: var(--bg-2); margin-top: 4px; overflow: hidden; }
-  .cmp-bar { height: 100%; border-radius: 2px; }
+  /* 对比差额：零线在正中，涨往右、跌往左。条只表方向/相对幅度，精确 ±¥ 在条上方。 */
+  .cmp-bar-track { position: relative; height: 4px; border-radius: 2px; background: var(--bg-2); margin-top: 5px; overflow: hidden; }
+  .cmp-bar { position: absolute; top: 0; height: 100%; border-radius: 2px; }
+  .cmp-bar-up { left: 50%; }
+  .cmp-bar-down { right: 50%; }
+  .cmp-bar-axis { position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: var(--tick); transform: translateX(-0.5px); }
+  /* 趋势/历史净值行内的小条：与对比表同一零轴语言，缩到 3px 高、不占额外行。 */
+  .cmp-mini-track { display: inline-block; position: relative; vertical-align: middle; width: 34px; height: 3px; border-radius: 2px; background: var(--bg-2); margin-right: 5px; overflow: hidden; }
+  .cmp-mini { position: absolute; top: 0; height: 100%; border-radius: 2px; }
+  .cmp-mini-up { left: 50%; }
+  .cmp-mini-down { right: 50%; }
   @media (max-width: 640px) {
     .masthead { padding: 24px 20px 22px; }
     .masthead-amount { font-size: clamp(34px, 12vw, 48px); }

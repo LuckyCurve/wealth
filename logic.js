@@ -517,6 +517,17 @@
     return { left: Math.round(left), top: Math.round(top) };
   }
 
+  // 对比差额条：把带符号差额换算成「零线哪一侧 + 占半幅多少 %」。
+  // 正负分别落在零线两侧，width 是半幅占比（0~50），着色/文案仍由调用方管。
+  // maxAbs 非法或为 0 时按 1 兜底，避免除零出 NaN 把宽度写坏。
+  function cmpDeltaBarModel(d, maxAbs) {
+    const diff = Number(d) || 0;
+    if (diff === 0) return { side: 'none', width: 0 };
+    const span = Number(maxAbs) > 0 ? Number(maxAbs) : 1;
+    const raw = Math.min(50, Math.abs(diff) / span * 50);
+    return { side: diff > 0 ? 'up' : 'down', width: Math.max(1.5, Math.round(raw * 10) / 10) };
+  }
+
   // 灯该不该亮：减动效 / 触屏 / 页面不可见 / 弹窗开着，四种都不跟（弹窗开着时光在磨砂后面白算）。
   function lampEnabled(opts) {
     const o = opts || {};
@@ -3026,6 +3037,7 @@
       TIP_GAP,
       TIP_EDGE,
       paneEnterShift,
+      cmpDeltaBarModel,
     },
   };
 });

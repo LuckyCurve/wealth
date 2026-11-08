@@ -760,9 +760,20 @@ function cmpPctCell(d, p, colorFn) {
     : `<span class="tabular" style="color:${colorFn(d)};">${s}${p.toFixed(1)}%</span>`;
 }
 
+// 对比差额条：零线在正中间，涨往右、跌往左，一眼看出方向。半宽口径走 logic.js 单一来源；
+// 精确 ±¥ 仍由骨架写在条上方，条只负责相对关系，不替代读数。
 function cmpBar(d, maxAbs, colorFn) {
-  if (d === 0) return '';
-  return `<div class="cmp-bar-track"><div class="cmp-bar" style="width:${Math.max(3, Math.abs(d) / maxAbs * 100).toFixed(1)}%;background:${colorFn(d)};"></div></div>`;
+  const m = ui.cmpDeltaBarModel(d, maxAbs);
+  if (m.side === 'none') return '';
+  return `<div class="cmp-bar-track"><div class="cmp-bar cmp-bar-${m.side}" style="width:${m.width}%;background:${colorFn(d)};"></div><span class="cmp-bar-axis"></span></div>`;
+}
+
+// 趋势列表/历史净值行的「带符号小条」：同一零轴语言缩到一行里，精确金额仍在旁边文字中。
+// 与 cmpBar 共用 cmpDeltaBarModel，不另算符号与宽度。
+function cmpMiniBar(d, maxAbs, colorFn) {
+  const m = ui.cmpDeltaBarModel(d, maxAbs);
+  if (m.side === 'none') return '';
+  return `<span class="cmp-mini-track"><span class="cmp-mini cmp-mini-${m.side}" style="width:${m.width}%;background:${colorFn(d)};"></span><span class="cmp-bar-axis"></span></span>`;
 }
 
 // 弹窗打开的统一入口（与 closeModal 成对）
