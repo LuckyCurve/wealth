@@ -148,6 +148,7 @@ describe('UI 接线契约：共享层单一来源（防重复实现各自漂移�
   test('消费月份列表单一来源 expenseMonths，两处内联 Set 推导消失', () => {
     assert.strictEqual(count(/new Set\(state\.expenses/g), 0, '月份推导不应再内联（一份防御一份不防御曾各自漂移）');
     assert.strictEqual(count(/(?:[A-Za-z_$][A-Za-z0-9_$]*\.)?expenseMonths\(state\.expenses\)/g), 2, '月份筛选与趋势图下拉各一处');
+    assert.strictEqual(count(/monthsWithExpenses\(state\.expenses\)/g), 1, '初始状态判断当前月有无记录走同一个别名');
   });
 
   test('三态排序状态机共用：两个 toggle 都走 nextSortState，内联循环分支不回潮', () => {
@@ -927,7 +928,7 @@ describe('UI 接线契约：消费标签筛选（单下拉分组，类别作不�
   });
 
   test('两个清空入口都走同一写入端，不再直接改控件', () => {
-    assert.match(fnSource('clearExpenseFilters'), /setExpenseFilter\(\{ month: '', tag: '', query: '' \}\)/, '三项一起归零');
+    assert.match(fnSource('clearExpenseFilters'), /setExpenseFilter\(\{ month: '', tag: '', query: '', gridMonth: '' \}\)/, '四项一起归零（月份图也回到全部时间）');
     assert.match(fnSource('clearExpenseSearch'), /setExpenseFilter\(\{ query: '' \}\)/, '只清搜索词');
     assert.match(fnSource('clearExpenseSearch'), /\.focus\(\)/, '清完把焦点交回输入框');
     for (const fn of ['clearExpenseFilters', 'clearExpenseSearch']) {
@@ -969,15 +970,31 @@ describe('UI 接线契约：消费标签筛选（单下拉分组，类别作不�
   test('populateExpenseTagFilter 仅在 renderExpenses 中调用（单一来源）', () => {
     assert.strictEqual(count(/populateExpenseTagFilter\(/g), 2, '定义一处 + renderExpenses 调用一处');
   });
+
+  test('月份图与明细同一份月份：切一边就是切两边', () => {
+    assert.strictEqual(count(/let monthGridView\b/g), 0, '月份图不许再存第二份月份');
+    assert.match(fnSource('renderMonthGrid'), /expenseFilters\.gridMonth/, '月份图读的是筛选状态');
+    assert.match(fnSource('shiftMonthGrid'), /setExpenseFilter\(\{\s*gridMonth:/, '左右箭头走唯一写入端');
+    assert.match(fnSource('setExpenseFilter'), /gridMonth = patch\.month/, '明细下拉反过来带动月份图');
+    const render = fnSource('renderExpenses');
+    assert.match(render, /expenseFilters\.month = expenseFilters\.gridMonth/, '每次重绘由同一份状态派生明细月份');
+    assert.match(render, /expenseFilters\.gridMonth = gridMonth/, '归一函数只返回三个维度，视图态要留着');
+    assert.match(fnSource('populateExpenseMonthFilter'), /gridMonth/, '月份图翻到的空月也要出现在下拉里');
+    assert.match(fnSource('exportMonthReceipt'), /expenseFilters\.gridMonth/, '整月小票跟着月份图那个月走');
+  });
 });
 
 describe('UI 接线契约：消费月份筛选默认当月', () => {
   test('初始筛选状态：月份取当月，标签与关键词留空', () => {
     const decl = html.match(/let expenseFilters = \{[^}]*\}/);
     assert.ok(decl, '状态只有一处声明');
-    assert.match(decl[0], /month:\s*date\.getCurrentMonth\(\)/, '月份默认当月（本地月口径，不经 UTC）');
     assert.match(decl[0], /tag:\s*''/, '标签不设默认');
     assert.match(decl[0], /query:\s*''/, '关键词不设默认');
+    const init = fnSource('initDefaultExpenseMonth');
+    assert.match(init, /date\.getCurrentMonth\(\)/, '默认当月用本地月口径（不经 UTC）');
+    assert.match(init, /monthsWithExpenses\(state\.expenses\)/, '当月无记录时回落「全部时间」');
+    assert.match(init, /defaultExpenseMonthDone/, '只判一次，人工选过的月份不被顶掉');
+    assert.match(fnSource('renderExpenses'), /initDefaultExpenseMonth\(\)/, '存档加载后、首屏渲染前才定默认值');
   });
 
   test('记到筛选之外的月份：筛选跟过去，别让「消费已记录」配一个纹丝不动的列表', () => {

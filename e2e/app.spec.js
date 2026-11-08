@@ -3,7 +3,7 @@ const {
   stubCdn, seed, waitReady, disableMotion, readAppState, sampleState, gotoAssets, openExpenseTable,
 } = require('./fixtures');
 // 长按守卫窗阈值：E2E 等它过期时轮询真实常量，不复制一个数字（复制必然漂移）
-const { ui } = require('../logic.js');
+const { ui, date } = require('../logic.js');
 const { AUTO_OPEN_GUARD_MS, TAG_PRESS_MS } = ui;
 
 const holdPastTagPress = async (page) => {
@@ -893,6 +893,35 @@ test.describe('消费月份图（日历）', () => {
     await expect(page.locator('#expense-table .filter-bar')).toBeHidden();
     await openExpenseTable(page);
     await expect(page.locator('#expense-table .filter-bar')).toBeVisible();
+  });
+
+  test('月份图切月份，明细跟着显示那个月（双向同一份月份）', async ({ appPage: page }) => {
+    const monthLabel = (m) => {
+      const [y, mm] = m.split('-');
+      return y + '年' + Number(mm) + '月';
+    };
+    const emptyMonth = '2020-03';
+    await openExpenseTable(page);
+    await expect(page.locator('#expenses-rows .asset-row')).toHaveCount(3);
+
+    // 月份图能切到没有任何记录的月份，明细跟着收窄成这一段
+    await page.locator('#month-grid-card .toolbar').getByRole('button', { name: '上个月' }).click();
+    await expect(page.locator('#month-grid-label')).toContainText(monthLabel(date.addMonths(curMonth(), -1)));
+    await expect(page.locator('#expense-month-filter')).toHaveValue(date.addMonths(curMonth(), -1));
+    await expect(page.locator('#expense-table-summary')).toContainText(monthLabel(date.addMonths(curMonth(), -1)));
+    await expect(page.locator('#expenses-list')).toBeHidden();
+
+    // 明细下拉反过来也要带动月份图（原有单向同步不能被改坏）
+    await page.selectOption('#expense-month-filter', '2026-01');
+    await expect(page.locator('#month-grid-label')).toContainText('2026年1月');
+    await expect(page.locator('#expenses-rows .asset-row')).toHaveCount(2);
+
+    // 月份图切到无记录的月份，明细仍跟着走，不偷偷回落「全部时间」
+    await page.evaluate((m) => setExpenseFilter({ gridMonth: m }), emptyMonth);
+    await expect(page.locator('#month-grid-label')).toContainText(monthLabel(emptyMonth));
+    await expect(page.locator('#expense-month-filter')).toHaveValue(emptyMonth);
+    await expect(page.locator('#expenses-empty-title')).toContainText('暂无消费记录');
+    await expect(page.locator('#expenses-list')).toBeHidden();
   });
 
   test('点一格看当天的记录（金额大的在前），再点一次收起', async ({ page }) => {

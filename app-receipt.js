@@ -20,7 +20,7 @@ function exportDayReceipt(dayStr) {
 }
 
 function exportMonthReceipt(month) {
-  const m = month || monthGridView || date.getCurrentMonth();
+  const m = month || expenseFilters.gridMonth || date.getCurrentMonth();
   const items = monthGrid.monthEntries(state.expenses, m);
   const model = receipt.model(items, { date: date.monthLabel(m), describe: receiptDescribe });
   if (!model) return;

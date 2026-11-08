@@ -30,12 +30,28 @@ function setExpenseDate(dateStr) {
 // ====== EXPENSE FILTER ======
 // 筛选状态的唯一所有者：控件只写、渲染只读；失效值由 expense.normalizeExpenseFilters 丢弃（不靠「先重建下拉、再读值」）。
 // 月份默认当月（最常看的一屏）；当月没有记录时它会在归一阶段被丢掉、回落「全部时间」。
-let expenseFilters = { month: date.getCurrentMonth(), tag: '', query: '' };
+// 月份图与明细共用这一个月份：切月份图就是切明细，反过来也一样。
+// 当前月有记录时默认看当前月；一笔都没有就回落「全部时间」，不摆一个空列表。
+let expenseFilters = { month: '', tag: '', query: '', gridMonth: '' };
+let defaultExpenseMonthDone = false;
 
-// 唯一写入端：三个控件、空态「清除筛选」、搜索框内的 × / ESC 都走这里
+// 默认当月要等存档加载完再定：脚本顶层读到的还是空账本，当月会被误判成「没有记录」。
+// 当前月一笔都没有就回落「全部时间」，不摆一个空列表。只判一次，之后人工选过的月份不被顶掉。
+function initDefaultExpenseMonth() {
+  if (defaultExpenseMonthDone) return;
+  defaultExpenseMonthDone = true;
+  const cur = date.getCurrentMonth();
+  const m = expense.monthsWithExpenses(state.expenses).indexOf(cur) >= 0 ? cur : '';
+  expenseFilters.month = m;
+  expenseFilters.gridMonth = m;
+}
+
+// 唯一写入端：三个控件、月份图左右箭头、空态「清除筛选」、搜索框内的 × / ESC 都走这里
 function setExpenseFilter(patch) {
   expenseFilters = Object.assign({}, expenseFilters, patch);
-  if (patch && patch.month) monthGridView = patch.month;
+  if (patch && Object.prototype.hasOwnProperty.call(patch, 'month')) {
+    expenseFilters.gridMonth = patch.month;  // 明细下拉反过来也带动月份图
+  }
   renderExpenses();
 }
 
@@ -51,7 +67,12 @@ function syncExpenseControls() {
 }
 
 function populateExpenseMonthFilter() {
-  fillMonthSelect('expense-month-filter', expense.expenseMonths(state.expenses));
+  const months = expense.expenseMonths(state.expenses);
+  // 月份图能翻到没有记录的月份；那段范围也必须能在明细下拉里看见，
+  // 否则切过去之后下拉会偷偷跳到「全部时间」，两个视图当场分叉。
+  const current = expenseFilters.gridMonth || expenseFilters.month;
+  const withGrid = current ? date.monthsDesc([...months, current]) : months;
+  fillMonthSelect('expense-month-filter', withGrid);
 }
 
 // 标签筛选下拉：类别作 optgroup 分组头（不可选，仅分组），标签才是可选项；首项「全部标签」。
@@ -71,7 +92,7 @@ function populateExpenseTagFilter() {
 }
 
 function clearExpenseFilters() {
-  setExpenseFilter({ month: '', tag: '', query: '' });
+  setExpenseFilter({ month: '', tag: '', query: '', gridMonth: '' });
 }
 
 function clearExpenseSearch() {
@@ -81,13 +102,19 @@ function clearExpenseSearch() {
 }
 
 function renderExpenses() {
+  initDefaultExpenseMonth();
   const rows = document.getElementById('expenses-rows');
   const empty = document.getElementById('expenses-empty');
   const list = document.getElementById('expenses-list');
 
   // 失效筛选值先归一（删了记录 / 分类 / 标签之后），再重建选项、回写控件。
-  // 三步都由状态驱动：谁先谁后都不再影响结果
+  // 三步都由状态驱动：谁先谁后都不再影响结果。
+  // 月份图是这一个月份的唯一来源：两个视图不再各存一份、靠事件互相追。
+  expenseFilters.month = expenseFilters.gridMonth;
+  // 归一函数只返回三个筛选维度；月份图那个月是视图态，得留着，否则每轮重绘都把它丢掉。
+  const gridMonth = expenseFilters.gridMonth;
   expenseFilters = expense.normalizeExpenseFilters(expenseFilters, state.expenses, state.expenseCategories);
+  expenseFilters.gridMonth = gridMonth;
   populateExpenseMonthFilter();
   populateExpenseTagFilter();
   syncExpenseControls();

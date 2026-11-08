@@ -529,6 +529,12 @@
     return [...new Set((expenses || []).map(e => (e.date || '').slice(0, 7)).filter(Boolean))].sort().reverse();
   }
 
+  // 同 expenseMonths，供页面在状态初始化时判断「当前月有没有记录」。
+  // 别名而不是再写一份 Set 推导：月份列表的口径只该有一处。
+  function monthsWithExpenses(expenses) {
+    return expenseMonths(expenses);
+  }
+
   // ========== 快照查询（依赖 state.snapshots）==========
   function findMonthSnapshot(month) {
     return state.snapshots.find(s => s.month === month);
@@ -676,8 +682,11 @@
     const f = filters || {};
     const months = expenseMonths(expenses);
     const groups = expenseTagFilterGroups(categories);
+    // 月份图能翻到没有记录的月份；那种月份仍是合法的筛选值，
+    // 否则「切到空月」会被回落成「全部时间」，两个视图当场分叉。
+    const validMonth = (m) => /^\d{4}-(?:0[1-9]|1[0-2])$/.test(m);
     return {
-      month: f.month && months.indexOf(f.month) >= 0 ? f.month : '',
+      month: f.month && (months.indexOf(f.month) >= 0 || (validMonth(f.month) && f.month === f.gridMonth)) ? f.month : '',
       tag: f.tag && hasTagFilterOption(groups, f.tag) ? f.tag : '',
       query: f.query == null ? '' : String(f.query),
     };
@@ -2820,6 +2829,7 @@
       GAP_DAYS_DEFAULT,
       GAP_DAYS_MAX,
       expenseMonths,
+      monthsWithExpenses,
       monthlyExpenseTotals,
       prevExpenseMonthOf,
       expenseMoM,

@@ -1,5 +1,4 @@
 let monthGridMode = 'count';
-let monthGridView = null;
 let selectedDay = '';
 const DAY_PRESS_MS = 450;
 let dayPress = null;
@@ -8,7 +7,7 @@ let pressFiredAt = 0;
 function renderMonthGrid() {
   const grid = document.getElementById('month-grid');
   if (!grid) return;
-  const month = monthGridView || date.getCurrentMonth();
+  const month = expenseFilters.gridMonth || date.getCurrentMonth();
   const view = monthGrid.build(state.expenses, month, monthGridMode, date.getLocalDateStr());
   if (!view) {
     grid.innerHTML = '';
@@ -113,8 +112,7 @@ function setMonthGridMode(mode) {
 }
 
 function shiftMonthGrid(n) {
-  monthGridView = date.addMonths(monthGridView || date.getCurrentMonth(), n);
-  renderMonthGrid();
+  setExpenseFilter({ gridMonth: date.addMonths(expenseFilters.gridMonth || date.getCurrentMonth(), n) });
 }
 
 function startDayPress(dateStr, cell) {
