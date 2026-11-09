@@ -3756,3 +3756,50 @@ describe('annualize.normalizeRows：存档输入的归一', () => {
     ]);
   });
 });
+
+describe('annualize.normalizeItems：换算记录的形状与排序', () => {
+  test('丢弃空记录与缺 id 的记录，其余保留', () => {
+    const items = L.annualize.normalizeItems([
+      null,
+      { id: 'a', name: '有内容', rows: [{ date: '2025-01-01', nav: '1' }, { date: '2026-01-01', nav: '1.05' }] },
+      { id: 'b', name: '全空', rows: [{ date: '', nav: '' }, { date: '', nav: '' }] },
+      { name: '没有 id', rows: [{ date: '2025-01-01', nav: '1' }] },
+    ]);
+    assert.deepStrictEqual(items.map((i) => i.id), ['a']);
+    assert.strictEqual(items[0].name, '有内容');
+  });
+
+  test('按最近修改排序；没有 updatedAt 的排后面', () => {
+    const rows = [{ date: '2025-01-01', nav: '1' }, { date: '2026-01-01', nav: '1.05' }];
+    const items = L.annualize.normalizeItems([
+      { id: 'old', rows, updatedAt: '2025-01-01T00:00:00.000Z' },
+      { id: 'none', rows },
+      { id: 'new', rows, updatedAt: '2026-01-01T00:00:00.000Z' },
+    ]);
+    assert.deepStrictEqual(items.map((i) => i.id), ['new', 'old', 'none']);
+  });
+
+  test('同 id 只留第一条（导入合并后不出现两条同名记录）', () => {
+    const rows = [{ date: '2025-01-01', nav: '1' }];
+    const items = L.annualize.normalizeItems([
+      { id: 'dup', name: '甲', rows },
+      { id: 'dup', name: '乙', rows },
+    ]);
+    assert.strictEqual(items.length, 1);
+    assert.strictEqual(items[0].name, '甲');
+  });
+
+  test('迁移：上一版只存一组 rows，有内容就迁成第一条记录', () => {
+    globalThis.state = freshState({
+      yieldCalc: { rows: [{ date: '2025-01-01', nav: '1' }, { date: '2026-01-01', nav: '1.05' }] },
+    });
+    L.migrate.migrateState();
+    assert.strictEqual(globalThis.state.yieldCalc.items.length, 1);
+    assert.strictEqual(globalThis.state.yieldCalc.items[0].rows.length, 2);
+    assert.strictEqual(globalThis.state.yieldCalc.rows, undefined, '旧字段被清掉，不留两份真相');
+
+    globalThis.state = freshState({ yieldCalc: { rows: [{ date: '', nav: '' }, { date: '', nav: '' }] } });
+    L.migrate.migrateState();
+    assert.deepStrictEqual(globalThis.state.yieldCalc.items, [], '空输入不迁成一条打不开的记录');
+  });
+});

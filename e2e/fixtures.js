@@ -263,7 +263,7 @@ async function visitAllTabs(page) {
     expect(shown, `${bar} → ${tab} 的面板没翻上来`).toBe('ok');
   };
   await gotoAssets(page);
-  for (const t of ['assets', 'categories', 'chart', 'history', 'income', 'yield']) await showPanel('#tabs-assets', t);
+  for (const t of ['assets', 'categories', 'chart', 'history', 'income']) await showPanel('#tabs-assets', t);
   await page.locator('#mode-expenses').click();
   for (const t of ['expenses', 'expense-categories', 'expense-chart', 'expense-trend']) await showPanel('#tabs-expenses', t);
   await showPanel('#tabs-expenses', 'expenses');
@@ -271,6 +271,13 @@ async function visitAllTabs(page) {
   await expect(page.locator('#expense-modal')).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(page.locator('#expense-modal')).toBeHidden();
+  // 换算器挂在页头（不进资产侧）：列表与编辑两屏都进主题巡检
+  await page.evaluate(() => { openYieldModal(); });
+  await expect(page.locator('#yield-modal')).toBeVisible();
+  await page.evaluate(() => yieldNewItem());
+  await expect(page.locator('#yield-name')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#yield-modal')).toBeHidden();
   // 便条是 2.5s 自动退场的瞬时元素：能否被扫到取决于时机（不确定性 = 假阴/假阳）。
   // 扫描前主动触发三种语义色，把「碰巧在」变成「一定在」，顺带把便条配色纳入巡检。
   // 注意先清空：页面启动时必弹一条汇率便条（fetchRates 无条件触发），不清掉的话

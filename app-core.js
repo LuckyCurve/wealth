@@ -282,7 +282,7 @@ function switchTab(tab, shift) {
   }
   document.querySelectorAll(tabBar + ' .tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
   moveTabIndicator(tabBar, tab);
-  ['assets', 'categories', 'chart', 'history', 'income', 'yield',
+  ['assets', 'categories', 'chart', 'history', 'income',
     'expenses', 'expense-categories', 'expense-chart', 'expense-trend']
     .forEach(id => { document.getElementById('tab-' + id).style.display = tab === id ? '' : 'none'; });
   // 刚显示的 Tab 里的下拉框才有布局，现在才量得到固有宽度（隐藏时 clientWidth 为 0）。

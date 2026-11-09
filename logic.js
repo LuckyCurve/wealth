@@ -283,16 +283,11 @@
     }
   }
 
-  // ========== 净值 → 年化（独立换算器：只吃时点，不读资产）==========
-  // 净值型产品（银行理财、货币基金、基金）只公布单位净值，不给年化。没有分红与申赎时，
-  // 两个时点的净值比值就是这一段的总回报；折成一年就是实际年化。
-  // 两个口径都给：复利（几何平均，CAGR）与单利（按天数线性折算，产品页「近 7 日 / 近 3 个月年化」多用它）。
+  // ========== 净值 → 年化 ==========
   const NAV_YEAR_DAYS = 365;
   const NAV_SHORT_DAYS = 7;
   const NAV_MAX_ROWS = 8;
 
-  // 'YYYY-MM-DD' → UTC 毫秒。Date 会把 2025-02-30 静默进位成 3 月 2 日，回读三个分量挡住；
-  // 用 UTC 而不是本地时间，本地午夜在夏令时日不是 24 小时，天数会被 round 成错的整数。
   function navDateMs(value) {
     const m = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(String(value == null ? '' : value).trim());
     if (!m) return null;
@@ -307,7 +302,6 @@
     return d.getUTCFullYear() + '-' + String(d.getUTCMonth() + 1).padStart(2, '0') + '-' + String(d.getUTCDate()).padStart(2, '0');
   }
 
-  // 从产品页/App 抄过来的净值常带空白与千分位（含全角逗号）；清洗后再当数字。0 与负数都不是净值。
   function navValue(raw) {
     const s = String(raw == null ? '' : raw).replace(/[\s,，]/g, '');
     if (s === '') return null;
@@ -315,8 +309,6 @@
     return Number.isFinite(n) && n > 0 ? n : null;
   }
 
-  // growth = 期末净值 / 期初净值。复利幂次超出浮点范围时 compoundPct 为 null（界面显示「—」），
-  // 绝不把 Infinity 当读数。
   function annualizeInterval(growth, days) {
     if (!(growth > 0) || !(days > 0)) return null;
     const simplePct = (growth - 1) * (NAV_YEAR_DAYS / days) * 100;
@@ -324,8 +316,6 @@
     return { days, growth, simplePct, compoundPct: Number.isFinite(powered) ? (powered - 1) * 100 : null };
   }
 
-  // rows: [{ date:'YYYY-MM-DD', nav:'1.0234' }] → 有效点（日期升序）+ 无效行下标 + 首尾总区间 + 逐段。
-  // 空行（两栏都空）跳过；同一天填两次取后一行（手误不该造出零天区间）。
   function summarizeNav(rows) {
     const invalid = [];
     const byMs = new Map();
@@ -357,8 +347,6 @@
     };
   }
 
-  // 存档里的一组输入：最多 maxRows 行、每行两栏都是字符串、不足两行补空行。
-  // 归一在这里（迁移与渲染共用），界面不各自兜底。
   function normalizeNavRows(rows, maxRows) {
     const max = maxRows > 0 ? maxRows : NAV_MAX_ROWS;
     const out = (Array.isArray(rows) ? rows : []).slice(0, max).map(r => ({
@@ -367,6 +355,26 @@
     }));
     while (out.length < 2) out.push({ date: '', nav: '' });
     return out;
+  }
+
+  function normalizeYieldItems(items) {
+    const out = [];
+    const seen = new Set();
+    (Array.isArray(items) ? items : []).forEach(it => {
+      if (!it || typeof it !== 'object' || Array.isArray(it)) return;
+      const id = it.id == null ? '' : String(it.id);
+      if (!id || seen.has(id)) return;
+      const rows = normalizeNavRows(it.rows);
+      if (!rows.some(r => r.date !== '' || r.nav !== '')) return;
+      seen.add(id);
+      out.push({
+        id,
+        name: typeof it.name === 'string' ? it.name : '',
+        rows,
+        updatedAt: typeof it.updatedAt === 'string' ? it.updatedAt : '',
+      });
+    });
+    return out.sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
   }
 
   // ========== 排序状态机（纯）==========
@@ -1751,8 +1759,16 @@
         }
       });
     }
-    // 年化换算器的输入（旧存档没有这个字段）：只留两栏字符串，行数上下限在此归一
-    state.yieldCalc = { rows: normalizeNavRows(state.yieldCalc && state.yieldCalc.rows) };
+    // 年化换算的记录（旧存档没有；上一版只存一组输入 rows）：有内容的那组迁成第一条，空输入不迁
+    const oldYield = state.yieldCalc && typeof state.yieldCalc === 'object' ? state.yieldCalc : {};
+    let yieldItems = oldYield.items;
+    if (!Array.isArray(yieldItems) && Array.isArray(oldYield.rows)) {
+      const legacy = normalizeNavRows(oldYield.rows);
+      yieldItems = legacy.some(r => r.date !== '' || r.nav !== '')
+        ? [{ id: 'yc-legacy', name: '', rows: legacy, updatedAt: '' }]
+        : [];
+    }
+    state.yieldCalc = { items: normalizeYieldItems(yieldItems) };
   }
 
   // ========== 文本 / 金额工具 ==========
@@ -2899,16 +2915,15 @@
     '快照提醒天数': 'Snapshot reminder days',
     '天': 'days',
     '知道了': 'Got it',
-    // 净值 → 年化（独立换算器）
-    '工具': 'Tools',
+    '换算': 'Convert',
     '年化换算': 'Annualized return',
-    '填两个时点的净值，反推产品实际年化': 'Enter NAV at two dates to back out the annualized return',
     '净值': 'NAV',
     '＋ 再加一个时点': '＋ Add a date',
     '删除这个时点': 'Remove this date',
     '清空': 'Clear',
     '复利年化': 'Compound annual',
     '单利年化 {p1}': 'Simple annual {p1}',
+    '{p1} 天': '{p1} days',
     '{p1} 天 · 累计 {p2}': '{p1} days · total {p2}',
     '至少填两个时点': 'Enter at least two dates',
     '{n} 行日期或净值无效': [ '{n} row has an invalid date or NAV', '{n} rows have an invalid date or NAV' ],
@@ -2918,6 +2933,15 @@
     '天数': 'Days',
     '涨幅': 'Return',
     '年化': 'Annual',
+    '＋ 新建记录': '＋ New record',
+    '名称（可选）': 'Name (optional)',
+    '还没有记录 · 点「新建记录」，填两个时点的净值': 'No records yet · tap “New record” and enter NAV at two dates',
+    '保存的换算随备份一起导出': 'Saved records travel with your backup',
+    '全部记录': 'All records',
+    '未命名': 'Untitled',
+    '已保存': 'Saved',
+    '删掉这条换算？': 'Delete this record?',
+    '记录已删除': 'Record deleted',
   };
 
   // 页面不直接调用、但被单测逐条断言的内部件也留在域里（删掉导出等于删掉那些断言的接缝）。
@@ -3058,11 +3082,11 @@
       runwayMonths,
       runwayMonthsText,
     },
-    // 独立换算器：输入是时点，不是资产。界面的「年化换算」页只读这里的纯计算。
     annualize: {
       summarize: summarizeNav,
       interval: annualizeInterval,
       normalizeRows: normalizeNavRows,
+      normalizeItems: normalizeYieldItems,
       YEAR_DAYS: NAV_YEAR_DAYS,
       SHORT_DAYS: NAV_SHORT_DAYS,
       MAX_ROWS: NAV_MAX_ROWS,

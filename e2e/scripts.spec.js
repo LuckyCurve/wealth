@@ -21,14 +21,14 @@ test('页面脚本全程不抛错（跨文件引用断了会在这里现形）',
     await nextFrame(page);
   }
   await gotoAssets(page);
-  for (const tab of ['assets', 'categories', 'chart', 'history', 'income', 'yield']) {
+  for (const tab of ['assets', 'categories', 'chart', 'history', 'income']) {
     await page.evaluate((t) => switchTab(t), tab);
     await nextFrame(page);
   }
   // Tab 的绘制排在下一帧（afterTabPaint），双击一帧才等到那一次回调真正跑完。
   await nextFrame(page);
 
-  for (const open of ['openStressModal()', 'openExpectationModal()', 'openCompareModal()', 'openExpenseCompareModal()']) {
+  for (const open of ['openStressModal()', 'openExpectationModal()', 'openCompareModal()', 'openExpenseCompareModal()', 'openYieldModal()']) {
     await page.evaluate((src) => eval(src), open);
     await page.evaluate(() => document.querySelectorAll('.modal-overlay').forEach((m) => { m.style.display = 'none'; }));
   }

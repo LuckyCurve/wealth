@@ -30,9 +30,9 @@ const BUDGETS = {
   // 月份图 + 当天的记录（点一格展开）；明细列表与录入在 app-expenses.js 里。
   'app-calendar.js': 12_000,
   'app-receipt.js': 10_000,
-  // 净值 → 年化的独立换算器（输入随存档落盘，不读资产）。纯计算下沉 logic.js，
-  // 这里只剩输入行/结果区的渲染与落盘节流。
-  'app-yield.js': 8_000,
+  // 净值 → 年化的独立换算器：列表与编辑两个视图（记录随存档导出）。纯计算在 logic.js，
+  // 这里只剩两屏的渲染、flatpickr 接线与保存/删除。
+  'app-yield.js': 14_000,
   // 对比差额「图形优先」在趋势行的「较平常」句前挂零轴小条，多出的模板串超了 42000；
   // 纯逻辑（cmpDeltaBarModel）已下沉 logic.js，剩下的只是这一行渲染，按约定同 commit 抬上限。
   'app-expenses.js': 42_400,

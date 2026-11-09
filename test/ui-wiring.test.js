@@ -2574,7 +2574,7 @@ describe('UI 接线契约：版式一致性（同类结构同一套 class）', (
   test('章节头只有 section-head 一种写法（布局归 CSS，不再复制 flex/mb-6 类串）', () => {
     assert.strictEqual(count(/class="flex items-center justify-between mb-6 section-head/g), 0,
       '章节头的布局类串应收回 .section-head');
-    assert.strictEqual(count(/class="section-head mb-6"/g), 9, '九个 Tab 的章节头统一为 section-head mb-6');
+    assert.strictEqual(count(/class="section-head mb-6"/g), 8, '八个 Tab 的章节头统一为 section-head mb-6');
     const rule = html.match(/\n  \.section-head \{[^}]*\}/);
     assert.ok(rule, '.section-head 自带布局规则');
     assert.match(rule[0], /display:\s*flex/, '布局（flex）在 CSS 里定义一次');

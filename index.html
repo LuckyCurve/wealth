@@ -113,6 +113,7 @@ tailwind.config = {
     </div>
     <div class="flex items-center gap-3">
       <button type="button" id="stress-badge" onclick="openStressModal({fromHeader:true})" class="btn-ghost stress-badge" style="display:none;" aria-label="压测中" data-i18n-aria-label="压测中"><svg class="ico" aria-hidden="true"><use href="#ic-trending-down"/></svg><span data-i18n="压测">压测</span><span id="stress-badge-pct" class="tabular"></span></button>
+      <button type="button" onclick="openYieldModal()" class="btn-ghost"><svg class="ico" aria-hidden="true"><use href="#ic-trending-up"/></svg><span data-i18n="换算">换算</span></button>
       <button onclick="showSettings()" class="btn-ghost"><svg class="ico" aria-hidden="true"><use href="#ic-settings"/></svg><span data-i18n="设置">设置</span></button>
     </div>
   </div>
@@ -137,7 +138,6 @@ tailwind.config = {
     <button class="tab-btn" data-tab="chart" onclick="tabClick(this)"><svg class="ico" aria-hidden="true"><use href="#ic-chart-pie"/></svg><span data-i18n="资产分布">资产分布</span></button>
     <button class="tab-btn" data-tab="history" onclick="tabClick(this)"><svg class="ico" aria-hidden="true"><use href="#ic-chart-line"/></svg><span data-i18n="历史净值">历史净值</span></button>
     <button class="tab-btn" data-tab="income" onclick="tabClick(this)"><svg class="ico" aria-hidden="true"><use href="#ic-percent"/></svg><span data-i18n="收益测算">收益测算</span></button>
-    <button class="tab-btn" data-tab="yield" onclick="tabClick(this)"><svg class="ico" aria-hidden="true"><use href="#ic-trending-up"/></svg><span data-i18n="年化换算">年化换算</span></button>
   </div>
 </div>
 
@@ -366,26 +366,6 @@ tailwind.config = {
       </div>
     </div>
     </section>
-
-  <!-- Yield Tab（独立换算器：只吃时点，不挂在资产下） -->
-  <section id="tab-yield" style="display:none;">
-    <div class="section-head mb-6">
-      <div>
-        <span class="eyebrow" data-i18n="工具">工具</span>
-        <h2 class="font-display" data-i18n="年化换算">年化换算</h2>
-        <p class="sub" data-i18n="填两个时点的净值，反推产品实际年化">填两个时点的净值，反推产品实际年化</p>
-      </div>
-    </div>
-    <div class="card">
-      <div id="yield-rows"></div>
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:12px;">
-        <button type="button" id="yield-add" class="btn-ghost btn-sm" onclick="yieldAddRow()" data-i18n="＋ 再加一个时点">＋ 再加一个时点</button>
-        <button type="button" class="btn-ghost btn-sm" onclick="yieldClear()" data-i18n="清空">清空</button>
-      </div>
-      <p class="t-micro muted" style="margin:12px 0 0;" data-i18n="只有累计收益率时，把 1 + 收益率 填进净值（3.2% 填 1.032）">只有累计收益率时，把 1 + 收益率 填进净值（3.2% 填 1.032）</p>
-      <div id="yield-result" style="margin-top:20px;padding-top:16px;border-top:1px solid var(--rule);"></div>
-    </div>
-  </section>
   </div><!-- /content-assets -->
 
   <!-- ====== EXPENSES CONTENT ====== -->
@@ -660,6 +640,14 @@ tailwind.config = {
     <div class="modal-footer">
       <button type="button" onclick="closeModal('expense-compare-modal')" class="btn-ghost" data-i18n="关闭">关闭</button>
     </div>
+  </div>
+</div>
+
+<!-- Yield Modal -->
+<div id="yield-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="yield-modal-title" style="display:none;">
+  <div class="modal-content">
+    <h3 class="font-display modal-title" id="yield-modal-title" data-i18n="年化换算">年化换算</h3>
+    <div id="yield-body"></div>
   </div>
 </div>
 

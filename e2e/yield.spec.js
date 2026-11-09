@@ -1,11 +1,18 @@
-const { test, expect, gotoAssets, readAppState, LS_KEY } = require('./fixtures');
+const {
+  test, expect, stubCdn, seed, waitReady, disableMotion, sampleState, INDEX_URL,
+} = require('./fixtures');
 
-/*
- * 年化换算：独立工具页（不挂资产）。
- * 填两个时点的净值 → 复利年化 + 单利年化；输入随存档落盘，刷新后还在。
- */
+const row = (i) => `#yield-rows .yield-row:nth-child(${i + 2})`;
 
-const row = (i) => `#yield-rows .yield-row:nth-child(${i + 2})`; // 第 1 行是列头
+async function openYield(page) {
+  await page.locator('header button', { hasText: '换算' }).click();
+  await expect(page.locator('#yield-modal')).toBeVisible();
+}
+
+async function newRecord(page) {
+  await page.locator('#yield-body button', { hasText: '新建记录' }).click();
+  await expect(page.locator('#yield-name')).toBeVisible();
+}
 
 async function fillPoints(page, points) {
   for (let i = 0; i < points.length; i++) {
@@ -15,45 +22,77 @@ async function fillPoints(page, points) {
   }
 }
 
-test.describe('年化换算', () => {
-  test('整年 1.0 → 1.05：复利与单利都读作 +5.00%', async ({ appPage: page }) => {
-    await gotoAssets(page, 'yield');
+async function save(page) {
+  await page.locator('#yield-body .modal-footer .btn-gold').click();
+}
+
+const listRows = (page) => page.locator('#yield-body .yield-item');
+
+test.describe('年化换算：记录', () => {
+  test('空态：没有记录时只给「新建」', async ({ appPage: page }) => {
+    await openYield(page);
+    await expect(page.locator('#yield-body')).toContainText('还没有记录');
+    await expect(listRows(page)).toHaveCount(0);
+  });
+
+  test('新建 → 填两个时点 → 保存：列表出现名称、区间与年化', async ({ appPage: page }) => {
+    await openYield(page);
+    await newRecord(page);
+    await page.locator('#yield-name').fill('某某理财');
     await fillPoints(page, [['2025-01-01', '1'], ['2026-01-01', '1.05']]);
+    await expect(page.locator('#yield-result')).toContainText('+5.00%');
+    await save(page);
 
-    const result = page.locator('#yield-result');
-    await expect(result).toContainText('+5.00%');
-    await expect(result).toContainText('365 天');
-    await expect(result).toContainText('单利年化 +5.00%');
-    await expect(result).not.toContainText('区间不足');
+    await expect(listRows(page)).toHaveCount(1);
+    const first = listRows(page).first();
+    await expect(first).toContainText('某某理财');
+    await expect(first).toContainText('2025-01-01 → 2026-01-01');
+    await expect(first).toContainText('365 天');
+    await expect(first).toContainText('+5.00%');
   });
 
-  test('半年 1.0 → 1.03：复利高于单利（两个口径都给）', async ({ appPage: page }) => {
-    await gotoAssets(page, 'yield');
-    await fillPoints(page, [['2025-01-01', '1'], ['2025-07-02', '1.03']]);
+  test('点开已有记录回到编辑：值回填，改名保存后列表跟着变', async ({ appPage: page }) => {
+    await openYield(page);
+    await newRecord(page);
+    await page.locator('#yield-name').fill('旧名字');
+    await fillPoints(page, [['2025-01-01', '1'], ['2026-01-01', '1.05']]);
+    await save(page);
 
-    const result = page.locator('#yield-result');
-    await expect(result).toContainText('182 天');
-    await expect(result).toContainText('+6.11%'); // 复利（几何）
-    await expect(result).toContainText('单利年化 +6.02%');
+    await listRows(page).first().click();
+    await expect(page.locator('#yield-name')).toHaveValue('旧名字');
+    await expect(page.locator(`${row(0)} input[type=date]`)).toHaveValue('2025-01-01');
+    await page.locator('#yield-name').fill('新名字');
+    await save(page);
+
+    await expect(listRows(page)).toHaveCount(1);
+    await expect(listRows(page).first()).toContainText('新名字');
+    await expect(listRows(page).first()).not.toContainText('旧名字');
   });
 
-  test('三个时点给出逐段表，全段仍是首尾', async ({ appPage: page }) => {
-    await gotoAssets(page, 'yield');
-    await fillPoints(page, [
-      ['2025-01-01', '1'],
-      ['2025-04-02', '1.01'],
-      ['2025-07-02', '1.03'],
-    ]);
-
+  test('三个时点保存后，列表仍只报首尾年化', async ({ appPage: page }) => {
+    await openYield(page);
+    await newRecord(page);
+    await fillPoints(page, [['2025-01-01', '1'], ['2025-04-02', '1.01'], ['2025-07-02', '1.03']]);
     const segs = page.locator('#yield-result .yield-seg');
-    await expect(segs).toHaveCount(3); // 表头 + 两段
-    await expect(segs.nth(1)).toContainText('91');
-    await expect(segs.nth(2)).toContainText('91');
-    await expect(page.locator('#yield-result')).toContainText('+3.00%'); // 全段累计
+    await expect(segs).toHaveCount(3);
+    await expect(page.locator('#yield-result')).toContainText('+3.00%');
+    await save(page);
+    await expect(listRows(page).first()).toContainText('2025-01-01 → 2025-07-02');
+  });
+
+  test('少于两个有效时点不让保存，提示留着不落库', async ({ appPage: page }) => {
+    await openYield(page);
+    await newRecord(page);
+    await fillPoints(page, [['2025-01-01', '1']]);
+    await save(page);
+    await expect(page.locator('#toast-area')).toContainText('至少填两个时点');
+    await expect(page.locator('#yield-name')).toBeVisible(); // 还在编辑视图
+    expect(await page.evaluate(() => state.yieldCalc.items)).toHaveLength(0);
   });
 
   test('短区间给警示，脏行只点名不连累别的行', async ({ appPage: page }) => {
-    await gotoAssets(page, 'yield');
+    await openYield(page);
+    await newRecord(page);
     await fillPoints(page, [['2025-01-01', '1'], ['2025-01-04', '1.001']]);
     await expect(page.locator('#yield-result')).toContainText('区间不足 7 天');
 
@@ -61,59 +100,103 @@ test.describe('年化换算', () => {
     await expect(page.locator('#yield-result')).toContainText('1 行日期或净值无效');
   });
 
-  test('输入随存档落盘：刷新后还在，清空也落盘', async ({ appPage: page }) => {
-    await gotoAssets(page, 'yield');
+  test('删除要过一次确认', async ({ appPage: page }) => {
+    await openYield(page);
+    await newRecord(page);
     await fillPoints(page, [['2025-01-01', '1'], ['2026-01-01', '1.05']]);
-    await expect(page.locator(`${row(0)} input[type=date]`)).toHaveValue('2025-01-01');
+    await save(page);
 
-    // 落盘有 400ms 节流：等存档里真的出现这一行，而不是 sleep 一个数
+    await listRows(page).first().click();
+    await page.locator('#yield-body .modal-footer .btn-danger').click();
+    await expect(page.locator('#confirm-modal')).toBeVisible();
+    await page.click('#confirm-ok-btn');
+    await expect(page.locator('#yield-body')).toContainText('还没有记录');
+    expect(await page.evaluate(() => state.yieldCalc.items)).toHaveLength(0);
+  });
+
+  test('刷新后记录还在（落进存档）', async ({ appPage: page }) => {
+    await openYield(page);
+    await newRecord(page);
+    await page.locator('#yield-name').fill('长期理财');
+    await fillPoints(page, [['2025-01-01', '1'], ['2026-01-01', '1.05']]);
+    await save(page);
     await expect.poll(
-      () => page.evaluate((k) => JSON.parse(localStorage.getItem(k) || '{}').yieldCalc?.rows?.[1]?.nav, LS_KEY)
-    ).toBe('1.05');
+      () => page.evaluate(() => (state.yieldCalc.items || []).length)
+    ).toBe(1);
+
     await page.reload();
-    await page.waitForFunction(() => !!document.getElementById('masthead-date')?.textContent);
-    await gotoAssets(page, 'yield');
-    await expect(page.locator(`${row(0)} input[type=date]`)).toHaveValue('2025-01-01');
-    await expect(page.locator(`${row(1)} input[type=text]`)).toHaveValue('1.05');
-
-    await page.locator('#tab-yield button', { hasText: '清空' }).click();
-    await expect(page.locator(`${row(0)} input[type=date]`)).toHaveValue('');
-    await expect(page.locator(`${row(0)} input[type=text]`)).toHaveValue('');
-    const rows = await page.evaluate(() => state.yieldCalc.rows);
-    expect(rows.every((r) => r.date === '' && r.nav === '')).toBe(true);
+    await waitReady(page);
+    await openYield(page);
+    await expect(listRows(page)).toHaveCount(1);
+    await expect(listRows(page).first()).toContainText('长期理财');
   });
 
-  test('不读资产：没有资产也能算（空账本）', async ({ blankPage: page }) => {
-    await gotoAssets(page, 'yield');
-    await fillPoints(page, [['2025-01-01', '1'], ['2026-01-01', '1.05']]);
-    await expect(page.locator('#yield-result')).toContainText('+5.00%');
-    expect((await readAppState(page)).assets).toHaveLength(0);
-  });
-
-  test('落盘位置独立：换算器的输入不冒充资产', async ({ appPage: page }) => {
-    await gotoAssets(page, 'yield');
-    await fillPoints(page, [['2025-01-01', '1'], ['2026-01-01', '1.05']]);
-    await expect.poll(
-      () => page.evaluate((k) => JSON.parse(localStorage.getItem(k) || '{}').yieldCalc?.rows?.[0]?.date, LS_KEY)
-    ).toBe('2025-01-01');
-    const saved = await page.evaluate((k) => JSON.parse(localStorage.getItem(k)), LS_KEY);
-    expect(saved.yieldCalc.rows).toHaveLength(2);
-    expect(saved.assets.some((a) => a.name.includes('1.05'))).toBe(false);
+  test('不进资产门槛：在消费页点页头就能开', async ({ appPage: page }) => {
+    await expect(page.locator('#tabs-assets')).toBeHidden();
+    await openYield(page);
+    await expect(page.locator('#tabs-assets')).toBeHidden();
   });
 });
 
 test.describe('年化换算 · 语言', () => {
-  test('切换界面语言：静态页头与脚本拼的读数一起换', async ({ appPage: page }) => {
-    await gotoAssets(page, 'yield');
-    await expect(page.locator('#tab-yield')).toContainText('填两个时点的净值');
+  test('切换界面语言：标题、列表与脚本拼的读数一起换', async ({ appPage: page }) => {
+    await openYield(page);
+    await newRecord(page);
+    await fillPoints(page, [['2025-01-01', '1'], ['2026-01-01', '1.05']]);
+    await expect(page.locator('#yield-result')).toContainText('复利年化');
 
     await page.evaluate(() => setLang('en'));
-    await expect(page.locator('#tab-yield')).toContainText('Enter NAV at two dates');
-    await fillPoints(page, [['2025-01-01', '1'], ['2026-01-01', '1.05']]);
     await expect(page.locator('#yield-result')).toContainText('Compound annual');
+    await expect(page.locator('#yield-modal')).toContainText('All records');
+
+    await save(page);
+    await expect(listRows(page).first()).toContainText('365 days');
 
     await page.evaluate(() => setLang('zh'));
-    await expect(page.locator('#yield-result')).toContainText('复利年化');
-    await expect(page.locator('#yield-result')).toContainText('365 天');
+    await expect(listRows(page).first()).toContainText('365 天');
+  });
+});
+
+test.describe('年化换算 · 导出', () => {
+  test('导出的备份里带着换算记录', async ({ page }) => {
+    await disableMotion(page);
+    await stubCdn(page);
+    await seed(page, sampleState());
+    await page.addInitScript(() => {
+      window.showSaveFilePicker = async (o) => {
+        const root = await navigator.storage.getDirectory();
+        const fh = await root.getFileHandle(o.suggestedName, { create: true });
+        return { createWritable: async () => await fh.createWritable() };
+      };
+      window.showDirectoryPicker = async () => await navigator.storage.getDirectory();
+    });
+    await page.goto(INDEX_URL);
+    await waitReady(page);
+
+    await openYield(page);
+    await newRecord(page);
+    await page.locator('#yield-name').fill('导出测试');
+    await fillPoints(page, [['2025-01-01', '1'], ['2026-01-01', '1.05']]);
+    await save(page);
+
+    await page.evaluate(() => showImportExport());
+    await page.click('#io-modal .btn-gold');
+    await expect(page.locator('#toast-area')).toContainText('数据已导出');
+
+    const name = await page.evaluate(async () => {
+      const root = await navigator.storage.getDirectory();
+      for await (const [n] of root.entries()) if (n.endsWith('.json')) return n;
+      return null;
+    });
+    expect(name).toBeTruthy();
+    const text = await page.evaluate(async (n) => {
+      const root = await navigator.storage.getDirectory();
+      const fh = await root.getFileHandle(n);
+      return await (await fh.getFile()).text();
+    }, name);
+    const data = JSON.parse(text);
+    expect(data.yieldCalc.items).toHaveLength(1);
+    expect(data.yieldCalc.items[0].name).toBe('导出测试');
+    expect(data.yieldCalc.items[0].rows).toHaveLength(2);
   });
 });

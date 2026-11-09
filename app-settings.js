@@ -114,8 +114,7 @@ function setLang(lang) {
   syncLangSeg();
   syncFlatpickrLocale();
   renderAll(); // 收尾 syncDerivedReads 把可见图表也按新语言重绘一次
-  // 年化换算器的文案是脚本按当前语言拼的，不在 data-i18n 扫描范围内，只得重绘一次
-  if (typeof renderYieldTab === 'function') renderYieldTab();
+  if (typeof renderYieldModal === 'function') renderYieldModal();
 }
 
 // ========== THEME (日间/夜间，入口唯一：设置弹窗「外观」) ==========
@@ -589,8 +588,7 @@ function confirmImport(data) {
       migrate.migrateState();
       saveState();
       renderAll();
-      // 导入整体替换了 state，换算器的输入也跟着备份走（重绘它才不会留旧值）
-      if (typeof renderYieldTab === 'function') renderYieldTab();
+      if (typeof renderYieldModal === 'function') { yieldResetView(); renderYieldModal(); }
       closeModal('io-modal');
       toast(i18n.t('数据已导入'), 'success');
     }, null, { onCancel: () => { document.getElementById('import-file-name').textContent = ''; } });
