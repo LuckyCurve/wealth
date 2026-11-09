@@ -7,7 +7,7 @@ const path = require('path');
 // html 是「一份文件时的全貌」，一条正则横跨多个文件时用它；只问其中一份时用对应的变量。
 const markup = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 const css = fs.readFileSync(path.join(__dirname, '..', 'styles.css'), 'utf8');
-const JS_FILES = ['app-core.js', 'app-assets.js', 'app-charts.js', 'app-settings.js', 'app-expenses.js', 'app-calendar.js', 'app-receipt.js'];
+const JS_FILES = ['app-core.js', 'app-assets.js', 'app-charts.js', 'app-settings.js', 'app-expenses.js', 'app-calendar.js', 'app-receipt.js', 'app-yield.js'];
 const js = JS_FILES.map((f) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8')).join('\n');
 const html = markup + '\n' + css + '\n' + js;
 const L = require('../logic.js');
@@ -376,7 +376,7 @@ describe('UI 接线契约：logic.js 导出清单与筛选同步时序', () => {
     const domains = Object.keys(api);
     assert.deepStrictEqual(
       domains.slice().sort(),
-      ['backup', 'category', 'chartData', 'color', 'date', 'demo', 'expense', 'i18n', 'income', 'migrate', 'money', 'monthGrid', 'motion', 'receipt', 'snapshot', 'stress', 'text', 'ui', 'vault'],
+      ['annualize', 'backup', 'category', 'chartData', 'color', 'date', 'demo', 'expense', 'i18n', 'income', 'migrate', 'money', 'monthGrid', 'motion', 'receipt', 'snapshot', 'stress', 'text', 'ui', 'vault'],
       '域清单：新增域要在这里显式登记（防编辑残留悄悄多一个袋子）'
     );
     const seen = new Map();
@@ -2574,7 +2574,7 @@ describe('UI 接线契约：版式一致性（同类结构同一套 class）', (
   test('章节头只有 section-head 一种写法（布局归 CSS，不再复制 flex/mb-6 类串）', () => {
     assert.strictEqual(count(/class="flex items-center justify-between mb-6 section-head/g), 0,
       '章节头的布局类串应收回 .section-head');
-    assert.strictEqual(count(/class="section-head mb-6"/g), 8, '八个 Tab 的章节头统一为 section-head mb-6');
+    assert.strictEqual(count(/class="section-head mb-6"/g), 9, '九个 Tab 的章节头统一为 section-head mb-6');
     const rule = html.match(/\n  \.section-head \{[^}]*\}/);
     assert.ok(rule, '.section-head 自带布局规则');
     assert.match(rule[0], /display:\s*flex/, '布局（flex）在 CSS 里定义一次');
@@ -2584,7 +2584,7 @@ describe('UI 接线契约：版式一致性（同类结构同一套 class）', (
   test('表头统一 list-head：字号/字距/底色/收尾双线都在 CSS，页面不再内联', () => {
     assert.strictEqual(count(/list-head text-xs font-medium/g), 0, '表头不再内联字号类');
     assert.strictEqual(count(/list-head"[^>]*style="[^"]*color:var\(--muted\)/g), 0, '表头不再内联 muted 色');
-    assert.strictEqual(count(/list-head/g), 5, '表头共 5 处：CSS 1 + 静态列表 2 + 收益表 1 + 明细骨架 1（六处动态表头已收进骨架）');
+    assert.strictEqual(count(/list-head/g), 6, '表头共 6 处：CSS 1 + 静态列表 2 + 收益表 1 + 明细骨架 1 + 年化分段表 1（六处动态表头已收进骨架）');
     const rule = html.match(/\n  \.list-head \{[^}]*\}/);
     assert.ok(rule, '.list-head 规则存在');
     assert.match(rule[0], /color:\s*var\(--muted\)/, '表头底色归 CSS');
@@ -2930,7 +2930,9 @@ describe('UI 接线契约：页面脚本必须能通过解析', () => {
   for (const file of JS_FILES) {
     test(`${file} 可解析`, () => {
       const src = fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
-      assert.ok(src.length > 5000, `${file} 应取到全文（读文件是否失效？）`);
+      // 下限用字符数，不用字节数：中文在本文件里一字一字符、三字节，拿 5000 卡会把
+      // 只装了下拉/换算这种小活儿的新文件误报成「没读到全文」。读失效只会得到空串。
+      assert.ok(src.length > 1000, `${file} 应取到全文（读文件是否失效？）`);
       assert.doesNotThrow(() => new Function(src), `${file} 存在语法错误`);
     });
   }

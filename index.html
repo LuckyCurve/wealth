@@ -69,6 +69,7 @@ tailwind.config = {
   <symbol id="ic-chart-pie" viewBox="0 0 24 24"><path d="M21 12c.552 0 1.005-.449.95-.998a10 10 0 0 0-8.953-8.951c-.55-.055-.998.398-.998.95v8a1 1 0 0 0 1 1z"/> <path d="M21.21 15.89A10 10 0 1 1 8 2.83"/></symbol>
   <symbol id="ic-chart-line" viewBox="0 0 24 24"><path d="M3 3v16a2 2 0 0 0 2 2h16"/> <path d="m19 9-5 5-4-4-3 3"/></symbol>
   <symbol id="ic-trending-down" viewBox="0 0 24 24"><path d="M16 17h6v-6"/> <path d="m22 17-8.5-8.5-5 5L2 7"/></symbol>
+  <symbol id="ic-trending-up" viewBox="0 0 24 24"><path d="M16 7h6v6"/> <path d="m22 7-8.5 8.5-5-5L2 17"/></symbol>
   <symbol id="ic-percent" viewBox="0 0 24 24"><line x1="19" x2="5" y1="5" y2="19"/> <circle cx="6.5" cy="6.5" r="2.5"/> <circle cx="17.5" cy="17.5" r="2.5"/></symbol>
   <symbol id="ic-receipt-text" viewBox="0 0 24 24"><path d="M13 16H8"/> <path d="M14 8H8"/> <path d="M16 12H8"/> <path d="M4 3a1 1 0 0 1 1-1 1.3 1.3 0 0 1 .7.2l.933.6a1.3 1.3 0 0 0 1.4 0l.934-.6a1.3 1.3 0 0 1 1.4 0l.933.6a1.3 1.3 0 0 0 1.4 0l.933-.6a1.3 1.3 0 0 1 1.4 0l.934.6a1.3 1.3 0 0 0 1.4 0l.933-.6A1.3 1.3 0 0 1 19 2a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1 1.3 1.3 0 0 1-.7-.2l-.933-.6a1.3 1.3 0 0 0-1.4 0l-.934.6a1.3 1.3 0 0 1-1.4 0l-.933-.6a1.3 1.3 0 0 0-1.4 0l-.933.6a1.3 1.3 0 0 1-1.4 0l-.934-.6a1.3 1.3 0 0 0-1.4 0l-.933.6a1.3 1.3 0 0 1-.7.2 1 1 0 0 1-1-1z"/></symbol>
   <symbol id="ic-shapes" viewBox="0 0 24 24"><path d="M8.3 10a.7.7 0 0 1-.626-1.079L11.4 3a.7.7 0 0 1 1.198-.043L16.3 8.9a.7.7 0 0 1-.572 1.1Z"/> <rect x="3" y="14" width="7" height="7" rx="1"/> <circle cx="17.5" cy="17.5" r="3.5"/></symbol>
@@ -136,6 +137,7 @@ tailwind.config = {
     <button class="tab-btn" data-tab="chart" onclick="tabClick(this)"><svg class="ico" aria-hidden="true"><use href="#ic-chart-pie"/></svg><span data-i18n="资产分布">资产分布</span></button>
     <button class="tab-btn" data-tab="history" onclick="tabClick(this)"><svg class="ico" aria-hidden="true"><use href="#ic-chart-line"/></svg><span data-i18n="历史净值">历史净值</span></button>
     <button class="tab-btn" data-tab="income" onclick="tabClick(this)"><svg class="ico" aria-hidden="true"><use href="#ic-percent"/></svg><span data-i18n="收益测算">收益测算</span></button>
+    <button class="tab-btn" data-tab="yield" onclick="tabClick(this)"><svg class="ico" aria-hidden="true"><use href="#ic-trending-up"/></svg><span data-i18n="年化换算">年化换算</span></button>
   </div>
 </div>
 
@@ -364,6 +366,26 @@ tailwind.config = {
       </div>
     </div>
     </section>
+
+  <!-- Yield Tab（独立换算器：只吃时点，不挂在资产下） -->
+  <section id="tab-yield" style="display:none;">
+    <div class="section-head mb-6">
+      <div>
+        <span class="eyebrow" data-i18n="工具">工具</span>
+        <h2 class="font-display" data-i18n="年化换算">年化换算</h2>
+        <p class="sub" data-i18n="填两个时点的净值，反推产品实际年化">填两个时点的净值，反推产品实际年化</p>
+      </div>
+    </div>
+    <div class="card">
+      <div id="yield-rows"></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:12px;">
+        <button type="button" id="yield-add" class="btn-ghost btn-sm" onclick="yieldAddRow()" data-i18n="＋ 再加一个时点">＋ 再加一个时点</button>
+        <button type="button" class="btn-ghost btn-sm" onclick="yieldClear()" data-i18n="清空">清空</button>
+      </div>
+      <p class="t-micro muted" style="margin:12px 0 0;" data-i18n="只有累计收益率时，把 1 + 收益率 填进净值（3.2% 填 1.032）">只有累计收益率时，把 1 + 收益率 填进净值（3.2% 填 1.032）</p>
+      <div id="yield-result" style="margin-top:20px;padding-top:16px;border-top:1px solid var(--rule);"></div>
+    </div>
+  </section>
   </div><!-- /content-assets -->
 
   <!-- ====== EXPENSES CONTENT ====== -->
@@ -1077,6 +1099,7 @@ tailwind.config = {
 <script src="app-expenses.js"></script>
 <script src="app-calendar.js"></script>
 <script src="app-receipt.js"></script>
+<script src="app-yield.js"></script>
 
 </body>
 </html>

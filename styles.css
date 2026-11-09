@@ -885,6 +885,17 @@
   /* 快照详情（弹窗里）：名称会换行的只有它，金额/预期年化定宽不缩，标签列要装两枚 pill */
   .cols-snapshot { grid-template-columns: 1.6fr 104px 52px 104px 2fr; }
   .cols-expense-segment { grid-template-columns: 96px 1fr 0.8fr 2.6fr; }
+  /* 年化换算：日期 / 净值 / 删除按钮三列（输入行），区间 / 天数 / 涨幅 / 年化四列（分段表）。
+     日期控件有固有宽度，给 minmax 的下限——minmax(0,…) 会把它压到「2025/01/」都看不全。 */
+  .yield-row { display: grid; grid-template-columns: minmax(9.5rem, 1.2fr) minmax(0, 1fr) 1.9rem; gap: 10px; align-items: center; margin-bottom: 8px; }
+  .yield-seg { display: grid; grid-template-columns: minmax(0, 1.6fr) 4.5rem 5.5rem 5.5rem; column-gap: 16px; align-items: center; padding: 9px 0; border-bottom: 1px solid var(--rule); }
+  .yield-arrow { white-space: nowrap; }
+  /* 窄屏：三列定宽再让区间列吃满会把日期折成竖排（实测每列只剩 34px）。改成两行式：
+     区间（表头是「区间」）单人占一行，三个数字占下一行的三列；表头与数据行同一个模板，自然对齐。 */
+  @media (max-width: 560px) {
+    .yield-seg { grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: 8px; row-gap: 2px; }
+    .yield-seg > :first-child { grid-column: 1 / -1; }
+  }
   /* 构成明细表（三张表都只在 560px 的弹窗里出现）：列宽按 fr 分配时单元格之间**没有留白**，
      全靠内容本身短才显得有空隙 —— 内容一长就贴在一起。实测：日期栏 90px vs 日期文本 77.8px，
      金额紧贴日期只剩 13.7px；资产侧金额拉长后与货币码之间只剩 2.7px。给真正的列间距，

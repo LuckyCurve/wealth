@@ -3625,3 +3625,134 @@ describe('ui.cmpDeltaBarModel：带符号差额 → 零线两侧的半宽', () =
 });
 
 require('./stress-logic-cases.js');
+
+// ========== 净值反推年化（独立换算器：只吃两个时点的净值，不碰资产）==========
+describe('annualize.summarize：两个时点的净值 → 年化', () => {
+  const near = (actual, expected, eps = 1e-6) =>
+    assert.ok(Math.abs(actual - expected) < eps, `${actual} ≈ ${expected}`);
+
+  test('整年 1.0 → 1.05：复利与单利都是 5%', () => {
+    const r = L.annualize.summarize([{ date: '2025-01-01', nav: '1' }, { date: '2026-01-01', nav: '1.05' }]);
+    assert.strictEqual(r.points.length, 2);
+    assert.strictEqual(r.total.days, 365);
+    near(r.total.growth, 1.05);
+    near(r.total.simplePct, 5);
+    near(r.total.compoundPct, 5);
+    assert.strictEqual(r.short, false);
+  });
+
+  test('半年 1.0 → 1.03：复利比单利略高，两个口径都给', () => {
+    const r = L.annualize.summarize([{ date: '2025-01-01', nav: '1' }, { date: '2025-07-02', nav: '1.03' }]);
+    assert.strictEqual(r.total.days, 182);
+    near(r.total.simplePct, 3 * 365 / 182, 1e-9);
+    near(r.total.compoundPct, (Math.pow(1.03, 365 / 182) - 1) * 100, 1e-9);
+    assert.ok(r.total.compoundPct > r.total.simplePct, '复利应略高于单利');
+  });
+
+  test('乱序输入按日期排序，首尾就是最早与最晚', () => {
+    const r = L.annualize.summarize([{ date: '2026-01-01', nav: '1.1' }, { date: '2025-01-01', nav: '1' }]);
+    assert.deepStrictEqual(r.points.map(p => p.date), ['2025-01-01', '2026-01-01']);
+    near(r.total.growth, 1.1);
+  });
+
+  test('同一天两行：后一行覆盖前一行，不产生零天区间', () => {
+    const r = L.annualize.summarize([
+      { date: '2025-01-01', nav: '1.0' },
+      { date: '2025-01-01', nav: '1.1' },
+      { date: '2026-01-01', nav: '1.2' },
+    ]);
+    assert.strictEqual(r.points.length, 2);
+    near(r.points[0].nav, 1.1);
+    near(r.total.growth, 1.2 / 1.1);
+    assert.deepStrictEqual(r.invalid, []);
+  });
+
+  test('脏行标无效但不连累别的行；空行不算错误', () => {
+    const r = L.annualize.summarize([
+      { date: '2025-02-30', nav: '1' },   // 不存在的日期
+      { date: '2025-01-01', nav: '0' },   // 净值必须 > 0
+      { date: '2025-01-01', nav: 'abc' }, // 非数字
+      { date: '', nav: '' },              // 空行
+      { date: '2025-01-01', nav: '1' },
+      { date: '2026-01-01', nav: '1.02' },
+    ]);
+    assert.deepStrictEqual(r.invalid, [0, 1, 2]);
+    assert.strictEqual(r.points.length, 2);
+    near(r.total.growth, 1.02);
+  });
+
+  test('只有一个点：没有年化，不抛错', () => {
+    const r = L.annualize.summarize([{ date: '2025-01-01', nav: '1' }]);
+    assert.strictEqual(r.total, null);
+    assert.deepStrictEqual(r.segments, []);
+    assert.strictEqual(r.short, false);
+  });
+
+  test('空输入：全空，不抛错', () => {
+    const r = L.annualize.summarize([]);
+    assert.deepStrictEqual(r.points, []);
+    assert.strictEqual(r.total, null);
+  });
+
+  test('净值下跌给负年化', () => {
+    const r = L.annualize.summarize([{ date: '2025-01-01', nav: '1' }, { date: '2025-07-02', nav: '0.98' }]);
+    assert.ok(r.total.compoundPct < 0);
+    assert.ok(r.total.simplePct < 0);
+    near(r.total.compoundPct, (Math.pow(0.98, 365 / 182) - 1) * 100, 1e-9);
+  });
+
+  test('跨闰日按真实天数（UTC 计时，不受时区/DST 影响）', () => {
+    const r = L.annualize.summarize([{ date: '2024-02-28', nav: '1' }, { date: '2024-03-01', nav: '1.0002' }]);
+    assert.strictEqual(r.total.days, 2);
+  });
+
+  test('不足 7 天打 short 标（年化会被放大，界面据此提醒）', () => {
+    const three = L.annualize.summarize([{ date: '2025-01-01', nav: '1' }, { date: '2025-01-04', nav: '1.001' }]);
+    assert.strictEqual(three.short, true);
+    const month = L.annualize.summarize([{ date: '2025-01-01', nav: '1' }, { date: '2025-01-31', nav: '1.001' }]);
+    assert.strictEqual(month.short, false);
+  });
+
+  test('溢出与非法不产出 Infinity / NaN', () => {
+    const r = L.annualize.summarize([{ date: '2025-01-01', nav: '1' }, { date: '2025-01-02', nav: '1e300' }]);
+    assert.strictEqual(r.total.compoundPct, null);
+    assert.ok(Number.isFinite(r.total.simplePct));
+  });
+
+  test('三个点给两段，每段各自年化；全段仍是首尾', () => {
+    const r = L.annualize.summarize([
+      { date: '2025-01-01', nav: '1' },
+      { date: '2025-04-02', nav: '1.01' },
+      { date: '2025-07-02', nav: '1.03' },
+    ]);
+    assert.strictEqual(r.segments.length, 2);
+    assert.deepStrictEqual(r.segments.map(s => s.days), [91, 91]);
+    near(r.segments[0].growth, 1.01);
+    near(r.segments[1].growth, 1.03 / 1.01);
+    near(r.total.growth, 1.03);
+  });
+
+  test('接受任意贴过来的空白：先清洗再解析', () => {
+    const r = L.annualize.summarize([{ date: ' 2025-01-01 ', nav: ' 1.0000 ' }, { date: '2026-01-01', nav: '1.05 ' }]);
+    assert.strictEqual(r.points.length, 2);
+    assert.strictEqual(r.total.days, 365);
+  });
+});
+
+describe('annualize.normalizeRows：存档输入的归一', () => {
+  test('不足两行补空行、超过上限截断、数字转字符串', () => {
+    assert.deepStrictEqual(L.annualize.normalizeRows([{ date: '2025-01-01', nav: 1.05 }]),
+      [{ date: '2025-01-01', nav: '1.05' }, { date: '', nav: '' }]);
+    const many = Array.from({ length: 12 }, (_, i) => ({ date: '2025-01-0' + (i % 9 + 1), nav: '1' }));
+    assert.strictEqual(L.annualize.normalizeRows(many).length, L.annualize.MAX_ROWS);
+  });
+
+  test('缺字段 / 脏值一律变空串（渲染不崩、不把 undefined 写进输入框）', () => {
+    const rows = L.annualize.normalizeRows([null, { date: 42, nav: {} }, undefined]);
+    assert.deepStrictEqual(rows, [
+      { date: '', nav: '' },
+      { date: '', nav: '' },
+      { date: '', nav: '' },
+    ]);
+  });
+});

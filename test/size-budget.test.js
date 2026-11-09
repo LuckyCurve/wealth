@@ -19,8 +19,10 @@ const ROOT = path.join(__dirname, '..');
 // 预算按文件卡：单份不再无限长大，也不再靠「拆出去」绕过预算——拆完照样各有一道上限。
 // 再抬之前先问：能不能再拆一层（按界面区域拆脚本）或下沉到 logic.js。
 const BUDGETS = {
-  'index.html': 82_000,
-  'styles.css': 110_000,
+  // 年化换算 Tab 的章节头与输入卡骨架（净值换算器独立成页，不挂在资产下）
+  'index.html': 84_000,
+  // 年化换算的输入行与分段表（两列网格 + 窄屏两行式）落在纯 CSS，按约定同 commit 抬上限。
+  'styles.css': 112_000,
   'app-core.js': 26_000,
   'app-assets.js': 74_000,
   'app-charts.js': 53_000,
@@ -28,12 +30,15 @@ const BUDGETS = {
   // 月份图 + 当天的记录（点一格展开）；明细列表与录入在 app-expenses.js 里。
   'app-calendar.js': 12_000,
   'app-receipt.js': 10_000,
+  // 净值 → 年化的独立换算器（输入随存档落盘，不读资产）。纯计算下沉 logic.js，
+  // 这里只剩输入行/结果区的渲染与落盘节流。
+  'app-yield.js': 8_000,
   // 对比差额「图形优先」在趋势行的「较平常」句前挂零轴小条，多出的模板串超了 42000；
   // 纯逻辑（cmpDeltaBarModel）已下沉 logic.js，剩下的只是这一行渲染，按约定同 commit 抬上限。
   'app-expenses.js': 42_400,
   // 消费「较平常」基线（窗口 / 逐标签 / 涨跌榜三个纯函数）下沉后越线：无构建步骤，
-  // 纯逻辑不另开文件，按约定同 commit 抬上限并写明用途。
-  'logic.js': 150_000,
+  // 纯逻辑不另开文件，按约定同 commit 抬上限并写明用途；年化换算的净值/年化两个口径也在这里。
+  'logic.js': 160_000,
 };
 
 function bytes(name) {

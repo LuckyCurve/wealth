@@ -283,6 +283,92 @@
     }
   }
 
+  // ========== 净值 → 年化（独立换算器：只吃时点，不读资产）==========
+  // 净值型产品（银行理财、货币基金、基金）只公布单位净值，不给年化。没有分红与申赎时，
+  // 两个时点的净值比值就是这一段的总回报；折成一年就是实际年化。
+  // 两个口径都给：复利（几何平均，CAGR）与单利（按天数线性折算，产品页「近 7 日 / 近 3 个月年化」多用它）。
+  const NAV_YEAR_DAYS = 365;
+  const NAV_SHORT_DAYS = 7;
+  const NAV_MAX_ROWS = 8;
+
+  // 'YYYY-MM-DD' → UTC 毫秒。Date 会把 2025-02-30 静默进位成 3 月 2 日，回读三个分量挡住；
+  // 用 UTC 而不是本地时间，本地午夜在夏令时日不是 24 小时，天数会被 round 成错的整数。
+  function navDateMs(value) {
+    const m = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(String(value == null ? '' : value).trim());
+    if (!m) return null;
+    const y = +m[1], mo = +m[2] - 1, d = +m[3];
+    const dt = new Date(Date.UTC(y, mo, d));
+    if (dt.getUTCFullYear() !== y || dt.getUTCMonth() !== mo || dt.getUTCDate() !== d) return null;
+    return dt.getTime();
+  }
+
+  function navDateStr(ms) {
+    const d = new Date(ms);
+    return d.getUTCFullYear() + '-' + String(d.getUTCMonth() + 1).padStart(2, '0') + '-' + String(d.getUTCDate()).padStart(2, '0');
+  }
+
+  // 从产品页/App 抄过来的净值常带空白与千分位（含全角逗号）；清洗后再当数字。0 与负数都不是净值。
+  function navValue(raw) {
+    const s = String(raw == null ? '' : raw).replace(/[\s,，]/g, '');
+    if (s === '') return null;
+    const n = Number(s);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  }
+
+  // growth = 期末净值 / 期初净值。复利幂次超出浮点范围时 compoundPct 为 null（界面显示「—」），
+  // 绝不把 Infinity 当读数。
+  function annualizeInterval(growth, days) {
+    if (!(growth > 0) || !(days > 0)) return null;
+    const simplePct = (growth - 1) * (NAV_YEAR_DAYS / days) * 100;
+    const powered = Math.pow(growth, NAV_YEAR_DAYS / days);
+    return { days, growth, simplePct, compoundPct: Number.isFinite(powered) ? (powered - 1) * 100 : null };
+  }
+
+  // rows: [{ date:'YYYY-MM-DD', nav:'1.0234' }] → 有效点（日期升序）+ 无效行下标 + 首尾总区间 + 逐段。
+  // 空行（两栏都空）跳过；同一天填两次取后一行（手误不该造出零天区间）。
+  function summarizeNav(rows) {
+    const invalid = [];
+    const byMs = new Map();
+    (Array.isArray(rows) ? rows : []).forEach((row, i) => {
+      const date = row && row.date;
+      const navRaw = row && row.nav;
+      if (String(date == null ? '' : date).trim() === '' && String(navRaw == null ? '' : navRaw).trim() === '') return;
+      const ms = navDateMs(date);
+      const nav = navValue(navRaw);
+      if (ms == null || nav == null) { invalid.push(i); return; }
+      byMs.set(ms, { ms, nav });
+    });
+    const raw = [...byMs.values()].sort((a, b) => a.ms - b.ms);
+    const points = raw.map(p => ({ date: navDateStr(p.ms), nav: p.nav }));
+    const segments = [];
+    for (let i = 1; i < raw.length; i++) {
+      const iv = annualizeInterval(raw[i].nav / raw[i - 1].nav, Math.round((raw[i].ms - raw[i - 1].ms) / 86400000));
+      if (iv) segments.push(Object.assign({ from: navDateStr(raw[i - 1].ms), to: navDateStr(raw[i].ms) }, iv));
+    }
+    const total = raw.length >= 2
+      ? annualizeInterval(raw[raw.length - 1].nav / raw[0].nav, Math.round((raw[raw.length - 1].ms - raw[0].ms) / 86400000))
+      : null;
+    return {
+      points,
+      invalid,
+      segments,
+      total: total ? Object.assign({ from: points[0].date, to: points[points.length - 1].date }, total) : null,
+      short: !!total && total.days < NAV_SHORT_DAYS,
+    };
+  }
+
+  // 存档里的一组输入：最多 maxRows 行、每行两栏都是字符串、不足两行补空行。
+  // 归一在这里（迁移与渲染共用），界面不各自兜底。
+  function normalizeNavRows(rows, maxRows) {
+    const max = maxRows > 0 ? maxRows : NAV_MAX_ROWS;
+    const out = (Array.isArray(rows) ? rows : []).slice(0, max).map(r => ({
+      date: r && typeof r.date === 'string' ? r.date : '',
+      nav: r && (typeof r.nav === 'string' || typeof r.nav === 'number') ? String(r.nav) : '',
+    }));
+    while (out.length < 2) out.push({ date: '', nav: '' });
+    return out;
+  }
+
   // ========== 排序状态机（纯）==========
   // 三态循环：同列 升序 → 降序 → 取消；换列重置为新列升序。flipSticky 是消费侧首次点击的粘性翻转。
   function nextSortState(by, dir, field, flipSticky) {
@@ -1665,6 +1751,8 @@
         }
       });
     }
+    // 年化换算器的输入（旧存档没有这个字段）：只留两栏字符串，行数上下限在此归一
+    state.yieldCalc = { rows: normalizeNavRows(state.yieldCalc && state.yieldCalc.rows) };
   }
 
   // ========== 文本 / 金额工具 ==========
@@ -2811,6 +2899,25 @@
     '快照提醒天数': 'Snapshot reminder days',
     '天': 'days',
     '知道了': 'Got it',
+    // 净值 → 年化（独立换算器）
+    '工具': 'Tools',
+    '年化换算': 'Annualized return',
+    '填两个时点的净值，反推产品实际年化': 'Enter NAV at two dates to back out the annualized return',
+    '净值': 'NAV',
+    '＋ 再加一个时点': '＋ Add a date',
+    '删除这个时点': 'Remove this date',
+    '清空': 'Clear',
+    '复利年化': 'Compound annual',
+    '单利年化 {p1}': 'Simple annual {p1}',
+    '{p1} 天 · 累计 {p2}': '{p1} days · total {p2}',
+    '至少填两个时点': 'Enter at least two dates',
+    '{n} 行日期或净值无效': [ '{n} row has an invalid date or NAV', '{n} rows have an invalid date or NAV' ],
+    '区间不足 {p1} 天，年化会被放大，仅供参考': 'Window under {p1} days: annualized figures are inflated, for reference only',
+    '只有累计收益率时，把 1 + 收益率 填进净值（3.2% 填 1.032）': 'Only have a cumulative return? Enter 1 + return as NAV (3.2% → 1.032)',
+    '区间': 'Window',
+    '天数': 'Days',
+    '涨幅': 'Return',
+    '年化': 'Annual',
   };
 
   // 页面不直接调用、但被单测逐条断言的内部件也留在域里（删掉导出等于删掉那些断言的接缝）。
@@ -2950,6 +3057,15 @@
       normalizeRunwayExpectationInput,
       runwayMonths,
       runwayMonthsText,
+    },
+    // 独立换算器：输入是时点，不是资产。界面的「年化换算」页只读这里的纯计算。
+    annualize: {
+      summarize: summarizeNav,
+      interval: annualizeInterval,
+      normalizeRows: normalizeNavRows,
+      YEAR_DAYS: NAV_YEAR_DAYS,
+      SHORT_DAYS: NAV_SHORT_DAYS,
+      MAX_ROWS: NAV_MAX_ROWS,
     },
     backup: {
       BACKUP_STALE_DAYS,

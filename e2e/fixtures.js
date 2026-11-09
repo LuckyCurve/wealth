@@ -263,7 +263,7 @@ async function visitAllTabs(page) {
     expect(shown, `${bar} → ${tab} 的面板没翻上来`).toBe('ok');
   };
   await gotoAssets(page);
-  for (const t of ['assets', 'categories', 'chart', 'history', 'income']) await showPanel('#tabs-assets', t);
+  for (const t of ['assets', 'categories', 'chart', 'history', 'income', 'yield']) await showPanel('#tabs-assets', t);
   await page.locator('#mode-expenses').click();
   for (const t of ['expenses', 'expense-categories', 'expense-chart', 'expense-trend']) await showPanel('#tabs-expenses', t);
   await showPanel('#tabs-expenses', 'expenses');
