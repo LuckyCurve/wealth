@@ -26,7 +26,7 @@ async function save(page) {
   await page.locator('#yield-body .modal-footer .btn-gold').click();
 }
 
-const listRows = (page) => page.locator('#yield-body .yield-item');
+const listRows = (page) => page.locator('#yield-body .yield-card');
 
 test.describe('年化换算：记录', () => {
   test('空态：没有记录时只给「新建」', async ({ appPage: page }) => {
@@ -98,6 +98,18 @@ test.describe('年化换算：记录', () => {
 
     await page.locator(`${row(1)} input[type=text]`).fill('0');
     await expect(page.locator('#yield-result')).toContainText('1 行日期或净值无效');
+  });
+
+  test('每次打开都先看到卡片面板：编辑到一半关掉再开，回列表', async ({ appPage: page }) => {
+    await openYield(page);
+    await newRecord(page);
+    await page.locator('#yield-name').fill('半途');
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#yield-modal')).toBeHidden();
+
+    await openYield(page);
+    await expect(page.locator('#yield-name')).toBeHidden();
+    await expect(page.locator('#yield-body button', { hasText: '新建记录' })).toBeVisible();
   });
 
   test('删除要过一次确认', async ({ appPage: page }) => {

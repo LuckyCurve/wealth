@@ -2925,6 +2925,7 @@
     '单利年化 {p1}': 'Simple annual {p1}',
     '{p1} 天': '{p1} days',
     '{p1} 天 · 累计 {p2}': '{p1} days · total {p2}',
+    '累计 {p1}': 'Total {p1}',
     '至少填两个时点': 'Enter at least two dates',
     '{n} 行日期或净值无效': [ '{n} row has an invalid date or NAV', '{n} rows have an invalid date or NAV' ],
     '区间不足 {p1} 天，年化会被放大，仅供参考': 'Window under {p1} days: annualized figures are inflated, for reference only',

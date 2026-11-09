@@ -28,23 +28,28 @@ function renderYieldModal() {
 }
 
 function openYieldModal() {
+  yieldDraft = null;
+  yieldView = 'list';
   renderYieldModal();
   openModal('yield-modal');
 }
 
 function yieldListHtml() {
   const items = yieldItems();
-  const rows = items.map(item => {
+  const cards = items.map(item => {
     const r = annualize.summarize(item.rows);
     const points = r.points;
     const range = points.length >= 2 ? points[0].date + ' → ' + points[points.length - 1].date : '';
-    const days = r.total ? ' · ' + i18n.t('{p1} 天', { p1: r.total.days }) : '';
-    const annual = r.total ? yieldPct(r.total.compoundPct) : '—';
+    const days = r.total ? i18n.t('{p1} 天', { p1: r.total.days }) + ' · ' : '';
+    const cum = r.total ? i18n.t('累计 {p1}', { p1: yieldPct((r.total.growth - 1) * 100) }) : '';
     const color = compareColor((r.total && r.total.compoundPct) || 0, true);
-    return `<button type="button" class="yield-item" onclick="yieldEditItem('${text.esc(item.id)}')">
-      <span class="yield-item-name">${text.esc(item.name.trim() || i18n.t('未命名'))}</span>
-      <span class="t-micro muted tabular">${text.esc(range)}${days}</span>
-      <span class="tabular t-medium" style="color:${color};">${annual}</span>
+    return `<button type="button" class="yield-card" onclick="yieldEditItem('${text.esc(item.id)}')">
+      <span class="yield-card-head">
+        <span class="yield-card-name">${text.esc(item.name.trim() || i18n.t('未命名'))}</span>
+        <span class="yield-card-pct tabular" style="color:${color};">${r.total ? yieldPct(r.total.compoundPct) : '—'}</span>
+      </span>
+      <span class="yield-card-range tabular">${text.esc(range)}</span>
+      <span class="yield-card-meta">${days}${cum}</span>
     </button>`;
   }).join('');
   return `<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;">
@@ -52,7 +57,7 @@ function yieldListHtml() {
       <button type="button" class="btn-gold" onclick="yieldNewItem()">${i18n.t('＋ 新建记录')}</button>
     </div>
     ${items.length
-      ? `<div class="yield-list">${rows}</div>`
+      ? `<div class="yield-grid">${cards}</div>`
       : `<p class="t-body muted" style="margin:24px 0 0;">${i18n.t('还没有记录 · 点「新建记录」，填两个时点的净值')}</p>`}
     <div class="modal-footer">
       <button type="button" onclick="closeModal('yield-modal')" class="btn-ghost">${i18n.t('关闭')}</button>
