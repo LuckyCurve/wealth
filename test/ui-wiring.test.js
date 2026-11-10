@@ -897,11 +897,11 @@ describe('UI 接线契约：Flatpickr 日期选择器', () => {
     assert.doesNotMatch(modalSrc, /expense-date\]\.value =/, 'openExpenseModal 不应直接赋值 expense-date.value');
   });
 
-  test('selected 日期颜色用 CSS 变量而非硬编码色值', () => {
-    assert.doesNotMatch(html, /\.flatpickr-day\.selected[^}]*#211b10/, '亮色选中不应硬编码 #211b10');
-    assert.doesNotMatch(html, /\.dark \.flatpickr-day\.selected[^}]*#15110a/, '暗色选中不应硬编码 #15110a');
-    assert.match(html, /\.flatpickr-day\.selected[^}]*var\(--fg\)/, '亮色选中应走 var(--fg)');
-    assert.match(html, /\.dark \.flatpickr-day\.selected[^}]*var\(--bg\)/, '暗色选中应走 var(--bg)');
+  test('今天与选中的样式只用 CSS 变量，不硬编码色值', () => {
+    assert.doesNotMatch(html, /\.flatpickr-day\.today[^}]*#[0-9a-f]{3,6}/i, '今天不应硬编码色值');
+    assert.doesNotMatch(html, /\.flatpickr-day\.selected[^}]*#[0-9a-f]{3,6}/i, '选中不应硬编码色值');
+    assert.match(html, /\.flatpickr-day\.today[^}]*var\(--accent-ink\)/, '今天的实心圆走 --accent-ink');
+    assert.match(html, /\.flatpickr-day\.selected[^}]*var\(--accent-ink\)/, '选中的描边环走 --accent-ink');
   });
 });
 

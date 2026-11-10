@@ -868,6 +868,62 @@ test.describe('消费月份图（日历）', () => {
     ],
   });
 
+  test('今天是一枚实心圆，选中是描边环：两态分得开，深浅主题都看得清', async ({ page }) => {
+    await openWith(page, twoOnToday());
+    const read = () => page.evaluate(() => {
+      const cell = document.querySelector('#month-grid .mg-cell.is-today');
+      const day = cell && cell.querySelector('.mg-day');
+      if (!day) return null;
+      const ds = getComputedStyle(day);
+      const cs = getComputedStyle(cell);
+      return {
+        bg: ds.backgroundColor,
+        fg: ds.color,
+        radius: ds.borderRadius,
+        selected: cell.classList.contains('is-selected'),
+        ring: cs.boxShadow,
+      };
+    });
+    const opaque = (c) => {
+      const m = (c || '').match(/rgba?\(([^)]+)\)/);
+      if (!m) return false;
+      return (m[1].split(',').length < 4 ? 1 : Number(m[1].split(',')[3])) >= 0.999;
+    };
+    const ratio = (a, b) => {
+      const lum = (c) => {
+        const p = c.match(/\d+/g).slice(0, 3).map(Number);
+        const v = p.map((x) => x / 255).map((x) => (x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4)));
+        return 0.2126 * v[0] + 0.7152 * v[1] + 0.0722 * v[2];
+      };
+      const [x, y] = [lum(a), lum(b)];
+      return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
+    };
+
+    const check = (look, theme) => {
+      expect(look, theme + '：今天那格应存在').toBeTruthy();
+      expect(opaque(look.bg), theme + '：今天必须是一枚实心圆，不能只剩一圈描边').toBe(true);
+      expect(look.radius, theme + '：实心底的形状应是圆').toBe('50%');
+      expect(ratio(look.fg, look.bg), theme + '：日期数字压在圆底上要达 AA').toBeGreaterThanOrEqual(4.5);
+    };
+    check(await read(), '亮色');
+
+    // 选中态：整格描边环，但不能把今天的圆盖掉
+    await page.locator(`#month-grid .mg-cell[data-date="${today}"]`).click();
+    const selected = await read();
+    expect(selected.selected).toBe(true);
+    expect(selected.ring, '选中是描边环').toContain('inset');
+    check(selected, '亮色·选中');
+
+    await page.getByRole('button', { name: '设置' }).click();
+    await page.locator('#theme-seg-dark').click();
+    await page.keyboard.press('Escape');
+    await expect(page.locator('html')).toHaveClass(/dark/);
+    check(await read(), '暗色·选中');
+
+    await page.locator(`#month-grid .mg-cell[data-date="${today}"]`).click();
+    check(await read(), '暗色');
+  });
+
   test('日历不贴在左边：左右留白相等且没被撑满', async ({ appPage: page }) => {
     const gap = await page.evaluate(() => {
       const card = document.getElementById('month-grid-card');

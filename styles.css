@@ -576,16 +576,15 @@
     color: var(--fg) !important;
     border-color: transparent !important;
   }
+  /* 今天=实心圆，选中=描边环 */
   .flatpickr-day.today {
-    border-color: var(--accent) !important;
-    color: var(--accent-ink) !important;
-    font-weight: var(--fw-strong) !important;
+    background-color: transparent !important;
+    background-image: radial-gradient(circle, var(--accent-ink) 0 13px, transparent 13.5px) !important;
+    color: var(--card) !important;
   }
   .flatpickr-day.selected, .flatpickr-day.selected:hover {
-    background: var(--accent) !important;
-    color: var(--fg) !important;
-    border-color: var(--accent) !important;
-    box-shadow: 0 2px 8px rgba(180,132,26,0.3) !important;
+    background-color: transparent !important;
+    box-shadow: inset 0 0 0 2px var(--accent-ink) !important;
     font-weight: var(--fw-strong) !important;
   }
   .flatpickr-day.prevMonthDay, .flatpickr-day.nextMonthDay {
@@ -620,8 +619,7 @@
     box-shadow: 0 8px 32px var(--shadow-lift), 0 2px 8px var(--shadow-soft) !important;
   }
   .dark .flatpickr-day.selected, .dark .flatpickr-day.selected:hover {
-    color: var(--bg) !important;
-    box-shadow: 0 2px 8px rgba(217,178,94,0.35) !important;
+    box-shadow: inset 0 0 0 2px var(--accent-ink) !important;
   }
   .dark .flatpickr-day.inRange {
     background: rgba(230,201,130,0.15) !important;
@@ -1432,7 +1430,12 @@
   .mg-day { font-size: var(--fs-micro); color: var(--muted); }
   .mg-val { font-size: var(--fs-body); font-weight: var(--fw-strong); font-variant-numeric: tabular-nums; }
   .mg-cell:not([disabled]):hover { border-color: var(--accent); }
-  .mg-cell.is-today { border-color: var(--accent-ink); }
+  /* 今天=实心圆，选中=描边环；实底色，渐变会被 AA 巡检跳过 */
+  .mg-cell.is-today .mg-day {
+    align-self: flex-start; display: inline-grid; place-items: center;
+    width: 20px; height: 20px; border-radius: 50%;
+    background: var(--accent-ink); color: var(--card); font-weight: var(--fw-strong);
+  }
   .mg-cell.is-selected { box-shadow: inset 0 0 0 2px var(--accent-ink); }
   .mg-cell.pressing { outline: 2px solid var(--accent); outline-offset: -1px; }
 
