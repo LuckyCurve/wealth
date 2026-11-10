@@ -1497,10 +1497,9 @@
   .mg-cell[data-lv="3"]::before { opacity: var(--mg-3); }
   .mg-cell[data-lv="4"]::before { opacity: var(--mg-4); }
   .mg-cell.is-blank { background: var(--card); cursor: default; }
-  /* 未来的日子只压数字，不压格子：整格半透明会让纸面透出底下的暖色，
-     看起来像「有浅色记录」，和青蓝密度档混成一类。 */
+  /* 未来的日子只换灰、不降透明度：整格或整字半透明会把对比度压到 AA 以下
+     （实测 #6b5c3a@.45 对纸面只有 2.01:1）。灰字本身已经够退后。 */
   .mg-cell[disabled] { color: var(--muted); cursor: default; }
-  .mg-cell[disabled] > span { opacity: 0.45; }
   .mg-day { font-size: var(--fs-micro); color: var(--muted); line-height: 1; }
   /* 有记录的日期用墨色：青蓝底纹越深，灰字越糊；空日仍留灰，层次反而更清楚 */
   .mg-cell[data-lv]:not([data-lv="0"]):not(.is-selected):not(.is-today) .mg-day { color: var(--fg); }
