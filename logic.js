@@ -557,6 +557,30 @@
     return input.trim().toLowerCase() === want;
   }
 
+  // ===== 解锁冷却：抄对一次之后，设定时长内不再抄 =====
+  // 用户拍板的档位（关闭 / 1 / 5 / 15 / 30 分钟，默认 5）。只放宽「再抄一遍」这一步，
+  // 与任何数据保护无关；时间戳由页面只在校验通过后写，错句既不重置也不延长。
+  const GATE_COOLDOWN_MINUTES = [0, 1, 5, 15, 30];
+  const GATE_COOLDOWN_DEFAULT = 5;
+
+  // 档位归一：只认上面五档，脏值与旧存档一律回默认 5 分钟。
+  // null / undefined / '' 必须先拦下：Number(null) === 0 会把「没设过」误读成「关闭」。
+  function normalizeGateCooldown(v) {
+    if (v === null || v === undefined || v === '') return GATE_COOLDOWN_DEFAULT;
+    const n = Number(v);
+    return GATE_COOLDOWN_MINUTES.includes(n) ? n : GATE_COOLDOWN_DEFAULT;
+  }
+
+  // 是否还在冷却里。now < unlockedAt（系统时钟回拨）按过期处理——宁可再抄一次，不能凭空放行。
+  function gateCooldownActive(unlockedAt, now, minutes) {
+    const mins = normalizeGateCooldown(minutes);
+    const at = Number(unlockedAt);
+    const t = Number(now);
+    if (!(mins > 0) || !(at > 0) || !Number.isFinite(t)) return false;
+    const elapsed = t - at;
+    return elapsed >= 0 && elapsed < mins * 60000;
+  }
+
   // ===== 翻页的方向（Tab / 模式切换的入场方向）=====
   // 目标按钮在旧按钮右侧 → 1（内容自右滑入），左侧 → -1；相同或位置取不到 → 0（只淡入）。
   // 为什么用实测位置而不是维护一张「Tab 次序表」：次序表是第二份真相——加一个 Tab 忘改它
@@ -1707,6 +1731,8 @@
     state.netWorthTarget = Number(state.netWorthTarget) || 0;
     state.expenseGapDays = normalizeGapDays(state.expenseGapDays);
     state.gateLang = state.gateLang === 'zh' || state.gateLang === 'en' ? state.gateLang : '';
+    // 解锁冷却（旧数据/导入文件没有这个字段 → 用户拍板的默认 5 分钟）
+    state.gateCooldown = normalizeGateCooldown(state.gateCooldown);
     if (state.incomeSafetyFactor == null) state.incomeSafetyFactor = 100;
     state.incomeSafetyFactor = Math.min(100, Math.max(1, Number(state.incomeSafetyFactor) || 100));
     state.assets.forEach(a => {
@@ -2546,6 +2572,17 @@
     '外观主题': 'Theme',
     '日间': 'Light',
     '夜间': 'Dark',
+    '解锁冷却': 'Unlock cooldown',
+    '解锁冷却时长': 'Unlock cooldown',
+    '抄对一次后的这段时间里，再进资产页不用再抄一遍；刷新页面仍有效，关掉浏览器即失效。只省掉这一步，数据保护不变。': 'For this long after copying once, entering the assets page does not ask you to copy again. It survives a refresh but not closing the browser. Only that step is skipped; data protection is unchanged.',
+    '立即锁定': 'Lock now',
+    '1 分': '1 min',
+    '5 分': '5 min',
+    '15 分': '15 min',
+    '30 分': '30 min',
+    '已关闭解锁冷却': 'Unlock cooldown off',
+    '解锁冷却：{p1} 分钟': 'Unlock cooldown: {p1} min',
+    '已立即锁定': 'Locked now',
     '自动备份': 'Auto backup',
     '打开页面几秒后会弹一次确认，确认后弹出文件窗口保存一份带日期的备份，日积月累即是版本历史。建议把保存位置设为网盘同步文件夹（OneDrive / iCloud 等），电脑损坏后也能找回。': 'A few seconds after the page opens you are asked once. Confirming opens a save dialog for a dated backup; collected over time that becomes your version history. Point it at a synced folder (OneDrive, iCloud) so a broken computer does not lose it.',
     '自动备份频率': 'Auto backup frequency',
@@ -3168,6 +3205,10 @@
       ENTRY_PHRASES,
       entryPhrase,
       entryPhraseMatches,
+      GATE_COOLDOWN_MINUTES,
+      GATE_COOLDOWN_DEFAULT,
+      normalizeGateCooldown,
+      gateCooldownActive,
       TAG_PRESS_MS,
       pressProgress,
       pressDecision,

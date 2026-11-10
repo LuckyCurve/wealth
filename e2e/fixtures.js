@@ -46,6 +46,9 @@ const EMPTY_STATE = {
   backup: { autoFreq: 'off', lastBackup: null, lastAutoDownload: null },
   // 既有断言写的都是中文文案；默认英文与切换由 i18n.spec.js 自己验
   lang: 'zh',
+  // E2E 默认关冷却：门每次都要抄，既有门槛用例才是确定的；
+  // 冷却本身由 gate-cooldown.spec.js 显式播种验证，迁移默认值由单测守。
+  gateCooldown: 0,
 };
 
 const sampleState = () => ({
@@ -246,10 +249,18 @@ async function gotoAssets(page, tab) {
   if (!(await page.locator('#tabs-assets').isVisible())) {
     await page.locator('#mode-assets').focus();
     await page.keyboard.press('Enter');
-    await expect(page.locator('#asset-gate-modal')).toBeVisible();
-    const phrase = await page.locator('#asset-gate-phrase').textContent();
-    await page.locator('#asset-gate-input').fill(String(phrase).trim());
-    await page.locator('#asset-gate-ok').click();
+    const gate = page.locator('#asset-gate-modal');
+    const assets = page.locator('#tabs-assets');
+    // 冷却内的存档会被直接放行；没开冷却（E2E 默认）才走抄写。
+    // 两个面板都在 DOM 里（一个 display:none），所以用轮询判「任一可见」，不能用 or() 的严格定位。
+    await expect
+      .poll(async () => (await gate.isVisible()) || (await assets.isVisible()))
+      .toBe(true);
+    if (await gate.isVisible()) {
+      const phrase = await page.locator('#asset-gate-phrase').textContent();
+      await page.locator('#asset-gate-input').fill(String(phrase).trim());
+      await page.locator('#asset-gate-ok').click();
+    }
     await expect(page.locator('#tabs-assets')).toBeVisible();
   }
   if (tab) await page.locator(`#tabs-assets .tab-btn[data-tab="${tab}"]`).click();

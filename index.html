@@ -999,6 +999,23 @@ tailwind.config = {
       <hr>
       <div class="setting-row">
         <div class="setting-info">
+          <p class="setting-label" data-i18n="解锁冷却">解锁冷却</p>
+          <p class="setting-desc" data-i18n="抄对一次后的这段时间里，再进资产页不用再抄一遍；刷新页面仍有效，关掉浏览器即失效。只省掉这一步，数据保护不变。">抄对一次后的这段时间里，再进资产页不用再抄一遍；刷新页面仍有效，关掉浏览器即失效。只省掉这一步，数据保护不变。</p>
+        </div>
+        <div class="setting-actions">
+          <div class="seg-control seg-compact" role="group" aria-label="解锁冷却时长" data-i18n-aria-label="解锁冷却时长">
+            <button id="gate-cool-off" onclick="setGateCooldown(0)" class="seg-btn" aria-pressed="false" data-i18n="关闭">关闭</button>
+            <button id="gate-cool-1" onclick="setGateCooldown(1)" class="seg-btn" aria-pressed="false" data-i18n="1 分">1 分</button>
+            <button id="gate-cool-5" onclick="setGateCooldown(5)" class="seg-btn" aria-pressed="false" data-i18n="5 分">5 分</button>
+            <button id="gate-cool-15" onclick="setGateCooldown(15)" class="seg-btn" aria-pressed="false" data-i18n="15 分">15 分</button>
+            <button id="gate-cool-30" onclick="setGateCooldown(30)" class="seg-btn" aria-pressed="false" data-i18n="30 分">30 分</button>
+          </div>
+          <button type="button" id="gate-lock-now" onclick="lockAssetsNow()" class="btn-ghost btn-sm" data-i18n="立即锁定">立即锁定</button>
+        </div>
+      </div>
+      <hr>
+      <div class="setting-row">
+        <div class="setting-info">
           <p class="setting-label" data-i18n="自动备份">自动备份</p>
           <p class="setting-desc" data-i18n="打开页面几秒后会弹一次确认，确认后弹出文件窗口保存一份带日期的备份，日积月累即是版本历史。建议把保存位置设为网盘同步文件夹（OneDrive / iCloud 等），电脑损坏后也能找回。">打开页面几秒后会弹一次确认，确认后弹出文件窗口保存一份带日期的备份，日积月累即是版本历史。建议把保存位置设为网盘同步文件夹（OneDrive / iCloud 等），电脑损坏后也能找回。</p>
           <p id="settings-backup-note" class="setting-note"></p>

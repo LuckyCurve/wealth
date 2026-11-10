@@ -2251,6 +2251,49 @@ describe('进入资产页的门槛箴言（抄写闸）', () => {
   });
 });
 
+describe('解锁冷却：只省掉抄写这一步', () => {
+  // 用户拍板：关闭 / 1 / 5 / 15 / 30 分钟，默认 5。冷却从最近一次抄对起算，
+  // 只放宽「再抄一遍」，不改任何数据保护；错句不刷新时间戳（页面只在校验通过后写）。
+  const MIN = 60 * 1000;
+  const NOW = 1_800_000_000_000;
+
+  test('档位归一：只认拍板的五档，脏值回默认 5 分钟', () => {
+    for (const v of [0, 1, 5, 15, 30]) assert.strictEqual(L.ui.normalizeGateCooldown(v), v);
+    assert.strictEqual(L.ui.normalizeGateCooldown('15'), 15, '存档里可能是字符串');
+    for (const v of [undefined, null, '', 'abc', NaN, -1, 2, 60, Infinity]) {
+      assert.strictEqual(L.ui.normalizeGateCooldown(v), 5, String(v) + ' 应回默认 5');
+    }
+  });
+
+  test('关闭档永远不免抄写', () => {
+    assert.strictEqual(L.ui.gateCooldownActive(NOW, NOW, 0), false);
+    assert.strictEqual(L.ui.gateCooldownActive(NOW, NOW + 1000, 0), false);
+  });
+
+  test('冷却内放行，到点立即恢复抄写', () => {
+    assert.strictEqual(L.ui.gateCooldownActive(NOW, NOW, 5), true, '刚抄对');
+    assert.strictEqual(L.ui.gateCooldownActive(NOW, NOW + 4 * MIN, 5), true);
+    assert.strictEqual(L.ui.gateCooldownActive(NOW, NOW + 5 * MIN, 5), false, '边界即到期');
+    assert.strictEqual(L.ui.gateCooldownActive(NOW, NOW + 6 * MIN, 5), false);
+    assert.strictEqual(L.ui.gateCooldownActive(NOW, NOW + 29 * MIN, 30), true);
+  });
+
+  test('没有时间戳（从未抄对 / 已立即锁定）一律要求抄写', () => {
+    for (const v of [0, null, undefined, NaN, -1]) {
+      assert.strictEqual(L.ui.gateCooldownActive(v, NOW, 5), false, String(v) + ' 不得放行');
+    }
+  });
+
+  test('时钟回拨不凭空放行（未来时间戳按过期处理）', () => {
+    assert.strictEqual(L.ui.gateCooldownActive(NOW + 1000, NOW, 5), false);
+  });
+
+  test('脏时长按归一后的档位算（不产生永久放行）', () => {
+    assert.strictEqual(L.ui.gateCooldownActive(NOW, NOW + 6 * MIN, 99), false, '99 归一到 5 分钟');
+    assert.strictEqual(L.ui.gateCooldownActive(NOW, NOW + 1 * MIN, 'abc'), true, '脏值归一 5 分钟');
+  });
+});
+
 describe('气泡定位 tipBubblePos（脱离祖先层叠上下文，按视口定位）', () => {
   // 用户实测：收益测算里「缺口」旁的 ? hover 后，气泡下半被下面那张卡片盖住。
   // 根因是卡片有 backdrop-filter 会自成层叠上下文，气泡的 z-index 只在自己卡片内有效。

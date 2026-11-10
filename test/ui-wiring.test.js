@@ -1944,15 +1944,23 @@ describe('UI 接线契约：资产页只能靠长按送达（提高日常查看�
     assert.match(end, /(?:[A-Za-z_$][A-Za-z0-9_$]*\.)?autoOpenGuard\(/, 'pointerup 收尾必须查守卫（否则抬手即关）');
   });
 
-  test('抄写闸：进门只能发生在抄对之后（唯一放行点）', () => {
+  test('抄写闸：进门只有两个合法来源，且都走同一个放行点', () => {
     assert.strictEqual(count(/switchMode\('assets'\)/g), 1, '全页只有一个地方能把人送进资产页');
     const src = fnSource('submitAssetGate');
     assert.match(src, /(?:[A-Za-z_$][A-Za-z0-9_$]*\.)?entryPhraseMatches\(/, '比对下沉 logic.js（可单测）');
-    assert.match(src, /switchMode\('assets'\)/, '抄对才切模式');
+    assert.match(src, /enterAssets\(\)/, '抄对才切模式');
     assert.match(
-      src.slice(src.indexOf('entryPhraseMatches('), src.indexOf("switchMode('assets')")),
+      src.slice(src.indexOf('entryPhraseMatches('), src.indexOf('enterAssets()')),
       /return;/,
       '不匹配的分支必须 return，切换只能在通过之后');
+    assert.match(src, /markGateUnlocked\(\)/, '只有抄对才写冷却起点');
+
+    // 冷却窗口是第二条合法来源：仍要过「已在资产页」闸，并汇入同一个放行点
+    const cool = fnSource('tryEnterCooledAssets');
+    assert.match(cool, /assetsEntryOpen\(\)/, '已在资产页就不再进门');
+    assert.match(cool, /gateCooling\(\)/, '冷却判定只此一处');
+    assert.match(cool, /enterAssets\(\)/, '免抄也要走同一个放行点');
+    assert.match(fnSource('gateCooling'), /ui\.gateCooldownActive\(/, '时间判定下沉 logic.js（可单测）');
   });
 
   test('抄写闸：手误原地重试（原句不换、输入清空、报错可见）', () => {

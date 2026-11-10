@@ -29,10 +29,14 @@ const BUDGETS = {
   // 结构类收口：页头/内容栏/表格/表单栅格等骨架从 Tailwind 工具类搬进自有 CSS，
   // 同一 commit 再抬 3KB 收下这批语义类。
   'styles.css': 120_000,
-  'app-core.js': 26_000,
+  // 资产页解锁冷却：sessionStorage 时间戳的读写与「冷却内直接进门」接在门槛入口，
+  // 纯判定已下沉 logic.js（gateCooldownActive），这里只剩接线。同 commit 抬 2KB。
+  'app-core.js': 28_000,
   'app-assets.js': 74_000,
   'app-charts.js': 53_000,
-  'app-settings.js': 38_000,
+  // 设置里的「解锁冷却」回显、改档与「立即锁定」入口（时间戳的写/清在 app-core.js）。
+  // 同 commit 抬 1KB。
+  'app-settings.js': 39_000,
   // 月份图 + 当天的记录（点一格展开）；明细列表与录入在 app-expenses.js 里。
   'app-calendar.js': 12_000,
   'app-receipt.js': 10_000,

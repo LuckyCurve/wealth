@@ -1103,6 +1103,8 @@
   .seg-btn { border: none; background: transparent; color: var(--muted); font-size: var(--fs-micro); font-family: var(--font-body); padding: 5px 18px; border-radius: 6px; cursor: pointer; transition: background var(--mo-fast), color var(--mo-fast); white-space: nowrap; }
   .seg-btn:hover { color: var(--fg); }
   .seg-btn.active { background: var(--secondary); color: var(--card); font-weight: var(--fw-strong); box-shadow: inset 0 1px 0 rgba(255,255,255,0.25), 0 1px 2px var(--shadow); }
+  /* 解锁冷却五档：常规内边距在窄屏弹窗里会横向溢出，这一组收紧横向留白 */
+  .seg-compact .seg-btn { padding: 5px 10px; }
   /* ===== 进入资产页的长按门槛：按住时金色墨线沿底边自左向右浸满按钮 =====
      填充宽度 = --mode-press × 100%（JS 每帧只同步这个变量，百分比换算只此一处）。
      刻意不做 CSS transition：它跟随手指的按住时长，不是装饰动效——reduced-motion 下也保留，

@@ -7,7 +7,7 @@ function freshAppState() {
     categories: [], assets: [], snapshots: [],
     expenseCategories: [], expenses: [],
     rates: { CNY: 1, HKD: 1, USD: 1, fetchedAt: null },
-    expenseExpectation: 0, netWorthTarget: 0, incomeSafetyFactor: 100, expenseGapDays: 3, gateLang: '',
+    expenseExpectation: 0, netWorthTarget: 0, incomeSafetyFactor: 100, expenseGapDays: 3, gateLang: '', gateCooldown: 5,
     runwayTags: [], runwayExpectation: 0,
     snapshotReminder: { window: 'end', days: 5 }, snapshotReminderLastPrompted: null,
     lang: 'en',
@@ -322,6 +322,40 @@ let modePressRaf = 0;
 let assetGatePhrase = ''; // 本次要抄的那一句：抬闸时抽定，抄错也**不换句**
 let assetGateLang = '';   // 抄写用哪种语言取句：'' = 跟界面语言
 
+// 解锁冷却：只记「最近一次抄对」的时刻，不记任何输入内容。放 sessionStorage ——
+// 刷新页面仍有效，关标签/浏览器即失效；不进存档，也不会随导出/备份带走。
+// 时间戳只在 submitAssetGate 校验通过后写，错句既不重置也不延长。
+const GATE_STAMP_KEY = 'wealth-gate-unlocked-at';
+
+function readGateStamp() {
+  try { return Number(sessionStorage.getItem(GATE_STAMP_KEY)) || 0; } catch (e) { return 0; }
+}
+
+function gateCooling() {
+  return ui.gateCooldownActive(readGateStamp(), Date.now(), state.gateCooldown);
+}
+
+function markGateUnlocked() {
+  try { sessionStorage.setItem(GATE_STAMP_KEY, String(Date.now())); } catch (e) {}
+}
+
+function clearGateStamp() {
+  try { sessionStorage.removeItem(GATE_STAMP_KEY); } catch (e) {}
+}
+
+// 唯一的放行点：抄对之后、或冷却窗口内，都从这里进资产页。
+function enterAssets() {
+  switchMode('assets');
+}
+
+// 冷却内直接进门：只省掉抄写这一步，长按那道闸照旧，背后数据的保护不变。
+// 返回 true 表示已进门，调用方不必再开抄写框。
+function tryEnterCooledAssets() {
+  if (!assetsEntryOpen() || !gateCooling()) return false;
+  enterAssets();
+  return true;
+}
+
 // 已经在资产页时入口整体失效：再问一次「现在确实要看？」是荒谬的。
 // 抽成函数是因为按下与进门两条路径都要这道闸，而它是「门的语义」而非权限校验
 function assetsEntryOpen() {
@@ -355,7 +389,7 @@ function tickModePress() {
   btn.classList.remove('pressing');
   btn.style.removeProperty('--mode-press');
   __autoOpenedAt = performance.now();
-  openAssetGate();
+  if (!tryEnterCooledAssets()) openAssetGate();
 }
 
 // 自动弹出后一小段时间内的指针事件全部忽略（抬起的手指紧跟一次 pointerup/click，
@@ -370,7 +404,7 @@ function endModePress(e) {
   if (__autoOpenedAt !== null && !ui.autoOpenGuard(performance.now() - __autoOpenedAt)) return;
   const decision = ui.modePressDecision(performance.now() - modePressStart);
   resetModePress();
-  if (decision === 'enter') openAssetGate();
+  if (decision === 'enter') { if (!tryEnterCooledAssets()) openAssetGate(); }
   else if (decision === 'hint') toast(ui.modePressHint(), 'info');
 }
 
@@ -378,7 +412,7 @@ function endModePress(e) {
 //（浏览器就是这样标注「不是人手点出来的」，鼠标/触摸是 1，E2E 已验证）。它们**只抬闸、
 // 不进门**：长按挡的是顺手一点，这条路一样要抄一句——曾经的「合成 click 直达」是廉价通道。
 function modePressClick(e) {
-  if (e.detail === 0) openAssetGate();
+  if (e.detail === 0 && !tryEnterCooledAssets()) openAssetGate();
 }
 
 // 指针移开/被系统夺走：放弃本次按下，既不提示也不进门
@@ -465,7 +499,8 @@ function submitAssetGate() {
     return;
   }
   cancelAssetGate();
-  switchMode('assets');
+  markGateUnlocked(); // 只有抄对才刷新冷却起点；错句在上一分支就返回了
+  enterAssets();
 }
 
 // 放弃（Esc / 点遮罩 / 「不看」）：本次作废，下次从长按重新开始

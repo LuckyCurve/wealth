@@ -148,10 +148,41 @@ function setTheme(dark) {
   renderAll(); // 收尾 syncDerivedReads 把可见图表也按新主题重绘（canvas 不认 CSS 变量）
 }
 
+// ========== 解锁冷却（资产页抄写闸的免抄窗口）==========
+// 设置只改时长。时间戳只在抄对时写（app-core.js），这里负责回显与「立即锁定」。
+function setGateCooldown(v) {
+  state.gateCooldown = ui.normalizeGateCooldown(v);
+  saveState();
+  if (state.gateCooldown === 0) clearGateStamp(); // 关掉即结束本次冷却
+  syncGateCooldownControls();
+  toast(
+    state.gateCooldown === 0
+      ? i18n.t('已关闭解锁冷却')
+      : i18n.t('解锁冷却：{p1} 分钟', { p1: state.gateCooldown }),
+    'success'
+  );
+}
+
+function syncGateCooldownControls() {
+  const v = ui.normalizeGateCooldown(state.gateCooldown);
+  ui.GATE_COOLDOWN_MINUTES.forEach((m) => {
+    const btn = document.getElementById('gate-cool-' + (m === 0 ? 'off' : m));
+    if (!btn) return;
+    btn.classList.toggle('active', m === v);
+    btn.setAttribute('aria-pressed', String(m === v));
+  });
+}
+
+function lockAssetsNow() {
+  clearGateStamp();
+  toast(i18n.t('已立即锁定'), 'success');
+}
+
 function showSettings() {
   passEditing = false; // 每次打开都回到「已设置」那一态
   syncThemeSeg();
   syncLangSeg();
+  syncGateCooldownControls();
   syncBackupControls();
   syncSnapshotReminderControls();
   syncExpenseGapDays();
