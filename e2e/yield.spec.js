@@ -28,6 +28,90 @@ async function save(page) {
 
 const listRows = (page) => page.locator('#yield-body .yield-card');
 
+/** 把三条记录直接写进存档再打开弹窗：卡片配色这一层得有真实数据才看得到。 */
+async function seedRecords(page) {
+  await page.evaluate(() => {
+    state.yieldCalc = {
+      items: [
+        { id: 'r1', name: '微众 - 贵竹 39 号', rows: [{ date: '2025-11-07', nav: '1' }, { date: '2026-11-06', nav: '1.0148' }] },
+        { id: 'r2', name: '微众 - 固收纯债', rows: [{ date: '2025-11-06', nav: '1' }, { date: '2026-11-06', nav: '1.0158' }] },
+        { id: 'r3', name: '微众 - 诚享 25 号', rows: [{ date: '2025-11-06', nav: '1' }, { date: '2026-11-06', nav: '1.0231' }] },
+      ],
+    };
+    saveState();
+    openYieldModal();
+  });
+  await expect(listRows(page)).toHaveCount(3);
+}
+
+test.describe('年化换算 · 卡片配色（亮/暗两套主题）', () => {
+  const surfaces = async (page) => page.evaluate(() => {
+    const card = document.querySelector('#yield-body .yield-card');
+    const cs = getComputedStyle(card);
+    const paper = getComputedStyle(document.querySelector('#yield-modal .modal-content'));
+    // 变量是 hex，计算色是 rgb()：在页面内借一个探针让浏览器自己归一，别手写换算
+    const probe = document.createElement('span');
+    document.body.appendChild(probe);
+    const varOf = (n) => {
+      probe.style.color = '';
+      probe.style.color = getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+      return getComputedStyle(probe).color;
+    };
+    const out = {
+      fill: cs.backgroundColor, edge: cs.borderTopColor, paper: paper.backgroundColor,
+      alpha: (cs.backgroundColor.match(/[\d.]+/g) || []).map(Number)[3] ?? 1,
+      image: cs.backgroundImage, shadow: cs.boxShadow,
+      name: getComputedStyle(card.querySelector('.yield-card-name')).color,
+      pctFont: getComputedStyle(card.querySelector('.yield-card-pct')).fontFamily,
+      pctSize: getComputedStyle(card.querySelector('.yield-card-pct')).fontSize,
+      meta: getComputedStyle(card.querySelector('.yield-card-meta')).color,
+      hint: varOf('--record-tint'), expectedEdge: varOf('--record-edge'),
+      oldBg2: varOf('--bg-2'),
+    };
+    probe.remove();
+    return out;
+  });
+
+  const lum = (c) => {
+    const p = (c.match(/[\d.]+/g) || []).map(Number);
+    const v = [p[0], p[1], p[2]].map((x) => x / 255).map((x) => (x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4)));
+    return 0.2126 * v[0] + 0.7152 * v[1] + 0.0722 * v[2];
+  };
+  const contrast = (a, b) => {
+    const x = lum(a), y = lum(b);
+    return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
+  };
+
+  for (const dark of [false, true]) {
+    test(`${dark ? '暗色' : '亮色'}：纸签是薄染不是暗板，读数层级与颜色都达标`, async ({ appPage: page }) => {
+      if (dark) {
+        await page.getByRole('button', { name: '设置' }).click();
+        await page.locator('#theme-seg-dark').click();
+        await page.keyboard.press('Escape');
+        await expect(page.locator('html')).toHaveClass(/dark/);
+      }
+      await seedRecords(page);
+      const s = await surfaces(page);
+
+      // 卡片与弹窗纸面只差一档染色，不再是 --bg-2 那块比纸面深得多的米黄板
+      expect(s.fill).toBe(s.hint);
+      expect(s.fill).not.toBe(s.oldBg2);
+      expect(s.edge).toBe(s.expectedEdge);
+      expect(contrast(s.fill, s.paper)).toBeLessThan(1.25);
+      // 底必须不透明且不带渐变：AA 巡检按这枚平底色取色，渐变会让整块字静默离开巡检
+      expect(s.alpha).toBe(1);
+      expect(s.image).toBe('none');
+      // 光泽只走 box-shadow：顶边受光 + 左缘金脊，不是 background-image
+      expect(s.shadow).toContain('inset');
+      // 名称压回正文字色（不再整张卡都是赭色），主读数升到读数档
+      expect(contrast(s.name, s.fill)).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(s.meta, s.fill)).toBeGreaterThanOrEqual(4.5);
+      expect(parseFloat(s.pctSize)).toBeGreaterThan(14);
+      expect(s.pctFont).toContain('Cormorant');
+    });
+  }
+});
+
 test.describe('年化换算：记录', () => {
   test('空态：没有记录时只给「新建」', async ({ appPage: page }) => {
     await openYield(page);
