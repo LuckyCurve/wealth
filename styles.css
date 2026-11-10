@@ -1562,6 +1562,12 @@
       max-width: none !important; white-space: normal !important;
       overflow: visible !important; text-overflow: clip !important;
     }
+    /* 窄屏为横向滚动设的 min-width / overflow 会原样进纸：A4 内容宽约 688px，
+       正好触发 ≤900 / ≤640 的断点，表被撑出卡片右缘、标签裁掉半截。
+       纸上没有滚动，一律回到可收缩宽度，容器也不裁内容。 */
+    #assets-list, #expenses-list, #income-table-container, #snapshot-detail-content, #day-panel { overflow: visible !important; }
+    #assets-list .asset-row, #income-table-container .asset-row, #snapshot-detail-content .asset-row,
+    #expenses-list .asset-row, #day-panel .asset-row { min-width: 0 !important; }
     /* 分页：标题不落单，行不拦腰截断，成块的图/日历/空状态整体挪页 */
     h2, h3, .section-head, .list-head, .table-toggle { break-after: avoid; }
     .asset-row, .mg-grid, .day-panel, .empty-state, [id$="-chart"] { break-inside: avoid; }
