@@ -175,7 +175,7 @@ test.describe('打印形态：暗色主题也要印得出、印得清', () => {
     expect(rgb(glass.bg).a, '打印时卡片底色必须不透明').toBe(1);
   });
 
-  test('打印：装饰层与操作面不进纸（灯层 / 便条 / 页签栏 / 操作行 / 页头导航）', async ({ appPage: page }) => {
+  test('打印：装饰层与操作面不进纸（灯层 / 便条 / 页签栏 / 筛选 / 行内按钮 / 拖拽把手）', async ({ appPage: page }) => {
     await page.emulateMedia({ media: 'print' });
     const hidden = await page.evaluate(() => {
       const disp = (sel) => {
@@ -196,11 +196,27 @@ test.describe('打印形态：暗色主题也要印得出、印得清', () => {
         toolbar: disp('.toolbar'),
         // 页头的模式切换与按钮也是操作面，且会带金/青蓝墨色进纸
         headerNav: allHidden('.app-header .seg-control, .app-header .btn-ghost'),
+        // 筛选、编辑/复制/删除、拖拽排序都是屏上操作，纸上只留账目
+        filterBar: allHidden('#expense-table .filter-bar'),
+        rowActions: allHidden('.row-actions'),
+        dragHandles: allHidden('.drag-handle'),
       };
     });
     for (const [name, state] of Object.entries(hidden)) {
       expect(state, `打印时 ${name} 仍在纸面上（应为 hidden）`).toBe('hidden');
     }
+
+    // 明细在屏上默认收起，纸上必须自动展开；标签在纸上不能留省略号
+    const paper = await page.evaluate(() => {
+      const table = document.getElementById('expense-table');
+      const tag = document.querySelector('#expenses-rows .tag-pill');
+      return {
+        detail: table ? getComputedStyle(table).display : 'missing',
+        tagWrap: tag ? getComputedStyle(tag).whiteSpace : 'missing',
+      };
+    });
+    expect(paper.detail, '打印时明细必须展开（不能要求先点一下再印）').toBe('block');
+    expect(paper.tagWrap, '打印时标签必须能换行显示全文').toBe('normal');
   });
 
   test('打印：真的能出一份非空 PDF（不是只改了计算样式）', async ({ appPage: page }) => {

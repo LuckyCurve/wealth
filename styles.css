@@ -1529,10 +1529,42 @@
     .tab-bar, .toolbar, #toast-area, .app-header::after,
     .app-header .seg-control, .app-header .btn-ghost,
     .masthead::before, .masthead::after,
-    .no-print { display: none !important; }
+    .no-print,
+    /* 屏上操作件：筛选、行内编辑/复制/删除、拖拽把手、压测条、帮助点、排序箭头、
+       明细展开箭头、分日面板按钮、空状态按钮。纸面只留账目本身。 */
+    .filter-bar, .row-actions, .drag-handle, .edit-pencil,
+    .stress-bar, .stress-badge, .tip-mark, .sort-indicator,
+    .table-toggle-chev, .day-panel-actions, .empty-action,
+    .btn-gold, .btn-ghost, .btn-danger, .seg-control,
+    /* 未设目标时这块只剩「设定目标」按钮，按钮撤了就是一条空框 */
+    .target-panel-empty { display: none !important; }
     .app-header { background: #fff !important; border-bottom: 1px solid var(--border); }
-    /* 表格跨页时不要把一个资产拆成两半 */
-    .asset-row { break-inside: avoid; }
+    /* 明细默认收起是屏幕上的事：纸上要印完整账目，不能要求先点一下再印。
+       收起态那一行保留为合计读数，剥掉控件外观（虚线框、指针、箭头）。
+       注意是 #expense-table 自身的内联 display:none，必须 !important 才压得住。 */
+    #expense-table { display: block !important; }
+    .table-toggle { border: 0 !important; padding: 0 0 10px !important; margin-bottom: 10px !important; }
+    /* 操作列不印了，列模板同步收掉那一列——否则标签落在给按钮空出来的列前，
+       右侧整条留白（与页头堆叠同类：屏幕的列模板直接套到纸上）。
+       资产宽表去掉拖拽列与操作列；消费表去掉操作列，把宽度让给备注与标签。 */
+    .cols-expenses { grid-template-columns: 92px 104px minmax(0, 1.1fr) minmax(0, 2.4fr); }
+    /* fr 的自动最小值是 min-content，纸面只有 182mm 宽——标签胶囊的最小内容宽会把整张表
+       撑出纸外、右侧被裁掉。所有弹性列一律 minmax(0, …)，让它们真能收窄。 */
+    .asset-row.grid-wide {
+      grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.05fr) 48px minmax(0, 1.05fr) minmax(0, 1.25fr) minmax(0, 2.2fr);
+      column-gap: 12px !important;
+    }
+    /* 表头里给拖拽把手/操作列占位的空 div 也要撤——它们不显示，却仍占一格，
+       会把「标签」挤到第二行、后面所有列错位。 */
+    .list-head > div:empty { display: none !important; }
+    /* 标签在纸上不截断：屏幕靠省略号保一行，纸面没有悬停可看全文 */
+    .tag-pill, .tag-pill .tag-key, .tag-pill .tag-val {
+      max-width: none !important; white-space: normal !important;
+      overflow: visible !important; text-overflow: clip !important;
+    }
+    /* 分页：标题不落单，行不拦腰截断，成块的图/日历/空状态整体挪页 */
+    h2, h3, .section-head, .list-head, .table-toggle { break-after: avoid; }
+    .asset-row, .mg-grid, .day-panel, .empty-state, [id$="-chart"] { break-inside: avoid; }
     a[href]::after { content: ''; } /* 不打印 URL 后缀（本页没有可点外链，留着只会脏） */
     @page { margin: 14mm; }
   }

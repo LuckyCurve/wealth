@@ -2588,7 +2588,8 @@ describe('UI 接线契约：版式一致性（同类结构同一套 class）', (
   test('表头统一 list-head：字号/字距/底色/收尾双线都在 CSS，页面不再内联', () => {
     assert.strictEqual(count(/list-head text-xs font-medium/g), 0, '表头不再内联字号类');
     assert.strictEqual(count(/list-head"[^>]*style="[^"]*color:var\(--muted\)/g), 0, '表头不再内联 muted 色');
-    assert.strictEqual(count(/list-head/g), 6, '表头共 6 处：CSS 1 + 静态列表 2 + 收益表 1 + 明细骨架 1 + 年化分段表 1（六处动态表头已收进骨架）');
+    // CSS 3 处 = 表头本体 + 打印分页避断 + 打印隐藏空占位格（拖拽/操作列）
+    assert.strictEqual(count(/list-head/g), 8, '表头共 8 处：CSS 3 + 静态列表 2 + 收益表 1 + 明细骨架 1 + 年化分段表 1（六处动态表头已收进骨架）');
     const rule = html.match(/\n  \.list-head \{[^}]*\}/);
     assert.ok(rule, '.list-head 规则存在');
     assert.match(rule[0], /color:\s*var\(--muted\)/, '表头底色归 CSS');
