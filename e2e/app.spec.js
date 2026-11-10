@@ -868,57 +868,97 @@ test.describe('消费月份图（日历）', () => {
     ],
   });
 
-  test('今天是一枚实心圆，选中是描边环：两态分得开，深浅主题都看得清', async ({ page }) => {
+  test('今天 / 有记录 / 选中是三档标记：形、底、环各走各的，深浅都过对比度', async ({ page }) => {
     await openWith(page, twoOnToday());
     const read = () => page.evaluate(() => {
-      const cell = document.querySelector('#month-grid .mg-cell.is-today');
-      const day = cell && cell.querySelector('.mg-day');
-      if (!day) return null;
-      const ds = getComputedStyle(day);
-      const cs = getComputedStyle(cell);
+      const rgb = (c) => {
+        const n = (c || '').match(/\d+(\.\d+)?/g);
+        return n ? n.slice(0, 3).map(Number) : null;
+      };
+      const cs = getComputedStyle(document.documentElement);
+      // 变量是 hex，借浏览器自己归一成 rgb()，避免手写转换
+      const probe = document.createElement('span');
+      document.body.appendChild(probe);
+      const resolve = (v) => { probe.style.color = ''; probe.style.color = v; return getComputedStyle(probe).color; };
+      const tokens = { accentInk: rgb(resolve(cs.getPropertyValue('--accent-ink'))), fg: rgb(resolve(cs.getPropertyValue('--fg'))) };
+      probe.remove();
+      const todayCell = document.querySelector('#month-grid .mg-cell.is-today');
+      const day = todayCell && todayCell.querySelector('.mg-day');
+      const rec = document.querySelector('#month-grid .mg-cell[data-lv]:not([data-lv="0"]):not(.is-today)');
+      const pseudo = rec ? getComputedStyle(rec, '::before') : null;
+      const sel = document.querySelector('#month-grid .mg-cell.is-selected');
+      const ds = day && getComputedStyle(day);
       return {
-        bg: ds.backgroundColor,
-        fg: ds.color,
-        radius: ds.borderRadius,
-        selected: cell.classList.contains('is-selected'),
-        ring: cs.boxShadow,
+        tokens,
+        today: ds ? {
+          bg: ds.backgroundColor,
+          border: rgb(ds.borderTopColor),
+          bw: parseFloat(ds.borderTopWidth),
+          fg: rgb(ds.color),
+          radius: ds.borderRadius,
+          cellBg: rgb(getComputedStyle(todayCell).backgroundColor),
+        } : null,
+        record: rec ? {
+          wash: rgb(pseudo.backgroundColor),
+          washOpacity: Number(pseudo.opacity),
+          cellBg: rgb(getComputedStyle(rec).backgroundColor),
+        } : null,
+        selected: sel ? {
+          ring: getComputedStyle(sel).boxShadow,
+          cellBg: rgb(getComputedStyle(sel).backgroundColor),
+        } : null,
       };
     });
-    const opaque = (c) => {
-      const m = (c || '').match(/rgba?\(([^)]+)\)/);
-      if (!m) return false;
-      return (m[1].split(',').length < 4 ? 1 : Number(m[1].split(',')[3])) >= 0.999;
-    };
     const ratio = (a, b) => {
-      const lum = (c) => {
-        const p = c.match(/\d+/g).slice(0, 3).map(Number);
+      const lum = (p) => {
         const v = p.map((x) => x / 255).map((x) => (x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4)));
         return 0.2126 * v[0] + 0.7152 * v[1] + 0.0722 * v[2];
       };
       const [x, y] = [lum(a), lum(b)];
       return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
     };
+    const same = (a, b) => a && b && a.every((v, i) => Math.abs(v - b[i]) <= 1);
+    const ringRgb = (shadow) => {
+      const n = (shadow || '').match(/rgba?\(([^)]+)\)/);
+      return n ? n[1].split(',').slice(0, 3).map(Number) : null;
+    };
 
     const check = (look, theme) => {
-      expect(look, theme + '：今天那格应存在').toBeTruthy();
-      expect(opaque(look.bg), theme + '：今天必须是一枚实心圆，不能只剩一圈描边').toBe(true);
-      expect(look.radius, theme + '：实心底的形状应是圆').toBe('50%');
-      expect(ratio(look.fg, look.bg), theme + '：日期数字压在圆底上要达 AA').toBeGreaterThanOrEqual(4.5);
+      const t = look.today;
+      expect(t, theme + '：今天那格应存在').toBeTruthy();
+      expect(t.bw, theme + '：今天要靠形状（描边圆）突出').toBeGreaterThanOrEqual(2);
+      expect(t.radius, theme + '：今天是圆').toBe('50%');
+      expect(t.bg, theme + '：今天不能靠填色，圆内应透出格底').toMatch(/rgba?\(0, 0, 0, 0\)|transparent/);
+      expect(same(t.border, look.tokens.accentInk), theme + '：今天的圆走 --accent-ink').toBe(true);
+      expect(ratio(t.border, t.cellBg), theme + '：今天的圆对格底要达 3:1').toBeGreaterThanOrEqual(3);
+      expect(ratio(t.fg, t.cellBg), theme + '：日期数字要达 AA').toBeGreaterThanOrEqual(4.5);
+
+      const r = look.record;
+      expect(r, theme + '：应有有记录的格子').toBeTruthy();
+      expect(r.washOpacity, theme + '：有记录的底要低存在感').toBeGreaterThan(0);
+      expect(r.washOpacity, theme + '：有记录的底要低存在感').toBeLessThanOrEqual(0.25);
+      expect(same(r.wash, look.tokens.fg), theme + '：有记录的底走中性墨 --fg，不用主题金').toBe(true);
     };
+
     check(await read(), '亮色');
 
-    // 选中态：整格描边环，但不能把今天的圆盖掉
     await page.locator(`#month-grid .mg-cell[data-date="${today}"]`).click();
-    const selected = await read();
-    expect(selected.selected).toBe(true);
-    expect(selected.ring, '选中是描边环').toContain('inset');
-    check(selected, '亮色·选中');
+    const picked = await read();
+    expect(picked.selected, '选中态应在当天格上').toBeTruthy();
+    expect(picked.selected.ring, '选中是描边环').toContain('inset');
+    const selRgb = ringRgb(picked.selected.ring);
+    expect(same(selRgb, picked.tokens.fg), '选中的环走 --fg').toBe(true);
+    expect(same(selRgb, picked.today.border), '选中与今天是两档强调色，不能同色').toBe(false);
+    expect(ratio(selRgb, picked.selected.cellBg), '选中的环对格底要达 3:1').toBeGreaterThanOrEqual(3);
+    check(picked, '亮色·选中');
 
     await page.getByRole('button', { name: '设置' }).click();
     await page.locator('#theme-seg-dark').click();
     await page.keyboard.press('Escape');
     await expect(page.locator('html')).toHaveClass(/dark/);
-    check(await read(), '暗色·选中');
+    const dark = await read();
+    expect(same(ringRgb(dark.selected.ring), dark.tokens.fg), '暗色选中同样走 --fg').toBe(true);
+    check(dark, '暗色·选中');
 
     await page.locator(`#month-grid .mg-cell[data-date="${today}"]`).click();
     check(await read(), '暗色');

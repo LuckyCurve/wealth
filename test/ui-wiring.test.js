@@ -900,8 +900,8 @@ describe('UI 接线契约：Flatpickr 日期选择器', () => {
   test('今天与选中的样式只用 CSS 变量，不硬编码色值', () => {
     assert.doesNotMatch(html, /\.flatpickr-day\.today[^}]*#[0-9a-f]{3,6}/i, '今天不应硬编码色值');
     assert.doesNotMatch(html, /\.flatpickr-day\.selected[^}]*#[0-9a-f]{3,6}/i, '选中不应硬编码色值');
-    assert.match(html, /\.flatpickr-day\.today[^}]*var\(--accent-ink\)/, '今天的实心圆走 --accent-ink');
-    assert.match(html, /\.flatpickr-day\.selected[^}]*var\(--accent-ink\)/, '选中的描边环走 --accent-ink');
+    assert.match(html, /\.flatpickr-day\.today[^}]*var\(--accent-ink\)/, '今天的圈走 --accent-ink');
+    assert.match(html, /\.flatpickr-day\.selected[^}]*var\(--fg\)/, '选中的环走 --fg，与今天的金色分开');
   });
 });
 
