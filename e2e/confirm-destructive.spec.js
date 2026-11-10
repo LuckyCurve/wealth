@@ -9,13 +9,13 @@
  * （它们各自需要专门的播种与原生选择器替身）。
  */
 const {
-  test, expect, stubCdn, seed, waitReady, disableMotion,
+  test, expect, stubExternal, seed, waitReady, disableMotion,
   sampleState, INDEX_URL, readAppState, gotoAssets,
 } = require('./fixtures');
 
 async function setup(page, patch = {}) {
   await disableMotion(page);
-  await stubCdn(page);
+  await stubExternal(page);
   await seed(page, { ...sampleState(), ...patch });
   await page.goto(INDEX_URL);
   await waitReady(page);

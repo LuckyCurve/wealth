@@ -55,11 +55,11 @@ test.describe('弹窗打开时背景不可滚', () => {
   });
 
   test('触摸拖拽不滚背景（手机上顺手一拖也不该动）', async ({ browser }) => {
-    const { stubCdn, seed, waitReady, sampleState, INDEX_URL, disableMotion } = require('./fixtures');
+    const { stubExternal, seed, waitReady, sampleState, INDEX_URL, disableMotion } = require('./fixtures');
     const ctx = await browser.newContext({ hasTouch: true, viewport: { width: 420, height: 800 }, isMobile: true });
     const page = await ctx.newPage();
     await disableMotion(page);
-    await stubCdn(page);
+    await stubExternal(page);
     await seed(page, sampleState());
     await page.goto(INDEX_URL);
     await waitReady(page);
@@ -236,10 +236,10 @@ test.describe('背景冻结不误伤「当前弹窗的延伸」', () => {
       css: fs.readFileSync(path.join(FP, 'dist/flatpickr.min.css'), 'utf8'),
       zh: fs.readFileSync(path.join(FP, 'dist/l10n/zh.js'), 'utf8'),
     };
-    const { stubCdn, seed, waitReady, sampleState, disableMotion, INDEX_URL } = require('./fixtures');
+    const { stubExternal, seed, waitReady, sampleState, disableMotion, INDEX_URL } = require('./fixtures');
     await disableMotion(page);
-    await stubCdn(page);
-    // route 后注册者优先：具体替身必须压在 stubCdn 的兜底之上
+    await stubExternal(page);
+    // route 后注册者优先：具体替身必须压在 stubExternal 的兜底之上
     await page.route('**/flatpickr**', (route) => {
       const url = route.request().url();
       if (url.endsWith('.css')) return route.fulfill({ status: 200, contentType: 'text/css', body: flatpickrRoutes.css });

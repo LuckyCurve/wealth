@@ -1,5 +1,5 @@
 const {
-  test, expect, stubCdn, seed, waitReady, disableMotion, sampleState, INDEX_URL,
+  test, expect, stubExternal, seed, waitReady, disableMotion, sampleState, INDEX_URL,
 } = require('./fixtures');
 
 const row = (i) => `#yield-rows .yield-row:nth-child(${i + 2})`;
@@ -256,7 +256,7 @@ test.describe('年化换算 · 语言', () => {
 test.describe('年化换算 · 导出', () => {
   test('导出的备份里带着换算记录', async ({ page }) => {
     await disableMotion(page);
-    await stubCdn(page);
+    await stubExternal(page);
     await seed(page, sampleState());
     await page.addInitScript(() => {
       window.showSaveFilePicker = async (o) => {

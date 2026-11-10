@@ -58,7 +58,7 @@ function renderAssets() {
         <div class="t-body muted">${a.currency}</div>
         <div class="t-micro tabular num muted">${money.formatCNY(cnyVal)}</div>
         <div class="t-body tabular num">${rateLabel}${cashTag}</div>
-        <div class="flex flex-wrap gap-1">${tagHtml}</div>
+        <div class="tag-row">${tagHtml}</div>
         <div class="row-actions">
           <button onclick="editAsset('${text.jsAttr(a.id)}')" class="row-btn edit">${i18n.t('编辑')}</button>
           <button onclick="deleteAsset('${text.jsAttr(a.id)}')" class="row-btn danger">${i18n.t('删除')}</button>
@@ -146,9 +146,9 @@ function renderMasthead() {
       : `<span class="tabular ink-accent">${i18n.t('还差 ')}${money.formatCNY(target - total)}</span>`;
     targetEl.innerHTML = `
       <div class="target-panel">
-        <div class="flex items-center justify-between t-micro mb-1.5 muted">
+        <div class="target-head t-micro mb-1.5 muted">
           <span>${i18n.t('目标净资产 · ')}<span class="tabular text-value">${pct.toFixed(0)}%</span></span>
-          <span class="flex items-center gap-2">
+          <span class="row-start">
             <span class="tabular text-value">${money.formatCNY(total)} / ${money.formatCNY(target)}</span>
             ${gap}
             <button onclick="openTargetModal()" class="btn-ghost btn-xs">${i18n.t('修改')}</button>
@@ -1039,17 +1039,17 @@ function renderCategoryCards(side) {
     const addTagCall = `addTag('${text.jsAttr(side)}', '${text.jsAttr(cat.id)}')`;
     const gap = gapOf(cat.id);
     return `<div class="card">
-      <div class="flex items-center justify-between mb-3">
-        <div class="flex items-center gap-2">
+      <div class="category-head mb-3">
+        <div class="row-start">
           <h3 class="card-title">${text.esc(cat.name)}</h3>
           ${cat.builtin ? '<span class="t-micro px-2 py-0.5 rounded muted" style="background:var(--bg-2);border:1px solid var(--border);">' + i18n.t('内置') + '</span>' : ''}
         </div>
-        <div class="flex gap-2">
+        <div class="row-actions-inline">
           ${!cat.builtin ? `<button onclick="openCategoryModal('${text.jsAttr(side)}', '${text.jsAttr(cat.id)}')" class="row-btn edit">${i18n.t('编辑')}</button>
           <button onclick="deleteCategory('${text.jsAttr(side)}', '${text.jsAttr(cat.id)}')" class="row-btn danger">${i18n.t('删除')}</button>` : ''}
         </div>
       </div>
-      <div class="flex flex-wrap gap-2 mb-3">${tagPills}</div>
+      <div class="tag-row-lg mb-3">${tagPills}</div>
       ${cat.builtin ? '' : `
       <div class="new-tag-row">
         <input type="text" id="${text.esc(cfg.newTagPrefix + cat.id)}" placeholder="${i18n.t('新增标签（回车添加）')}" class="t-body" autocomplete="off" onkeydown="if(event.key==='Enter'&&!event.isComposing){event.preventDefault();${addTagCall};}">

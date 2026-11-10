@@ -338,7 +338,33 @@
     /* 刘海/圆角屏：左右边距与安全区取 max，不加相（否则窄条上内容被顶出屏幕） */
     padding-inline: max(var(--content-pad), env(safe-area-inset-left, 0px)) max(var(--content-pad), env(safe-area-inset-right, 0px));
   }
-  /* 页头导航的布局写在这里，不靠 Tailwind：CDN 空壳/断网时工具类不生效，
+  /* ===== 结构类：页面骨架在自有 CSS，不靠 Tailwind =====
+     HTML 只挂语义 class；display / 列宽 / 对齐 / 收口这些决定「还是不是一张表、一条导航」
+     的规则必须在这里。CDN 工具类只负责 margin、字色这类修饰——拉不到时页面会少些留白，
+     但结构不塌（页头四项仍在一行、设置仍在最右）。 */
+  body { min-height: 100dvh; }
+  .content-column { padding-block: 24px; }
+  .masthead-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+  .masthead-copy { min-width: 0; }
+  .card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+  .income-pair { display: grid; grid-template-columns: 1fr 1fr; align-items: center; text-align: center; padding: 4px 0; }
+  .cov-notes { display: flex; flex-wrap: wrap; justify-content: center; column-gap: 24px; row-gap: 4px; }
+  .compare-controls { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 24px; }
+  .form-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .field-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+  .scale-row { display: flex; align-items: center; gap: 12px; }
+  .scale-row > .scale-input { flex: 1 1 auto; min-width: 0; }
+  .inline-row, .rate-pair, .row-start { display: flex; align-items: center; gap: 8px; }
+  .field-full { width: 100%; }
+  .target-head, .category-head { display: flex; align-items: center; justify-content: space-between; }
+  .row-actions-inline { display: flex; gap: 8px; }
+  .tag-row { display: flex; flex-wrap: wrap; gap: 4px; }
+  .tag-row-lg { display: flex; flex-wrap: wrap; gap: 8px; }
+  .row-main { flex: 1 1 auto; min-width: 0; }
+  .snapshot-row { display: flex; align-items: center; justify-content: space-between; }
+  .tagcheck-group-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .tagcheck-batch { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  /* 页头导航的布局写在这里，不靠 Tailwind：CDN 拉不到时工具类不生效，
      页头会塌成竖排（截图里四项挤在左上角、设置被挤到第二行）。一行、右侧收口，
      窄屏收文字与留白，不换行。 */
   .app-header-inner {
@@ -1206,9 +1232,9 @@
     #day-panel { overflow-x: auto; }
     #day-panel .asset-row { min-width: 560px; }
     /* 收益摘要双 hero 改纵向堆叠，避免窄屏挤爆 */
-    #income-summary .grid { grid-template-columns: 1fr; }
-    #income-summary .grid > div { padding: 6px 0; }
-    #income-summary .grid > div:nth-child(2) {
+    .income-pair { grid-template-columns: 1fr; }
+    .income-pair > div { padding: 6px 0; }
+    .income-pair > div:nth-child(2) {
       border-left: none !important;
       border-top: 1px solid var(--rule);
     }
@@ -1500,7 +1526,8 @@
      为什么必须单独一段：浏览器打印**默认不印背景色**，而本页的配色全部建立在
      「底色在、文字压在上面」之上。暗色主题下 --fg 是 #ece4d0，印在白纸上只有 1.27:1
      —— 用户拿到的是一张白纸（实测 page.pdf + 解压内容流，暗色 token 确实原样进了纸面）。
-     故打印形态不沿用当前主题，而是**强制回落到亮色那套纸墨**：
+     故打印形态不沿用当前主题，而是**强制回落到亮色那套纸墨**（含米黄纸面——
+     用 print-color-adjust: exact 让浏览器真的把纸色印出来，而不是洗成白纸）：
        ① 前景/次要色重绑到亮色 token（不写死色值，主题变量仍是单一来源）；
        ② 玻璃材质退场（backdrop-filter 关掉、底色改不透明 --card）——
           纸张印不出模糊，半透明压在纸上只是一片脏灰；
@@ -1508,8 +1535,10 @@
      只处理「印出来读不读得清」，不改屏幕上的任何形态。 */
   @media print {
     :root, :root.dark {
-      --bg: #fff; --bg-2: #fff; --fg: #211b10; --muted: #5e5034; --card: #fff; --card-2: #fff;
-      --record-tint: #fff; --record-edge: #b9a87e;
+      /* 纸上沿用亮色那套暖纸，而不是刷成纯白：用户看到的账本一直是米黄纸，
+         打印却变白纸，截图与实物对不上。暗色主题也回落到这一套（深棕纸印不出字）。 */
+      --bg: #ebe3d0; --bg-2: #e4dbc3; --fg: #211b10; --muted: #5e5034; --card: #fffcf3; --card-2: #f7f0dd;
+      --record-tint: #f7efda; --record-edge: #b9a87e;
       --border: #b9a87e; --rule: #b9a87e; --accent-ink: #7f5c0e; --accent: #8f6713;
       --accent-soft: #d9b25e; --accent-strong: #8f6713; --on-accent: #211b10;
       /* 语义色在纸上回到亮色档：暗色的浅色印到白纸上只剩淡影 */
@@ -1517,11 +1546,16 @@
       --verdigris: #2f6b4f; --warning: #a3491a; --down: #982f3a;
       --down-edge: #dcb6b4; --secondary-tint: rgba(61, 90, 122, 0.12); --usd: #86733f;
     }
-    html, body { background: #fff !important; color: var(--fg); }
-    /* 纸张不印背景图/阴影：纸纹、桌光、台灯三层全撤 */
-    body::before, body::after, .lamp-layer { display: none !important; }
+    /* 纸色要真的印出来：浏览器默认会丢背景色（Chrome 的「背景图形」默认关），
+       exact 让纸面与卡片底色跟随主题，而不是被打印机洗成白纸。 */
+    html, body, .card, .modal-content {
+      print-color-adjust: exact; -webkit-print-color-adjust: exact;
+    }
+    html, body { background: var(--bg) !important; color: var(--fg); }
+    /* 桌光与台灯是屏幕上的环境光，进纸只会变成一片脏灰；纸纤维保留，纸面才不是一块平色 */
+    body::after, .lamp-layer { display: none !important; }
     .card, .modal-content {
-      background: #fff !important;
+      background: var(--card) !important;
       backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
       box-shadow: none !important; border: 1px solid var(--border) !important;
     }
@@ -1538,7 +1572,7 @@
     .btn-gold, .btn-ghost, .btn-danger, .seg-control,
     /* 未设目标时这块只剩「设定目标」按钮，按钮撤了就是一条空框 */
     .target-panel-empty { display: none !important; }
-    .app-header { background: #fff !important; border-bottom: 1px solid var(--border); }
+    .app-header { background: var(--bg) !important; border-bottom: 1px solid var(--border); }
     /* 明细默认收起是屏幕上的事：纸上要印完整账目，不能要求先点一下再印。
        收起态那一行保留为合计读数，剥掉控件外观（虚线框、指针、箭头）。
        注意是 #expense-table 自身的内联 display:none，必须 !important 才压得住。 */

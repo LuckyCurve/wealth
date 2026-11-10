@@ -173,7 +173,7 @@ function renderExpenses() {
         <div class="t-body">${text.highlightMatch(e.date, q)}</div>
         <div class="t-body num">${money.money2(e.amount)}</div>
         <div class="t-body muted">${e.note ? text.highlightMatch(e.note, q) : '—'}</div>
-        <div class="flex flex-wrap gap-1">${tagHtml}</div>
+        <div class="tag-row">${tagHtml}</div>
         <div class="row-actions">
           <button onclick="editExpense('${text.jsAttr(e.id)}')" class="row-btn edit">${i18n.t('编辑')}</button>
           <button onclick="duplicateExpense('${text.jsAttr(e.id)}')" class="row-btn copy">${i18n.t('复制')}</button>
@@ -362,14 +362,14 @@ function tagCheckGroupHtml(g) {
     </div>`).join('');
   // 分组头分类名取 cat（会话对象 g 只有 catId/ids，用 g.name 会渲染成空串）
   return `<div class="tagcheck-group" data-catid="${text.esc(g.catId)}">
-    <div class="flex items-center justify-between gap-3 mb-3 flex-wrap">
-      <div class="flex items-center gap-2">
+    <div class="tagcheck-group-head mb-3">
+      <div class="row-start">
         <h4 class="card-title-sm">${text.esc(cat.name)}</h4>
         ${head}
       </div>
       ${left.length ? '<span class="t-micro muted">' + i18n.t('点标签即生效') + '</span>' : ''}
     </div>
-    <div class="tagcheck-batch flex items-center gap-2 flex-wrap mb-1">
+    <div class="tagcheck-batch mb-1">
       <span class="t-micro muted">${i18n.t('一键补齐：')}</span>
       ${tagPickerHtml([cat], () => batchSel, `tagcheck-b-${g.catId}-`, cfg.colorFn, { hideLabel: true })}
     </div>
@@ -741,10 +741,10 @@ function renderExpenseTrendList() {
       const c = compareColor(d, false);
       normalLine = ` · <span style="color:${c};">${cmpMiniBar(d, Math.max(total, normal.normal) || 1, () => c)}${i18n.t('较平常 {p1}', { p1: shown })}</span>`;
     }
-    return `<div class="card card-interactive flex items-center justify-between">
-      <div class="flex-1 row-hit" role="button" tabindex="0" onclick="viewExpenseMonth('${text.jsAttr(month)}')"
+    return `<div class="card card-interactive snapshot-row">
+      <div class="row-main row-hit" role="button" tabindex="0" onclick="viewExpenseMonth('${text.jsAttr(month)}')"
         onkeydown="if(ui.activateKeyAction(event.key)){event.preventDefault();viewExpenseMonth('${text.jsAttr(month)}');}">
-        <div class="flex items-center gap-2">
+        <div class="row-start">
           <span class="t-medium t-body">${date.monthLabel(month)}</span>
           ${badge}
         </div>

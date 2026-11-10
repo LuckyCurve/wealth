@@ -120,7 +120,7 @@ function renderHistoryHeader() {
 
   if (existing) {
     area.innerHTML = `
-      <div class="flex items-center gap-2">
+      <div class="row-start">
         <span class="t-body muted">
           ${date.monthLabel(month)}${i18n.t(' 已记录 ✓')}
         </span>
@@ -467,10 +467,10 @@ function renderHistoryTab() {
   list.innerHTML = [...state.snapshots].sort((a, b) => b.month.localeCompare(a.month)).map(s => {
     const prev = snapshot.getPrevSnapshot(s.month);
     const { badge, diffLine } = momCompareHtml(s.totalCNY, prev ? prev.totalCNY : null, true);
-    return `<div class="card card-interactive flex items-center justify-between">
-      <div class="flex-1 row-hit" role="button" tabindex="0" onclick="viewSnapshot('${text.jsAttr(s.month)}')"
+    return `<div class="card card-interactive snapshot-row">
+      <div class="row-main row-hit" role="button" tabindex="0" onclick="viewSnapshot('${text.jsAttr(s.month)}')"
         onkeydown="if(ui.activateKeyAction(event.key)){event.preventDefault();viewSnapshot('${text.jsAttr(s.month)}');}">
-        <div class="flex items-center gap-2">
+        <div class="row-start">
           <span class="t-medium t-body">${date.monthLabel(s.month)}</span>
           ${badge}
         </div>

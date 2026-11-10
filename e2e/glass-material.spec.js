@@ -15,7 +15,7 @@
  * 取样点都在**边中点**而非四角：卡片圆角 10px，落在弧线上的取样会读到描边的抗锯齿，
  * 得到与材质无关的假读数（本文件开发时就踩过一次）。
  */
-const { test, expect, sampleState, seed, stubCdn, waitReady, disableMotion, samplePixels, pixelLum, openExpenseTable } = require('./fixtures');
+const { test, expect, sampleState, seed, stubExternal, waitReady, disableMotion, samplePixels, pixelLum, openExpenseTable } = require('./fixtures');
 
 const cardEdges = (page) =>
   page.evaluate(() => {
@@ -53,7 +53,7 @@ async function edgeLum(page, info) {
 
 const open = async (page) => {
   await disableMotion(page);
-  await stubCdn(page);
+  await stubExternal(page);
   await seed(page, sampleState());
   await page.goto('index.html');
   await waitReady(page);
@@ -247,7 +247,7 @@ test.describe('弹窗：纸的纤维与深度', () => {
   };
 
   test('阴影色走变量：亮/暗两套各自成立', async ({ page }) => {
-    await stubCdn(page);
+    await stubExternal(page);
     await seed(page, sampleState());
     await page.goto('index.html');
     await waitReady(page);
@@ -278,7 +278,7 @@ test.describe('弹窗：纸的纤维与深度', () => {
   });
 
   test('弹窗内边距带有纸纹，正文列保持纯色（AA 巡检的前提不破）', async ({ page }) => {
-    await stubCdn(page);
+    await stubExternal(page);
     await seed(page, sampleState());
     await page.goto('index.html');
     await waitReady(page);

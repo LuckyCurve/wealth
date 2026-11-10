@@ -49,13 +49,14 @@ describe('E2E 卫生：不用固定睡眠等渲染', () => {
 });
 
 /*
- * 第二条卫生契约：spec 里不得放行外网。
+ * 第二条卫生契约：除 Tailwind 本体外，不逐个放行外网。
  * --------------------------------------------------------------------------
+ * Tailwind 由页面自己的 <script> 真实加载（布局必须按真身验），不经过 route。
  * 曾经有一条用例为了拿「真的 flatpickr」，写了 route.continue() 放行 cdn.jsdelivr：
- * 每轮为它多花 3~4s，断网即红，而它要验的东西（日历被库挂到 body 下、不该被 inert）
+ * 每轮为它多花 3~4s，而它要验的东西（日历被库挂到 body 下、不该被 inert）
  * 完全可以用本地那份同版本 dist 证明。替代物看不见的部分要承认，但**不能靠连外网来补**。
  */
-describe('E2E 卫生：不放行外网', () => {
+describe('E2E 卫生：除 Tailwind 外不放行外网', () => {
   test('e2e/ 下不出现 route.continue / unroute（外网替身只进不出）', () => {
     const files = fs.readdirSync(E2E_DIR).filter((f) => f.endsWith('.js'));
     assert.ok(files.length >= 5, `应扫到 e2e/ 全部文件，实际 ${files.length} 个`);

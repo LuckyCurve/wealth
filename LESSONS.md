@@ -15,9 +15,9 @@
 
 ## 测试与装置（单测 / E2E）
 
-- **断网可跑，不放行外网** — 汇率 / echarts / tailwind / flatpickr / 字体全部 `page.route` 替身（`e2e/fixtures.js`）。放行外网既慢又脆，`e2e-hygiene` 扫 `route.continue` / `unroute` 把守。要验真库行为就从 `node_modules` 读（flatpickr 就是这样喂进去的），不要开外网。
+- **E2E 只替「与断言无关」的外网** — 汇率 / echarts / flatpickr / 字体仍用 `page.route` 替身（`e2e/fixtures.js`）；**Tailwind 不替**，它由页面真实加载，E2E 才能按用户看到的真身排版。替身只进不出，`e2e-hygiene` 仍扫 `route.continue` / `unroute` 把守（Tailwind 不经 route，自然不在豁免里）。要验真库行为就从 `node_modules` 读（flatpickr 就是这样喂进去的）。
 - **兜底替身要先注册** — 「拦掉一切外网」的兜底 route 先注册，具体 CDN 替身后注册才能覆盖它（route 后注册者优先）。次序写反不报错，只表现为一串莫名失败。
-- **Tailwind 在 E2E 里是空壳**（`window.tailwind = {}`）：工具类不生效、截图不能验收 Tailwind 布局——版式规格必须写在自有 CSS 里。实测的代价：行内操作按钮只挂了 `flex justify-end`，E2E 里它们是块级元素、看着挺齐，真页上却是 flex + `justify-end`——内容比列宽时**向左溢出**，最右那枚标签被压住半截；`consistency` 那条「压到 60px 强制溢出」的巡检就是为它补的。页头整组导航也栽过同一坑：断网时四个入口塌成两行、设置被挤到左侧；现在一行布局与窄屏收字全在自有 CSS，E2E 按 320–1280px 验。
+- **Tailwind 必须按真身验** — 曾用 `window.tailwind = {}` 空壳替身，结果是「测试里挺齐、真页上塌成两行」：页头四项挤在左上、设置离开右侧；行内操作按钮在真 flex 下**向左溢出**，最右那枚标签被压住半截（`consistency` 的「压到 60px 强制溢出」就是为它补的）。现在 E2E 真实加载 Tailwind；关键布局仍写自有 CSS，作为 CDN 拉不到时的兜底——测试环境不该替用户假设 CDN 永远可用。
 - **先关动效再断言数字** — masthead 是计数动画，等收敛会让每条数字断言吃满超时；`fixtures` 统一 `reducedMotion: 'reduce'`。
 - **固定定时器用 `page.clock` 快进**（便条退场、备份确认框、开屏看门狗），且时钟要在定时器注册之前接管。
 - **seed 只在首次导航生效** — `addInitScript` 每次导航（含 reload）都会重跑；不设 once 标记，reload 会把存档洗回种子值，持久化用例「永远绿」（假通过）。标记放 sessionStorage。
@@ -104,9 +104,9 @@
 - **表格列宽必须单一来源**：表头与数据行引用同一个 `cols-*` class 或同一个 `cols` 常量，不允许各写一遍——两边各写一串的下场是改一处忘一处、表头与内容错位。`.cols-*` 须定义在 `.asset-row` 之后（同特异性下后者胜）。
 - **覆盖别处的档位要抬特异性，不要赌「写在后面」**：同特异性下后写者胜，已经有四处栽在这上面（`.cols-*`、Tailwind preflight、`appearance` 基线、换句图标）。症状统一得吓人——**改了尺寸/颜色、不报错、画面不动**（实测那枚图标连改两轮 26→30px 都没生效，量了 `getBoundingClientRect` 才知道还是 15px）。自己那条若压在别人后面就用复合选择器（`.tip-mark.gate-lang-mark`）把胜负从「文件次序」改成「特异性」。
   - **窄表要给真正的列间距，别指望内容留白**：列宽按 fr 分配时单元格之间是紧贴的，「看着有空隙」只是因为内容短——内容一长就贴在一起（构成明细表的日期栏宽 ≈ 日期文本本身，金额紧贴日期；资产侧金额一长与货币码之间只剩个位数 px）。故**所有列宽模板**（含列表页三张表与快照详情）统一给 `column-gap`，含日期列的再把日期栏定宽（日期是定长文本，按 fr 分配就永远贴着内容宽、挤不出白）。间距与定宽只在一处定义，`consistency.spec.js` 量「相邻单元格的文本间隙」把守。
-  - **规格不写进 Tailwind 类**：Tailwind 走 CDN，且 E2E 里是空壳（`window.tailwind = {}`）——写进工具类的规格既不可测、又随 CDN 抖动。关键布局用自有 CSS，顺带保证 CDN 挂掉时页面不塌。已有的 Tailwind 间距类（`mb-6`、`gap-3`）保持不动；**排版（字号/字重/字距/字体族）一律不进门**，只用 `<style>` 里的档位类（`.t-micro`/`.t-body`）与角色类。
+  - **规格不写进 Tailwind 类**：Tailwind 走 CDN，类是否生效不由我们决定——写进工具类的规格随 CDN 抖动，且失效时无从兜底。关键布局用自有 CSS，保证 CDN 挂掉时页面不塌。已有的 Tailwind 间距类（`mb-6`、`gap-3`）保持不动；**排版（字号/字重/字距/字体族）一律不进门**，只用 `<style>` 里的档位类（`.t-micro`/`.t-body`）与角色类。
   - **章节头的操作行是 `.toolbar`，不是 `flex gap-3`**：同一行里并排放筛选控件与主按钮时，行本身要给 `flex-wrap` 与 `justify-content:flex-end`——只靠 Tailwind 的 `flex items-center gap-3`（无换行），窄屏放不下就会把按钮挤成一根竖排的字柱（390px 实测「记录消费」变成 56×123）。判据量与「放不下时整组换行」有关的行为，见 `consistency.spec.js`。
-  - **Tailwind preflight 会在运行时抢走表单控件的内边距**：CDN 把 preflight 的 `<style>` 插到页面自有样式**之后**，其中 `input,select,button,textarea{padding:0}` 与裸选择器同特异性、位置更后即胜出——实测搜索框塌到 23px、下拉框 22px，紧挨着的金色按钮 39px，一行三种高度。故表单控件规格**必须挂在有容器前缀的选择器下**（`body input`），把胜负从「注入次序」改成「特异性」；只改注入时序是治不了的（CDN 何时插入不由我们决定）。E2E 里 Tailwind 是空壳，这条缺陷在常规用例里永远看不见，`consistency.spec.js` 用一条**只复刻这条 preflight 规则**的替身用例把守。
+  - **Tailwind preflight 会在运行时抢走表单控件的内边距**：CDN 把 preflight 的 `<style>` 插到页面自有样式**之后**，其中 `input,select,button,textarea{padding:0}` 与裸选择器同特异性、位置更后即胜出——实测搜索框塌到 23px、下拉框 22px，紧挨着的金色按钮 39px，一行三种高度。故表单控件规格**必须挂在有容器前缀的选择器下**（`body input`），把胜负从「注入次序」改成「特异性」；只改注入时序是治不了的（CDN 何时插入不由我们决定）。E2E 现在加载 Tailwind 真身，这条缺陷由 `consistency.spec.js` 的 preflight 用例直接守着。
   - **原生控件的外观由页面接管**：箭头、spinner 这类「浏览器自己画」的东西不认主题、也不受页面控制。三条实测缺陷同源，修法都是关掉原生外观：① `<select>` 的箭头由浏览器画在右侧，页面拿不到位置（文字距左 18.5px、箭头距右 4px，永远对不齐）→ `appearance:none` + 自绘 `--chevron`（亮/暗各一套，色值走变量）；② `number` 输入的上下箭头只在 hover/聚焦时出现、是块灰疙瘩 → `appearance:textfield` + 隐藏 spin button；③ 全局 `:focus-visible` 上曾写 `border-radius:4px`，聚焦时把控件 6px 圆角改成 4px、失焦再跳回来——**焦点只该在外面加一圈环，不该改元素自身的形状**。
     - **主题覆盖别用 `background` 简写**：`.dark input,.dark select { background: var(--bg-2) }` 会把自绘箭头的 `background-image` 一并重置成 `none`，暗色下箭头凭空消失，而亮色用例全绿。凡是元素自带 `background-image`，覆盖时只写 `background-color`。
     - **控件等高要靠 `line-height`**：`select` 的默认行高是 `normal`、`input` 是数值，同一套 padding 下差 1px（39 vs 38），并排时底边对不齐。
@@ -148,7 +148,7 @@
   - **`fr` 列的自动最小值是 min-content**：标签胶囊的最小内容宽会把整张资产表撑出纸外，右侧被裁、标签只剩前两个字。纸面模板的弹性列一律 `minmax(0, …)`，标签再允许换行（`white-space: normal` + `overflow: visible`）。
   - **操作列不印了，列模板要同步收**：只 `display: none` 行内按钮不动 `grid-template-columns`，最后一列会留一整条空白；表头里给拖拽/操作占位的空 `<div>` 也得靠 `.list-head > div:empty` 一起撤，否则表头整体错位到第二行。
   - **收起态不能带进纸**：明细节屏上默认收起，纸上要 `display: block !important` 才印得出记录；收起那一行剥成纯合计读数。
-  - 守门：`e2e/theme.spec.js` 的打印用例断言筛选/行内按钮/拖拽把手隐藏、明细可见、标签可换行；纸面截图按 794px 视口取（A4 96dpi），不要用 1280px 屏幕截图判断列宽。
+  - 守门：`e2e/theme.spec.js` 的打印用例断言筛选/行内按钮/拖拽把手隐藏、明细可见、标签可换行；纸面截图从**带背景的 PDF** 转图（`printBackground: true`，A4 120dpi 逐页），不要用 1280px 屏幕截图判断列宽，也不要用白底 PDF 判断纸色。
 
 - **暗色模式** — 切换入口唯一在设置弹窗；`<head>` 内联脚本在渲染前定好初始主题（跟随系统，显式切换后以存储为准），避免首屏闪烁。
 
@@ -161,7 +161,7 @@
   - **贴纸式的固定特效要克制**：这类效果的价值全在「少」——全站装饰性印刷语言只保留报头底纹一处（再刻第二处就成壁纸了）。它必须用 mask 衰减收边，且两套主题各自给色（亮色下细金线会向灰偏移，需压深加粗）。
   - **开屏是非阻塞入场，不是 splash**：遮住首屏的数字等于扣分。两态 transition（`booting` → `ready`）而**不是** `@keyframes`——动画会在隐藏容器（另一个模式的 Tab 栏）里停在起始帧，那块东西就永远隐形；且 base 即最终态，脚本没跑也看得见，另有一道看门狗兜底。减动效要连 `delay` 一起归零，只关时长的话带 delay 的入场会停在「还没出来」。
   - **Tab/模式切换的入场带方向感**：「翻页」方向按目标按钮相对当前按钮的**实测水平位置**判定（`offsetLeft` 喂给 logic.js `paneEnterShift`，方向经 `--pane-x` 交给 keyframes）——不维护「Tab 次序表」（第二份真相，加一个 Tab 忘改就静默漂移；实测位置换窗口宽度后仍自动正确）。仍走「显示后下一帧加 `.enter`」两步走，方向判定只此一份，两处调用点不得各写一份。
-  - **内容栏宽度/边距是单一来源**（`--content-max` / `--content-pad`）：页头与正文共用同一套左右轴，不得再各自挂 Tailwind 工具类——Tailwind 走 CDN，E2E 里是空壳。
+  - **内容栏宽度/边距是单一来源**（`--content-max` / `--content-pad`）：页头与正文共用同一套左右轴，不得再各自挂 Tailwind 工具类——Tailwind 走 CDN，拉不到时这层轴就没了。
   - **验证视觉改动的办法是量，不是看**：注释里写下的因果（“-1 会消失”“触屏 detail 不是 1”）都必须在真实浏览器里验一遍。本项目的 z-index 注释就曾与实际相反，至今仍可见的 `-1` 层被误当成不可见。
 
 ## 排序、录入与表单

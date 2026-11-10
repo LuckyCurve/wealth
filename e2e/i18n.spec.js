@@ -1,12 +1,12 @@
 const {
-  test, expect, stubCdn, seed, waitReady, disableMotion, gotoAssets, INDEX_URL, LS_KEY,
+  test, expect, stubExternal, seed, waitReady, disableMotion, gotoAssets, INDEX_URL, LS_KEY,
 } = require('./fixtures');
 
 const CJK = /[\u4e00-\u9fff]/;
 
 async function openWith(page, state) {
   await disableMotion(page);
-  await stubCdn(page);
+  await stubExternal(page);
   await seed(page, state);
   await page.goto(INDEX_URL);
   await waitReady(page);

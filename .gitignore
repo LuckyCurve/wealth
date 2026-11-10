@@ -10,3 +10,5 @@ node_modules/
 e2e-results/
 playwright-report/
 test-results/
+# E2E 把 Tailwind CDN 的同一份构建缓存在这里，首次拉取后离线复用
+e2e/.cache/

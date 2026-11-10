@@ -26,7 +26,9 @@ const BUDGETS = {
   // 同一 commit 再抬 2KB 收下这段布局与窄屏规则。
   // 打印形态：隐藏操作件、明细默认展开、去掉空出来的操作列、标签不截断、分页避断；
   // 同一 commit 再抬 3KB 收下这段纸面规则。
-  'styles.css': 117_000,
+  // 结构类收口：页头/内容栏/表格/表单栅格等骨架从 Tailwind 工具类搬进自有 CSS，
+  // 同一 commit 再抬 3KB 收下这批语义类。
+  'styles.css': 120_000,
   'app-core.js': 26_000,
   'app-assets.js': 74_000,
   'app-charts.js': 53_000,

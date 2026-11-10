@@ -38,7 +38,7 @@ tailwind.config = {
   theme: {
     extend: {
       // 排版规格（字号/字重/字体族）一律写在 <style> 的 :root, :root.dark token 与 .t-* 档位类里，
-      // 不在这里声明 fontFamily：CDN 空壳下这些类不生效，真机里又会和自有档位各算一套。
+      // 不在这里声明 fontFamily：CDN 拉不到时这些类不生效，真机里又会和自有档位各算一套。
       colors: {
         ink: { 50: '#f6f1e4', 100: '#ece4d0', 200: '#d8cbab', 300: '#b9a87e', 400: '#9a8758', 500: '#7c6b43', 600: '#5e5034', 700: '#473b28', 800: '#2f281b', 900: '#211b10', 950: '#15110a' },
         gold: { 300: '#e6c982', 400: '#d9b25e', 500: '#b4841a', 600: '#8f6713' },
@@ -51,7 +51,7 @@ tailwind.config = {
 </script>
 <link rel="stylesheet" href="styles.css">
 </head>
-<body class="min-h-screen">
+<body>
 
 <!-- 纸面掠光层: 跟随指针的「台灯」——账本摊在桌上，灯在纸上游走。
      固定视口层, 不吃指针事件; --lamp-x/--lamp-y 由 updateLamp 写（换算在 logic.js ui.lampPos）。
@@ -153,7 +153,7 @@ tailwind.config = {
 </div>
 
 <!-- Main Content -->
-<main class="content-column py-6">
+<main class="content-column">
 
   <!-- ====== ASSETS CONTENT ====== -->
   <div id="content-assets" style="display:none;">
@@ -161,8 +161,8 @@ tailwind.config = {
   <!-- Assets Tab -->
   <section id="tab-assets" style="display:none;">
       <div class="masthead mb-6 card">
-        <div class="flex items-start justify-between gap-4 flex-wrap">
-          <div class="min-w-0">
+        <div class="masthead-head">
+          <div class="masthead-copy">
             <p class="masthead-eyebrow"><span class="live-dot"></span><span data-i18n="净资产 · 截至">净资产 · 截至</span> <span id="masthead-date">—</span></span></p>
             <p class="masthead-amount"><span class="currency-mark">¥</span><span class="whole" id="masthead-whole">0</span><span class="cents" id="masthead-cents">.00</span></p>
           </div>
@@ -283,7 +283,7 @@ tailwind.config = {
         <p class="sub" data-i18n="按资产金额与预期年利率测算收益">按资产金额与预期年利率测算收益</p>
       </div>
     </div>
-    <div class="flex items-center justify-between mb-4 gap-3 flex-wrap">
+    <div class="card-head">
       <div id="income-mode-toggle" style="display:none;" class="seg-control">
         <button id="income-mode-min" onclick="setIncomeMode('min')" class="seg-btn active" data-i18n="使用最低">使用最低</button>
         <button id="income-mode-max" onclick="setIncomeMode('max')" class="seg-btn" data-i18n="使用最高">使用最高</button>
@@ -301,7 +301,7 @@ tailwind.config = {
       <div class="empty-action"><button onclick="switchTab('assets')" class="btn-ghost" data-i18n="去资产管理">去资产管理</button></div>
     </div>
     <div id="income-summary" class="card mb-6" style="display:none;">
-      <div class="grid grid-cols-2 text-center items-center" style="padding:4px 0;">
+      <div class="income-pair" style="padding:4px 0;">
         <div>
           <p class="meta-label mb-1 muted" data-i18n="总收益 · 月">总收益 · 月</p>
           <p id="income-monthly" class="font-masthead tabular hero-figure ink-up">¥0</p>
@@ -311,7 +311,7 @@ tailwind.config = {
           <p id="income-cash-monthly" class="font-masthead tabular hero-figure ink-accent">¥0</p>
         </div>
       </div>
-      <div class="flex flex-wrap justify-center gap-x-6 gap-y-1 t-micro mt-3 pt-3 muted" style="border-top:1px dashed var(--rule);">
+      <div class="cov-notes t-micro mt-3 pt-3 muted" style="border-top:1px dashed var(--rule);">
         <span data-i18n="年">年</span> <span id="income-annual" class="tabular t-medium text-value">¥0</span></span>
         <span data-i18n="日">日</span> <span id="income-daily" class="tabular t-medium text-value">¥0</span></span>
         <span data-i18n="现金占比">现金占比</span> <span id="income-cash-share" class="tabular t-medium ink-accent">—</span></span>
@@ -350,7 +350,7 @@ tailwind.config = {
       <p id="income-table-note" class="t-micro mt-3 muted" style="display:none;"></p>
     </div>
     <div id="income-chart-container" class="card mt-6" style="display:none;">
-      <div class="flex items-center justify-between mb-4">
+      <div class="card-head">
         <h3 class="font-display t-body t-bold" data-i18n="收益分布">收益分布</h3>
         <div class="toolbar">
           <div class="seg-control">
@@ -383,7 +383,7 @@ tailwind.config = {
       </div>
 
       <div id="month-grid-card" class="card mb-6">
-        <div class="flex items-center justify-between mb-4 gap-3 flex-wrap">
+        <div class="card-head">
           <div>
             <h3 class="font-display t-body t-bold" data-i18n="月份图">月份图</h3>
             <p class="t-micro muted mt-1"><span id="month-grid-label" class="tabular"></span> · <span id="month-grid-summary" class="tabular"></span></p>
@@ -582,7 +582,7 @@ tailwind.config = {
 <div id="compare-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="compare-modal-title" style="display:none;">
   <div class="modal-content modal-xl">
     <h3 class="font-display modal-title" id="compare-modal-title" data-i18n="快照对比">快照对比</h3>
-    <div class="flex items-center gap-3 flex-wrap mb-6">
+    <div class="compare-controls">
       <label class="meta-label muted"><span data-i18n="起始月">起始月</span>
         <select id="compare-base-select" onchange="renderCompareTable()" class="select-field ml-2"></select>
       </label>
@@ -610,7 +610,7 @@ tailwind.config = {
 <div id="expense-compare-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="expense-compare-modal-title" style="display:none;">
   <div class="modal-content modal-xl">
     <h3 class="font-display modal-title" id="expense-compare-modal-title" data-i18n="消费对比">消费对比</h3>
-    <div class="flex items-center gap-3 flex-wrap mb-6">
+    <div class="compare-controls">
       <label class="meta-label muted"><span data-i18n="基准">基准</span>
         <select id="exp-compare-base-mode" onchange="syncExpenseCompareBaseMode()" class="select-field ml-2">
           <option value="month" data-i18n="起始月">起始月</option>
@@ -656,7 +656,7 @@ tailwind.config = {
   <div class="modal-content modal-sm">
     <h3 class="font-display modal-title" id="snapshot-note-modal-title" data-i18n="记录快照">记录快照</h3>
     <p class="t-body mb-4 muted" data-i18n="将保存当前所有资产数据">将保存当前所有资产数据</p>
-    <input type="text" id="snapshot-note-input" class="w-full" placeholder="备注（可选）" data-i18n-placeholder="备注（可选）" autofocus onkeydown="if(event.key==='Enter')confirmSnapshot()">
+    <input type="text" id="snapshot-note-input" class="field-full" placeholder="备注（可选）" data-i18n-placeholder="备注（可选）" autofocus onkeydown="if(event.key==='Enter')confirmSnapshot()">
     <div class="modal-footer">
       <button type="button" onclick="closeModal('snapshot-note-modal')" class="btn-ghost" data-i18n="取消">取消</button>
       <button type="button" onclick="confirmSnapshot()" class="btn-gold" data-i18n="确认快照">确认快照</button>
@@ -673,16 +673,16 @@ tailwind.config = {
       <div class="space-y-4">
         <div>
           <label class="field-label" for="asset-name" data-i18n="资产名称">资产名称</label>
-          <input type="text" id="asset-name" required class="w-full" placeholder="如：招商银行活期" data-i18n-placeholder="如：招商银行活期">
+          <input type="text" id="asset-name" required class="field-full" placeholder="如：招商银行活期" data-i18n-placeholder="如：招商银行活期">
         </div>
-        <div class="grid grid-cols-2 gap-4">
+        <div class="form-grid-2">
           <div>
             <label class="field-label" for="asset-amount" data-i18n="金额">金额</label>
-            <input type="text" id="asset-amount" required inputmode="decimal" class="w-full" placeholder="0.00" oninput="formatMoneyInput(this)" autocomplete="off">
+            <input type="text" id="asset-amount" required inputmode="decimal" class="field-full" placeholder="0.00" oninput="formatMoneyInput(this)" autocomplete="off">
           </div>
           <div>
             <label class="field-label" for="asset-currency" data-i18n="货币">货币</label>
-            <select id="asset-currency" class="w-full">
+            <select id="asset-currency" class="field-full">
               <option value="CNY">CNY ¥</option>
               <option value="HKD">HKD $</option>
               <option value="USD">USD $</option>
@@ -691,22 +691,22 @@ tailwind.config = {
         </div>
         <div>
           <label class="field-label" for="asset-rate-min" data-i18n="预期年化收益率 (%)">预期年化收益率 (%)</label>
-          <div class="flex items-center gap-2">
+          <div class="rate-pair">
             <!-- step="any"：step="0.1" 会让 0.25% 这类两位小数利率命中原生 stepMismatch，
                  浏览器静默拦截 submit —— 用户点保存毫无反应也没有任何提示（演示数据的
                  0.25%/0.35% 即会触发）。步长在这里没有语义，交给 saveAsset 校验。 -->
-            <input type="number" id="asset-rate-min" min="0" step="any" class="w-full" placeholder="最低" data-i18n-placeholder="最低" value="0" aria-label="预期年化收益率下限 (%)" data-i18n-aria-label="预期年化收益率下限 (%)">
+            <input type="number" id="asset-rate-min" min="0" step="any" class="field-full" placeholder="最低" data-i18n-placeholder="最低" value="0" aria-label="预期年化收益率下限 (%)" data-i18n-aria-label="预期年化收益率下限 (%)">
             <span class="muted">—</span>
-            <input type="number" id="asset-rate-max" min="0" step="any" class="w-full" placeholder="最高" data-i18n-placeholder="最高" value="0" aria-label="预期年化收益率上限 (%)" data-i18n-aria-label="预期年化收益率上限 (%)">
+            <input type="number" id="asset-rate-max" min="0" step="any" class="field-full" placeholder="最高" data-i18n-placeholder="最高" value="0" aria-label="预期年化收益率上限 (%)" data-i18n-aria-label="预期年化收益率上限 (%)">
           </div>
         </div>
         <div>
-          <div class="flex items-center justify-between mb-1.5">
+          <div class="field-head">
             <label class="field-label tight" for="asset-cash-ratio" data-i18n="现金比例 (%)">现金比例 (%)</label>
             <span class="scale-reading" id="asset-cash-ratio-readout">100%</span>
           </div>
-          <div class="flex items-center gap-3">
-            <input type="range" id="asset-cash-ratio" class="scale-input flex-1" min="0" max="100" step="1" value="100" aria-label="现金比例（百分比）" data-i18n-aria-label="现金比例（百分比）" oninput="onCashRatioInput()">
+          <div class="scale-row">
+            <input type="range" id="asset-cash-ratio" class="scale-input" min="0" max="100" step="1" value="100" aria-label="现金比例（百分比）" data-i18n-aria-label="现金比例（百分比）" oninput="onCashRatioInput()">
             <button type="button" onclick="setCashRatioPreset(100)" class="btn-ghost btn-sm" data-i18n="全额现金">全额现金</button>
             <button type="button" onclick="setCashRatioPreset(0)" class="btn-ghost btn-sm" data-i18n="纯增值">纯增值</button>
           </div>
@@ -731,11 +731,11 @@ tailwind.config = {
       <div class="space-y-4">
         <div>
           <label class="field-label" for="cat-name" data-i18n="分类名称">分类名称</label>
-          <input type="text" id="cat-name" required class="w-full" placeholder="如：资产类型" data-i18n-placeholder="如：资产类型">
+          <input type="text" id="cat-name" required class="field-full" placeholder="如：资产类型" data-i18n-placeholder="如：资产类型">
         </div>
         <div>
           <label class="field-label" for="cat-tags" data-i18n="标签（逗号分隔）">标签（逗号分隔）</label>
-          <input type="text" id="cat-tags" required class="w-full" placeholder="如：固定资产, 股票, 债券" data-i18n-placeholder="如：固定资产, 股票, 债券">
+          <input type="text" id="cat-tags" required class="field-full" placeholder="如：固定资产, 股票, 债券" data-i18n-placeholder="如：固定资产, 股票, 债券">
         </div>
       </div>
       <div class="modal-footer">
@@ -780,7 +780,7 @@ tailwind.config = {
     <h3 class="font-display modal-title" id="pass-modal-title" data-i18n="输入密钥">输入密钥</h3>
     <p class="t-body muted" style="margin-bottom:20px;" data-i18n="这个备份是加密的，输入导出时用的那串密钥才能打开。">这个备份是加密的，输入导出时用的那串密钥才能打开。</p>
     <label class="field-label" for="pass-modal-input" data-i18n="密钥">密钥</label>
-    <input type="password" id="pass-modal-input" class="w-full" autocomplete="off" onkeydown="passModalKey(event)">
+    <input type="password" id="pass-modal-input" class="field-full" autocomplete="off" onkeydown="passModalKey(event)">
     <div class="modal-footer">
       <button type="button" onclick="cancelPassImport()" class="btn-ghost" data-i18n="取消">取消</button>
       <button type="button" id="pass-modal-ok" onclick="submitPassImport()" class="btn-gold" data-i18n="解密">解密</button>
@@ -803,7 +803,7 @@ tailwind.config = {
     <p id="asset-gate-phrase" class="gate-phrase"></p>
     <label class="field-label" for="asset-gate-input" data-i18n="抄写这句话">抄写这句话</label>
     <!-- 禁止粘贴：允许粘贴就把这道闸变成一次性的（抄过一次就永远 Ctrl+V） -->
-    <input type="text" id="asset-gate-input" class="w-full" autocomplete="off" spellcheck="false" onpaste="event.preventDefault()" onkeydown="assetGateKey(event)">
+    <input type="text" id="asset-gate-input" class="field-full" autocomplete="off" spellcheck="false" onpaste="event.preventDefault()" onkeydown="assetGateKey(event)">
     <p id="asset-gate-error" class="gate-error" style="display:none;" role="alert" data-i18n="与原句不一致，请重抄一遍">与原句不一致，请重抄一遍</p>
     <div class="modal-footer">
       <button type="button" onclick="cancelAssetGate()" class="btn-ghost" data-i18n="不看">不看</button>
@@ -844,15 +844,15 @@ tailwind.config = {
       <div class="space-y-4">
         <div>
           <label class="field-label" for="expense-date" data-i18n="日期">日期</label>
-          <input type="date" id="expense-date" required class="w-full">
+          <input type="date" id="expense-date" required class="field-full">
         </div>
         <div>
           <label class="field-label" for="expense-amount" data-i18n="金额 (CNY)">金额 (CNY)</label>
-          <input type="text" id="expense-amount" required inputmode="decimal" class="w-full" placeholder="0.00" oninput="formatMoneyInput(this)" autocomplete="off">
+          <input type="text" id="expense-amount" required inputmode="decimal" class="field-full" placeholder="0.00" oninput="formatMoneyInput(this)" autocomplete="off">
         </div>
         <div>
           <label class="field-label" for="expense-note" data-i18n="备注">备注</label>
-          <input type="text" id="expense-note" class="w-full" placeholder="可选备注" data-i18n-placeholder="可选备注">
+          <input type="text" id="expense-note" class="field-full" placeholder="可选备注" data-i18n-placeholder="可选备注">
         </div>
         <div id="expense-tags-section" class="space-y-3"></div>
       </div>
@@ -873,11 +873,11 @@ tailwind.config = {
       <div class="space-y-4">
         <div>
           <label class="field-label" for="expense-cat-name" data-i18n="分类名称">分类名称</label>
-          <input type="text" id="expense-cat-name" required class="w-full" placeholder="如：支付方式" data-i18n-placeholder="如：支付方式">
+          <input type="text" id="expense-cat-name" required class="field-full" placeholder="如：支付方式" data-i18n-placeholder="如：支付方式">
         </div>
         <div>
           <label class="field-label" for="expense-cat-tags" data-i18n="标签（逗号分隔）">标签（逗号分隔）</label>
-          <input type="text" id="expense-cat-tags" required class="w-full" placeholder="如：微信, 支付宝, 现金" data-i18n-placeholder="如：微信, 支付宝, 现金">
+          <input type="text" id="expense-cat-tags" required class="field-full" placeholder="如：微信, 支付宝, 现金" data-i18n-placeholder="如：微信, 支付宝, 现金">
         </div>
       </div>
       <div class="modal-footer">
@@ -906,7 +906,7 @@ tailwind.config = {
   <div class="modal-content modal-sm">
     <h3 class="font-display modal-title" id="expectation-modal-title" data-i18n="预期消费">预期消费</h3>
     <p class="t-body mb-4 muted" data-i18n="在消费趋势图中显示为水平参考线，收起部分类别后可对比每月合计">在消费趋势图中显示为水平参考线，收起部分类别后可对比每月合计</p>
-    <input type="text" id="expectation-input" inputmode="decimal" class="w-full" placeholder="预期月消费 (CNY)" data-i18n-placeholder="预期月消费 (CNY)" oninput="formatMoneyInput(this)" autocomplete="off" onkeydown="if(event.key==='Enter')saveExpectation()">
+    <input type="text" id="expectation-input" inputmode="decimal" class="field-full" placeholder="预期月消费 (CNY)" data-i18n-placeholder="预期月消费 (CNY)" oninput="formatMoneyInput(this)" autocomplete="off" onkeydown="if(event.key==='Enter')saveExpectation()">
     <div class="modal-footer">
       <button type="button" onclick="clearExpectation()" class="btn-danger btn-sm" data-i18n="清除">清除</button>
       <button type="button" onclick="closeModal('expectation-modal')" class="btn-ghost" data-i18n="取消">取消</button>
@@ -923,7 +923,7 @@ tailwind.config = {
       <span class="tip-bubble" id="stress-tip" role="tooltip" data-i18n="压测只是一组假设：只改页面上的读数，账本金额、快照与导出都不动，刷新即回到真实值。只按选中的这一个维度打折（一笔钱不会被打两次），未调的分类不参与。">压测只是一组假设：只改页面上的读数，账本金额、快照与导出都不动，刷新即回到真实值。只按选中的这一个维度打折（一笔钱不会被打两次），未调的分类不参与。</span>
     </span></h3>
     <label class="field-label" for="stress-dimension" data-i18n="压测维度">压测维度</label>
-    <select id="stress-dimension" class="select-field w-full" onchange="onStressDimensionChange()" aria-label="压测维度" data-i18n-aria-label="压测维度"></select>
+    <select id="stress-dimension" class="select-field field-full" onchange="onStressDimensionChange()" aria-label="压测维度" data-i18n-aria-label="压测维度"></select>
     <div id="stress-keeps" class="space-y-3 scroll-cap" style="margin-top:16px;"></div>
     <p id="stress-unclassified" class="t-micro muted" style="margin-top:10px;"></p>
     <div class="modal-footer">
@@ -944,8 +944,8 @@ tailwind.config = {
     <div id="runway-tag-groups" class="space-y-3 scroll-cap"></div>
     <!-- 月消费: 默认带出全局「预期月消费」, 改成自定值只影响这张读数卡（不回填全局）; 清空即回默认 -->
     <label class="field-label mt-4" for="runway-expectation" data-i18n="月消费 (CNY)">月消费 (CNY)</label>
-    <div class="flex items-center gap-2">
-      <input type="text" id="runway-expectation" inputmode="decimal" class="w-full" placeholder="月消费 (CNY)" data-i18n-placeholder="月消费 (CNY)" oninput="formatMoneyInput(this); renderRunwayPreview();" onkeydown="if(event.key==='Enter' && !event.isComposing)saveRunwayTags()" autocomplete="off">
+    <div class="inline-row">
+      <input type="text" id="runway-expectation" inputmode="decimal" class="field-full" placeholder="月消费 (CNY)" data-i18n-placeholder="月消费 (CNY)" oninput="formatMoneyInput(this); renderRunwayPreview();" onkeydown="if(event.key==='Enter' && !event.isComposing)saveRunwayTags()" autocomplete="off">
       <button type="button" onclick="useDefaultRunwayExpectation()" class="btn-ghost btn-sm" data-i18n="默认">默认</button>
     </div>
     <p id="runway-preview" class="t-body text-center mt-4 muted" style="border-top:1px dashed var(--rule);padding-top:12px;"></p>
@@ -961,7 +961,7 @@ tailwind.config = {
   <div class="modal-content modal-sm">
     <h3 class="font-display modal-title" id="target-modal-title" data-i18n="目标净资产">目标净资产</h3>
     <p class="t-body mb-4 muted" data-i18n="设置后资产页显示达成进度">设置后资产页显示达成进度</p>
-    <input type="text" id="target-input" inputmode="decimal" class="w-full" placeholder="目标净资产 (CNY)" data-i18n-placeholder="目标净资产 (CNY)" oninput="formatMoneyInput(this)" autocomplete="off" onkeydown="if(event.key==='Enter')saveTarget()">
+    <input type="text" id="target-input" inputmode="decimal" class="field-full" placeholder="目标净资产 (CNY)" data-i18n-placeholder="目标净资产 (CNY)" oninput="formatMoneyInput(this)" autocomplete="off" onkeydown="if(event.key==='Enter')saveTarget()">
     <div class="modal-footer">
       <button type="button" onclick="clearTarget()" class="btn-danger btn-sm" data-i18n="清除">清除</button>
       <button type="button" onclick="closeModal('target-modal')" class="btn-ghost" data-i18n="取消">取消</button>

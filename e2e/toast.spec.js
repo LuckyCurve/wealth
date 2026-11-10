@@ -1,10 +1,10 @@
-const { test, expect, stubCdn, seed, waitReady, disableMotion, INDEX_URL } = require('./fixtures');
+const { test, expect, stubExternal, seed, waitReady, disableMotion, INDEX_URL } = require('./fixtures');
 
 const MSG = '这句话要看清';
 
 async function boot(page) {
   await disableMotion(page);
-  await stubCdn(page);
+  await stubExternal(page);
   await page.clock.install();
   await seed(page, { lang: 'zh', categories: [], assets: [], snapshots: [], expenses: [], expenseCategories: [] });
   await page.goto(INDEX_URL);

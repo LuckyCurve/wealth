@@ -1,7 +1,7 @@
-const { test, expect, visitAllTabs, gotoAssets, sampleState, seed, waitReady, stubCdn, samplePixels, INDEX_URL, openExpenseTable } = require('./fixtures');
+const { test, expect, visitAllTabs, gotoAssets, sampleState, seed, waitReady, stubExternal, samplePixels, INDEX_URL, openExpenseTable } = require('./fixtures');
 
 async function openWith(page, state) {
-  await stubCdn(page);
+  await stubExternal(page);
   await seed(page, state);
   await page.goto('index.html');
   await waitReady(page);
@@ -38,35 +38,12 @@ test.describe('版式一致性', () => {
     await once(await uniqStyles(page, '.text-value', ['color', 'opacity']));
   });
 
-  test('同一行的表单控件与按钮等高（Tailwind preflight 不得吃掉内边距）', async ({ page }) => {
-    // 盲区回归：E2E 里 Tailwind 是空壳（window.tailwind = {}），preflight 从不注入，
-    // 于是「CDN 真身把 input/select 的 padding 抹成 0」在测试里永远看不见——用户实测
-    // 搜索框 23px、下拉框 22px，紧挨着的金色按钮 39px，一行里三种高度。
-    // 这里**替身复刻那一条真实规则**（只复刻会伤到规格的那部分，不引真实 CDN），
-    // 判据是「同一行内等高」而不是写死像素值。
-    // 量内边距而不是像素高度：stub 下字体不加载，字形度量天然差 1–2px（真机 0–1px），
-    // 拿高度当判据全是噪声；而缺陷本身是「内边距整片变 0」。
-    await stubCdn(page);
-    await page.route('**/cdn.tailwindcss.com**', (route) =>
-      route.fulfill({
-        status: 200,
-        contentType: 'text/javascript',
-        body: 'window.tailwind = {};',
-      })
-    );
-    await page.addInitScript(() => {
-      document.addEventListener('DOMContentLoaded', () => {
-        const s = document.createElement('style');
-        s.textContent = 'button,input,optgroup,select,textarea{font-family:inherit;'
-          + 'font-feature-settings:inherit;font-variation-settings:inherit;font-size:100%;'
-          + 'font-weight:inherit;line-height:inherit;color:inherit;margin:0;padding:0}';
-        document.head.appendChild(s);
-      });
-    });
-    await seed(page, sampleState());
-    await page.goto(INDEX_URL);
-    await waitReady(page);
-
+  test('同一行的表单控件与按钮等高（Tailwind preflight 不得吃掉内边距）', async ({ appPage: page }) => {
+    // 回归：CDN 真身会把 preflight 插到页面自有样式之后，其中的
+    // `input,select,button,textarea{padding:0}` 会抹掉控件内边距——用户实测搜索框 23px、
+    // 下拉框 22px，紧挨着的金色按钮 39px，一行三种高度。现在 Tailwind 在 E2E 里真实加载，
+    // 这条规则原样生效；页面靠 `body input` 的特异性赢回来。
+    // 量内边距而不是像素高度：字体替身下字形度量天然差 1–2px，拿高度当判据全是噪声。
     const boxes = await page.evaluate(() =>
       ['#expense-search', '#expense-month-filter', '#expense-tag-filter', '#tab-expenses .btn-gold']
         .map((sel) => {
@@ -242,8 +219,7 @@ test.describe('版式一致性', () => {
     await page.evaluate(() => openAssetModal());
     await expect(page.locator('#asset-modal')).toBeVisible();
 
-    // 只比高度：E2E 里 Tailwind 是空壳，两列网格不生效、控件纵向堆叠，比上边会得到
-    // 与缺陷无关的巨大差值（实测 64px）。高度差才是 line-height 那条缺陷的判据。
+    // 只比高度：两列并排，比上边会被无关的横向差干扰；高度差才是 line-height 那条缺陷的判据。
     const rows = await page.evaluate(() =>
       [['#asset-amount', '#asset-currency']].map(([a, b]) => {
         const ra = document.querySelector(a).getBoundingClientRect();
@@ -623,8 +599,8 @@ test.describe('版式一致性', () => {
   test('列表行：标签列不得折行（折行会让整行高度跳变、左右两侧错开半行）', async ({ appPage: page }) => {
     // 回归：给宽表加列间距后，标签列被挤窄、两枚 pill 换行，整行高度从 19px 跳到 52px；
     // 紧跟着的下一行只有 19px，「编辑/删除」与「名称」就错开了半行。
-    // 判据取「标签列高度 ≤ 一行 pill 的高度」：它比「所有行等高」稳（E2E 里 Tailwind 是空壳，
-    // 行内边距本就不一致），又正好指向这次要守的那件事。
+    // 判据取「标签列高度 ≤ 一行 pill 的高度」：它比「所有行等高」稳（行内边距本就不一致），
+    // 又正好指向这次要守的那件事。
     await gotoAssets(page);
     const m = await page.evaluate(() => {
       const rows = [...document.querySelectorAll('#assets-rows .asset-row')];
@@ -1273,21 +1249,17 @@ test.describe('可读性：悬停气泡必须完整可见', () => {
       const id = mark.getAttribute('aria-describedby');
       const bubble = document.getElementById(id);
       const r = bubble.getBoundingClientRect();
-      const pts = [
-        [r.left + 4, r.top + 4],
-        [r.right - 4, r.top + 4],
-        [r.left + r.width / 2, r.bottom - 4],
-        [r.right - 4, r.bottom - 4],
-      ];
       return {
         rect: { l: Math.round(r.left), t: Math.round(r.top), r: Math.round(r.right), b: Math.round(r.bottom) },
         vw: innerWidth, vh: innerHeight,
         bg: getComputedStyle(bubble).backgroundColor,
+        // 取四边中点、离边 4px：圆角(6px)与描边都在角上，把采样点放在角里会把
+        // 透明圆角外的卡片底色当成「被盖住」。中点只落在气泡自己的底色上。
         pts: [
-          { x: Math.round(r.left + 6), y: Math.round(r.top + 6) },
-          { x: Math.round(r.right - 6), y: Math.round(r.top + 6) },
-          { x: Math.round(r.left + r.width / 2), y: Math.round(r.bottom - 6) },
-          { x: Math.round(r.right - 6), y: Math.round(r.bottom - 6) },
+          { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + 4) },
+          { x: Math.round(r.left + 4), y: Math.round(r.top + r.height / 2) },
+          { x: Math.round(r.right - 4), y: Math.round(r.top + r.height / 2) },
+          { x: Math.round(r.left + r.width / 2), y: Math.round(r.bottom - 4) },
         ],
       };
     }, sel);
@@ -1669,7 +1641,7 @@ test.describe('节奏：时长出自同一套 token，图表动画也进系统',
 
   test('正常动效下：图表时长 = --mo-mid 换算的毫秒数（两侧同一节奏）', async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'no-preference' });
-    await stubCdn(page);
+    await stubExternal(page);
     await seed(page, sampleState());
     await page.goto('index.html');
     await waitReady(page);

@@ -1,6 +1,6 @@
 const {
   test, expect, LS_KEY, INDEX_URL,
-  stubCdn, seed, waitReady, disableMotion, readAppState, sampleState, gotoAssets, openExpenseTable,
+  stubExternal, seed, waitReady, disableMotion, readAppState, sampleState, gotoAssets, openExpenseTable,
 } = require('./fixtures');
 // 长按守卫窗阈值：E2E 等它过期时轮询真实常量，不复制一个数字（复制必然漂移）
 const { ui, date } = require('../logic.js');
@@ -28,10 +28,10 @@ const expectToast = (page, msg) =>
  */
 async function openWith(page, state, opts = {}) {
   await disableMotion(page);
-  await stubCdn(page, opts.rates);
+  await stubExternal(page, opts.rates);
   await seed(page, state);
   // 必须在 goto 之前注册：汇率请求发生在首屏 DOMContentLoaded 里，
-  // goto 之后才注册就赶不上，页面会拿到 stubCdn 的成功响应（于是永远走不到 fallback 分支）。
+  // goto 之后才注册就赶不上，页面会拿到 stubExternal 的成功响应（于是永远走不到 fallback 分支）。
   if (opts.abortRates) await page.route('**/currency-api@latest/**', (route) => route.abort());
   await page.goto(INDEX_URL);
   await waitReady(page);
@@ -132,11 +132,11 @@ test.describe('模式与 Tab 导航', () => {
 
   test('触摸轻点不进门（手机上顺手一摸不该放行；detail 的取值靠真实触摸钉住）', async ({ browser }) => {
     // 新建一个带触摸的上下文：默认 fixture 是桌面设备，触摸路径得亲自跑一遍。
-    // 新上下文里的 page 不经 fixture 的 stubCdn——stub 只挂在 fixture 自己那个 page 上，
+    // 新上下文里的 page 不经 fixture 的 stubExternal——stub 只挂在 fixture 自己那个 page 上，
     // 必须自己补一份，否则这个用例会静默连真实外网（本机联网才绿，断网/弱网会卡在 CDN 请求上）。
     const ctx = await browser.newContext({ hasTouch: true, viewport: { width: 420, height: 800 }, isMobile: true });
     const touch = await ctx.newPage();
-    await stubCdn(touch);
+    await stubExternal(touch);
     await seed(touch, { lang: 'zh' });
     await touch.goto(INDEX_URL);
     await waitReady(touch);
@@ -1684,7 +1684,7 @@ test.describe('持久化与迁移', () => {
 
   test('损坏的存档回退到初始状态，不白屏', async ({ page }) => {
     await disableMotion(page);
-    await stubCdn(page);
+    await stubExternal(page);
     await page.addInitScript((key) => localStorage.setItem(key, '{不是合法 JSON'), LS_KEY);
     await page.goto('index.html');
     await waitReady(page);
@@ -1835,7 +1835,7 @@ test.describe('汇率', () => {
     const s = sampleState();
     s.rates = { CNY: 1, HKD: 1 / 0.92, USD: 1 / 7.24, fetchedAt: '2026-01-01T00:00:00.000Z' };
     await disableMotion(page);
-    await stubCdn(page);
+    await stubExternal(page);
     await page.route('**/currency-api@latest/**', (route) =>
       route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ date: '2026-01-01', cny: { hkd: 0.92 } }) }));
     await seed(page, s);
@@ -1877,7 +1877,7 @@ test.describe('台灯掠光（纸面光跟随指针）', () => {
    * 给整套提速，而减动效下台灯本来就该关掉。要验灯就得按普通环境起页。
    */
   const lampPage = async (page, opts) => {
-    await stubCdn(page);
+    await stubExternal(page);
     await seed(page, sampleState());
     await page.goto(INDEX_URL);
     await waitReady(page);
@@ -2257,7 +2257,7 @@ test.describe('日期选择器与复制', () => {
   //
   // ①的根因是「openModal 聚焦第一个表单控件」与 flatpickr「聚焦即展开」撞车。
   //
-  // 这两条都必须在**真实 flatpickr** 下验证：E2E 的 stubCdn 把它换成了空壳。
+  // 这两条都必须在**真实 flatpickr** 下验证：E2E 的 stubExternal 把它换成了空壳。
   // 故本组用例自己注入一个最小 flatpickr 替身——它复刻真实库的两个关键行为
   // （聚焦即展开、setDate 不触发交互副作用），但不依赖外网。
   const FAKE = `
@@ -2282,7 +2282,7 @@ test.describe('日期选择器与复制', () => {
   `;
 
   test('点「复制」不得自动弹出日期选择器（只要默认今天）', async ({ page }) => {
-    await stubCdn(page);
+    await stubExternal(page);
     await seed(page, sampleState());
     await page.addInitScript(FAKE);
     await page.goto('index.html');
@@ -2304,7 +2304,7 @@ test.describe('日期选择器与复制', () => {
     // 判据直接读**样式表里的规则文本**（不依赖 flatpickr 是否加载，也不靠探针布局——
     // 探针里 `calc(100%/7)` 的百分比基准与真实日历不同，量出来是假的）。
     // 要求：宽度必须是相对容器的方式（百分比 / calc），不得出现固定像素 max-width。
-    await stubCdn(page);
+    await stubExternal(page);
     await seed(page, sampleState());
     await page.goto('index.html');
     await waitReady(page);

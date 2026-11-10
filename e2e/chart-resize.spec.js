@@ -15,11 +15,11 @@
  * 替身（fixtures 的 ECharts stub）按容器尺寸建模，故隐藏时 resize 会把尺寸记成 0；
  * 本文件只断言「尺寸 == 容器」，两种失败（0 或真库的 100）都会红。
  */
-const { test, expect, stubCdn, seed, waitReady, disableMotion, sampleState, gotoAssets, waitChart, expectChartFit } = require('./fixtures');
+const { test, expect, stubExternal, seed, waitReady, disableMotion, sampleState, gotoAssets, waitChart, expectChartFit } = require('./fixtures');
 
 const open = async (page) => {
   await disableMotion(page);
-  await stubCdn(page);
+  await stubExternal(page);
   await seed(page, sampleState());
   await page.goto('index.html');
   await waitReady(page);

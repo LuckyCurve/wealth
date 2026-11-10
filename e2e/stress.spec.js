@@ -13,7 +13,7 @@
  * 走键盘通道进资产页（fixtures.gotoAssets），不依外网、不用 waitForTimeout。
  */
 const {
-  test, expect, seed, stubCdn, waitReady, disableMotion, gotoAssets, EMPTY_STATE,
+  test, expect, seed, stubExternal, waitReady, disableMotion, gotoAssets, EMPTY_STATE,
 } = require('./fixtures');
 
 // 播种一份带分类的账本：类型（活期/权益）+ 风险（低/高）+ 一笔未归类资产。
@@ -36,7 +36,7 @@ const stressState = () => ({
 /** 以压测用例的存档起页（seed 只在首次导航生效，故必须在 goto 之前播种） */
 async function openStressPage(page) {
   await disableMotion(page);
-  await stubCdn(page);
+  await stubExternal(page);
   await seed(page, stressState());
   await page.goto('index.html');
   await waitReady(page);

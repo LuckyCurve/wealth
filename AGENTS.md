@@ -2,9 +2,15 @@
 
 ```bash
 node --test                            # 单测，零依赖
-npx playwright test                    # E2E，断网可跑
+npx playwright test                    # E2E；Tailwind 走真实 CDN，需联网
 gh run watch <run-id> --exit-status    # 等 CI，别 sleep 轮询
 ```
+
+## 结构归 HTML/CSS，CDN 只做修饰
+
+- HTML 自带完整、语义清晰的结构；关键布局（页头、内容栏、页签、表格列、表单栅格、标签换行）一律写自有 CSS。
+- Tailwind 等 CDN 资源只负责 margin、字色这类修饰；CDN 拉不到时页面会少些留白，但结构不塌。
+- 新页面/新组件先用语义 class 把骨架立住，再考虑 CDN 工具类；E2E 默认真实加载 Tailwind。
 
 提交：中文主题（`feat:` / `fix:` / `refactor:` / `style:` / `docs:`），正文六项
 （复现 / 改了什么 / 兄弟 / 跑过什么 / 没跑什么 / 破坏验证），没有的写「无」；

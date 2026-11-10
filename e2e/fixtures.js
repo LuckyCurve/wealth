@@ -1,11 +1,33 @@
 /*
- * e2e/fixtures.js — E2E 装置：网络替身（stubCdn）、播种（seed）、入口（test 扩展 / gotoAssets / visitAllTabs）。
- * 一切外部请求都被拦掉：要测的是应用自身行为，不是 CDN 可用性，断网也能跑。
+ * e2e/fixtures.js — E2E 装置：网络替身（stubExternal）、播种（seed）、入口（test 扩展 / gotoAssets / visitAllTabs）。
+ * 样式框架（Tailwind）默认真实加载：布局要按用户看到的真身验，不能用空壳替身自欺。
+ * 汇率、图表库、日期库、字体仍用替身：它们要么是动态数据、要么是 canvas 像素、要么体积大且与本次断言无关。
  */
 const { test: base, expect } = require('@playwright/test');
+const fs = require('fs');
+const path = require('path');
 
 const LS_KEY = 'wealth-manager-data';
 const INDEX_URL = 'index.html';
+
+// Tailwind 用 CDN 的**同一份构建**，只在第一次拉取，之后缓存在 e2e/.cache。
+// 为什么不每次直连：303 条用例并行时 CDN 会限流/超时，页面悄悄少一套工具类，
+// 断言就变成看运气。缓存的是真身，不是 window.tailwind = {} 的空壳。
+let tailwindSource;
+async function getTailwindSource() {
+  if (tailwindSource) return tailwindSource;
+  const file = path.join(__dirname, '.cache', 'tailwind-cdn.js');
+  try {
+    tailwindSource = fs.readFileSync(file, 'utf8');
+  } catch (e) {
+    const res = await fetch('https://cdn.tailwindcss.com');
+    if (!res.ok) throw new Error(`拉取 Tailwind CDN 失败：${res.status}（首次运行需要联网）`);
+    tailwindSource = await res.text();
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, tailwindSource);
+  }
+  return tailwindSource;
+}
 
 const EMPTY_STATE = {
   categories: [],
@@ -51,17 +73,14 @@ const sampleState = () => ({
 });
 
 /**
- * 拦截所有外部请求。必须在首次 goto 之前调用。
- * 只放行同源（127.0.0.1）的 index.html / logic.js 等。
- *
- * 注意 route 的匹配次序：Playwright 里**后注册的 route 优先命中**，所以兜底
- * （拦掉一切外网）必须先注册，具体 CDN 的替身后注册才能覆盖它。
+ * 给「与断言无关的外部服务」装替身。必须在首次 goto 之前调用。
+ * Tailwind **不在这里拦**：它由页面真实加载，E2E 才会按真身排版（页头塌成两行
+ * 就是空壳替身漏掉的）。这里只替汇率、图表库、日期库与字体。
  *
  * @param {object} [rates] 覆盖汇率 { hkd, usd }（默认 0.92 / 7.24）
  */
-async function stubCdn(page, rates) {
+async function stubExternal(page, rates) {
   const r = { hkd: 0.92, usd: 7.24, ...(rates || {}) };
-  await page.route(/^https?:\/\/(?!127\.0\.0\.1|localhost)/, (route) => route.fulfill({ status: 200, body: '' }));
 
   await page.route('**/currency-api@latest/**', (route) =>
     route.fulfill({
@@ -136,8 +155,9 @@ async function stubCdn(page, rates) {
     })
   );
 
-  await page.route('**/cdn.tailwindcss.com**', (route) =>
-    route.fulfill({ status: 200, contentType: 'text/javascript', body: 'window.tailwind = {};' })
+  // Tailwind：CDN 同一份构建，本地缓存后喂给页面（真身排版，不受 CDN 限流影响）
+  await page.route('**/cdn.tailwindcss.com**', async (route) =>
+    route.fulfill({ status: 200, contentType: 'text/javascript', body: await getTailwindSource() })
   );
   await page.route('**/flatpickr**', (route) =>
     route.fulfill({ status: 200, contentType: 'text/javascript', body: '/* flatpickr stub */' })
@@ -200,7 +220,7 @@ const readAppState = (page) => page.evaluate(() => state);
 const test = base.extend({
   blankPage: async ({ page }, use) => {
     await disableMotion(page);
-    await stubCdn(page);
+    await stubExternal(page);
     await seed(page, { lang: 'zh' });
     await page.goto(INDEX_URL);
     await waitReady(page);
@@ -209,7 +229,7 @@ const test = base.extend({
 
   appPage: async ({ page }, use) => {
     await disableMotion(page);
-    await stubCdn(page);
+    await stubExternal(page);
     await seed(page, sampleState());
     await page.goto(INDEX_URL);
     await waitReady(page);
@@ -337,8 +357,18 @@ async function collectOffThemeColors(page) {
     const offenders = [];
     document.querySelectorAll('body *').forEach((el) => {
       const st = getComputedStyle(el);
-      ['color', 'backgroundColor', 'borderTopColor', 'borderLeftColor', 'borderRightColor', 'borderBottomColor']
+      // SVG 不画 CSS 边框；Tailwind preflight 默认的 border-color 会挂在 symbol/use 上，
+      // 那是框架缺省值，不是页面用色。只查 SVG 的 color（fill/currentColor 用它）。
+      const svg = el instanceof SVGElement;
+      const props = svg
+        ? ['color']
+        : ['color', 'backgroundColor', 'borderTopColor', 'borderLeftColor', 'borderRightColor', 'borderBottomColor'];
+      const borderWidth = { borderTopColor: 'borderTopWidth', borderLeftColor: 'borderLeftWidth', borderRightColor: 'borderRightWidth', borderBottomColor: 'borderBottomWidth' };
+      props
         .forEach((prop) => {
+          // 没有描边就不算页面用色：Tailwind preflight 会给所有元素一个默认 border-color
+          // (#e5e7eb)，但 border-width 是 0 时它根本没画出来。
+          if (borderWidth[prop] && parseFloat(st[borderWidth[prop]]) === 0) return;
           const v = st[prop];
           if (!v || /^rgba\(0, 0, 0, 0\)$/.test(v)) return; // 透明 = 未设色
           if (allowed.has(v)) return;
@@ -356,7 +386,7 @@ async function collectOffThemeColors(page) {
 /**
  * 图表尺寸：读「容器尺寸」与「图自己的尺寸」。
  * --------------------------------------------------------------------------
- * ECharts 替身按容器尺寸建模（见 stubCdn），故两边的比较能在无头里做。
+ * ECharts 替身按容器尺寸建模（见 stubExternal），故两边的比较能在无头里做。
  * 不变量只有一条：**图可见时，它的尺寸必须等于容器的尺寸**——
  * 历史上它被破坏过两次（只在 window resize 时统一 resize、以及隐藏时 resize 会把图压小
  * 且 setOption 修不回来），故 chart-resize.spec.js 用它。
@@ -438,7 +468,7 @@ async function samplePixels(page, points) {
 const pixelLum = ({ r, g, b }) => (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
 
 module.exports = {
-  test, expect, stubCdn, seed, waitReady, disableMotion, readAppState,
+  test, expect, stubExternal, seed, waitReady, disableMotion, readAppState,
   visitAllTabs, gotoAssets, collectOffThemeColors, UA_DEFAULT_COLORS,
   sampleState, EMPTY_STATE, LS_KEY, INDEX_URL,
   samplePixels, pixelLum, chartSize, waitChart, expectChartFit, openExpenseTable,

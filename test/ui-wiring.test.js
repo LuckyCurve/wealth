@@ -2431,8 +2431,7 @@ describe('UI 接线契约：主题与表单校验的防回潮', () => {
 /*
  * 排版单一来源：字号/字重/字体族只此一处定义，页面不再写 Tailwind 排版工具类。
  * --------------------------------------------------------------------------
- * 为什么管这件事：Tailwind 走 CDN 且 E2E 里是空壳（window.tailwind = {}），写进工具类的
- * 规格既不可测、又会与自有档位漂移——曾经 10/11/12/13px 四档小字并存、同一处说明在弹窗里
+ * 为什么管这件事：Tailwind 走 CDN，类是否生效不由我们决定，写进工具类的规格会与自有档位漂移——曾经 10/11/12/13px 四档小字并存、同一处说明在弹窗里
  * 13px 在表格里 12px，用户观感就是「字大小不一、又小又浅」。收敛后：文字只两档字号
  * （12 微操作 / 14 正文）+ 三档字重，层级靠颜色与字重区分，不再靠 1px 差。
  */
@@ -2558,7 +2557,7 @@ describe('UI 接线契约：版式一致性（同类结构同一套 class）', (
 
   test('内容栏宽度与左右边距单一来源（页头 / 子 Tab / 正文共用一套 token）', () => {
     // 原先 max-w-6xl + px-6 在 4 处各写一遍：改一处就会让某一行单独错位。
-    // 而且 Tailwind 走 CDN、在 E2E 里是空壳——工具类根本不可测，版式不能建在它上面。
+    // 而且 Tailwind 走 CDN——工具类是否生效不由我们决定，版式不能建在它上面。
     assert.strictEqual(count(/class="[^"]*max-w-6xl/g), 0, '内容栏宽度不得再由 Tailwind 工具类承担');
     for (const sel of ['.app-header-inner', '.content-column']) {
       assert.match(html, new RegExp(`\\.${sel.slice(1)}\\b[^{]*\\{[^}]*max-width: var\\(--content-max\\)`), `${sel} 走内容栏 token`);
@@ -2633,9 +2632,9 @@ describe('UI 接线契约：版式一致性（同类结构同一套 class）', (
   test('新增标签的输入框按标签体量给宽（不靠 flex-1 撑满整行）', () => {
     // 实测：这一行输入框占满卡片整宽（约 990px），而它只用来敲一个 2–4 字的标签；
     // 「添加」按钮还被推到整页右端——一件控件被拉成两半。
-    // flex-1 是 Tailwind 类：CDN 空壳下既不生效也不可测，必须换成自有 CSS 的宽度上限。
+    // flex-1 是 Tailwind 类：CDN 拉不到就不生效，必须换成自有 CSS 的宽度上限。
     assert.strictEqual(count(/placeholder="新增标签（回车添加）"[^>]*flex-1/g), 0,
-      '新增标签输入框不得再靠 flex-1 撑满（Tailwind 空壳下不可测）');
+      '新增标签输入框不得再靠 flex-1 撑满（CDN 拉不到就不生效）');
     assert.match(html, /\n  \.new-tag-row \{[^}]*max-width/, '宽度上限在自有 CSS 里定义');
     assert.match(html, /class="new-tag-row"/, '那一行挂上同一套 class（资产/消费两侧共用）');
   });
@@ -2739,7 +2738,7 @@ describe('UI 接线契约：弹窗尺寸与筛选控件的档位', () => {
     assert.strictEqual(count(/class="select-field ml-2"/g), 6, '弹窗内下拉用既有 ml-2 工具类控制左间距');
     assert.match(html, /<input[^>]*id="expense-search"[^>]*class="t-body"/, '搜索框不再带内联宽度');
     assert.match(html, /\n  \.select-field \{ min-width: 160px; \}/, '下拉宽度只此一处');
-    assert.match(html, /id="stress-dimension"[^>]*class="select-field w-full"/, '压测维度下拉撑满弹窗宽度（表单字段，不是工具条筛选）');
+    assert.match(html, /id="stress-dimension"[^>]*class="select-field field-full"/, '压测维度下拉撑满弹窗宽度（表单字段，不是工具条筛选）');
     assert.match(html, /\n  \.search-wrap input \{[^}]*min-width: 180px/, '搜索框宽度只此一处');
   });
 

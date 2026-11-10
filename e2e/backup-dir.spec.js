@@ -1,4 +1,4 @@
-const { test, expect, stubCdn, seed, waitReady, disableMotion, sampleState, INDEX_URL, readAppState } = require('./fixtures');
+const { test, expect, stubExternal, seed, waitReady, disableMotion, sampleState, INDEX_URL, readAppState } = require('./fixtures');
 const assert = require('node:assert');
 const L = require('../logic.js');
 const { date } = L;
@@ -12,7 +12,7 @@ const today = date.getLocalDateStr;
 
 async function setup(page, opts = {}) {
   await disableMotion(page);
-  await stubCdn(page);
+  await stubExternal(page);
   const st = sampleState();
   st.backup = { autoFreq: opts.autoFreq || 'off', lastBackup: null };
   await seed(page, st);

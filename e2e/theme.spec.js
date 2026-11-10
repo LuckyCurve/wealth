@@ -141,24 +141,26 @@ test.describe('打印形态：暗色主题也要印得出、印得清', () => {
     const n = (s.match(/[\d.]+/g) || []).map(Number);
     return { r: n[0] || 0, g: n[1] || 0, b: n[2] || 0, a: n.length > 3 ? n[3] : 1 };
   };
-  const WHITE = { r: 255, g: 255, b: 255 };
-
-  test('暗色主题打印：正文与次要文字对白纸都达 AA（4.5:1）', async ({ appPage: page }) => {
+  test('暗色主题打印：正文与次要文字对纸面都达 AA（4.5:1）', async ({ appPage: page }) => {
     await switchToDark(page);
     await page.emulateMedia({ media: 'print' });
 
     const colors = await page.evaluate(() => {
       const pick = (el) => (el ? getComputedStyle(el).color : null);
       return {
+        paper: getComputedStyle(document.body).backgroundColor,
         body: pick(document.body),
         muted: pick(document.querySelector('.muted') || document.querySelector('.setting-desc')),
         subtitle: pick(document.querySelector('.section-head .sub')),
       };
     });
+    const paper = rgb(colors.paper);
+    expect(paper.a, '打印纸面必须是不透明色（否则实际印出来是白纸）').toBe(1);
     for (const [name, c] of Object.entries(colors)) {
+      if (name === 'paper') continue;
       expect(c, `${name} 在打印媒体下取不到颜色`).toBeTruthy();
-      const r = ratio(rgb(c), WHITE);
-      expect(r, `${name} 打印在白纸上只有 ${r.toFixed(2)}:1（需 ≥4.5:1）`).toBeGreaterThanOrEqual(4.5);
+      const r = ratio(rgb(c), paper);
+      expect(r, `${name} 打印在纸面上只有 ${r.toFixed(2)}:1（需 ≥4.5:1）`).toBeGreaterThanOrEqual(4.5);
     }
   });
 

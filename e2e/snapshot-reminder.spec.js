@@ -1,4 +1,4 @@
-const { test, expect, stubCdn, seed, waitReady, LS_KEY, INDEX_URL } = require('./fixtures');
+const { test, expect, stubExternal, seed, waitReady, LS_KEY, INDEX_URL } = require('./fixtures');
 
 const END_OF_MONTH = '2026-01-30T10:00:00';
 const MID_MONTH = '2026-01-20T10:00:00';
@@ -20,7 +20,7 @@ const stateWith = (over = {}) => ({
 });
 
 async function boot(page, state, opts = {}) {
-  await stubCdn(page);
+  await stubExternal(page);
   await seed(page, state);
   await page.clock.install({ time: new Date(opts.now || END_OF_MONTH) });
   await page.goto(INDEX_URL);

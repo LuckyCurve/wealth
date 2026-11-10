@@ -11,7 +11,7 @@
  *
  * 不量动画中间帧：拿时序当断言必然脆。量的是**声明**与**结束态**。
  */
-const { test, expect, stubCdn, seed, waitReady, sampleState } = require('./fixtures');
+const { test, expect, stubExternal, seed, waitReady, sampleState } = require('./fixtures');
 
 const BANDS = ['.app-header-inner', '.tab-bar', 'main.content-column'];
 
@@ -37,7 +37,7 @@ const bandState = (page) =>
 test.describe('开屏：落纸入场', () => {
   test('动效关掉时：入场立刻停在最终态（内容可见、不动）', async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
-    await stubCdn(page);
+    await stubExternal(page);
     await seed(page, sampleState());
     await page.goto('index.html');
     await waitReady(page);
@@ -49,7 +49,7 @@ test.describe('开屏：落纸入场', () => {
   });
 
   test('开着动效时：三条纸面都声明了过渡、依次错开，并收敛到最终态', async ({ page }) => {
-    await stubCdn(page);
+    await stubExternal(page);
     await seed(page, sampleState());
     await page.goto('index.html');
     await waitReady(page);
@@ -67,7 +67,7 @@ test.describe('开屏：落纸入场', () => {
   });
 
   test('隐藏容器里的纸面不会卡在起始帧（另一个模式的 Tab 栏也要到最终值）', async ({ page }) => {
-    await stubCdn(page);
+    await stubExternal(page);
     await seed(page, sampleState());
     await page.goto('index.html');
     await waitReady(page);
@@ -82,7 +82,7 @@ test.describe('开屏：落纸入场', () => {
   });
 
   test('台灯升起（第二拍）：未落定时压着，落定后随指针亮起来', async ({ page }) => {
-    await stubCdn(page);
+    await stubExternal(page);
     await seed(page, sampleState());
     await page.goto('index.html');
     await waitReady(page);
@@ -99,7 +99,7 @@ test.describe('开屏：落纸入场', () => {
   });
 
   test('看门狗：脚本没跑到就绪那一步也会自己放行（页面不得空白）', async ({ page }) => {
-    await stubCdn(page);
+    await stubExternal(page);
     await seed(page, sampleState());
     await page.route('**/logic.js', (r) => r.abort());
     // 时钟必须在导航前接管（看门狗的 setTimeout 是加载时注册的）
