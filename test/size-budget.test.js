@@ -28,7 +28,9 @@ const BUDGETS = {
   // 同一 commit 再抬 3KB 收下这段纸面规则。
   // 结构类收口：页头/内容栏/表格/表单栅格等骨架从 Tailwind 工具类搬进自有 CSS，
   // 同一 commit 再抬 3KB 收下这批语义类。
-  'styles.css': 120_000,
+  // 月份图重做：发丝线网格、四层状态（空/染墨/今天/选中）与窄屏规则，
+  // 同一 commit 再抬 2KB 收下这批日历规则。
+  'styles.css': 122_000,
   // 资产页解锁冷却：sessionStorage 时间戳的读写与「冷却内直接进门」接在门槛入口，
   // 纯判定已下沉 logic.js（gateCooldownActive），这里只剩接线。同 commit 抬 2KB。
   'app-core.js': 28_000,

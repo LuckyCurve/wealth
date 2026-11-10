@@ -103,8 +103,8 @@
        --accent-ink（#7f5c0e）对纸底 4.78:1、对卡面 5.95:1，是同一色相里足够深的那一档。
        为什么不直接把 --accent 压深：它是金色**文字**与装饰线的色，压深会连累报头与读数。 */
     --focus-ring: #7f5c0e;
-    /* 月份图四档底纹 = 中性墨的浓度；金色只留给今天与悬停 */
-    --mg-1: .06; --mg-2: .11; --mg-3: .16; --mg-4: .21;
+    /* 月份图四档底纹 = 青蓝染墨的浓度；金色只留给今天，选中走整格反底 */
+    --mg-1: .14; --mg-2: .22; --mg-3: .30; --mg-4: .38;
   }
   :root.dark {
     color-scheme: dark;
@@ -172,7 +172,7 @@
     /* 暗色下金环本身就够亮（#d9b25e 对 #15110a 是 9.39:1），不必换色 */
     --focus-ring: #d9b25e;
     --select: #9ab6d6;
-    --mg-1: .05; --mg-2: .09; --mg-3: .13; --mg-4: .17;
+    --mg-1: .16; --mg-2: .24; --mg-3: .32; --mg-4: .40;
   }
   /* 卡片的边缘色不再另设一套（原先 .dark .card 改回 --border，等于材质的边缘有两处定义） */
   /* ===== 排版 token（字号 / 字重 / 字体族）=====
@@ -1478,36 +1478,54 @@
      窄屏上 390px 实测会挤成「按钮变 56×123 的字柱」——那正是工具类在这儿帮不上忙的证明。
      对齐用 center，控件高度差 1–2px 时两端不会各自错位。 */
   .toolbar { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 12px; }
-  /* 月份图：7 列日历。--mg-1..4 是中性墨浓度；数字压在 ::before 之上，
-     故 .mg-cell 保留 card-2 底色——AA 巡检读的是 background-color。 */
-  .mg-weekdays, .mg-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; max-width: 820px; margin-inline: auto; }
-  .mg-weekdays span { text-align: center; font-size: var(--fs-micro); color: var(--muted); }
-  .mg-grid { margin-top: 6px; }
+  /* 月份图：一张印好的月历。格与格之间只有一根发丝线，四层状态各走各的形：
+       空日 = 纸面本身；有记录 = 青蓝染墨（四档浓度）；今天 = 金底圆点；选中 = 青蓝整格。
+     染墨压在 ::before 上、格子底色保持不透明，AA 巡检读 background-color 才不会被渐变骗过。 */
+  .mg-weekdays, .mg-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); max-width: 820px; margin-inline: auto; }
+  .mg-weekdays { padding: 0 2px 8px; border-bottom: 1px solid var(--rule); }
+  .mg-weekdays span { text-align: center; font-size: var(--fs-micro); color: var(--muted); letter-spacing: 0.14em; }
+  .mg-grid { margin-top: 10px; gap: 1px; background: var(--rule); border: 1px solid var(--rule); border-radius: 12px; overflow: hidden; }
   .mg-hint { max-width: 820px; margin-inline: auto; text-align: center; }
-  .mg-cell { position: relative; display: flex; flex-direction: column; justify-content: space-between; gap: 4px;
-    min-height: 58px; padding: 6px 8px; border: 1px solid var(--rule); border-radius: 8px;
-    background: var(--card-2); color: var(--fg); font-family: var(--font-body); text-align: left; cursor: pointer;
+  .mg-cell { position: relative; display: flex; flex-direction: column; justify-content: space-between; gap: 6px;
+    min-height: 64px; padding: 8px 10px; border: 0; border-radius: 0;
+    background: var(--card); color: var(--fg); font-family: var(--font-body); text-align: left; cursor: pointer;
     user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; touch-action: manipulation; }
   .mg-cell > span { position: relative; }
-  .mg-cell::before { content: ''; position: absolute; inset: 0; border-radius: inherit; background: var(--fg); opacity: 0; }
+  .mg-cell::before { content: ''; position: absolute; inset: 0; background: var(--secondary); opacity: 0; pointer-events: none; }
   .mg-cell[data-lv="1"]::before { opacity: var(--mg-1); }
   .mg-cell[data-lv="2"]::before { opacity: var(--mg-2); }
   .mg-cell[data-lv="3"]::before { opacity: var(--mg-3); }
   .mg-cell[data-lv="4"]::before { opacity: var(--mg-4); }
-  .mg-cell.is-blank { border-color: transparent; background: transparent; cursor: default; }
+  .mg-cell.is-blank { background: var(--card); cursor: default; }
+  /* 未来的日子只压数字，不压格子：整格半透明会让纸面透出底下的暖色，
+     看起来像「有浅色记录」，和青蓝密度档混成一类。 */
   .mg-cell[disabled] { color: var(--muted); cursor: default; }
-  .mg-day { font-size: var(--fs-micro); color: var(--muted); }
-  .mg-val { font-size: var(--fs-body); font-weight: var(--fw-strong); font-variant-numeric: tabular-nums; }
-  .mg-cell:not([disabled]):hover { border-color: var(--accent); }
-  /* 三档互不抢色：今天=金圈（形），有记录=中性浅底（密度），选中=墨环（最重） */
+  .mg-cell[disabled] > span { opacity: 0.45; }
+  .mg-day { font-size: var(--fs-micro); color: var(--muted); line-height: 1; }
+  /* 有记录的日期用墨色：青蓝底纹越深，灰字越糊；空日仍留灰，层次反而更清楚 */
+  .mg-cell[data-lv]:not([data-lv="0"]):not(.is-selected):not(.is-today) .mg-day { color: var(--fg); }
+  .mg-val { font-size: var(--fs-body); font-weight: var(--fw-strong); font-variant-numeric: tabular-nums; line-height: 1; }
+  .mg-cell:not([disabled]):not(.is-selected):hover { background: var(--card-2); }
+  .mg-cell:focus-visible { outline-offset: -2px; }
+  /* 今天：实心金圆，数字压在金底上；与格底是否有染墨无关。 */
   .mg-cell.is-today .mg-day {
     align-self: flex-start; display: inline-grid; place-items: center;
-    width: 22px; height: 22px; border-radius: 50%;
-    border: 2px solid var(--accent-strong);
-    color: var(--fg); font-weight: var(--fw-strong);
+    width: 24px; height: 24px; border-radius: 50%;
+    background: var(--accent); color: var(--on-accent); font-weight: var(--fw-strong);
   }
-  .mg-cell.is-selected { box-shadow: inset 0 0 0 2px var(--secondary); }
-  .mg-cell.pressing { outline: 2px solid var(--accent); outline-offset: -1px; }
+  /* 选中：整格青蓝反底，数字与读数一起翻成卡片色；今天再选就还是金圆。 */
+  .mg-cell.is-selected { background: var(--secondary); color: var(--card); }
+  .mg-cell.is-selected::before { opacity: 0; }
+  .mg-cell.is-selected .mg-day,
+  .mg-cell.is-selected .mg-val { color: var(--card); }
+  .mg-cell.is-today.is-selected .mg-day { background: var(--accent); color: var(--on-accent); }
+  .mg-cell.pressing { outline: 2px solid var(--accent); outline-offset: -2px; }
+  /* 窄屏 7 列每格只有 ~45px：收紧留白与读数，避免金额/笔数把格子撑破 */
+  @media (max-width: 640px) {
+    .mg-cell { min-height: 54px; padding: 6px; gap: 4px; }
+    .mg-val { font-size: var(--fs-micro); }
+    .mg-cell.is-today .mg-day { width: 22px; height: 22px; }
+  }
 
   .day-panel { max-width: 820px; margin: 14px auto 0; padding-top: 12px; border-top: 1px solid var(--rule); }
   .day-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 6px; }

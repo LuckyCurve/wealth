@@ -859,16 +859,23 @@ test.describe('消费月份图（日历）', () => {
     })),
   });
 
-  const twoOnToday = () => ({
-    ...sampleState(),
-    expenses: [
-      { id: 't-1', date: today, amount: 12, note: '当天午饭', tags: { 'ec-pay': '微信', 'ec-type': '餐饮' } },
-      { id: 't-2', date: today, amount: 30, note: '当天晚饭', tags: { 'ec-pay': '微信', 'ec-type': '餐饮' } },
-      { id: 't-3', date: today.slice(0, 8) + '01', amount: 5, note: '本月别的日子', tags: { 'ec-pay': '支付宝', 'ec-type': '餐饮' } },
-    ],
-  });
+  const twoOnToday = () => {
+    const d = (n) => today.slice(0, 8) + String(n).padStart(2, '0');
+    const day = (n, k) => Array.from({ length: k }, (_, i) => ({
+      id: `d${n}-${i}`, date: d(n), amount: 5 + i, note: `第 ${n} 天`,
+      tags: { 'ec-pay': '微信', 'ec-type': '餐饮' },
+    }));
+    return {
+      ...sampleState(),
+      expenses: [
+        { id: 't-1', date: today, amount: 12, note: '当天午饭', tags: { 'ec-pay': '微信', 'ec-type': '餐饮' } },
+        { id: 't-2', date: today, amount: 30, note: '当天晚饭', tags: { 'ec-pay': '微信', 'ec-type': '餐饮' } },
+        ...day(1, 1), ...day(2, 2), ...day(3, 3), ...day(4, 5),
+      ],
+    };
+  };
 
-  test('今天 / 有记录 / 选中是三档标记：形、底、环各走各的，深浅都过对比度', async ({ page }) => {
+  test('今天 / 有记录 / 选中是三层标记：金圆、青蓝染墨、整格反底，深浅都过对比度', async ({ page }) => {
     await openWith(page, twoOnToday());
     const read = () => page.evaluate(() => {
       const rgb = (c) => {
@@ -881,8 +888,10 @@ test.describe('消费月份图（日历）', () => {
       document.body.appendChild(probe);
       const resolve = (v) => { probe.style.color = ''; probe.style.color = v; return getComputedStyle(probe).color; };
       const tokens = {
-        accentStrong: rgb(resolve(cs.getPropertyValue('--accent-strong'))),
+        accent: rgb(resolve(cs.getPropertyValue('--accent'))),
+        onAccent: rgb(resolve(cs.getPropertyValue('--on-accent'))),
         secondary: rgb(resolve(cs.getPropertyValue('--secondary'))),
+        card: rgb(resolve(cs.getPropertyValue('--card'))),
         fg: rgb(resolve(cs.getPropertyValue('--fg'))),
       };
       probe.remove();
@@ -890,26 +899,35 @@ test.describe('消费月份图（日历）', () => {
       const day = todayCell && todayCell.querySelector('.mg-day');
       const rec = document.querySelector('#month-grid .mg-cell[data-lv]:not([data-lv="0"]):not(.is-today)');
       const pseudo = rec ? getComputedStyle(rec, '::before') : null;
+      const empty = document.querySelector('#month-grid .mg-cell[data-lv="0"]:not(.is-blank)');
       const sel = document.querySelector('#month-grid .mg-cell.is-selected');
       const ds = day && getComputedStyle(day);
+      const levels = [...document.querySelectorAll('#month-grid .mg-cell[data-lv]')]
+        .filter((el) => el.getAttribute('data-lv') !== '0' && !el.classList.contains('is-today'))
+        .map((el) => ({ lv: el.getAttribute('data-lv'), op: Number(getComputedStyle(el, '::before').opacity) }));
       return {
         tokens,
         today: ds ? {
-          bg: ds.backgroundColor,
-          border: rgb(ds.borderTopColor),
-          bw: parseFloat(ds.borderTopWidth),
+          bg: rgb(ds.backgroundColor),
           fg: rgb(ds.color),
           radius: ds.borderRadius,
+          size: Math.round(parseFloat(ds.width)),
           cellBg: rgb(getComputedStyle(todayCell).backgroundColor),
+        } : null,
+        empty: empty ? {
+          cellBg: rgb(getComputedStyle(empty).backgroundColor),
+          wash: Number(getComputedStyle(empty, '::before').opacity),
         } : null,
         record: rec ? {
           wash: rgb(pseudo.backgroundColor),
           washOpacity: Number(pseudo.opacity),
           cellBg: rgb(getComputedStyle(rec).backgroundColor),
         } : null,
+        levels,
         selected: sel ? {
-          ring: getComputedStyle(sel).boxShadow,
-          cellBg: rgb(getComputedStyle(sel).backgroundColor),
+          bg: rgb(getComputedStyle(sel).backgroundColor),
+          dayFg: rgb(getComputedStyle(sel.querySelector('.mg-day')).color),
+          valFg: rgb(getComputedStyle(sel.querySelector('.mg-val')).color),
         } : null,
       };
     });
@@ -922,26 +940,35 @@ test.describe('消费月份图（日历）', () => {
       return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
     };
     const same = (a, b) => a && b && a.every((v, i) => Math.abs(v - b[i]) <= 1);
-    const ringRgb = (shadow) => {
-      const n = (shadow || '').match(/rgba?\(([^)]+)\)/);
-      return n ? n[1].split(',').slice(0, 3).map(Number) : null;
-    };
 
     const check = (look, theme) => {
       const t = look.today;
       expect(t, theme + '：今天那格应存在').toBeTruthy();
-      expect(t.bw, theme + '：今天要靠形状（描边圆）突出').toBeGreaterThanOrEqual(2);
       expect(t.radius, theme + '：今天是圆').toBe('50%');
-      expect(t.bg, theme + '：今天不能靠填色，圆内应透出格底').toMatch(/rgba?\(0, 0, 0, 0\)|transparent/);
-      expect(same(t.border, look.tokens.accentStrong), theme + '：今天的圆走 --accent-strong').toBe(true);
-      expect(ratio(t.border, t.cellBg), theme + '：今天的圆对格底要达 3:1').toBeGreaterThanOrEqual(3);
-      expect(ratio(t.fg, t.cellBg), theme + '：日期数字要达 AA').toBeGreaterThanOrEqual(4.5);
+      expect(t.size, theme + '：圆要够大（至少 22px）').toBeGreaterThanOrEqual(22);
+      expect(same(t.bg, look.tokens.accent), theme + '：今天靠金底圆点突出').toBe(true);
+      expect(same(t.fg, look.tokens.onAccent), theme + '：金底上的数字走 on-accent').toBe(true);
+      expect(ratio(t.fg, t.bg), theme + '：金圆里的数字要达 AA').toBeGreaterThanOrEqual(4.5);
+
+      const e = look.empty;
+      expect(e, theme + '：应有空日').toBeTruthy();
+      expect(same(e.cellBg, look.tokens.card), theme + '：空日就是纸面本身，不铺底纹').toBe(true);
+      expect(e.wash, theme + '：空日不得有染墨').toBe(0);
 
       const r = look.record;
       expect(r, theme + '：应有有记录的格子').toBeTruthy();
-      expect(r.washOpacity, theme + '：有记录的底要低存在感').toBeGreaterThan(0);
-      expect(r.washOpacity, theme + '：有记录的底要低存在感').toBeLessThanOrEqual(0.25);
-      expect(same(r.wash, look.tokens.fg), theme + '：有记录的底走中性墨 --fg，不用主题金').toBe(true);
+      expect(same(r.wash, look.tokens.secondary), theme + '：有记录的底走次强调青蓝').toBe(true);
+      expect(r.washOpacity, theme + '：一眼能看出有记录').toBeGreaterThanOrEqual(0.1);
+      expect(r.washOpacity, theme + '：仍要留得住纸的呼吸').toBeLessThanOrEqual(0.4);
+
+      // 四档浓度必须真的递增，否则「密度」只是说法
+      const seen = new Map();
+      for (const x of look.levels) if (!seen.has(x.lv)) seen.set(x.lv, x.op);
+      const ordered = [...seen.entries()].sort((a, b) => Number(a[0]) - Number(b[0]));
+      for (let i = 1; i < ordered.length; i++) {
+        expect(ordered[i][1], theme + `：密度档 ${ordered[i][0]} 应比 ${ordered[i - 1][0]} 深`)
+          .toBeGreaterThan(ordered[i - 1][1]);
+      }
     };
 
     check(await read(), '亮色');
@@ -949,11 +976,13 @@ test.describe('消费月份图（日历）', () => {
     await page.locator(`#month-grid .mg-cell[data-date="${today}"]`).click();
     const picked = await read();
     expect(picked.selected, '选中态应在当天格上').toBeTruthy();
-    expect(picked.selected.ring, '选中是描边环').toContain('inset');
-    const selRgb = ringRgb(picked.selected.ring);
-    expect(same(selRgb, picked.tokens.secondary), '选中的环走次强调 --secondary').toBe(true);
-    expect(same(selRgb, picked.today.border), '选中与今天是两档强调色，不能同色').toBe(false);
-    expect(ratio(selRgb, picked.selected.cellBg), '选中的环对格底要达 3:1').toBeGreaterThanOrEqual(3);
+    expect(same(picked.selected.bg, picked.tokens.secondary), '选中是整格青蓝反底').toBe(true);
+    // 选中的是今天时，日期仍是金圆：数字走 on-accent，读数翻成卡片色
+    expect(same(picked.selected.dayFg, picked.tokens.onAccent), '选中今天的金圆里数字走 on-accent').toBe(true);
+    expect(same(picked.selected.valFg, picked.tokens.card), '选中的读数翻成卡片色').toBe(true);
+    expect(ratio(picked.selected.dayFg, picked.today.bg), '金圆里的数字要达 AA').toBeGreaterThanOrEqual(4.5);
+    expect(ratio(picked.selected.valFg, picked.selected.bg), '选中格读数要达 AA').toBeGreaterThanOrEqual(4.5);
+    expect(same(picked.selected.bg, picked.today.bg), '选中与今天是两档强调色，不能同色').toBe(false);
     check(picked, '亮色·选中');
 
     await page.getByRole('button', { name: '设置' }).click();
@@ -961,7 +990,7 @@ test.describe('消费月份图（日历）', () => {
     await page.keyboard.press('Escape');
     await expect(page.locator('html')).toHaveClass(/dark/);
     const dark = await read();
-    expect(same(ringRgb(dark.selected.ring), dark.tokens.secondary), '暗色选中同样走 --secondary').toBe(true);
+    expect(same(dark.selected.bg, dark.tokens.secondary), '暗色选中同样走 --secondary').toBe(true);
     check(dark, '暗色·选中');
 
     await page.locator(`#month-grid .mg-cell[data-date="${today}"]`).click();
