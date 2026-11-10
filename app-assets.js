@@ -673,7 +673,7 @@ function chartTheme() {
     split: v('--bg-2') || '#efe8d6',
     card: v('--card') || '#fffcf3',
     accent: v('--accent') || '#b4841a',
-    down: v('--down') || '#a84943',
+    down: v('--down') || '#982f3a',
   };
 }
 
@@ -1251,7 +1251,7 @@ function startTagPress(e, pill) {
     if (!tagPress || tagPress.el !== pill) return;
     const held = performance.now() - tagPress.start;
     const progress = ui.pressProgress(held, ui.TAG_PRESS_MS);
-    pill.style.boxShadow = `inset ${Math.round(progress * pill.offsetWidth)}px 0 0 0 rgba(180, 132, 26, 0.22), inset 0 -2px 0 0 var(--accent)`;
+    pill.style.boxShadow = `inset ${Math.round(progress * pill.offsetWidth)}px 0 0 0 var(--accent-glow), inset 0 -2px 0 0 var(--accent)`;
     if (ui.pressDecision(held, ui.TAG_PRESS_MS) !== 'done') { tagPress.raf = requestAnimationFrame(tick); return; }
     // 满时长**直接进编辑态**（不再等松手）：墨线涨满的那一瞬输入框就在原地出现——与
     // 「进资产页」按满即弹同一处置（旧实现让用户「按满—松手」两步，松手前墨线停在满格像卡住）。

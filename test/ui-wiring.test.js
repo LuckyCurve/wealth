@@ -99,11 +99,15 @@ describe('UI 接线契约：统一提示便条（右下角单一出口）', () =
     assert.strictEqual(fnSource('toast').match(/document\.body\.appendChild/g), null, '便条应入容器而非直接挂 body');
   });
 
-  test('三种语义色齐全：success/error/info 各有亮暗两套样式', () => {
-    for (const t of ['success', 'error', 'info']) {
-      assert.match(html, new RegExp(`\\.toast-${t}\\s*[,{]`), `.toast-${t} 亮色样式存在`);
-      assert.match(html, new RegExp(`\\.dark \\.toast-${t}\\s*[,{]`), `.dark .toast-${t} 暗色样式存在`);
+  test('三种语义色齐全：success/error/info 各用一枚语义 token', () => {
+    const ink = { success: '--verdigris', error: '--down', info: '--secondary' };
+    for (const [t, token] of Object.entries(ink)) {
+      const rule = css.match(new RegExp(`\\.toast-${t}[^{]*\\{[^}]*\\}`));
+      assert.ok(rule, `.toast-${t} 样式存在`);
+      assert.match(rule[0], new RegExp(`color:\\s*var\\(${token}\\)`), `.toast-${t} 的墨色走 ${token}`);
+      assert.match(rule[0], /background:\s*var\(--card-2\)/, '纸面走中性 token，亮暗自动跟随');
     }
+    assert.doesNotMatch(css, /\.dark \.toast-/, '语义色已是 token，不再各写一套暗色覆盖');
   });
 
   test('fetchRates 的成功/失败都走 toast；失败文案由 logic.js 纯函数决策', () => {

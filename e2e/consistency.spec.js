@@ -775,7 +775,7 @@ test.describe('版式一致性', () => {
  * --------------------------------------------------------------------------
  * 用户抱怨「有点看不清」不能只靠人眼——这里把每个可见文字的实际前景/背景算出来比对。
  * 背景取「最近的非透明祖先背景色」并逐层叠加（元素自身可能半透明，祖先也可能）；
- * 渐变底（.btn-gold / .seg-btn.active）无法还原真实背景色，跳过。
+ * 渐变底（只剩 .btn-gold）无法还原真实背景色，跳过。
  *
  * 跳过是有代价的：页头曾用**内联** linear-gradient 做背景，于是页头里每一个元素
  * （标题、设置、模式按钮）都被判定为「在渐变上」而默默豁免——最显眼的几行字反而不在
@@ -966,8 +966,7 @@ test.describe('可读性：文字对比度达 AA（亮/暗两套）', () => {
   test('渐变底豁免不得吞掉整块区域（页头曾在巡检范围外）', async ({ appPage: page }) => {
     await visitAllTabs(page);
     const { skipped } = await scan(page, KNOWN_DIMMED);
-    // 实测：页头收回 CSS 后，全站只剩 .btn-gold 与 .seg-btn.active 两块渐变底，
-    // 且它们各自只包着一个文字元素（按钮自身的文字）。
+    // 实测：页头收回 CSS 后，全站只剩 .btn-gold 一块渐变底，只包着按钮自身的文字。
     // 若哪天又有一整块区域被渐变包住（页头曾如此），数字会立刻蹿上去。
     expect(skipped, '被渐变底豁免的文字元素过多，是否又有一整块区域退出了巡检？').toBeLessThanOrEqual(3);
   });
@@ -1539,19 +1538,16 @@ test.describe('可读性：焦点环 / 选中态 / 滚动条', () => {
           const key = el.tagName + '.' + String(el.className).split(' ')[0] + '#' + (el.id || '');
           if (seen.has(key)) continue;
           seen.add(key);
-          const off = parseFloat(fs.outlineOffset) || 0;
-          const w = parseFloat(fs.outlineWidth) || 0;
-          const dy = off >= 0 ? -(off + w / 2) : -(off + w / 2);
-          const cx = Math.round(r.left + Math.min(r.width / 2, 40));
-          const y = Math.round(r.top + dy);
-          const probe = document.elementFromPoint(cx, Math.max(0, y - 6));
+          // 环画在控件背后那层纸上（outline-offset 让环落在按钮外）。
+          // 不能用 elementFromPoint 往上取：贴得近的兄弟控件（例如正上方的模式切换）
+          // 会被误当成「邻近底色」，而环其实还在它下面的纸面上。从父元素起找不透明底色。
           let bg = null;
-          for (let n = probe; n; n = n.parentElement) {
+          for (let n = el.parentElement; n; n = n.parentElement) {
             const c = getComputedStyle(n).backgroundColor;
             const p = c.match(/[\d.]+/g);
             if (p && (p.length === 3 || Number(p[3]) > 0.9)) { bg = c; break; }
           }
-          out.push({ key, ring: fs.outlineColor, bg: bg || getComputedStyle(document.body).backgroundColor, x: cx, y });
+          out.push({ key, ring: fs.outlineColor, bg: bg || getComputedStyle(document.body).backgroundColor });
         }
         return out;
       });

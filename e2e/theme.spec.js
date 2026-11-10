@@ -19,25 +19,9 @@
  */
 const { test, expect, visitAllTabs, collectOffThemeColors, UA_DEFAULT_COLORS } = require('./fixtures');
 
-const KNOWN_HARDCODED = new Set([
-  'rgb(220, 182, 180)',     // #dcb6b4  .btn-danger 描边（亮色）
-  'rgb(90, 58, 57)',        // #5a3a39  .btn-danger 描边（暗色）
-  // .modal-overlay 遮罩已改走 --scrim 变量，不再挂清单（灯下一张遮罩只有一处颜色来源）
-  // .mo-badge.up / .toast-success（亮/暗同值）——底色/字色与 sage green pill 基色
-  // （CATEGORY_COLORS[1]）同值，已归入 pill 调色板的允许集，故不再被巡检判为越界；
-  // 描边仍是清单项。注意这是个巧合耦合：pill 基色一改，这两项会重新被点亮。
-  'rgb(184, 223, 196)',     // #b8dfc4  描边（亮）
-  'rgb(28, 42, 32)',        // #1c2a20  底（暗）
-  'rgb(45, 68, 53)',        // #2d4435  描边（暗）
-  'rgb(252, 232, 224)',     // #fce8e0  底（亮）
-  'rgb(240, 200, 184)',     // #f0c8b8  描边（亮）
-  'rgb(42, 28, 26)',        // #2a1c1a  底（暗）
-  'rgb(74, 44, 42)',        // #4a2c2a  描边（暗）
-  'rgb(248, 241, 222)',     // #f8f1de  底（亮）
-  'rgb(227, 211, 163)',     // #e3d3a3  描边（亮）
-  'rgb(41, 34, 20)',        // #292214  底（暗）
-  'rgb(69, 58, 32)',        // #453a20  描边（暗）
-]);
+// 清单已清空：提示条、危险描边、编辑态都改走 token。以后新增写死色值会直接红，
+// 修掉它，不要往这里加。
+const KNOWN_HARDCODED = new Set([]);
 
 async function scan(page) {
   await visitAllTabs(page);
@@ -191,7 +175,7 @@ test.describe('打印形态：暗色主题也要印得出、印得清', () => {
     expect(rgb(glass.bg).a, '打印时卡片底色必须不透明').toBe(1);
   });
 
-  test('打印：装饰层与操作面不进纸（灯层 / 便条 / 页签栏 / 操作行）', async ({ appPage: page }) => {
+  test('打印：装饰层与操作面不进纸（灯层 / 便条 / 页签栏 / 操作行 / 页头导航）', async ({ appPage: page }) => {
     await page.emulateMedia({ media: 'print' });
     const hidden = await page.evaluate(() => {
       const disp = (sel) => {
@@ -200,11 +184,18 @@ test.describe('打印形态：暗色主题也要印得出、印得清', () => {
         const cs = getComputedStyle(el);
         return cs.display === 'none' || cs.visibility === 'hidden' ? 'hidden' : 'visible';
       };
+      const allHidden = (sel) => {
+        const els = [...document.querySelectorAll(sel)];
+        if (!els.length) return 'missing';
+        return els.every((el) => getComputedStyle(el).display === 'none') ? 'hidden' : 'visible';
+      };
       return {
         lamp: disp('.lamp-layer'),
         toasts: disp('#toast-area'),
         tabBar: disp('.tab-bar'),
         toolbar: disp('.toolbar'),
+        // 页头的模式切换与按钮也是操作面，且会带金/青蓝墨色进纸
+        headerNav: allHidden('.app-header .seg-control, .app-header .btn-ghost'),
       };
     });
     for (const [name, state] of Object.entries(hidden)) {

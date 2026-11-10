@@ -14,13 +14,22 @@
     --accent-strong: #8f6713;
     /* 次强调：选中、链接、次级操作 */
     --secondary: #3d5a7a;
-    /* 金底上的墨色（.btn-gold / .seg-btn.active / 弹层悬停项共用这一枚）。
+    /* 金底上的墨色（.btn-gold / 弹层悬停项共用这一枚）。
        亮暗同值：金是同一个金，压在它上面的墨也就只能是同一枚——分两套只会漂。 */
     --on-accent: #211b10;
+    /* 主按钮的金属渐变与金色微光；全部走 token，换主题时不漏改 */
+    --accent-fill-from: #d9b25e;
+    --accent-fill-to: #b4841a;
+    --accent-glow: rgba(180, 132, 26, 0.22);
+    --accent-ring: rgba(180, 132, 26, 0.14);
     /* 语义色：成功 / 警示 / 危险·支出 */
     --verdigris: #2f6b4f;
     --warning: #a3491a;
     --down: #982f3a;
+    --down-edge: #dcb6b4;
+    --secondary-tint: rgba(61, 90, 122, 0.12);
+    --verdigris-glow: rgba(47, 107, 79, 0.18);
+    --verdigris-pulse: rgba(47, 107, 79, 0.4);
     --usd: #86733f;
     --card: #fffcf3;
     --card-2: #f7f0dd;
@@ -87,10 +96,6 @@
        关掉 appearance 之后箭头就是我们自己的一张图，位置、颜色、留白全由页面决定。
        色值走变量：写死则暗色下箭头仍是亮色的墨，且会被 theme 巡检判为越界。 */
     --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 4.5 6 8l3.5-3.5' fill='none' stroke='%236b5c3a' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-    /* 焦点环单独一枚色：原先直接借 --accent（#b4841a），压在纸底上实测 2.63:1，
-       低于 WCAG 1.4.11 对非文字元素要求的 3:1 —— 键盘走查时几乎看不见自己在哪。
-       --accent-ink（#7f5c0e）对纸底 4.78:1、对卡面 5.95:1，是同一色相里足够深的那一档。
-       为什么不直接把 --accent 压深：它是金色**文字**与装饰线的色，压深会连累报头与读数。 */
     /* 文本选中：青蓝底 + 卡片字色（深底配浅字，暗色自动反相） */
     --select: #3d5a7a;
     /* 焦点环单独一枚色：原先直接借 --accent（#b4841a），压在纸底上实测 2.63:1，
@@ -113,9 +118,17 @@
     --accent-strong: #d9b25e;
     --secondary: #9ab6d6;
     --on-accent: #211b10;
+    --accent-fill-from: #d9b25e;
+    --accent-fill-to: #b4841a;
+    --accent-glow: rgba(217, 178, 94, 0.22);
+    --accent-ring: rgba(217, 178, 94, 0.14);
     --verdigris: #7fc4a0;
     --warning: #e8a06a;
     --down: #e08d95;
+    --down-edge: #5a3a39;
+    --secondary-tint: rgba(154, 182, 214, 0.10);
+    --verdigris-glow: rgba(127, 196, 160, 0.18);
+    --verdigris-pulse: rgba(127, 196, 160, 0.4);
     --usd: #9a8758;
     --card: #211b10;
     --card-2: #2a2214;
@@ -356,13 +369,13 @@
     *, *::before, *::after { animation-duration: 0.001ms !important; animation-delay: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; transition-delay: 0.001ms !important; scroll-behavior: auto !important; }
   }
   .btn-gold {
-    background: linear-gradient(180deg, #d9b25e, #b4841a);
+    background: linear-gradient(180deg, var(--accent-fill-from), var(--accent-fill-to));
     color: var(--on-accent); border: 1px solid var(--accent-strong); border-radius: 6px; padding: 8px 20px;
     font-weight: var(--fw-strong); cursor: pointer; transition: filter var(--mo-fast), box-shadow var(--mo-fast), transform var(--mo-press);
     font-family: var(--font-body); font-size: var(--fs-body); letter-spacing: 0.01em;
     box-shadow: inset 0 1px 0 rgba(255,255,255,0.4), inset 0 -1px 0 rgba(33,27,16,0.22), 0 1px 2px var(--shadow);
   }
-  .btn-gold:hover { filter: brightness(1.04); box-shadow: inset 0 1px 0 rgba(255,255,255,0.45), inset 0 -1px 0 rgba(33,27,16,0.22), 0 2px 10px rgba(180,132,26,0.22); }
+  .btn-gold:hover { filter: brightness(1.04); box-shadow: inset 0 1px 0 rgba(255,255,255,0.45), inset 0 -1px 0 rgba(33,27,16,0.22), 0 2px 10px var(--accent-glow); }
   .btn-gold:active { transform: translateY(1px); box-shadow: inset 0 2px 5px rgba(33,27,16,0.3); }
   /* 按压反馈只有一档：其余可点控件共享这一条（金色主按钮另有一套压印，见上一行）。
      用 transform 而不是 padding/margin：按压不该推动邻居，也不该产生一次重排。
@@ -374,18 +387,16 @@
   }
   .btn-ghost { color: var(--muted); border: 1px solid var(--border); padding: 8px 20px; font-size: var(--fs-body); }
   .btn-ghost:hover { border-color: var(--secondary); color: var(--secondary); }
-  .btn-danger { color: var(--down); border: 1px solid #dcb6b4; padding: 6px 14px; font-size: var(--fs-micro); }
-  .btn-danger:hover { background: var(--down); color: white; border-color: var(--down); }
-  .dark .btn-danger { color: var(--down); border-color: #5a3a39; }
-  .dark .btn-danger:hover { color: #fff; }
+  .btn-danger { color: var(--down); border: 1px solid var(--down-edge); padding: 6px 14px; font-size: var(--fs-micro); }
+  .btn-danger:hover { background: var(--down); color: var(--card); border-color: var(--down); }
+  .dark .btn-danger { color: var(--down); border-color: var(--down-edge); }
   /* 行内操作按钮（统一规格, 颜色区分操作层级） */
   .row-btn { border: none; background: transparent; font-size: var(--fs-micro); padding: 3px 6px; border-radius: 5px; cursor: pointer; font-family: var(--font-body); white-space: nowrap; flex-shrink: 0; transition: background var(--mo-fast), color var(--mo-fast); }
   .row-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; }
   .row-btn:hover { background: var(--bg-2); }
   .row-btn.edit, .row-btn.copy { color: var(--secondary); }
   .row-btn.danger { color: var(--down); }
-  .row-btn.danger:hover { background: var(--down); color: #fff; }
-  .dark .row-btn.danger:hover { color: #fff; }
+  .row-btn.danger:hover { background: var(--down); color: var(--card); }
   /* 卡片 = 一块压在纸上的玻璃（材质变量与理由见 :root 的 --glass-* 注释）。
      --glass-shadow 把「受光边 + 背光边 + 两角柔光 + 内描边」打包：一是 :hover 只换外阴影
      而不必重抄一遍材质（重抄就会出现第二处材质定义，材质就不再是单一定义了），
@@ -506,7 +517,7 @@
   body input[type=number] { -webkit-appearance: none; appearance: textfield; }
   body input[type=number]::-webkit-inner-spin-button,
   body input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
-  body input:focus, body select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(180,132,26,0.14); }
+  body input:focus, body select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring); }
   /* 只改背景色，**不能用 background 简写**：简写会把自绘箭头的 background-image 一并重置成
      none——暗色下箭头会凭空消失（实测 bgImg: none）。这类「简写吃掉长写」的坑在主题覆盖里
      最常见，凡是别处有 background-image 的元素，覆盖时一律只写 background-color。 */
@@ -596,7 +607,7 @@
   }
   .flatpickr-day.inRange {
     box-shadow: none !important;
-    background: var(--accent-soft) !important;
+    background: var(--secondary-tint) !important;
     border-color: transparent !important;
   }
   .flatpickr-months .flatpickr-prev-month,
@@ -620,9 +631,6 @@
   }
   .dark .flatpickr-day.selected, .dark .flatpickr-day.selected:hover {
     box-shadow: inset 0 0 0 2px var(--secondary) !important;
-  }
-  .dark .flatpickr-day.inRange {
-    background: rgba(230,201,130,0.15) !important;
   }
   .search-wrap { position: relative; display: inline-block; }
   .search-wrap svg { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); width: 13px; height: 13px; color: var(--muted); pointer-events: none; }
@@ -961,8 +969,7 @@
   .inline-edit-input { width: 100%; padding: 2px 6px; font-size: var(--fs-body); user-select: text; -webkit-user-select: text; }
   .asset-row:hover { background: var(--card-2); }
   .asset-row:last-child { border-bottom: none; }
-  .asset-row.editing { background: rgba(217, 178, 94, 0.12); }
-  .dark .asset-row.editing { background: rgba(230, 201, 130, 0.08); }
+  .asset-row.editing { background: var(--secondary-tint); }
   .list-head {
     border-bottom: 2px solid var(--rule); letter-spacing: 0.05em;
     font-size: var(--fs-micro); font-weight: var(--fw-medium); color: var(--muted);
@@ -981,14 +988,11 @@
      （Lighthouse 实测抓到），而它承载的是刚发生的结论。visibility 延迟到动画结束才切，
      中间没有「半透明但仍占位」的样式。 */
   .toast.leaving { transform: translateY(6px); visibility: hidden; }
-  /* 与 mo-badge 同色系: 提示即一张盖在账页上的便条。三种墨色=三种语义:
-     绿=操作已落账 / 红=出错待处理 / 金墨边注(info)=系统自己的中性知会，注意但不报警 */
-  .toast-success, .mo-badge.up { background: #e8f5ec; color: #3d7a52; border-color: #b8dfc4; }
-  .toast-error, .mo-badge.down { background: #fce8e0; color: var(--down); border-color: #f0c8b8; }
-  .toast-info { background: #f8f1de; color: var(--accent-ink); border-color: #e3d3a3; }
-  .dark .toast-success, .dark .mo-badge.up { background: #1c2a20; color: var(--verdigris); border-color: #2d4435; }
-  .dark .toast-error, .dark .mo-badge.down { background: #2a1c1a; color: var(--down); border-color: #4a2c2a; }
-  .dark .toast-info { background: #292214; color: var(--accent-ink); border-color: #453a20; }
+  /* 与 mo-badge 同色系: 提示即一张盖在账页上的便条。纸面保持中性，只让墨色带语义:
+     绿=操作已落账 / 红=出错待处理 / 青蓝=系统自己的中性知会。底色与描边都走中性 token。 */
+  .toast-success, .mo-badge.up { background: var(--card-2); color: var(--verdigris); border-color: var(--border); }
+  .toast-error, .mo-badge.down { background: var(--card-2); color: var(--down); border-color: var(--border); }
+  .toast-info { background: var(--card-2); color: var(--secondary); border-color: var(--border); }
   /* 图标：尺寸/描边只在此处定义（24 网格线稿，1em 跟随所在档位字号）。
      inline 用 baseline 微调，免得图标把行高顶起来（Tab 栏高度会连带跳）。 */
   .ico { width: 1em; height: 1em; flex: 0 0 auto; vertical-align: -0.125em; fill: none; stroke: currentColor;
@@ -1029,13 +1033,13 @@
   }
   .tab-indicator {
     position: absolute; bottom: 0; left: var(--tab-x, 0); width: var(--tab-w, 0);
-    height: 2px; background: var(--accent); z-index: 1;
+    height: 2px; background: var(--secondary); z-index: 1;
     transition: left var(--mo-mid) var(--mo-ease), width var(--mo-mid) var(--mo-ease);
   }
   .seg-control { display: inline-flex; padding: 3px; border-radius: 8px; background: var(--bg-2); border: 1px solid var(--border); gap: 2px; }
   .seg-btn { border: none; background: transparent; color: var(--muted); font-size: var(--fs-micro); font-family: var(--font-body); padding: 5px 18px; border-radius: 6px; cursor: pointer; transition: background var(--mo-fast), color var(--mo-fast); white-space: nowrap; }
   .seg-btn:hover { color: var(--fg); }
-  .seg-btn.active { background: linear-gradient(180deg, #d9b25e, #b4841a); color: var(--on-accent); font-weight: var(--fw-strong); box-shadow: inset 0 1px 0 rgba(255,255,255,0.25), 0 1px 2px var(--shadow); }
+  .seg-btn.active { background: var(--secondary); color: var(--card); font-weight: var(--fw-strong); box-shadow: inset 0 1px 0 rgba(255,255,255,0.25), 0 1px 2px var(--shadow); }
   /* ===== 进入资产页的长按门槛：按住时金色墨线沿底边自左向右浸满按钮 =====
      填充宽度 = --mode-press × 100%（JS 每帧只同步这个变量，百分比换算只此一处）。
      刻意不做 CSS transition：它跟随手指的按住时长，不是装饰动效——reduced-motion 下也保留，
@@ -1205,8 +1209,8 @@
   }
   /* 心跳点：全站唯一的常驻循环动画。它是「呼吸」，不是过渡，故用自己的周期
      （--mo-pulse），不进 fast/mid/slow 三档——循环动画与一次性过渡没有可比性。 */
-  .masthead-eyebrow .live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--verdigris); box-shadow: 0 0 0 3px rgba(68,106,91,0.18); animation: livePulse var(--mo-pulse) ease-out infinite; }
-  @keyframes livePulse { 0% { box-shadow: 0 0 0 0 rgba(68,106,91,0.4); } 70% { box-shadow: 0 0 0 7px rgba(68,106,91,0); } 100% { box-shadow: 0 0 0 0 rgba(68,106,91,0); } }
+  .masthead-eyebrow .live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--verdigris); box-shadow: 0 0 0 3px var(--verdigris-glow); animation: livePulse var(--mo-pulse) ease-out infinite; }
+  @keyframes livePulse { 0% { box-shadow: 0 0 0 0 var(--verdigris-pulse); } 70% { box-shadow: 0 0 0 7px transparent; } 100% { box-shadow: 0 0 0 0 transparent; } }
   .masthead-amount {
     font-family: var(--font-numeric); font-weight: var(--fw-medium);
     font-size: clamp(38px, 7vw, 64px); line-height: 1; letter-spacing: -0.01em;
@@ -1474,6 +1478,7 @@
       /* 语义色在纸上回到亮色档：暗色的浅色印到白纸上只剩淡影 */
       --secondary: #3d5a7a; --select: #3d5a7a;
       --verdigris: #2f6b4f; --warning: #a3491a; --down: #982f3a;
+      --down-edge: #dcb6b4; --secondary-tint: rgba(61, 90, 122, 0.12); --usd: #86733f;
     }
     html, body { background: #fff !important; color: var(--fg); }
     /* 纸张不印背景图/阴影：纸纹、桌光、台灯三层全撤 */
@@ -1483,8 +1488,10 @@
       backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
       box-shadow: none !important; border: 1px solid var(--border) !important;
     }
-    /* 操作面与装饰进不了纸：页签栏、筛选行、便条、导入导出按钮、报头底纹 */
-    .tab-bar, .toolbar, #toast-area, .masthead::before, .masthead::after,
+    /* 操作面与装饰进不了纸：页签栏、筛选行、便条、模式切换与页头按钮、底纹 */
+    .tab-bar, .toolbar, #toast-area, .app-header::after,
+    .app-header .seg-control, .app-header .btn-ghost,
+    .masthead::before, .masthead::after,
     .no-print { display: none !important; }
     .app-header { background: #fff !important; border-bottom: 1px solid var(--border); }
     /* 表格跨页时不要把一个资产拆成两半 */
