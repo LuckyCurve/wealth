@@ -850,8 +850,12 @@ function openModal(id) {
   // 整层滚到底部（实测：设置里多一个天数输入框后，一按「设置」就跳到最下面，
   // 顶部的语言/外观被顶出视口）。表单弹窗的文本框不受影响。
   const isAutoFocusable = (el) => !isPickerHost(el) && !el.hasAttribute('data-no-autofocus');
+  // 标题挂 data-autofocus 的弹窗（设置）：打开时焦点落在标题上，不落进任何输入框。
+  // 设置里第一个输入框是「导出密钥」，一开面板就进密码框既容易误输入，焦点环也在页面中部；
+  // 键盘用户从标题按一次 Tab 就到第一个控件（语言），顺序仍然清楚。
+  const preferred = modal.querySelector('[data-autofocus]');
   const firstField = list.find(el => el.matches('input, select, textarea') && isAutoFocusable(el));
-  const target = firstField || list.find(isAutoFocusable) || list[0];
+  const target = preferred || firstField || list.find(isAutoFocusable) || list[0];
   // preventScroll 是必需的：正文自带 overflow-y:auto，焦点落到最底部的「关闭」会把长表滚到最后一行。
   if (target) target.focus({ preventScroll: true });
 }

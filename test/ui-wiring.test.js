@@ -330,6 +330,25 @@ describe('UI 接线契约：弹窗焦点管理（aria-modal 的兑现）', () =>
     assert.match(html, /function modalFocusables\(/, '「弹窗内可聚焦元素」须有单一实现（打开与陷阱共用一份）');
   });
 
+  test('设置弹窗打开时焦点落在标题，不落进「导出密钥」输入框', () => {
+    // 用户反馈：一开设置就进密码框，既容易误输入，焦点环也在面板中部。
+    assert.match(
+      html,
+      /id="settings-modal-title"[^>]*data-autofocus[^>]*tabindex="-1"/,
+      '标题要能被程序聚焦，并声明为打开时的落点');
+    assert.match(
+      openSrc,
+      /querySelector\('\[data-autofocus\]'\)/,
+      'openModal 要认「打开时焦点落这里」的声明');
+    assert.ok(
+      openSrc.indexOf('data-autofocus') < openSrc.indexOf('const firstField'),
+      '标题落点必须排在「第一个输入框」之前');
+    assert.match(
+      html,
+      /id="pass-input"[^>]*data-no-autofocus/,
+      '导出密钥输入框不得再被自动聚焦（防御：其它入口也不该一开就进密码框）');
+  });
+
   test('关闭弹窗要把焦点还回打开它的元素（不是掉到 body 从头 Tab）', () => {
     assert.match(closeSrc, /__modalReturnFocus/, 'closeModal 必须消费记住的返回焦点');
     assert.match(openSrc, /__modalReturnFocus\.push\(document\.activeElement\)/, '打开时要先记住当前焦点（入栈，确认框会叠在别的弹窗上）');

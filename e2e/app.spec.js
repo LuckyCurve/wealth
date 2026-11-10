@@ -1452,6 +1452,18 @@ test.describe('弹窗与提示', () => {
     expect(await page.evaluate(() => localStorage.getItem('dark-mode'))).toBe('');
   });
 
+  test('打开设置不自动进输入框：焦点落在标题，按 Tab 才进控件', async ({ appPage: page }) => {
+    await openSettings(page);
+    expect(await page.evaluate(() => document.activeElement && document.activeElement.id)).toBe('settings-modal-title');
+    await page.keyboard.press('Tab');
+    const next = await page.evaluate(() => ({
+      id: document.activeElement && document.activeElement.id,
+      tag: document.activeElement && document.activeElement.tagName,
+    }));
+    expect(next.id, '第一个 Tab 位不该是导出密钥').not.toBe('pass-input');
+    expect(['BUTTON', 'INPUT'], 'Tab 要能进控件').toContain(next.tag);
+  });
+
   test('删除分类同步清理资产上的标签引用（不留孤儿 key）', async ({ appPage: page }) => {
     await gotoAssetsTab(page, 'categories');
     await page.locator('#categories-list .card', { hasText: '资产类型' }).getByRole('button', { name: '删除' }).click();

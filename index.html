@@ -973,7 +973,7 @@ tailwind.config = {
 <!-- Settings Modal (设置 · 账本凡例: 外观 + 自动备份) -->
 <div id="settings-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="settings-modal-title" style="display:none;">
   <div class="modal-content modal-lg">
-    <h3 class="font-display modal-title" id="settings-modal-title" data-i18n="设置">设置</h3>
+    <h3 class="font-display modal-title" id="settings-modal-title" data-autofocus tabindex="-1" data-i18n="设置">设置</h3>
     <div>
       <div class="setting-row">
         <div class="setting-info">
@@ -1045,7 +1045,7 @@ tailwind.config = {
           <p class="setting-desc" data-i18n="导出与自动备份存成密文；导入时要输入这串密钥。密钥只在本机，忘了就打不开。">导出与自动备份存成密文；导入时要输入这串密钥。密钥只在本机，忘了就打不开。</p>
         </div>
         <div class="setting-actions">
-          <input type="password" id="pass-input" autocomplete="new-password" aria-label="导出密钥" data-i18n-aria-label="导出密钥" onkeydown="if(event.key==='Enter'&&!event.isComposing){event.preventDefault();saveExportPassphrase();}">
+          <input type="password" id="pass-input" data-no-autofocus autocomplete="new-password" aria-label="导出密钥" data-i18n-aria-label="导出密钥" onkeydown="if(event.key==='Enter'&&!event.isComposing){event.preventDefault();saveExportPassphrase();}">
           <button type="button" id="pass-save" onclick="saveExportPassphrase()" class="btn-ghost btn-sm" data-i18n="保存密钥">保存密钥</button>
           <button type="button" id="pass-change" onclick="startPassEdit()" class="btn-ghost btn-sm" hidden data-i18n="更换密钥">更换密钥</button>
           <button type="button" id="pass-clear" onclick="clearExportPassphrase()" class="btn-danger btn-sm" hidden data-i18n="清除">清除</button>
