@@ -880,7 +880,11 @@ test.describe('消费月份图（日历）', () => {
       const probe = document.createElement('span');
       document.body.appendChild(probe);
       const resolve = (v) => { probe.style.color = ''; probe.style.color = v; return getComputedStyle(probe).color; };
-      const tokens = { accentInk: rgb(resolve(cs.getPropertyValue('--accent-ink'))), fg: rgb(resolve(cs.getPropertyValue('--fg'))) };
+      const tokens = {
+        accentStrong: rgb(resolve(cs.getPropertyValue('--accent-strong'))),
+        secondary: rgb(resolve(cs.getPropertyValue('--secondary'))),
+        fg: rgb(resolve(cs.getPropertyValue('--fg'))),
+      };
       probe.remove();
       const todayCell = document.querySelector('#month-grid .mg-cell.is-today');
       const day = todayCell && todayCell.querySelector('.mg-day');
@@ -929,7 +933,7 @@ test.describe('消费月份图（日历）', () => {
       expect(t.bw, theme + '：今天要靠形状（描边圆）突出').toBeGreaterThanOrEqual(2);
       expect(t.radius, theme + '：今天是圆').toBe('50%');
       expect(t.bg, theme + '：今天不能靠填色，圆内应透出格底').toMatch(/rgba?\(0, 0, 0, 0\)|transparent/);
-      expect(same(t.border, look.tokens.accentInk), theme + '：今天的圆走 --accent-ink').toBe(true);
+      expect(same(t.border, look.tokens.accentStrong), theme + '：今天的圆走 --accent-strong').toBe(true);
       expect(ratio(t.border, t.cellBg), theme + '：今天的圆对格底要达 3:1').toBeGreaterThanOrEqual(3);
       expect(ratio(t.fg, t.cellBg), theme + '：日期数字要达 AA').toBeGreaterThanOrEqual(4.5);
 
@@ -947,7 +951,7 @@ test.describe('消费月份图（日历）', () => {
     expect(picked.selected, '选中态应在当天格上').toBeTruthy();
     expect(picked.selected.ring, '选中是描边环').toContain('inset');
     const selRgb = ringRgb(picked.selected.ring);
-    expect(same(selRgb, picked.tokens.fg), '选中的环走 --fg').toBe(true);
+    expect(same(selRgb, picked.tokens.secondary), '选中的环走次强调 --secondary').toBe(true);
     expect(same(selRgb, picked.today.border), '选中与今天是两档强调色，不能同色').toBe(false);
     expect(ratio(selRgb, picked.selected.cellBg), '选中的环对格底要达 3:1').toBeGreaterThanOrEqual(3);
     check(picked, '亮色·选中');
@@ -957,7 +961,7 @@ test.describe('消费月份图（日历）', () => {
     await page.keyboard.press('Escape');
     await expect(page.locator('html')).toHaveClass(/dark/);
     const dark = await read();
-    expect(same(ringRgb(dark.selected.ring), dark.tokens.fg), '暗色选中同样走 --fg').toBe(true);
+    expect(same(ringRgb(dark.selected.ring), dark.tokens.secondary), '暗色选中同样走 --secondary').toBe(true);
     check(dark, '暗色·选中');
 
     await page.locator(`#month-grid .mg-cell[data-date="${today}"]`).click();
@@ -1270,12 +1274,14 @@ test.describe('本月预算卡（消费趋势）', () => {
     await expect(page.locator('#pace-note')).toHaveCSS('color', await resolvedColor(page, '--down'));
   });
 
-  test('预算将尽（≥90%）但未超支：尺子转金，读数仍报剩余', async ({ page }) => {
+  test('预算将尽（≥90%）但未超支：尺子与读数转警示色，仍报剩余', async ({ page }) => {
     await openTrendAt(page, withMonthExpenses([4600]), '2026-10-06T10:00:00');
     await expect(page.locator('#pace-pct')).toHaveText('92.0%');
     await expect(page.locator('#pace-note')).toContainText('预算剩 ¥400.00');
     const fillBg = await page.locator('#pace-fill').evaluate((el) => getComputedStyle(el).backgroundColor);
-    expect(fillBg).toBe(await resolvedColor(page, '--accent'));
+    expect(fillBg).toBe(await resolvedColor(page, '--warning'));
+    const pctColor = await page.locator('#pace-pct').evaluate((el) => getComputedStyle(el).color);
+    expect(pctColor, '读数与尺子同一档警示色').toBe(await resolvedColor(page, '--warning'));
   });
 
   test('打平：预算刚好花完，没有可叙述的差额', async ({ page }) => {

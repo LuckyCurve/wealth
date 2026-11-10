@@ -20,7 +20,6 @@
 const { test, expect, visitAllTabs, collectOffThemeColors, UA_DEFAULT_COLORS } = require('./fixtures');
 
 const KNOWN_HARDCODED = new Set([
-  'rgb(143, 103, 19)',      // #8f6713  .btn-gold 描边（gold-600，未提成变量）
   'rgb(220, 182, 180)',     // #dcb6b4  .btn-danger 描边（亮色）
   'rgb(90, 58, 57)',        // #5a3a39  .btn-danger 描边（暗色）
   // .modal-overlay 遮罩已改走 --scrim 变量，不再挂清单（灯下一张遮罩只有一处颜色来源）

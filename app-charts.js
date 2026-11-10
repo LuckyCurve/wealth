@@ -773,13 +773,13 @@ function renderMonthPace() {
   card.style.display = '';
   const fill = document.getElementById('pace-fill');
   fill.style.width = Math.min(100, Math.max(0, reading.pctOfMonth)) + '%';
-  fill.style.background = reading.over ? 'var(--down)' : (reading.pctOfMonth >= 90 ? 'var(--accent)' : 'var(--verdigris)');
+  fill.style.background = reading.over ? 'var(--down)' : (reading.pctOfMonth >= 90 ? 'var(--warning)' : 'var(--verdigris)');
   document.getElementById('pace-num').textContent = money.formatCNY(spent);
   document.getElementById('pace-expense').textContent = money.formatCNY(expectation);
   const pct = document.getElementById('pace-pct');
   // 百分比读数取 reading.pctOfMonth（与尺子宽度、≥90% 判断同源）, 不用 spent/expectation 另算一遍
   pct.textContent = money.pctStr(reading.pctOfMonth, 100) + '%';
-  pct.style.color = reading.over ? 'var(--down)' : 'var(--accent-ink)';
+  pct.style.color = reading.over ? 'var(--down)' : (reading.pctOfMonth >= 90 ? 'var(--warning)' : 'var(--accent-ink)');
   const note = document.getElementById('pace-note');
   const noteText = expense.monthBudgetNote(reading);
   note.textContent = noteText;
