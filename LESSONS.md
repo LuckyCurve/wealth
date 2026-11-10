@@ -17,7 +17,7 @@
 
 - **断网可跑，不放行外网** — 汇率 / echarts / tailwind / flatpickr / 字体全部 `page.route` 替身（`e2e/fixtures.js`）。放行外网既慢又脆，`e2e-hygiene` 扫 `route.continue` / `unroute` 把守。要验真库行为就从 `node_modules` 读（flatpickr 就是这样喂进去的），不要开外网。
 - **兜底替身要先注册** — 「拦掉一切外网」的兜底 route 先注册，具体 CDN 替身后注册才能覆盖它（route 后注册者优先）。次序写反不报错，只表现为一串莫名失败。
-- **Tailwind 在 E2E 里是空壳**（`window.tailwind = {}`）：工具类不生效、截图不能验收 Tailwind 布局——版式规格必须写在自有 CSS 里。实测的代价：行内操作按钮只挂了 `flex justify-end`，E2E 里它们是块级元素、看着挺齐，真页上却是 flex + `justify-end`——内容比列宽时**向左溢出**，最右那枚标签被压住半截；`consistency` 那条「压到 60px 强制溢出」的巡检就是为它补的。
+- **Tailwind 在 E2E 里是空壳**（`window.tailwind = {}`）：工具类不生效、截图不能验收 Tailwind 布局——版式规格必须写在自有 CSS 里。实测的代价：行内操作按钮只挂了 `flex justify-end`，E2E 里它们是块级元素、看着挺齐，真页上却是 flex + `justify-end`——内容比列宽时**向左溢出**，最右那枚标签被压住半截；`consistency` 那条「压到 60px 强制溢出」的巡检就是为它补的。页头整组导航也栽过同一坑：断网时四个入口塌成两行、设置被挤到左侧；现在一行布局与窄屏收字全在自有 CSS，E2E 按 320–1280px 验。
 - **先关动效再断言数字** — masthead 是计数动画，等收敛会让每条数字断言吃满超时；`fixtures` 统一 `reducedMotion: 'reduce'`。
 - **固定定时器用 `page.clock` 快进**（便条退场、备份确认框、开屏看门狗），且时钟要在定时器注册之前接管。
 - **seed 只在首次导航生效** — `addInitScript` 每次导航（含 reload）都会重跑；不设 once 标记，reload 会把存档洗回种子值，持久化用例「永远绿」（假通过）。标记放 sessionStorage。

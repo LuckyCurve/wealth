@@ -338,6 +338,43 @@
     /* 刘海/圆角屏：左右边距与安全区取 max，不加相（否则窄条上内容被顶出屏幕） */
     padding-inline: max(var(--content-pad), env(safe-area-inset-left, 0px)) max(var(--content-pad), env(safe-area-inset-right, 0px));
   }
+  /* 页头导航的布局写在这里，不靠 Tailwind：CDN 空壳/断网时工具类不生效，
+     页头会塌成竖排（截图里四项挤在左上角、设置被挤到第二行）。一行、右侧收口，
+     窄屏收文字与留白，不换行。 */
+  .app-header-inner {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 16px; flex-wrap: nowrap; padding-block: 16px; min-width: 0;
+  }
+  .header-main { display: flex; align-items: center; gap: 24px; flex: 1 1 auto; min-width: 0; }
+  .header-brand { display: flex; align-items: center; gap: 12px; flex: 0 0 auto; }
+  .header-brand-copy { min-width: 0; }
+  .header-brand-copy .brand-title { white-space: nowrap; }
+  .header-actions { display: flex; align-items: center; gap: 12px; flex: 0 0 auto; }
+  .header-actions .header-action > span { white-space: nowrap; }
+  @media (max-width: 900px) {
+    .header-brand-copy .eyebrow { display: none; }
+    .header-main { gap: 16px; }
+  }
+  @media (max-width: 640px) {
+    .app-header-inner { gap: 10px; padding-block: 12px; }
+    .header-main { gap: 12px; }
+    .header-brand { gap: 8px; }
+    .header-actions { gap: 6px; }
+    .header-actions .header-action { padding: 7px 10px; }
+    .header-actions .header-action > span { display: none; }
+    .app-header .seg-btn { padding: 5px 10px; }
+  }
+  @media (max-width: 480px) {
+    .app-header-inner { padding-inline: max(16px, env(safe-area-inset-left, 0px)) max(16px, env(safe-area-inset-right, 0px)); }
+    .header-brand-copy { display: none; }
+  }
+  @media (max-width: 360px) {
+    .app-header-inner { gap: 6px; padding-inline: max(12px, env(safe-area-inset-left, 0px)) max(12px, env(safe-area-inset-right, 0px)); }
+    .header-main { gap: 6px; }
+    .header-actions { gap: 4px; }
+    .app-header .seg-btn { padding: 5px 8px; }
+    .header-actions .header-action { padding: 7px; }
+  }
   .font-masthead { font-family: var(--font-numeric); font-feature-settings: 'lnum' 1, 'tnum' 1; }
   .tabular { font-variant-numeric: tabular-nums; font-feature-settings: 'tnum' 1; }
   /* 数字列（表格里的金额/折算值）：账本的习惯是**右对齐、小数点对齐**。

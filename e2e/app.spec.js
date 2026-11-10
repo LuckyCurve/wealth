@@ -2823,3 +2823,43 @@ test.describe('对比差额双向条（图形优先，数字不丢）', () => {
     await expect(feb).toContainText('较平常');
   });
 });
+
+test.describe('页头导航：任何宽度都是一行，设置贴右', () => {
+  for (const width of [1280, 768, 640, 480, 390, 360, 320]) {
+    test(`${width}px 不换行、不堆叠`, async ({ appPage: page }) => {
+      await page.setViewportSize({ width, height: 900 });
+      const m = await page.evaluate(() => {
+        const rect = (sel) => {
+          const b = document.querySelector(sel).getBoundingClientRect();
+          return { left: b.left, right: b.right, top: b.top, bottom: b.bottom, h: b.height };
+        };
+        const mid = (r) => (r.top + r.bottom) / 2;
+        const inner = rect('.app-header-inner');
+        const main = rect('.header-main');
+        const actions = rect('.header-actions');
+        const settings = rect('.header-actions .header-action:last-child');
+        return {
+          wrap: getComputedStyle(document.querySelector('.app-header-inner')).flexWrap,
+          innerRight: inner.right,
+          mainMid: mid(main),
+          actionsMid: mid(actions),
+          expensesTop: rect('#mode-expenses').top,
+          assetsTop: rect('#mode-assets').top,
+          settingsRight: settings.right,
+          headerH: rect('.app-header').h,
+          scrollW: document.documentElement.scrollWidth,
+          viewW: innerWidth,
+          settingsIsLast: document.querySelector('.header-actions').lastElementChild === document.querySelector('.header-actions .header-action:last-child'),
+        };
+      });
+      const msg = `@${width}px ${JSON.stringify(m)}`;
+      expect(m.wrap, msg).toBe('nowrap');
+      expect(Math.abs(m.mainMid - m.actionsMid), msg).toBeLessThan(2);
+      expect(Math.abs(m.expensesTop - m.assetsTop), msg).toBeLessThan(1);
+      expect(m.innerRight - m.settingsRight, msg).toBeLessThanOrEqual(32);
+      expect(m.settingsIsLast, msg).toBe(true);
+      expect(m.headerH, msg).toBeLessThan(110);
+      expect(m.scrollW, msg).toBeLessThanOrEqual(m.viewW + 1);
+    });
+  }
+});

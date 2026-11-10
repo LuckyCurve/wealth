@@ -83,9 +83,9 @@ tailwind.config = {
 
 <!-- Header -->
 <header class="app-header">
-  <div class="app-header-inner py-4 flex items-center justify-between gap-4 flex-wrap">
-    <div class="flex items-center gap-6 flex-wrap">
-      <div class="flex items-center gap-3">
+  <div class="app-header-inner">
+    <div class="header-main">
+      <div class="header-brand">
         <!-- 品牌标记: 孔方铜钱 = 财富; 方孔以账本四角裁切标记挖出, 与 masthead 同语言 -->
         <svg width="28" height="28" viewBox="0 0 32 32" aria-hidden="true" style="filter: drop-shadow(0 1px 1px rgba(33,27,16,0.28));">
           <defs>
@@ -96,7 +96,7 @@ tailwind.config = {
           <path fill-rule="evenodd" d="M16 2a14 14 0 1 0 0 28 14 14 0 1 0 0-28zM10.5 10.5h11v11h-11z" fill="url(#brand-gold)"/>
           <path d="M10.5 10.5v3M10.5 10.5h3M21.5 10.5v3M21.5 10.5h-3M10.5 21.5v-3M10.5 21.5h3M21.5 21.5v-3M21.5 21.5h-3" style="fill:none;stroke:var(--fg);stroke-width:1.8;stroke-linecap:round;"/>
         </svg>
-        <div>
+        <div class="header-brand-copy">
           <h1 class="brand-title" data-i18n="财富管理">财富管理</h1>
           <span class="eyebrow">Private Ledger</span>
         </div>
@@ -111,10 +111,10 @@ tailwind.config = {
         <button id="mode-assets" class="seg-btn mode-press" onpointerdown="startModePress(event)" onpointerleave="cancelModePress()" onclick="modePressClick(event)"><svg class="ico" aria-hidden="true"><use href="#ic-coins"/></svg><span data-i18n="资产">资产</span></button>
       </div>
     </div>
-    <div class="flex items-center gap-3">
+    <div class="header-actions">
       <button type="button" id="stress-badge" onclick="openStressModal({fromHeader:true})" class="btn-ghost stress-badge" style="display:none;" aria-label="压测中" data-i18n-aria-label="压测中"><svg class="ico" aria-hidden="true"><use href="#ic-trending-down"/></svg><span data-i18n="压测">压测</span><span id="stress-badge-pct" class="tabular"></span></button>
-      <button type="button" onclick="openYieldModal()" class="btn-ghost"><svg class="ico" aria-hidden="true"><use href="#ic-trending-up"/></svg><span data-i18n="换算">换算</span></button>
-      <button onclick="showSettings()" class="btn-ghost"><svg class="ico" aria-hidden="true"><use href="#ic-settings"/></svg><span data-i18n="设置">设置</span></button>
+      <button type="button" onclick="openYieldModal()" class="btn-ghost header-action" aria-label="换算" data-i18n-aria-label="换算"><svg class="ico" aria-hidden="true"><use href="#ic-trending-up"/></svg><span data-i18n="换算">换算</span></button>
+      <button onclick="showSettings()" class="btn-ghost header-action" aria-label="设置" data-i18n-aria-label="设置"><svg class="ico" aria-hidden="true"><use href="#ic-settings"/></svg><span data-i18n="设置">设置</span></button>
     </div>
   </div>
 </header>

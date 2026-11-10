@@ -22,7 +22,9 @@ const BUDGETS = {
   // 年化换算 Tab 的章节头与输入卡骨架（净值换算器独立成页，不挂在资产下）
   'index.html': 84_000,
   // 年化换算的输入行与分段表（两列网格 + 窄屏两行式）落在纯 CSS，按约定同 commit 抬上限。
-  'styles.css': 112_000,
+  // 页头改为自有 flex 布局（不再依赖 Tailwind 工具类），断网/CDN 空壳时也不会竖排；
+  // 同一 commit 再抬 2KB 收下这段布局与窄屏规则。
+  'styles.css': 114_000,
   'app-core.js': 26_000,
   'app-assets.js': 74_000,
   'app-charts.js': 53_000,
