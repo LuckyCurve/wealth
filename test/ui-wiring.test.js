@@ -10,7 +10,7 @@ const markup = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8')
 // 不是「它恰好落在哪一份」，所以 css 是整层源码；只问入口那份时用 styles.css 自身。
 const CSS_FILES = ['styles.css', 'styles-views.css', 'styles-print.css'];
 const css = CSS_FILES.map((f) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8')).join('\n');
-const JS_FILES = ['app-core.js', 'app-assets.js', 'app-categories.js', 'app-charts.js', 'app-settings.js', 'app-ui.js', 'app-expenses.js', 'app-calendar.js', 'app-receipt.js', 'app-yield.js'];
+const JS_FILES = ['app-core.js', 'app-assets.js', 'app-categories.js', 'app-charts.js', 'app-settings.js', 'app-ui.js', 'app-expenses.js', 'app-tag-check.js', 'app-calendar.js', 'app-receipt.js', 'app-yield.js'];
 const js = JS_FILES.map((f) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8')).join('\n');
 // 纯逻辑层已按域拆成多份：`logicSrc` 是**整层的源码**（入口 + 各分片，按加载顺序）。
 // 断言「某口径只在逻辑层出现一处」必须看整层——只看入口会漏、只看分片会假红。
