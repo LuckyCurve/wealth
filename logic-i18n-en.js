@@ -507,6 +507,7 @@
     '{n} 件': '{n} items',
     '{n} 笔': '{n} entries',
     '这天没有记录': 'No entries that day',
+    '未来的日子': 'Still to come',
     '{m} 月 {d} 日': '{m}/{d}',
     '回到上一次': 'Restore last',
     '压测已清除 · 可回到上一次': 'Stress cleared · restore available',

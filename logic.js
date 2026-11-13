@@ -1638,6 +1638,8 @@
   function monthGridCellText(cell) {
     if (!cell) return '';
     const day = t('{m} 月 {d} 日', { m: Number(cell.date.slice(5, 7)), d: cell.day });
+    // 未来的日子先说「未来」：它一笔都没有是真的，但「这天没有记录」会被读成「我忘了记」
+    if (cell.future) return day + ' · ' + t('未来的日子');
     if (cell.count <= 0) return day + ' · ' + t('这天没有记录');
     return day + ' · ' + t('{n} 笔', { n: cell.count }) + ' · ' + formatCNY(cell.amount);
   }

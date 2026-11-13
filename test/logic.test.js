@@ -3480,6 +3480,15 @@ describe('月份图：分档、周对齐与漏记天数', () => {
     assert.strictEqual(view.weeks[1][3].future, false, '今天是未来吗？不是');
   });
 
+  test('未来的日子不自称「没有记录」（那是「忘了记」的意思）', () => {
+    const view = L.monthGrid.build([], '2026-03', 'count', '2026-03-05');
+    const future = view.weeks[1][4];
+    const past = view.weeks[1][3];
+    assert.match(L.monthGrid.cellText(future), /未来的日子/);
+    assert.doesNotMatch(L.monthGrid.cellText(future), /没有记录/);
+    assert.match(L.monthGrid.cellText(past), /没有记录/);
+  });
+
   test('格子上的数字：笔数直接写，金额折成 k', () => {
     const cell = { day: 1, date: '2026-03-01', count: 3, amount: 1280 };
     assert.strictEqual(L.monthGrid.cellValue(cell, 'count'), '3');
