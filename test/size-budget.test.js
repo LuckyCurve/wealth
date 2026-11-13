@@ -42,6 +42,8 @@ const BUDGETS = {
   // 资产页解锁冷却：sessionStorage 时间戳的读写与「冷却内直接进门」接在门槛入口，
   // 纯判定已下沉 logic.js（gateCooldownActive），这里只剩接线。同 commit 抬 2KB。
   'app-core.js': 28_000,
+  // 进资产页的门槛（长按抬闸 + 箴言抄写 + 解锁冷却）：从 app-core.js 整段切出。
+  'app-gate.js': 10_000,
   'app-assets.js': 74_000,
   // 分类与标签管理（资产/消费共用）：分类卡片、分类弹窗 CRUD、长按胶囊改名。
   // 从 app-assets.js 整段切出，两个文件各有一道上限。
