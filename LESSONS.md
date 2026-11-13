@@ -7,7 +7,7 @@
 
 ## 结构与单一来源
 
-- **页面结构** — `index.html`（结构 + 两条 head 引导脚本：暗色引导、Tailwind config）→ `styles.css` → `logic.js`（纯逻辑，UMD）→ `app-core.js` → `app-assets.js` → `app-charts.js` → `app-settings.js` → `app-expenses.js` → `app-calendar.js` → `app-receipt.js`（页面脚本，普通 script 共享全局；按此顺序加载，顺序不能换）。
+- **页面结构** — 加载顺序以 `index.html` 为准（顺序不能换）：`index.html`（结构 + `boot.js` 首帧引导 + `tailwind-config.js`）→ 三份样式 `styles.css` → `styles-views.css` → `styles-print.css`（顺序即级联）→ 纯逻辑层 `logic-i18n-en.js`（英文词条表，UMD）→ `logic.js`（纯逻辑入口，UMD）→ 页面脚本（普通 script 共享全局）：`app-core` → `app-gate` → `app-assets` → `app-categories` → `app-charts` → `app-stress` → `app-settings` → `app-ui` → `app-expenses` → `app-tag-check` → `app-calendar` → `app-receipt` → `app-yield`。拆出去的 domain 文件紧跟在它原所在文件之后（跨文件只允许运行时调用，不允许加载期取值）；切分表与不拆的部分见 [docs/size-budget-split.md](docs/size-budget-split.md)。
 - **单一来源** — 重复出现 ≥2 次的逻辑必须收敛到单一实现（纯函数下沉 `logic.js`，视图模板/helper 只留一处），ui-wiring 契约测试把守；改动只改单一来源处。
 - **派生读数的刷新只有一个口（`syncDerivedReads`）** — 账本一变，报头 / 压测指示器 / 当前可见图表就在这一处重算；列表重绘（资产与消费两侧）、行内编辑、收益口径切换的收尾都只调它。此前各写入点各挑几处重绘，于是同一屏上出现「报头副行已是新值、压测条还写着旧金额」「收益页换了 最低→最高、报头月收益停在上一个口径」「收益页开着时导入数据、整页数字不动」——漏一处不报错，只在特定操作顺序下显形。派生读数一律**现算**：`renderMasthead()` 不收总资产参数（每个调用方自己算一遍就是「谁算的谁负责」的漏更新口子）；重复重绘按「目标值未变就不重启动画」处理，否则消费搜索每敲一个字符都会把计数动画拽回起点。
 
@@ -32,6 +32,7 @@
 - **静态服务器验明正身** — `webServer.url` 指向 `/__e2e_health__`（只本服务器提供）：`reuseExistingServer` 只看端口，端口被别的服务占用会静默连错。不用 `file://`（localStorage 在 file origin 下不可靠）。
 - **单测的状态注入** — 依赖全局 `state` / `incomeMode` 的函数经 `globalThis` 注入；`freshState()` 固定 `lang: 'zh'`。
 - **脚本要真解析** — 没有构建步骤，一个顶层声明重名就让页面脚本死在解析期（症状是「页面在、但没数字」，且 `renderAll` 之后的接线全不存在）；`ui-wiring` 用 `new Function` 把守。
+- **契约测试的 `count()` 也会数注释** — 断言「全页只有一处 `switchMode('assets')`」这类全局计数时，注释里写出那串调用就是第二处（本轮在 `app-gate.js` 头部复现：文档写得很对、测试当场变红）。注释里要提入口，宁可换措辞（「送进资产页的模式切换」）；`fnSource` 的负向断言同理。
 
 ## 多语言（界面语言）
 
