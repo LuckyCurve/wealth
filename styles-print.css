@@ -22,7 +22,7 @@
       --record-tint: #f7efda; --record-edge: #b9a87e;
       /* 月份图的暖墨与页边/选中底也跟着回亮色档：暗色的浅墨印在米黄纸上是一道道淡影 */
       --mg-1: #a7976f; --mg-2: #877650; --mg-3: #5b4f33; --mg-4: #221c11;
-      --mg-blank: #f7f0de; --mg-selected: #fbf3dd;
+      --mg-blank: #f7f0de; --mg-selected: #f9efd2;
       --border: #b9a87e; --rule: #b9a87e; --accent-ink: #7f5c0e; --accent: #8f6713;
       --accent-soft: #d9b25e; --accent-strong: #8f6713; --on-accent: #211b10;
       /* 语义色在纸上回到亮色档：暗色的浅色印到白纸上只剩淡影 */

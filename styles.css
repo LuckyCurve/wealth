@@ -118,7 +118,7 @@
     /* 非本月的日子是月历的页边：比纸面退后一档（不是更亮的白纸） */
     --mg-blank: #f7f0de;
     /* 选中那天的极淡暖底。不透明：AA 巡检按它算底色，半透明还得再合成一层 */
-    --mg-selected: #fbf3dd;
+    --mg-selected: #f9efd2;
   }
   :root.dark {
     color-scheme: dark;
@@ -188,7 +188,7 @@
     --select: #9ab6d6;
     --mg-1: #6b5f40; --mg-2: #9a8a5f; --mg-3: #c2b189; --mg-4: #ece4d0;
     --mg-blank: #1a150d;
-    --mg-selected: #2b2313;
+    --mg-selected: #2f2615;
   }
   /* 卡片的边缘色不再另设一套（原先 .dark .card 改回 --border，等于材质的边缘有两处定义） */
   /* ===== 排版 token（字号 / 字重 / 字体族）=====
