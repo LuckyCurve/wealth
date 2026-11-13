@@ -1062,6 +1062,35 @@ test.describe('消费月份图（日历）', () => {
     expect(gap.left, '宽屏下它不是撑满的：撑满时居中与否看不出区别，这条会把两边都变成 0').toBeGreaterThan(20);
   });
 
+  test('图例贴着月历右缘：宽屏与月份信息各占一头，窄屏并进「笔数｜金额」那一行', async ({ appPage: page }) => {
+    const read = () => page.evaluate(() => {
+      const card = document.getElementById('month-grid-card');
+      const box = (s) => card.querySelector(s).getBoundingClientRect();
+      const grid = box('#month-grid'), legend = box('.mg-legend');
+      const summary = box('#month-grid-summary'), nav = box('.mg-nav'), label = box('#month-grid-label');
+      return {
+        legendVsGrid: Math.abs(grid.right - legend.right),
+        legendAfterSummary: legend.left >= summary.right - 1,
+        legendOnSummaryRow: Math.abs((summary.top + summary.height / 2) - (legend.top + legend.height / 2)) <= 3,
+        summaryOnMonthRow: Math.abs((summary.top + summary.height / 2) - (nav.top + nav.height / 2)) <= 6,
+        summaryBelowMonth: summary.top >= nav.bottom - 1,
+        navBeforeLabel: nav.right <= label.left + 1 && Math.abs((nav.top + nav.height / 2) - (label.top + label.height / 2)) <= 3,
+      };
+    });
+
+    const wide = await read();
+    expect(wide.legendVsGrid, '图例右缘要压在月历右缘上（不是卡片右缘，也不是紧跟在金额后面）').toBeLessThanOrEqual(1);
+    expect(wide.legendAfterSummary, '图例在汇总右侧，不夹在金额里').toBe(true);
+    expect(wide.summaryOnMonthRow, '宽屏：箭头、月份、汇总、图例同一行').toBe(true);
+    expect(wide.navBeforeLabel, '左右箭头仍紧贴它们翻的那个月份').toBe(true);
+
+    await page.setViewportSize({ width: 390, height: 900 });
+    const narrow = await read();
+    expect(narrow.legendVsGrid, '窄屏图例仍贴月历右缘').toBeLessThanOrEqual(1);
+    expect(narrow.summaryBelowMonth, '窄屏月份信息换行到第二段').toBe(true);
+    expect(narrow.legendOnSummaryRow, '窄屏图例并进「笔数｜金额」那一行，不另占一段').toBe(true);
+  });
+
   test('筛选跟着明细：不在页头，明细收起时一起收起', async ({ appPage: page }) => {
     for (const id of ['expense-search', 'expense-month-filter', 'expense-tag-filter']) {
       const inDetail = await page.evaluate((x) => !!document.getElementById(x).closest('#expense-table'), id);

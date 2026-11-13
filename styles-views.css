@@ -245,12 +245,23 @@
      不会在相邻处叠成 2px；容器不上底色，纸从缝里透上来 */
   .mg-grid { margin-top: 10px; border: 1px solid var(--mg-line); border-radius: 10px; overflow: hidden; }
   .mg-hint { max-width: 820px; margin-inline: auto; text-align: center; }
-  /* 图例：顺序色阶没有图例就不成立 —— 四枚墨点 + 「少 / 多」两个字，跟在 summary 后面 */
-  .mg-legend { display: inline-flex; align-items: center; gap: 3px; margin-left: 10px; white-space: nowrap; }
+  /* 图例：顺序色阶没有图例就不成立 —— 四枚墨点 + 「少 / 多」两个字。
+     桌面跟月份信息各占一头，右缘对齐 820 那列月历；窄屏并进「笔数｜金额」那一行（见窄屏段）。 */
+  .mg-legend { display: inline-flex; align-items: center; gap: 3px; margin-left: auto; white-space: nowrap; }
   .mg-sw { width: 11px; height: 11px; border-radius: 2px; box-shadow: inset 0 0 0 1px var(--mg-line); }
   /* 上/下月是本卡的主操作：两根箭头紧挨着，贴在它们翻的那个月份旁边 */
-  .mg-sub { display: flex; align-items: center; flex-wrap: wrap; gap: 2px 6px; }
+  .mg-sub {
+    display: flex; align-items: center; flex-wrap: wrap; gap: 2px 6px;
+    /* 图例要落到月度卡月历的右缘：月历 820 居中，离卡片右缘还差 (100% - 820px)/2 */
+    padding-right: max(0px, calc((100% - 820px) / 2));
+  }
+  .mg-month { display: inline-flex; align-items: center; gap: 2px 6px; }
   .mg-nav { display: flex; gap: 2px; }
+  /* 卡片头：标题与工具条一行，月份信息单独整行 —— 只有整行才够得着月历右缘
+     （820 居中时右缘比工具条左沿还靠右，图例跟工具条挤同一行会撞上） */
+  .mg-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: 12px; row-gap: 4px; }
+  .mg-head .mg-sub { grid-row: 2; grid-column: 1 / -1; }
+  .mg-head .toolbar { grid-row: 1; grid-column: 2; }
   /* 日期与读数同一行、同一条基线，中间不再留 40px 真空 */
   .mg-cell { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto;
     align-items: baseline; align-content: center; column-gap: 6px;
@@ -303,9 +314,15 @@
     .mg-day, .mg-val { grid-column: 1; }
     .mg-val { font-size: var(--fs-micro); }
     .mg-cell.is-today .mg-day { width: 18px; height: 18px; margin: -3px 0 -3px -3px; }
-    /* 窄屏没地方放「·」（放了它行尾就掉一个点），改用一档空白分开两组 */
+    /* 窄屏：图例并进「笔数｜金额」那一行，卡片头从四段回到三段 —— 图例占右边一列，
+       汇总在左边一列里换行，两者同一行；「·」在这一行没地方放，直接省掉 */
+    .mg-head { grid-template-columns: minmax(0, 1fr); }
+    .mg-head .toolbar { grid-row: 3; grid-column: 1; justify-self: start; margin-top: 8px; }
+    .mg-sub { display: grid; grid-template-columns: minmax(0, 1fr) auto; }
+    .mg-month { grid-row: 1; grid-column: 1 / -1; }
+    .mg-sub .mg-sum { grid-row: 2; grid-column: 1; }
+    .mg-legend { grid-row: 2; grid-column: 2; align-self: start; }
     .mg-sub .mg-dot { display: none; }
-    .mg-sub .mg-sum { padding-left: 6px; }
   }
 
   .day-panel { max-width: 820px; margin: 14px auto 0; padding-top: 12px; border-top: 1px solid var(--rule); }
