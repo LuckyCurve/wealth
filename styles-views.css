@@ -274,6 +274,9 @@
   .mg-day { grid-column: 1; font-size: var(--fs-micro); color: var(--muted); line-height: 1; }
   /* 染了墨的格子，日期也走墨色：灰字压在深墨上只剩 1.9:1 */
   .mg-cell[data-lv]:not([data-lv="0"]) .mg-day { color: var(--fg); }
+  /* 最深一档自己决定字的色（深色纸上那格已经亮到该用深墨）：写在 day 规则之后才同特异性胜出 */
+  .mg-cell[data-lv="4"]:not([data-lv="0"]) { color: var(--mg-ink-4); }
+  .mg-cell[data-lv="4"]:not([data-lv="0"]) .mg-day { color: var(--mg-ink-4); }
   .mg-val { grid-column: 2; font-size: var(--fs-body); font-weight: var(--fw-strong); font-variant-numeric: tabular-nums; line-height: 1; }
   /* 悬停只加一根金线，不改底色：底色是这天的热力读数，不该被指针抹掉 */
   .mg-cell:not([disabled]):not(.is-selected):hover { box-shadow: inset 0 0 0 1px var(--accent-strong); }

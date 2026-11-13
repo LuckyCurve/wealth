@@ -905,6 +905,7 @@ test.describe('消费月份图（日历）', () => {
         selected: rgba(cs.getPropertyValue('--mg-selected')),
         card: rgba(resolve(cs.getPropertyValue('--card'))),
         fg: rgba(resolve(cs.getPropertyValue('--fg'))),
+        mgInk4: rgba(resolve(cs.getPropertyValue('--mg-ink-4'))),
       };
       const washes = [1, 2, 3, 4].map((i) => rgba(cs.getPropertyValue(`--mg-${i}`)));
       probe.remove();
@@ -918,7 +919,7 @@ test.describe('消费月份图（日历）', () => {
       const ds = day && getComputedStyle(day);
       const levels = [...document.querySelectorAll('#month-grid .mg-cell[data-lv]')]
         .filter((el) => el.getAttribute('data-lv') !== '0' && !el.classList.contains('is-today'))
-        .map((el) => ({ lv: el.getAttribute('data-lv'), bg: rgba(getComputedStyle(el).backgroundColor) }));
+        .map((el) => ({ lv: el.getAttribute('data-lv'), bg: rgba(getComputedStyle(el).backgroundColor), fg: rgba(getComputedStyle(el.querySelector('.mg-day')).color) }));
       return {
         tokens,
         washes,
@@ -981,18 +982,23 @@ test.describe('消费月份图（日历）', () => {
         const r = ratio(washes[i], washes[i - 1]);
         expect(r, theme + `：墨阶 ${i + 1} 应比 ${i} 深（相邻对比 ${r.toFixed(2)}）`).toBeGreaterThanOrEqual(1.25);
       }
-      // 深色纸能给的台阶比浅色小（再深就进中间调死区，文字先失守）；浅色实测 3.21、深色 2.70
-      expect(ratio(washes[3], look.cardBg), theme + '：最深一档对纸面要够响（≥2.6:1）').toBeGreaterThanOrEqual(2.6);
+      // 深色纸能给的台阶比浅色小（再深就进中间调死区）；两根都必须≥3.0，否则最深一档在纸上读不出来
+      expect(ratio(washes[3], look.cardBg), theme + '：最深一档对纸面要够响（≥3.0:1）').toBeGreaterThanOrEqual(3.0);
 
       // 格子里的字压在每一档墨上都要达 AA（12px / 14px 都按 4.5 算）
+      // 格子里的字压在每一档墨上都要达 AA（12px / 14px 都按 4.5 算）。
+      // 字色按**那一档实际用的色**取：最深一档在深色纸上会翻成深墨，写死 tokens.fg 就测不到它。
+      const inkOf = (lv) => (look.levels.find((x) => x.lv === String(lv)) || {}).fg
+        || (Number(lv) === 4 ? look.tokens.mgInk4 : look.tokens.fg);
       washes.forEach((c, i) => {
-        expect(ratio(look.tokens.fg, c), theme + `：墨阶 ${i + 1} 上的日期与读数要达 AA`).toBeGreaterThanOrEqual(4.5);
+        const ink = inkOf(i + 1);
+        expect(ratio(ink, c), theme + `：墨阶 ${i + 1} 上的日期与读数要达 AA`).toBeGreaterThanOrEqual(4.5);
       });
 
       const r = look.record;
       expect(r.bg.a, theme + '：有记录就该染墨').toBeGreaterThan(0);
       expect(same(r.bg, look.washes[Number(look.levels[0].lv) - 1]), theme + '：格子底色就是那一档墨').toBe(true);
-      expect(same(r.fg, look.tokens.fg), theme + '：染墨的格子日期走墨色，不走次要灰').toBe(true);
+      expect(same(r.fg, inkOf(look.levels[0].lv)), theme + '：染墨的格子日期走这一档的字色，不走次要灰').toBe(true);
 
       // 四档在真实格子上也逐级变深（不是只在 token 里成立）
       const seen = new Map();
