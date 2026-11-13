@@ -2,7 +2,7 @@ const { test, expect } = require('@playwright/test');
 const { gotoAssets, waitReady } = require('./fixtures');
 
 /*
- * 脚本按八个文件加载（app-core → app-assets → app-charts → app-settings → app-expenses → app-calendar → app-receipt → app-yield），
+ * 页面脚本按 index.html 里的顺序逐个加载（app-core → … → app-yield，拆出去的 domain 文件插在原文件之后），
  * 拆分之后「顶层字面量引用了后一个文件里的函数」不会在语法检查里现形——它只在浏览器里炸，
  * 而且只炸一次：控制台一行 ReferenceError，后面的接线全都不存在。
  * 这条用例只做一件事：把每个 Tab 与主要弹窗走一遍，全程不许有 pageerror。

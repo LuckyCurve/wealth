@@ -43,6 +43,9 @@ const BUDGETS = {
   // 纯判定已下沉 logic.js（gateCooldownActive），这里只剩接线。同 commit 抬 2KB。
   'app-core.js': 28_000,
   'app-assets.js': 74_000,
+  // 分类与标签管理（资产/消费共用）：分类卡片、分类弹窗 CRUD、长按胶囊改名。
+  // 从 app-assets.js 整段切出，两个文件各有一道上限。
+  'app-categories.js': 26_000,
   'app-charts.js': 53_000,
   // 设置里的「解锁冷却」回显、改档与「立即锁定」入口（时间戳的写/清在 app-core.js）。
   // 同 commit 抬 1KB。
