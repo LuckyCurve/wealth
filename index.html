@@ -1096,6 +1096,8 @@ tailwind.config = {
      （error 必须 assertive：出错了要立刻打断朗读；写死 polite 会把它排到用户下次操作之后）。 -->
 <div id="toast-area" aria-live="polite" aria-atomic="false"></div>
 
+<!-- 逻辑层：英文词条表是纯数据，先于 logic.js 加载（那边读全局 I18N_EN，缺了就回落中文）。 -->
+<script src="logic-i18n-en.js"></script>
 <script src="logic.js"></script>
 <script src="app-core.js"></script>
 <script src="app-assets.js"></script>

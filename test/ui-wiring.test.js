@@ -3,12 +3,16 @@ const assert = require('node:assert');
 const fs = require('fs');
 const path = require('path');
 
-// 页面已拆成：markup（index.html）/ css（styles.css）/ js（按加载顺序拼的 app-*.js）/ logic.js。
+// 页面已拆成：markup（index.html）/ css（styles.css）/ js（按加载顺序拼的 app-*.js）/ 纯逻辑层（LOGIC_FILES）。
 // html 是「一份文件时的全貌」，一条正则横跨多个文件时用它；只问其中一份时用对应的变量。
 const markup = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 const css = fs.readFileSync(path.join(__dirname, '..', 'styles.css'), 'utf8');
 const JS_FILES = ['app-core.js', 'app-assets.js', 'app-charts.js', 'app-settings.js', 'app-expenses.js', 'app-calendar.js', 'app-receipt.js', 'app-yield.js'];
 const js = JS_FILES.map((f) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8')).join('\n');
+// 纯逻辑层已按域拆成多份：`logicSrc` 是**整层的源码**（入口 + 各分片，按加载顺序）。
+// 断言「某口径只在逻辑层出现一处」必须看整层——只看入口会漏、只看分片会假红。
+const LOGIC_FILES = ['logic-i18n-en.js', 'logic.js'];
+const logicSrc = LOGIC_FILES.map((f) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8')).join('\n');
 const html = markup + '\n' + css + '\n' + js;
 const L = require('../logic.js');
 const count = (re) => (html.match(re) || []).length;
@@ -76,7 +80,7 @@ describe('UI 接线契约：设置是唯一入口', () => {
   });
 
   test('上次备份文案单一来源 backupNoteText（logic.js），内联脚本不重复拼接', () => {
-    const logic = fs.readFileSync(path.join(__dirname, '..', 'logic.js'), 'utf8');
+    const logic = logicSrc;
     assert.match(logic, /function (?:[A-Za-z_$][A-Za-z0-9_$]*\.)?backupNoteText\(/);
     assert.strictEqual(count(/上次备份 \$\{/g), 0, '文案拼接不应在内联脚本里重复出现');
     assert.match(html, /(?:[A-Za-z_$][A-Za-z0-9_$]*\.)?backupNoteText\(state\.backup\.lastBackup/);
@@ -111,7 +115,7 @@ describe('UI 接线契约：统一提示便条（右下角单一出口）', () =
   });
 
   test('fetchRates 的成功/失败都走 toast；失败文案由 logic.js 纯函数决策', () => {
-    const logic = fs.readFileSync(path.join(__dirname, '..', 'logic.js'), 'utf8');
+    const logic = logicSrc;
     const src = fnSource('fetchRates');
     assert.match(src, /toast\(i18n\.t\('汇率已更新'\), 'info'\)/, '成功为系统中性知会（金墨 info）');
     assert.match(src, /(?:[A-Za-z_$][A-Za-z0-9_$]*\.)?rateFallbackNotice\(!!state\.rates\.fetchedAt\)/);
@@ -133,7 +137,7 @@ describe('UI 接线契约：统一提示便条（右下角单一出口）', () =
 });
 
 describe('UI 接线契约：共享层单一来源（防重复实现各自漂移）', () => {
-  const logic = fs.readFileSync(path.join(__dirname, '..', 'logic.js'), 'utf8');
+  const logic = logicSrc;
 
   test('纯函数下沉 logic.js，index.html 不再保留本地副本', () => {
     for (const fn of ['money2', 'hexToRgba', 'nextSortState', 'expenseMonths', 'incomeGap']) {
@@ -209,7 +213,7 @@ describe('UI 接线契约：共享层单一来源（防重复实现各自漂移�
     assert.match(bar, /ui\.cmpDeltaBarModel\(/, 'cmpBar 取纯函数结果，不自己算符号与宽度');
     assert.match(bar, /cmp-bar-axis/, '模板里要有一根零线');
     assert.match(bar, /cmp-bar-\$\{m\.side\}/, '条的涨跌侧由纯函数给的 side 决定');
-    const logicOnly = fs.readFileSync(path.join(__dirname, '..', 'logic.js'), 'utf8');
+    const logicOnly = logicSrc;
     assert.strictEqual((logicOnly.match(/function cmpDeltaBarModel/g) || []).length, 1, '纯函数只定义一处');
     assert.match(html, /\.cmp-bar-axis/, 'CSS 里定义零线');
   });
@@ -392,7 +396,7 @@ describe('UI 接线契约：弹窗焦点管理（aria-modal 的兑现）', () =>
 });
 
 describe('UI 接线契约：logic.js 导出清单与筛选同步时序', () => {
-  const logic = fs.readFileSync(path.join(__dirname, '..', 'logic.js'), 'utf8');
+  const logic = logicSrc;
 
   test('导出清单按域分组：每个名字只属于一个域，域内不重复', () => {
     const api = require('../logic.js');
@@ -565,7 +569,7 @@ describe('UI 接线契约：堆叠柱下钻与图例记忆', () => {
 });
 
 describe('UI 接线契约：收益覆盖标尺（分子口径可切换的预期月消费覆盖率）', () => {
-  const logic = fs.readFileSync(path.join(__dirname, '..', 'logic.js'), 'utf8');
+  const logic = logicSrc;
 
   test('骨架单一来源：邀请行与标尺各一份，邀请复用既有预期消费弹窗', () => {
     assert.strictEqual(count(/id="cov-invite"/g), 1);
@@ -716,7 +720,6 @@ describe('UI 接线契约：导入/导出（纯原始格式 + 迁移兜底共用
   test('导出内容走 logic.js backupJSONText（唯一来源，剥离快照加工字段 totalCNY）', () => {
     // 两条落盘路径（系统文件窗口 / 回退下载）必须落盘同一份内容：
     // 生成逻辑下沉 logic.js，页面不得再各写一份深拷贝 + delete
-    const logicSrc = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'logic.js'), 'utf8');
     const fnSrc = logicSrc.match(/function (?:[A-Za-z_$][A-Za-z0-9_$]*\.)?backupJSONText\([\s\S]*?\n {2}\}/);
     assert.ok(fnSrc, 'logic.js 必须有 backupJSONText');
     assert.match(stripComments(fnSrc[0]), /delete sn\.totalCNY/,
@@ -820,7 +823,6 @@ describe('UI 接线契约：备份文件夹', () => {
   });
 
   test('旧入口不回潮：静默写目录 / 权限申请 / 回退下载节流全部移除', () => {
-    const logicSrc = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'logic.js'), 'utf8');
     const dead = /writeAutoBackupToDir|dirHasFile|firstAvailableBackupName|writeDirFile|queryDirPermission|requestDirPermission|normalizeDirPermission|lastAutoDownload/;
     assert.doesNotMatch(stripComments(html), dead, 'index.html 不得再出现静默写目录/权限申请/下载节流');
     assert.doesNotMatch(stripComments(logicSrc), dead, 'logic.js 不得再出现静默写目录/权限申请/下载节流');
@@ -1218,7 +1220,6 @@ describe('UI 接线契约：标签改名（迁移引用，不是清空）', () =
     assert.match(pill, /data-rename/, '胶囊带改名所需的分类/标签数据');
     assert.match(html, /startTagPress\(/, '按下即开始计时');
     assert.match(html, /endTagPress\(/, '松手判定');
-    const logicSrc = fs.readFileSync(path.join(__dirname, '..', 'logic.js'), 'utf8');
     assert.match(logicSrc, /function (?:[A-Za-z_$][A-Za-z0-9_$]*\.)?pressDecision\(heldMs, threshold\)/, '判定参数化（不复制第二份阈值逻辑）');
     assert.match(html, /(?:[A-Za-z_$][A-Za-z0-9_$]*\.)?pressDecision\([^)]*TAG_PRESS_MS/, '改名用 TAG_PRESS_MS 那一档');
     assert.strictEqual(count(/renameTag\(/g), 2, '定义一处 + startTagRename 提交处一处（不再有第二条改名路径）');
@@ -1398,7 +1399,7 @@ describe('UI 接线契约：数据校验（缺标签一键/逐条补齐，资产
  *   ③ 标签改名要迁移情景、分类删除要让情景失效（与读数卡同一处置）。
  */
 describe('UI 接线契约：压测（读数走叠加入口，账本读原值）', () => {
-  const logic = fs.readFileSync(path.join(__dirname, '..', 'logic.js'), 'utf8');
+  const logic = logicSrc;
 
   test('口径在 logic.js：折算/归一/剪枝/未归类/加权跌幅/条文案都不在页面里重写', () => {
     for (const fn of ['effectiveAssets', 'stressKeepOf', 'stressDropOf', 'stressActive', 'pruneStress',
@@ -1632,7 +1633,7 @@ describe('UI 接线契约：预期保存/清除不自己碰图表（隐藏容器
 });
 
 describe('UI 接线契约：堆叠柱标签排序单一来源', () => {
-  const logic = fs.readFileSync(path.join(__dirname, '..', 'logic.js'), 'utf8');
+  const logic = logicSrc;
 
   test('历史净值/消费趋势的标签合计排序下沉 logic.js sortTagsByTotal，内联 tagTotals 不回潮', () => {
     assert.match(logic, /function (?:[A-Za-z_$][A-Za-z0-9_$]*\.)?sortTagsByTotal\(/, '决策纯函数在 logic.js');
@@ -1649,7 +1650,7 @@ describe('UI 接线契约：分类调色板单一来源', () => {
     // 亮色插值把底色压深而字没跟着加深的缺陷就是这么漏过去的（实测最低 2.4:1）。
     assert.strictEqual(count(/const CATEGORY_COLORS =/g), 0, 'index.html 不再定义调色板');
     assert.ok(count(/CATEGORY_COLORS\[idx/g) >= 1, 'catColorImpl 仍按 idx 取基色（引用 logic.js 的那份）');
-    const logic = fs.readFileSync(path.join(__dirname, '..', 'logic.js'), 'utf8');
+    const logic = logicSrc;
     assert.match(logic, /const CATEGORY_COLORS = \[/, 'logic.js 定义 CATEGORY_COLORS');
     const api = require('../logic.js');
     assert.strictEqual(api.color.CATEGORY_COLORS, api.color.CATEGORY_PALETTE.length ? api.color.CATEGORY_COLORS : undefined, '经 color 域导出');
@@ -1854,7 +1855,7 @@ describe('UI 接线契约：内联事件属性必须是合法 JS（单测看不�
     // （内联 <script> 顶格声明，或 logic.js 工厂内两格缩进的声明），或是浏览器内建名。
     // 只认顶层：函数内的局部变量（如 renderCategoryCards(side) 的形参）**不在**全局作用域里，
     // 恰恰是这类名字漏进内联处理器才会 ReferenceError。
-    const logic = fs.readFileSync(path.join(__dirname, '..', 'logic.js'), 'utf8');
+    const logic = logicSrc;
     const declared = new Set();
     const collect = (src, indent) => {
       const re = new RegExp(`^${indent}(?:async\\s+)?(?:function|let|const|var)\\s+([A-Za-z_$][\\w$]*)`, 'gm');
@@ -2099,7 +2100,7 @@ describe('UI 接线契约：弹窗可访问性', () => {
 });
 
 describe('UI 接线契约：所选标签的钱 ÷ 预期月消费（消费趋势的读数卡）', () => {
-  const logic = fs.readFileSync(path.join(__dirname, '..', 'logic.js'), 'utf8');
+  const logic = logicSrc;
 
   test('口径在 logic.js：渲染层不内联除法，展示走 runwayMonthsText', () => {
     assert.match(logic, /function (?:[A-Za-z_$][A-Za-z0-9_$]*\.)?runwayLiquidCNY\(/, '分子合计在 logic.js');
@@ -2225,7 +2226,6 @@ describe('UI 接线契约：所选标签的钱 ÷ 预期月消费（消费趋势
     const bubble = html.match(/\n  \.tip-bubble \{[\s\S]*?\n  \}/)[0];
     assert.match(bubble, /position: fixed/, '气泡必须相对视口定位（否则被祖先的层叠上下文困住）');
     assert.doesNotMatch(bubble, /position: absolute/, 'absolute 会落进祖先的层叠上下文');
-    const logicSrc = fs.readFileSync(path.join(__dirname, '..', 'logic.js'), 'utf8');
     assert.match(logicSrc, /function (?:[A-Za-z_$][A-Za-z0-9_$]*\.)?tipBubblePos\(/, '定位换算有单一入口（logic.js 纯函数）');
     assert.match(html, /function placeTipBubble\(/, '页面只做「量尺寸 + 写变量」这一件事');
     assert.match(html, /--tip-x/, '坐标经 CSS 变量写入');
@@ -2271,7 +2271,7 @@ describe('UI 接线契约：所选标签的钱 ÷ 预期月消费（消费趋势
 });
 
 describe('UI 接线契约：读数卡的自定月消费（只对本卡生效）', () => {
-  const logic = fs.readFileSync(path.join(__dirname, '..', 'logic.js'), 'utf8');
+  const logic = logicSrc;
   const modal = () => html.match(/id="runway-modal"[\s\S]*?id="runway-preview"/)[0];
 
   test('分母口径在 logic.js：自定优先、否则回落全局预期（渲染层不内联取值）', () => {
@@ -2337,7 +2337,7 @@ describe('UI 接线契约：读数卡的自定月消费（只对本卡生效）'
 });
 
 describe('UI 接线契约：本月已花 ÷ 预期月消费（趋势页预算卡）', () => {
-  const logic = fs.readFileSync(path.join(__dirname, '..', 'logic.js'), 'utf8');
+  const logic = logicSrc;
   const trendTab = html.match(/id="tab-expense-trend"[\s\S]*?<\/section>/)[0];
   const card = trendTab.slice(trendTab.indexOf('id="month-pace-card"'), trendTab.indexOf('id="runway-card"'));
   const paceSrc = () => stripComments(fnSource('renderMonthPace'));
@@ -2874,7 +2874,7 @@ describe('UI 接线契约：分布图总数（与扇区同源，随筛选联动�
 describe('UI 接线契约：台灯掠光（跟随指针的纸面光）', () => {
   test('位置换算与开关判定都在 logic.js，页面只写 CSS 变量', () => {
     assert.match(html, /logic\.js/, 'logic.js 由页面脚本加载');
-    const logic = fs.readFileSync(path.join(__dirname, '..', 'logic.js'), 'utf8');
+    const logic = logicSrc;
     assert.match(logic, /function (?:[A-Za-z_$][A-Za-z0-9_$]*\.)?lampPos\(/, '坐标换算下沉 logic.js');
     assert.match(logic, /function (?:[A-Za-z_$][A-Za-z0-9_$]*\.)?lampEnabled\(/, '开关判定下沉 logic.js');
     const src = fnSource('flushLamp');
@@ -2974,7 +2974,7 @@ describe('UI 接线契约：页面脚本必须能通过解析', () => {
   });
 
   test('logic.js 可解析', () => {
-    const logic = fs.readFileSync(path.join(__dirname, '..', 'logic.js'), 'utf8');
+    const logic = logicSrc;
     assert.doesNotThrow(() => new Function(logic));
   });
 
@@ -3436,7 +3436,7 @@ describe('UI 接线契约：Tab/模式切换的过渡动画', () => {
   });
 
   test('入场方向由 logic.js paneEnterShift 单一判定，经 --pane-x 交给 keyframes', () => {
-    const logic = fs.readFileSync(path.join(__dirname, '..', 'logic.js'), 'utf8');
+    const logic = logicSrc;
     assert.match(logic, /function (?:[A-Za-z_$][A-Za-z0-9_$]*\.)?paneEnterShift\(/, '方向判定必须在 logic.js（可单测）');
     const tab = stripComments(fnSource('switchTab'));
     assert.match(tab, /(?:[A-Za-z_$][A-Za-z0-9_$]*\.)?paneEnterShift\(/, 'switchTab 的方向要喂给同一份判定（不得各写一份）');
@@ -3477,7 +3477,7 @@ describe('UI 接线契约：长按满时长自动弹窗', () => {
   });
 
   test('自动弹出必须开守卫闸：紧跟的 pointerup/click 不得把弹窗点掉', () => {
-    const logic = fs.readFileSync(path.join(__dirname, '..', 'logic.js'), 'utf8');
+    const logic = logicSrc;
     assert.match(logic, /AUTO_OPEN_GUARD_MS/, '守卫窗常量定义在 logic.js');
     assert.match(html, /(?:[A-Za-z_$][A-Za-z0-9_$]*\.)?autoOpenGuard\(/, '守卫判定走 logic.js 纯函数（不重写一份）');
     const end = stripComments(fnSource('endModePress'));
@@ -3543,7 +3543,7 @@ describe('UI 接线契约：下拉弹层跟主题（base-select）', () => {
   });
 
   test('闭合态宽度由固有宽度测量钉住（不得在页面里另写一套判据）', () => {
-    const logic = fs.readFileSync(path.join(__dirname, '..', 'logic.js'), 'utf8');
+    const logic = logicSrc;
     assert.match(logic, /function shouldPinSelectWidth\(/, 'logic.js 定义 shouldPinSelectWidth');
     assert.match(logic, /\n      shouldPinSelectWidth,/, 'logic.js 在 ui 域导出 shouldPinSelectWidth');
     assert.match(fnSource('freezeSelectWidth'), /ui\.shouldPinSelectWidth\(/, '页面调用 logic.js 的判据（不重写一份）');
@@ -3599,7 +3599,7 @@ describe('UI 接线契约：导出全在本机', () => {
     const urls = [...new Set(stripComments(runtimeSrc).match(/https?:\/\/[^"'`)\s>]*/g) || [])];
     const unknown = urls.filter(u => !ALLOWED.some(a => u === a || u.startsWith(a + '/') || u.startsWith(a + '?') || u.startsWith(a + '&')));
     assert.deepStrictEqual(unknown, [], '新增外部地址要在这里登记并说明它带不带账本数据：' + unknown.join(' | '));
-    assert.doesNotMatch(fs.readFileSync(path.join(__dirname, '..', 'logic.js'), 'utf8'), /https?:\/\//,
+    assert.doesNotMatch(logicSrc, /https?:\/\//,
       '纯逻辑层不碰网络');
   });
 
@@ -3619,7 +3619,6 @@ describe('UI 接线契约：导出全在本机', () => {
 });
 
 describe('UI 接线契约：多语言（默认英文，设置里切中文）', () => {
-  const logicSrc = fs.readFileSync(path.join(__dirname, '..', 'logic.js'), 'utf8');
   const L = require('../logic.js');
   const CJK = /[\u4e00-\u9fff]/;
   const scriptStart = html.indexOf('<script src="logic.js"></script>');
@@ -3845,7 +3844,7 @@ describe('UI 接线契约：弹窗打开时背景冻结', () => {
   });
 
   test('台灯在弹窗打开时收起（判定在 logic.js，页面只传当前层数）', () => {
-    const logic = fs.readFileSync(path.join(__dirname, '..', 'logic.js'), 'utf8');
+    const logic = logicSrc;
     assert.match(logic, /function lampEnabled\([\s\S]*?!o\.modalOpen/, 'lampEnabled 认 modalOpen');
     assert.match(fnSource('syncLamp'), /modalOpen: openModalStack\(\)\.length > 0/, '页面把「还有几层」传进判定');
     assert.match(fnSource('syncScrollLock'), /syncLamp\(\)/, '冻结/解冻时灯跟着重判');
