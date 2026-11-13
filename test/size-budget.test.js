@@ -50,6 +50,9 @@ const BUDGETS = {
   // 设置里的「解锁冷却」回显、改档与「立即锁定」入口（时间戳的写/清在 app-core.js）。
   // 同 commit 抬 1KB。
   'app-settings.js': 39_000,
+  // 全站 UI 基元（气泡定位/弹窗开关/确认框/焦点陷阱/便条/分类色/金额输入）：
+  // 从 app-settings.js 整段切出，两份各有一道上限。
+  'app-ui.js': 14_000,
   // 月份图 + 当天的记录（点一格展开）；明细列表与录入在 app-expenses.js 里。
   'app-calendar.js': 12_000,
   'app-receipt.js': 10_000,
