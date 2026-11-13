@@ -266,8 +266,10 @@
   .mg-cell[data-lv="2"], .mg-sw[data-lv="2"] { background: var(--mg-2); }
   .mg-cell[data-lv="3"], .mg-sw[data-lv="3"] { background: var(--mg-3); }
   .mg-cell[data-lv="4"], .mg-sw[data-lv="4"] { background: var(--mg-4); }
-  /* 非本月：不画格线、不写数字，只剩纸 —— 别和「本月但没记账」混成一档 */
-  .mg-cell.is-blank { background: transparent; border-color: transparent; cursor: default; }
+  /* 非本月：不上墨、不写数字，但**格线照画** —— 月初只落 1 天、月末只剩 1 天时，
+     格线若也抽掉，整张月历会变成缺角的破表格（实测 2026-08：首行 5 空、末行 6 空）。
+     非本月与「本月没记账」靠「有没有数字」分，不靠拆掉格线。 */
+  .mg-cell.is-blank { background: transparent; cursor: default; }
   /* 未来的日子只换灰、不降透明度：整格或整字半透明会把对比度压到 AA 以下
      （实测 #6b5c3a@.45 对纸面只有 2.01:1）。灰字本身已经够退后。 */
   .mg-cell[disabled] { color: var(--muted); cursor: default; }
