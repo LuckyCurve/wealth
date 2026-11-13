@@ -233,61 +233,70 @@
      窄屏上 390px 实测会挤成「按钮变 56×123 的字柱」——那正是工具类在这儿帮不上忙的证明。
      对齐用 center，控件高度差 1–2px 时两端不会各自错位。 */
   .toolbar { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 12px; }
-  /* 月份图：一张印好的月历。四层状态各走各的形：
-       空日 = 纸面加一根发丝线；有记录 = 格底一条墨条（越长越浓 = 日子越荒）；今天 = 金点；选中 = 金环加极淡暖底。
-     墨条压在 ::after 上、格子底色保持不透明，AA 巡检读 background-color 才不会被渐变骗过。
-     四档走长度而不是整格透明度：靠透明度分阶时 1 级与 2 级肉眼几乎不可分。 */
+  /* 月份图：纸上的月历。格子本身不上色——卡片是玻璃，纸纹与桌光要从底下透上来；
+     有记录的那天才叠一层半透明暖墨（--mg-1..4），墨浓 = 这天越荒。
+     格线走发丝（--mg-line，低 alpha）且靠 border 画：原先「实色 grid background + 1px gap」
+     等于给整张月历铺了一块不透明底，把纸挖穿成白板。 */
   .mg-weekdays, .mg-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); max-width: 820px; margin-inline: auto; --mg-pad: 9px; }
-  /* 周首行与七列共用同一条轴：标签左缘对齐下面那一列日期数字的左缘（格子内边距 + 1px 边框） */
-  .mg-weekdays { padding-inline: 1px; border-bottom: 1px solid var(--rule); }
+  /* 周首行与七列共用同一条轴：标签左缘对齐下面那一列日期数字的左缘（格子内边距 + 1px 外框） */
+  .mg-weekdays { padding-inline: 1px; border-bottom: 1px solid var(--mg-line); }
   .mg-weekdays span { padding: 0 0 8px var(--mg-pad); font-size: var(--fs-micro); color: var(--muted); }
-  .mg-grid { margin-top: 10px; gap: 1px; background: var(--rule); border: 1px solid var(--rule); border-radius: 10px; overflow: hidden; }
+  /* 外框画整圈、内线只由格子画右/下：每条格线都是 1px 的暖墨发丝（--mg-line），
+     不会在相邻处叠成 2px；容器不上底色，纸从缝里透上来 */
+  .mg-grid { margin-top: 10px; border: 1px solid var(--mg-line); border-radius: 10px; overflow: hidden; }
   .mg-hint { max-width: 820px; margin-inline: auto; text-align: center; }
+  /* 图例：顺序色阶没有图例就不成立 —— 四枚墨点 + 「少 / 多」两个字，跟在 summary 后面 */
+  .mg-legend { display: inline-flex; align-items: center; gap: 3px; margin-left: 10px; white-space: nowrap; }
+  .mg-sw { width: 11px; height: 11px; border-radius: 2px; box-shadow: inset 0 0 0 1px var(--mg-line); }
   /* 上/下月是本卡的主操作：两根箭头紧挨着，贴在它们翻的那个月份旁边 */
   .mg-sub { display: flex; align-items: center; flex-wrap: wrap; gap: 2px 6px; }
   .mg-nav { display: flex; gap: 2px; }
-  /* 日期与读数同一行、同一条基线，中间不再留 40px 真空；墨条紧跟在读数下面 */
-  .mg-cell { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; align-content: center;
-    column-gap: 6px; row-gap: 5px; min-height: 52px; padding: 6px var(--mg-pad);
-    border: 0; border-radius: 0; background: var(--card); color: var(--fg);
+  /* 日期与读数同一行、同一条基线，中间不再留 40px 真空 */
+  .mg-cell { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto;
+    align-items: baseline; align-content: center; column-gap: 6px;
+    min-height: 52px; padding: 6px var(--mg-pad); border: 0;
+    border-right: 1px solid var(--mg-line); border-bottom: 1px solid var(--mg-line);
+    background: transparent; color: var(--fg);
     font-family: var(--font-body); text-align: left; cursor: pointer;
     user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; touch-action: manipulation; }
-  /* 墨条是「这天有多荒」的刻度：贴着读数、从左往右长。不封整格底（遮蔽有记录这层），
-     也不压在格子的下缘线上（那样相邻的墨条会连成一根表线，读起来像表格行规）。 */
-  .mg-cell::after { content: ''; grid-column: 1 / -1; align-self: start; justify-self: end; height: 3px;
-    border-radius: 2px 0 0 2px; width: calc(100% * var(--mg-fill, 0)); background: var(--mg-4); pointer-events: none; }
-  .mg-cell[data-lv="1"]::after { --mg-fill: .25; background: var(--mg-1); }
-  .mg-cell[data-lv="2"]::after { --mg-fill: .5; background: var(--mg-2); }
-  .mg-cell[data-lv="3"]::after { --mg-fill: .75; background: var(--mg-3); }
-  .mg-cell[data-lv="4"]::after { --mg-fill: 1; background: var(--mg-4); }
-  /* 非本月的日子是月历的页边：比纸面退后一档，不与有记录的格子抢注意力 */
-  .mg-cell.is-blank { background: var(--mg-blank); cursor: default; }
+  /* 四档染墨：只变明度、不变色相 */
+  .mg-cell:nth-child(7n) { border-right: 0; }
+  .mg-grid > :nth-last-child(-n + 7) { border-bottom: 0; }
+  .mg-cell[data-lv="1"], .mg-sw[data-lv="1"] { background: var(--mg-1); }
+  .mg-cell[data-lv="2"], .mg-sw[data-lv="2"] { background: var(--mg-2); }
+  .mg-cell[data-lv="3"], .mg-sw[data-lv="3"] { background: var(--mg-3); }
+  .mg-cell[data-lv="4"], .mg-sw[data-lv="4"] { background: var(--mg-4); }
+  /* 非本月：不画格线、不写数字，只剩纸 —— 别和「本月但没记账」混成一档 */
+  .mg-cell.is-blank { background: transparent; border-color: transparent; cursor: default; }
   /* 未来的日子只换灰、不降透明度：整格或整字半透明会把对比度压到 AA 以下
      （实测 #6b5c3a@.45 对纸面只有 2.01:1）。灰字本身已经够退后。 */
   .mg-cell[disabled] { color: var(--muted); cursor: default; }
   .mg-day { grid-column: 1; font-size: var(--fs-micro); color: var(--muted); line-height: 1; }
+  /* 染了墨的格子，日期也走墨色：灰字压在深墨上只剩 1.9:1 */
+  .mg-cell[data-lv]:not([data-lv="0"]) .mg-day { color: var(--fg); }
   .mg-val { grid-column: 2; font-size: var(--fs-body); font-weight: var(--fw-strong); font-variant-numeric: tabular-nums; line-height: 1; }
-  .mg-cell:not([disabled]):not(.is-selected):hover { background: var(--card-2); }
+  /* 悬停只加一根金线，不改底色：底色是这天的热力读数，不该被指针抹掉 */
+  .mg-cell:not([disabled]):not(.is-selected):hover { box-shadow: inset 0 0 0 1px var(--accent-strong); }
   .mg-cell:focus-visible { outline-offset: -2px; }
-  /* 今天：实心金圆套住日期数字，不铺整格——整格反底会把「哪几天有记录」这层盖掉。
-     负外边距把圆借给格子的上下留白，行高因此不因「今天」而变高。 */
+  /* 今天：一枚刻章 —— 金环套住墨色数字，不填整块。负外边距把环借给格子的留白，行高不因它变高。 */
   .mg-cell.is-today .mg-day {
     display: inline-grid; place-items: center;
     width: 22px; height: 22px; margin: -4px 0 -4px -4px; border-radius: 50%;
-    background: var(--accent); color: var(--on-accent); font-weight: var(--fw-strong);
+    border: 1px solid var(--accent-strong); color: var(--fg); font-weight: var(--fw-strong);
   }
-  /* 选中 = 「我正在看这天」：金环 + 极淡暖底，墨条与读数原样留着（选中不是把那天涂掉）。
-     环走 --accent-strong（token 里就是描边/盖印档）；不用 --accent：它对纸面只有 2.63:1，
-     低于非文字元素要求的 3:1。 */
-  .mg-cell.is-selected { background: var(--mg-selected); box-shadow: inset 0 0 0 2px var(--accent-strong); }
+  /* 选中 = 「我正在看这天」：金环 + 极淡暖底（::before 压在墨与纸之间），热力与读数原样留着。
+     环走 --accent-strong（token 里的描边/盖印档）；不用 --accent：它对纸面只有 2.63:1。 */
+  .mg-cell > span { position: relative; }
+  .mg-cell::before { content: ''; position: absolute; inset: 0; background: var(--mg-selected); opacity: 0; pointer-events: none; }
+  .mg-cell.is-selected { box-shadow: inset 0 0 0 2px var(--accent-strong); }
+  .mg-cell.is-selected::before { opacity: 1; }
   .mg-cell.pressing { outline: 2px solid var(--accent); outline-offset: -2px; }
   /* 窄屏 7 列每格只有 ~45px：日期与读数分两行（读数放同一行会撞左墙），读数改小一档 */
   @media (max-width: 640px) {
     .mg-weekdays, .mg-grid { --mg-pad: 6px; }
-    .mg-cell { grid-template-columns: minmax(0, 1fr); row-gap: 3px; min-height: 46px; padding: 5px var(--mg-pad); }
+    .mg-cell { grid-template-columns: minmax(0, 1fr); row-gap: 2px; min-height: 46px; padding: 5px var(--mg-pad); }
     .mg-day, .mg-val { grid-column: 1; }
     .mg-val { font-size: var(--fs-micro); }
-    .mg-cell::after { justify-self: start; }
     .mg-cell.is-today .mg-day { width: 18px; height: 18px; margin: -3px 0 -3px -3px; }
     /* 窄屏没地方放「·」（放了它行尾就掉一个点），改用一档空白分开两组 */
     .mg-sub .mg-dot { display: none; }

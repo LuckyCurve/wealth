@@ -494,6 +494,7 @@
     '下个月': 'Next month',
     '一': 'Mon', '二': 'Tue', '三': 'Wed', '四': 'Thu', '五': 'Fri', '六': 'Sat', '日': 'Sun',
     '点一格看当天的记录，长按一格记一笔': 'Tap a day to see its entries; press and hold to add one',
+    '少': 'Less', '多': 'More',
     '已连续 {n} 天没有记录': 'No entries for {n} days straight',
     '记账中断提醒': 'Gap reminder',
     '连续这么多天一笔都没记时，在消费页的月份图上提一句；填 0 关掉。': 'Flag it on the month grid once this many days pass without an entry; 0 turns it off.',

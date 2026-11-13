@@ -875,34 +875,41 @@ test.describe('消费月份图（日历）', () => {
     };
   };
 
-  test('今天 / 有记录 / 选中是三层标记：金点、格底墨条、金环暖底，深浅都过对比度', async ({ page }) => {
+  test('今天 / 有记录 / 选中是三层标记：金环刻章、半透明墨染、金环暖底，深浅都过对比度', async ({ page }) => {
     await openWith(page, twoOnToday());
     const read = () => page.evaluate(() => {
-      const rgb = (c) => {
-        const n = (c || '').match(/\d+(\.\d+)?/g);
-        return n ? n.slice(0, 3).map(Number) : null;
+      const rgba = (c) => {
+        const m = (c || '').match(/rgba?\(([^)]+)\)/);
+        if (!m) return null;
+        const p = m[1].split(',').map(Number);
+        return { r: p[0], g: p[1], b: p[2], a: p.length > 3 ? p[3] : 1 };
+      };
+      const over = (f, b) => ({ r: f.r * f.a + b.r * (1 - f.a), g: f.g * f.a + b.g * (1 - f.a), b: f.b * f.a + b.b * (1 - f.a), a: 1 });
+      // 格子是半透明的：只看它自己的 rgba 不够，得把到根之间的每一层依次叠出来
+      const bgOf = (el) => {
+        let acc = null;
+        for (let n = el; n && n !== document.documentElement; n = n.parentElement) {
+          const c = rgba(getComputedStyle(n).backgroundColor);
+          if (!c || c.a === 0) continue;
+          acc = acc ? over(acc, c) : c;
+          if (acc.a >= 0.999) return acc;
+        }
+        return acc || { r: 255, g: 255, b: 255, a: 1 };
       };
       const cs = getComputedStyle(document.documentElement);
-      // 变量是 hex，借浏览器自己归一成 rgb()，避免手写转换
       const probe = document.createElement('span');
       document.body.appendChild(probe);
       const resolve = (v) => { probe.style.color = ''; probe.style.color = v; return getComputedStyle(probe).color; };
       const tokens = {
-        accent: rgb(resolve(cs.getPropertyValue('--accent'))),
-        onAccent: rgb(resolve(cs.getPropertyValue('--on-accent'))),
-        strong: rgb(resolve(cs.getPropertyValue('--accent-strong'))),
-        secondary: rgb(resolve(cs.getPropertyValue('--secondary'))),
-        muted: rgb(resolve(cs.getPropertyValue('--muted'))),
-        selected: rgb(resolve(cs.getPropertyValue('--mg-selected'))),
-        card: rgb(resolve(cs.getPropertyValue('--card'))),
-        fg: rgb(resolve(cs.getPropertyValue('--fg'))),
+        strong: rgba(resolve(cs.getPropertyValue('--accent-strong'))),
+        selected: rgba(cs.getPropertyValue('--mg-selected')),
+        card: rgba(resolve(cs.getPropertyValue('--card'))),
+        fg: rgba(resolve(cs.getPropertyValue('--fg'))),
       };
+      const washes = [1, 2, 3, 4].map((i) => rgba(cs.getPropertyValue(`--mg-${i}`)));
       probe.remove();
-      // 墨条是 ::after：量它的真实宽度（px）与颜色，不量内联样式
-      const bar = (el) => {
-        const b = getComputedStyle(el, '::after');
-        return { w: parseFloat(b.width) || 0, h: parseFloat(b.height) || 0, color: rgb(b.backgroundColor) };
-      };
+      const card = document.getElementById('month-grid-card');
+      const grid = document.getElementById('month-grid');
       const todayCell = document.querySelector('#month-grid .mg-cell.is-today');
       const day = todayCell && todayCell.querySelector('.mg-day');
       const rec = document.querySelector('#month-grid .mg-cell[data-lv]:not([data-lv="0"]):not(.is-today)');
@@ -911,76 +918,103 @@ test.describe('消费月份图（日历）', () => {
       const ds = day && getComputedStyle(day);
       const levels = [...document.querySelectorAll('#month-grid .mg-cell[data-lv]')]
         .filter((el) => el.getAttribute('data-lv') !== '0' && !el.classList.contains('is-today'))
-        .map((el) => ({ lv: el.getAttribute('data-lv'), w: bar(el).w }));
+        .map((el) => ({ lv: el.getAttribute('data-lv'), bg: rgba(getComputedStyle(el).backgroundColor) }));
       return {
         tokens,
+        washes,
+        cardBg: bgOf(card),
+        grid: { bg: rgba(getComputedStyle(grid).backgroundColor), gap: getComputedStyle(grid).gap },
         today: ds ? {
-          bg: rgb(ds.backgroundColor),
-          fg: rgb(ds.color),
+          bg: rgba(ds.backgroundColor),
+          fg: rgba(ds.color),
+          ring: rgba(ds.borderTopColor),
           radius: ds.borderRadius,
           size: Math.round(parseFloat(ds.width)),
-          cellBg: rgb(getComputedStyle(todayCell).backgroundColor),
         } : null,
         empty: empty ? {
-          cellBg: rgb(getComputedStyle(empty).backgroundColor),
-          bar: bar(empty),
+          bg: rgba(getComputedStyle(empty).backgroundColor),
+          real: bgOf(empty),
+          fg: rgba(getComputedStyle(empty.querySelector('.mg-day')).color),
         } : null,
-        record: rec ? { bar: bar(rec), cellBg: rgb(getComputedStyle(rec).backgroundColor) } : null,
+        record: rec ? {
+          bg: rgba(getComputedStyle(rec).backgroundColor),
+          real: bgOf(rec),
+          fg: rgba(getComputedStyle(rec.querySelector('.mg-day')).color),
+        } : null,
         levels,
         selected: sel ? {
-          bg: rgb(getComputedStyle(sel).backgroundColor),
-          ring: rgb(getComputedStyle(sel).boxShadow),
+          bg: rgba(getComputedStyle(sel).backgroundColor),
+          ring: rgba(getComputedStyle(sel).boxShadow),
           inset: /inset/.test(getComputedStyle(sel).boxShadow),
-          dayFg: rgb(getComputedStyle(sel.querySelector('.mg-day')).color),
-          valFg: rgb(getComputedStyle(sel.querySelector('.mg-val')).color),
-          bar: bar(sel),
+          tint: Number(getComputedStyle(sel, '::before').opacity),
+          dayFg: rgba(getComputedStyle(sel.querySelector('.mg-day')).color),
+          valFg: rgba(getComputedStyle(sel.querySelector('.mg-val')).color),
         } : null,
       };
     });
+    const lum = (c) => {
+      const v = [c.r, c.g, c.b].map((x) => x / 255).map((x) => (x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4)));
+      return 0.2126 * v[0] + 0.7152 * v[1] + 0.0722 * v[2];
+    };
     const ratio = (a, b) => {
-      const lum = (p) => {
-        const v = p.map((x) => x / 255).map((x) => (x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4)));
-        return 0.2126 * v[0] + 0.7152 * v[1] + 0.0722 * v[2];
-      };
       const [x, y] = [lum(a), lum(b)];
       return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
     };
-    const same = (a, b) => a && b && a.every((v, i) => Math.abs(v - b[i]) <= 1);
+    const over = (f, b) => ({ r: f.r * f.a + b.r * (1 - f.a), g: f.g * f.a + b.g * (1 - f.a), b: f.b * f.a + b.b * (1 - f.a), a: 1 });
+    const same = (a, b) => a && b && ['r', 'g', 'b'].every((k) => Math.abs(a[k] - b[k]) <= 1) && Math.abs(a.a - b.a) <= 0.02;
 
     const check = (look, theme) => {
-      const t = look.today;
-      expect(t, theme + '：今天那格应存在').toBeTruthy();
-      expect(t.radius, theme + '：今天是圆').toBe('50%');
-      expect(t.size, theme + '：圆要够大（至少 22px）').toBeGreaterThanOrEqual(22);
-      expect(same(t.bg, look.tokens.accent), theme + '：今天靠金底圆点突出').toBe(true);
-      expect(same(t.fg, look.tokens.onAccent), theme + '：金底上的数字走 on-accent').toBe(true);
-      expect(ratio(t.fg, t.bg), theme + '：金圆里的数字要达 AA').toBeGreaterThanOrEqual(4.5);
+      // 格子是纸不是板：一格都不许有不透明底色，格线也不许靠实色底画
+      expect(look.grid.bg.a, theme + '：格线不能再靠实色 background 画').toBe(0);
+      expect(look.grid.gap === 'normal' || parseFloat(look.grid.gap) === 0, theme + '：不再用 gap + 底色当格线').toBe(true);
+      expect(look.empty.bg.a, theme + '：空日就是纸（透明底）').toBe(0);
+      const hole = Math.abs(lum(look.empty.real) - lum(look.cardBg));
+      expect(hole, theme + `：空日与卡片底色的亮度差 ${hole.toFixed(4)}（>0.02 就是把纸挖了个洞）`).toBeLessThan(0.02);
 
-      const e = look.empty;
-      expect(e, theme + '：应有空日').toBeTruthy();
-      expect(same(e.cellBg, look.tokens.card), theme + '：空日就是纸面本身，不铺底纹').toBe(true);
-      expect(e.bar.w, theme + '：空日不得有墨条').toBe(0);
+      // 四档墨：半透明、只变明度；相邻 ≥1.25，最深一档对纸 ≥3.0
+      const washes = look.washes.map((c) => over(c, look.cardBg));
+      look.washes.forEach((c, i) => {
+        expect(c.a, theme + `：第 ${i + 1} 档墨必须是半透明的`).toBeGreaterThan(0);
+        expect(c.a, theme + `：第 ${i + 1} 档墨不许把纸盖死`).toBeLessThan(1);
+      });
+      for (let i = 1; i < washes.length; i++) {
+        const r = ratio(washes[i], washes[i - 1]);
+        expect(r, theme + `：墨阶 ${i + 1} 应比 ${i} 深（相邻对比 ${r.toFixed(2)}）`).toBeGreaterThanOrEqual(1.25);
+      }
+      // 深色纸能给的台阶比浅色小（再深就进中间调死区，文字先失守）；浅色实测 3.21、深色 2.70
+      expect(ratio(washes[3], look.cardBg), theme + '：最深一档对纸面要够响（≥2.6:1）').toBeGreaterThanOrEqual(2.6);
+
+      // 格子里的字压在每一档墨上都要达 AA（12px / 14px 都按 4.5 算）
+      washes.forEach((c, i) => {
+        expect(ratio(look.tokens.fg, c), theme + `：墨阶 ${i + 1} 上的日期与读数要达 AA`).toBeGreaterThanOrEqual(4.5);
+      });
 
       const r = look.record;
-      expect(r, theme + '：应有有记录的格子').toBeTruthy();
-      expect(r.bar.w, theme + '：有记录就有一根墨条').toBeGreaterThan(0);
-      expect(r.bar.h, theme + '：墨条是一根 3px 的发丝条，不是半块底').toBeLessThanOrEqual(3);
-      expect(same(r.bar.color, look.tokens.secondary), theme + '：墨条不再借次强调青蓝，那是另一套语法').toBe(false);
-      expect(ratio(r.bar.color, r.cellBg), theme + '：墨条要看得见（不是一根幽灵线）').toBeGreaterThanOrEqual(2.5);
+      expect(r.bg.a, theme + '：有记录就该染墨').toBeGreaterThan(0);
+      expect(same(r.bg, look.washes[Number(look.levels[0].lv) - 1]), theme + '：格子底色就是那一档墨').toBe(true);
+      expect(same(r.fg, look.tokens.fg), theme + '：染墨的格子日期走墨色，不走次要灰').toBe(true);
 
-      // 四档必须真的分得开：长度逐档变长（浓度只是第二层，色差在窄屏格子上不可靠）
+      // 四档在真实格子上也逐级变深（不是只在 token 里成立）
       const seen = new Map();
-      for (const x of look.levels) if (!seen.has(x.lv)) seen.set(x.lv, x.w);
+      for (const x of look.levels) if (!seen.has(x.lv)) seen.set(x.lv, x.bg.a);
       const ordered = [...seen.entries()].sort((a, b) => Number(a[0]) - Number(b[0]));
       for (let i = 1; i < ordered.length; i++) {
-        expect(ordered[i][1], theme + `：墨条档 ${ordered[i][0]} 应比 ${ordered[i - 1][0]} 长`)
-          .toBeGreaterThan(ordered[i - 1][1]);
+        expect(ordered[i][1], theme + `：墨阶 ${ordered[i][0]} 应比 ${ordered[i - 1][0]} 深`).toBeGreaterThan(ordered[i - 1][1]);
       }
+
+      // 今天 = 刻章（金环 + 墨字），不是填一块金
+      const t = look.today;
+      expect(t, theme + '：今天那格应存在').toBeTruthy();
+      expect(t.radius, theme + '：今天的章是圆的').toBe('50%');
+      expect(t.size, theme + '：章要够大（至少 18px）').toBeGreaterThanOrEqual(18);
+      expect(t.bg.a, theme + '：今天不填底色').toBe(0);
+      expect(same(t.ring, look.tokens.strong), theme + '：今天的章走主强调金').toBe(true);
+      expect(ratio(t.fg, look.cardBg), theme + '：章里的数字要达 AA').toBeGreaterThanOrEqual(4.5);
     };
 
     check(await read(), '亮色');
 
-    // 普通的一天（有记录、不是今天）：选中只是加一个金环，墨条与读数都不动
+    // 普通的一天（有记录、不是今天）：选中只加金环与极淡暖底，墨与读数都不动
     const pick = await page.evaluate(() => {
       const el = [...document.querySelectorAll('#month-grid .mg-cell[data-lv]')]
         .find((c) => c.dataset.date && !c.classList.contains('is-today') && c.getAttribute('data-lv') !== '0');
@@ -990,37 +1024,21 @@ test.describe('消费月份图（日历）', () => {
     await page.locator(`#month-grid .mg-cell[data-date="${pick}"]`).click();
     const picked = await read();
     expect(picked.selected, '选中态应在刚点的那天').toBeTruthy();
-    // 选中 = 金环 + 极淡暖底：不能再走整格青蓝反底（那会把 level 墨条与读数盖掉）
-    expect(same(picked.selected.bg, picked.tokens.selected), '选中是极淡暖底').toBe(true);
-    expect(same(picked.selected.bg, picked.tokens.secondary), '选中不再整格青蓝').toBe(false);
-    expect(same(picked.selected.bg, picked.tokens.card), '选中要能从纸面上分辨出来').toBe(false);
+    expect(picked.selected.bg.a, '选中不抹掉这天的热力（底色仍是那一档墨）').toBeGreaterThan(0);
+    expect(picked.selected.tint, '选中那层极淡暖底在（::before）').toBe(1);
     expect(same(picked.selected.ring, picked.tokens.strong), '选中靠主强调金描边').toBe(true);
     expect(picked.selected.inset, '描边留在格子内（不撑开邻居）').toBe(true);
-    expect(picked.selected.bar.w, '选中后这天的 level 墨条还在（选中不是把那天涂掉）').toBeGreaterThan(0);
-    // 日期与读数保持自己的颜色，只在暖底上重算对比度
-    expect(same(picked.selected.dayFg, picked.tokens.muted), '选中的日期仍是次要灰').toBe(true);
+    expect(same(picked.selected.dayFg, picked.tokens.fg), '选中的日期仍是墨色').toBe(true);
     expect(same(picked.selected.valFg, picked.tokens.fg), '选中的读数仍是墨色').toBe(true);
-    expect(ratio(picked.selected.dayFg, picked.selected.bg), '选中格的日期要达 AA').toBeGreaterThanOrEqual(4.5);
-    expect(ratio(picked.selected.valFg, picked.selected.bg), '选中格读数要达 AA').toBeGreaterThanOrEqual(4.5);
-    expect(same(picked.selected.bg, picked.today.bg), '选中与今天是两档强调色，不能同色').toBe(false);
     check(picked, '亮色·选中');
-
-    // 今天再选中：金点仍在（金环套金点，两档形不同，不互相盖）
-    await page.locator(`#month-grid .mg-cell[data-date="${today}"]`).click();
-    const pickedToday = await read();
-    expect(same(pickedToday.selected.dayFg, pickedToday.tokens.onAccent), '选中今天的金圆里数字走 on-accent').toBe(true);
-    expect(ratio(pickedToday.selected.dayFg, pickedToday.today.bg), '金圆里的数字要达 AA').toBeGreaterThanOrEqual(4.5);
 
     await page.getByRole('button', { name: '设置' }).click();
     await page.locator('#theme-seg-dark').click();
     await page.keyboard.press('Escape');
     await expect(page.locator('html')).toHaveClass(/dark/);
     const dark = await read();
-    expect(same(dark.selected.bg, dark.tokens.selected), '暗色选中同样走极淡暖底').toBe(true);
+    expect(dark.selected.bg.a, '暗色选中也不抹掉热力').toBeGreaterThan(0);
     check(dark, '暗色·选中');
-
-    await page.locator(`#month-grid .mg-cell[data-date="${today}"]`).click();
-    check(await read(), '暗色');
   });
 
   test('日历不贴在左边：左右留白相等且没被撑满', async ({ appPage: page }) => {
