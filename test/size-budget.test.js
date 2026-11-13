@@ -49,6 +49,8 @@ const BUDGETS = {
   // 从 app-assets.js 整段切出，两个文件各有一道上限。
   'app-categories.js': 26_000,
   'app-charts.js': 53_000,
+  // 压测（情景草稿 + 条/印徽 + 弹窗）：从 app-charts.js 整段切出（它不是图，是 DOM）。
+  'app-stress.js': 8_500,
   // 设置里的「解锁冷却」回显、改档与「立即锁定」入口（时间戳的写/清在 app-core.js）。
   // 同 commit 抬 1KB。
   'app-settings.js': 39_000,
