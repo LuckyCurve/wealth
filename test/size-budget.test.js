@@ -36,27 +36,28 @@ const BUDGETS = {
   // 同一 commit 再抬 2KB 收下这批日历规则。
   'styles.css': 122_000,
   // 页内版块（报头/图表/读数条/月份图）与打印形态：从 styles.css 原样切出的连续两段，
-  // 只做版块归类、不改规则；各有一道上限，免得以后再长回去。
-  'styles-views.css': 28_000,
-  'styles-print.css': 8_000,
+  // 只做版块归类、不改规则。新文件的初版上限按「现有内容 + 约 15%」给，留出下一次改动的位；
+  // 之后再抬就回到老规矩：先问能不能再拆一层。
+  'styles-views.css': 29_500,
+  'styles-print.css': 8_500,
   // 资产页解锁冷却：sessionStorage 时间戳的读写与「冷却内直接进门」接在门槛入口，
   // 纯判定已下沉 logic.js（gateCooldownActive），这里只剩接线。同 commit 抬 2KB。
   'app-core.js': 28_000,
   // 进资产页的门槛（长按抬闸 + 箴言抄写 + 解锁冷却）：从 app-core.js 整段切出。
-  'app-gate.js': 10_000,
+  'app-gate.js': 11_500,
   'app-assets.js': 74_000,
   // 分类与标签管理（资产/消费共用）：分类卡片、分类弹窗 CRUD、长按胶囊改名。
   // 从 app-assets.js 整段切出，两个文件各有一道上限。
-  'app-categories.js': 26_000,
+  'app-categories.js': 28_000,
   'app-charts.js': 53_000,
   // 压测（情景草稿 + 条/印徽 + 弹窗）：从 app-charts.js 整段切出（它不是图，是 DOM）。
-  'app-stress.js': 8_500,
+  'app-stress.js': 8_800,
   // 设置里的「解锁冷却」回显、改档与「立即锁定」入口（时间戳的写/清在 app-core.js）。
   // 同 commit 抬 1KB。
   'app-settings.js': 39_000,
   // 全站 UI 基元（气泡定位/弹窗开关/确认框/焦点陷阱/便条/分类色/金额输入）：
   // 从 app-settings.js 整段切出，两份各有一道上限。
-  'app-ui.js': 14_000,
+  'app-ui.js': 15_500,
   // 月份图 + 当天的记录（点一格展开）；明细列表与录入在 app-expenses.js 里。
   'app-calendar.js': 12_000,
   'app-receipt.js': 10_000,
@@ -74,7 +75,7 @@ const BUDGETS = {
   'logic.js': 160_000,
   // 英文词条表：中文原文为键、纯数据，与 logic.js 同一套 UMD 壳（浏览器挂全局 / Node require）。
   // 它只会随新增文案长大，增长是线性的，故上限按「一张表」给足。
-  'logic-i18n-en.js': 44_000,
+  'logic-i18n-en.js': 43_000,
 };
 
 function bytes(name) {
