@@ -2963,6 +2963,20 @@ describe('UI 接线契约：纸面质感与印刷细节', () => {
  * 这里用 new Function 做**真正的解析**（只解析、不执行，也不需要 DOM）：
  * 比手写正则数重名可靠得多——正则只看同类声明，漏掉 let 与 const 撞名这类真错。
  */
+describe('UI 接线契约：源码清单与页面的加载顺序一致', () => {
+  // 拆分把「哪些文件属于运行时」从「目录里有什么」变成了「几份清单里写了什么」。
+  // 漏登一份的症状不是红，而是**围栏静默地不罩它**：语法解析、全仓外呼扫描、跨文件重名
+  // 都会跳过它。所以清单本身要被 index.html 盯住（顺序也盯：顺序就是级联与执行次序）。
+  test('scripts / stylesheets 与本文件里的清单一一对应（含顺序）', () => {
+    const scripts = [...markup.matchAll(/<script src="([^":/]+\.js)"><\/script>/g)].map((m) => m[1]);
+    const sheets = [...markup.matchAll(/<link rel="stylesheet" href="([^":/]+\.css)">/g)].map((m) => m[1]);
+    assert.deepStrictEqual(scripts, [...BOOT_FILES, ...LOGIC_FILES, ...JS_FILES],
+      '页面里的本地脚本清单（含顺序）必须与 BOOT_FILES / LOGIC_FILES / JS_FILES 完全一致');
+    assert.deepStrictEqual(sheets, CSS_FILES, '页面里的本地样式表清单（含顺序）必须与 CSS_FILES 一致');
+    assert.ok(scripts.length > 10 && sheets.length >= 3, '正则没抽到东西时不能让这条断言假绿');
+  });
+});
+
 describe('UI 接线契约：页面脚本必须能通过解析', () => {
   // 逐个文件解析、再整体解析一次：跨文件的顶层重名只有拼起来才会显形。
   for (const file of [...BOOT_FILES, ...JS_FILES]) {
