@@ -23,7 +23,10 @@
 <link href="https://fonts.googleapis.cn/css2?family=Noto+Serif+SC:wght@400;700&family=IBM+Plex+Mono:wght@400;500;600&family=Cormorant+Garamond:wght@400;500;600&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <noscript><link rel="stylesheet" href="https://fonts.googleapis.cn/css2?family=Noto+Serif+SC:wght@400;700&family=IBM+Plex+Mono:wght@400;500;600&family=Cormorant+Garamond:wght@400;500;600&display=swap"></noscript>
 <script src="tailwind-config.js"></script>
+<!-- 样式按顺序拆三份：基础与通用组件 → 页内版块 → 打印形态（顺序即级联，别调换）。 -->
 <link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="styles-views.css">
+<link rel="stylesheet" href="styles-print.css">
 </head>
 <body>
 

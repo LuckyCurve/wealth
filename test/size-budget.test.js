@@ -35,6 +35,10 @@ const BUDGETS = {
   // 月份图重做：发丝线网格、四层状态（空/染墨/今天/选中）与窄屏规则，
   // 同一 commit 再抬 2KB 收下这批日历规则。
   'styles.css': 122_000,
+  // 页内版块（报头/图表/读数条/月份图）与打印形态：从 styles.css 原样切出的连续两段，
+  // 只做版块归类、不改规则；各有一道上限，免得以后再长回去。
+  'styles-views.css': 28_000,
+  'styles-print.css': 8_000,
   // 资产页解锁冷却：sessionStorage 时间戳的读写与「冷却内直接进门」接在门槛入口，
   // 纯判定已下沉 logic.js（gateCooldownActive），这里只剩接线。同 commit 抬 2KB。
   'app-core.js': 28_000,
