@@ -13,6 +13,10 @@ const js = JS_FILES.map((f) => fs.readFileSync(path.join(__dirname, '..', f), 'u
 // 断言「某口径只在逻辑层出现一处」必须看整层——只看入口会漏、只看分片会假红。
 const LOGIC_FILES = ['logic-i18n-en.js', 'logic.js'];
 const logicSrc = LOGIC_FILES.map((f) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8')).join('\n');
+// <head> 里的引导/配置脚本（首帧主题 + 开屏两态、Tailwind CDN 的主题扩展）。
+// 它们不参与页面脚本的拼接断言（不共享全局、也不该被当成页面逻辑），但同属运行时：
+// 外呼与语法两道契约照样要看它们。
+const BOOT_FILES = ['boot.js', 'tailwind-config.js'];
 const html = markup + '\n' + css + '\n' + js;
 const L = require('../logic.js');
 const count = (re) => (html.match(re) || []).length;
@@ -2958,12 +2962,12 @@ describe('UI 接线契约：纸面质感与印刷细节', () => {
  */
 describe('UI 接线契约：页面脚本必须能通过解析', () => {
   // 逐个文件解析、再整体解析一次：跨文件的顶层重名只有拼起来才会显形。
-  for (const file of JS_FILES) {
+  for (const file of [...BOOT_FILES, ...JS_FILES]) {
     test(`${file} 可解析`, () => {
       const src = fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
       // 下限用字符数，不用字节数：中文在本文件里一字一字符、三字节，拿 5000 卡会把
       // 只装了下拉/换算这种小活儿的新文件误报成「没读到全文」。读失效只会得到空串。
-      assert.ok(src.length > 1000, `${file} 应取到全文（读文件是否失效？）`);
+      assert.ok(src.length > 500, `${file} 应取到全文（读文件是否失效？）`);
       assert.doesNotThrow(() => new Function(src), `${file} 存在语法错误`);
     });
   }
@@ -3221,14 +3225,19 @@ describe('UI 接线契约：开屏（落纸入场）', () => {
     assert.doesNotMatch(html, /@keyframes settle/, '入场不得回到 keyframes 写法');
   });
 
-  test('booting 与看门狗写在 <head>，ready 在首屏渲染完成后加', () => {
-    const head = html.slice(0, html.indexOf('<style>'));
-    assert.match(head, /classList\.add\('booting'\)/, '首帧前就进入未落定态（否则会先看见内容再跳一下）');
-    assert.match(head, /setTimeout\(function \(\) \{[\s\S]*?classList\.add\('ready'\)/, '看门狗自己放行（脚本万一没跑到就绪，页面不得空白）');
+  test('booting 与看门狗写在 <head> 的引导脚本里，ready 在首屏渲染完成后加', () => {
+    // 引导脚本从 index.html 拆出去了："首帧前执行" 这件事现在由两个事实担保：
+    // ① 它是 <head> 里的**阻塞**脚本（可以 defer 掉首屏，但会晚一帧）；② 它确实做了那两件事。
+    const bootTag = markup.indexOf('<script src="boot.js"></script>');
+    assert.ok(bootTag > 0, '首帧引导脚本由 index.html 加载');
+    assert.ok(bootTag < markup.indexOf('<body>'), '引导脚本必须在 <head> 里（body 之前同步执行）');
+    const boot = fs.readFileSync(path.join(__dirname, '..', 'boot.js'), 'utf8');
+    assert.match(boot, /classList\.add\('booting'\)/, '首帧前就进入未落定态（否则会先看见内容再跳一下）');
+    assert.match(boot, /setTimeout\(function \(\) \{[\s\S]*?classList\.add\('ready'\)/, '看门狗自己放行（脚本万一没跑到就绪，页面不得空白）');
     // 就绪点在「渲染完成之后」：DOMContentLoaded 里 renderAll 之后才翻转，否则落纸先于内容
-    const boot = html.match(/document\.addEventListener\('DOMContentLoaded'[\s\S]*?classList\.add\('ready'\)/);
-    assert.ok(boot, 'ready 由启动流程翻转');
-    assert.ok(boot[0].indexOf('renderAll()') < boot[0].indexOf("classList.add('ready')"), '先渲染完，再落纸');
+    const readyFlip = html.match(/document\.addEventListener\('DOMContentLoaded'[\s\S]*?classList\.add\('ready'\)/);
+    assert.ok(readyFlip, 'ready 由启动流程翻转');
+    assert.ok(readyFlip[0].indexOf('renderAll()') < readyFlip[0].indexOf("classList.add('ready')"), '先渲染完，再落纸');
   });
 
   test('减动效要连延迟一起关（只关时长的话，带 delay 的入场会先停在未落定态）', () => {
@@ -3570,7 +3579,7 @@ describe('UI 接线契约：下拉弹层跟主题（base-select）', () => {
  */
 describe('UI 接线契约：导出全在本机', () => {
   const receiptSrc = fs.readFileSync(path.join(__dirname, '..', 'app-receipt.js'), 'utf8');
-  const RUNTIME_FILES = ['index.html', ...JS_FILES, 'logic.js'];
+  const RUNTIME_FILES = ['index.html', ...BOOT_FILES, ...JS_FILES, 'logic.js'];
   const runtimeSrc = RUNTIME_FILES.map(f => fs.readFileSync(path.join(__dirname, '..', f), 'utf8')).join('\n');
 
   // 逐文件钉住两个导出入口不够：新增一个页面脚本就又是一块没人看守的地方。
