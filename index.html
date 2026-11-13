@@ -363,15 +363,19 @@
         <div class="card-head">
           <div>
             <h3 class="font-display t-body t-bold" data-i18n="月份图">月份图</h3>
-            <p class="t-micro muted mt-1"><span id="month-grid-label" class="tabular"></span> · <span id="month-grid-summary" class="tabular"></span></p>
+            <p class="t-micro muted mt-1 mg-sub">
+              <span class="mg-nav">
+                <button type="button" class="btn-ghost btn-xs" onclick="shiftMonthGrid(-1)" aria-label="上个月" data-i18n-aria-label="上个月">←</button>
+                <button type="button" class="btn-ghost btn-xs" onclick="shiftMonthGrid(1)" aria-label="下个月" data-i18n-aria-label="下个月">→</button>
+              </span>
+              <span id="month-grid-label" class="tabular"></span><span class="mg-dot">·</span><span id="month-grid-summary" class="tabular mg-sum"></span>
+            </p>
           </div>
           <div class="toolbar">
-            <button type="button" class="btn-ghost btn-xs" onclick="shiftMonthGrid(-1)" aria-label="上个月" data-i18n-aria-label="上个月">←</button>
             <div class="seg-control">
               <button id="mg-mode-count" onclick="setMonthGridMode('count')" class="seg-btn active" data-i18n="笔数">笔数</button>
               <button id="mg-mode-amount" onclick="setMonthGridMode('amount')" class="seg-btn" data-i18n="金额">金额</button>
             </div>
-            <button type="button" class="btn-ghost btn-xs" onclick="shiftMonthGrid(1)" aria-label="下个月" data-i18n-aria-label="下个月">→</button>
             <button type="button" class="btn-ghost btn-xs" onclick="exportMonthReceipt()" data-i18n="小票">小票</button>
           </div>
         </div>

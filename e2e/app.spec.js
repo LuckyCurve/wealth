@@ -1060,7 +1060,7 @@ test.describe('消费月份图（日历）', () => {
     await expect(page.locator('#expenses-rows .asset-row')).toHaveCount(3);
 
     // 月份图能切到没有任何记录的月份，明细跟着收窄成这一段
-    await page.locator('#month-grid-card .toolbar').getByRole('button', { name: '上个月' }).click();
+    await page.locator('#month-grid-card').getByRole('button', { name: '上个月' }).click();
     await expect(page.locator('#month-grid-label')).toContainText(monthLabel(date.addMonths(curMonth(), -1)));
     await expect(page.locator('#expense-month-filter')).toHaveValue(date.addMonths(curMonth(), -1));
     await expect(page.locator('#expense-table-summary')).toContainText(monthLabel(date.addMonths(curMonth(), -1)));
