@@ -875,7 +875,7 @@ test.describe('消费月份图（日历）', () => {
     };
   };
 
-  test('今天 / 有记录 / 选中是三层标记：金圆、青蓝染墨、整格反底，深浅都过对比度', async ({ page }) => {
+  test('今天 / 有记录 / 选中是三层标记：金圆、格底墨条、整格反底，深浅都过对比度', async ({ page }) => {
     await openWith(page, twoOnToday());
     const read = () => page.evaluate(() => {
       const rgb = (c) => {
@@ -895,16 +895,20 @@ test.describe('消费月份图（日历）', () => {
         fg: rgb(resolve(cs.getPropertyValue('--fg'))),
       };
       probe.remove();
+      // 墨条是 ::after：量它的真实宽度（px）与颜色，不量内联样式
+      const bar = (el) => {
+        const b = getComputedStyle(el, '::after');
+        return { w: parseFloat(b.width) || 0, h: parseFloat(b.height) || 0, color: rgb(b.backgroundColor) };
+      };
       const todayCell = document.querySelector('#month-grid .mg-cell.is-today');
       const day = todayCell && todayCell.querySelector('.mg-day');
       const rec = document.querySelector('#month-grid .mg-cell[data-lv]:not([data-lv="0"]):not(.is-today)');
-      const pseudo = rec ? getComputedStyle(rec, '::before') : null;
       const empty = document.querySelector('#month-grid .mg-cell[data-lv="0"]:not(.is-blank)');
       const sel = document.querySelector('#month-grid .mg-cell.is-selected');
       const ds = day && getComputedStyle(day);
       const levels = [...document.querySelectorAll('#month-grid .mg-cell[data-lv]')]
         .filter((el) => el.getAttribute('data-lv') !== '0' && !el.classList.contains('is-today'))
-        .map((el) => ({ lv: el.getAttribute('data-lv'), op: Number(getComputedStyle(el, '::before').opacity) }));
+        .map((el) => ({ lv: el.getAttribute('data-lv'), w: bar(el).w }));
       return {
         tokens,
         today: ds ? {
@@ -916,13 +920,9 @@ test.describe('消费月份图（日历）', () => {
         } : null,
         empty: empty ? {
           cellBg: rgb(getComputedStyle(empty).backgroundColor),
-          wash: Number(getComputedStyle(empty, '::before').opacity),
+          bar: bar(empty),
         } : null,
-        record: rec ? {
-          wash: rgb(pseudo.backgroundColor),
-          washOpacity: Number(pseudo.opacity),
-          cellBg: rgb(getComputedStyle(rec).backgroundColor),
-        } : null,
+        record: rec ? { bar: bar(rec), cellBg: rgb(getComputedStyle(rec).backgroundColor) } : null,
         levels,
         selected: sel ? {
           bg: rgb(getComputedStyle(sel).backgroundColor),
@@ -953,20 +953,21 @@ test.describe('消费月份图（日历）', () => {
       const e = look.empty;
       expect(e, theme + '：应有空日').toBeTruthy();
       expect(same(e.cellBg, look.tokens.card), theme + '：空日就是纸面本身，不铺底纹').toBe(true);
-      expect(e.wash, theme + '：空日不得有染墨').toBe(0);
+      expect(e.bar.w, theme + '：空日不得有墨条').toBe(0);
 
       const r = look.record;
       expect(r, theme + '：应有有记录的格子').toBeTruthy();
-      expect(same(r.wash, look.tokens.secondary), theme + '：有记录的底走次强调青蓝').toBe(true);
-      expect(r.washOpacity, theme + '：一眼能看出有记录').toBeGreaterThanOrEqual(0.1);
-      expect(r.washOpacity, theme + '：仍要留得住纸的呼吸').toBeLessThanOrEqual(0.4);
+      expect(r.bar.w, theme + '：有记录就有一根墨条').toBeGreaterThan(0);
+      expect(r.bar.h, theme + '：墨条是一根 3px 的发丝条，不是半块底').toBeLessThanOrEqual(3);
+      expect(same(r.bar.color, look.tokens.secondary), theme + '：墨条不再借次强调青蓝，那是另一套语法').toBe(false);
+      expect(ratio(r.bar.color, r.cellBg), theme + '：墨条要看得见（不是一根幽灵线）').toBeGreaterThanOrEqual(2.5);
 
-      // 四档浓度必须真的递增，否则「密度」只是说法
+      // 四档必须真的分得开：长度逐档变长（浓度只是第二层，色差在窄屏格子上不可靠）
       const seen = new Map();
-      for (const x of look.levels) if (!seen.has(x.lv)) seen.set(x.lv, x.op);
+      for (const x of look.levels) if (!seen.has(x.lv)) seen.set(x.lv, x.w);
       const ordered = [...seen.entries()].sort((a, b) => Number(a[0]) - Number(b[0]));
       for (let i = 1; i < ordered.length; i++) {
-        expect(ordered[i][1], theme + `：密度档 ${ordered[i][0]} 应比 ${ordered[i - 1][0]} 深`)
+        expect(ordered[i][1], theme + `：墨条档 ${ordered[i][0]} 应比 ${ordered[i - 1][0]} 长`)
           .toBeGreaterThan(ordered[i - 1][1]);
       }
     };
