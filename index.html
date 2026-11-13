@@ -360,18 +360,19 @@
       </div>
 
       <div id="month-grid-card" class="card mb-6">
-        <div class="card-head">
-          <div>
-            <h3 class="font-display t-body t-bold" data-i18n="月份图">月份图</h3>
-            <p class="t-micro muted mt-1 mg-sub">
+        <div class="card-head mg-head">
+          <h3 class="font-display t-body t-bold" data-i18n="月份图">月份图</h3>
+          <p class="t-micro muted mg-sub">
+            <span class="mg-month">
               <span class="mg-nav">
                 <button type="button" class="btn-ghost btn-xs" onclick="shiftMonthGrid(-1)" aria-label="上个月" data-i18n-aria-label="上个月">←</button>
                 <button type="button" class="btn-ghost btn-xs" onclick="shiftMonthGrid(1)" aria-label="下个月" data-i18n-aria-label="下个月">→</button>
               </span>
-              <span id="month-grid-label" class="tabular"></span><span class="mg-dot">·</span><span id="month-grid-summary" class="tabular mg-sum"></span>
-              <span class="mg-legend" aria-hidden="true"><span data-i18n="少">少</span><span class="mg-sw" data-lv="1"></span><span class="mg-sw" data-lv="2"></span><span class="mg-sw" data-lv="3"></span><span class="mg-sw" data-lv="4"></span><span data-i18n="多">多</span></span>
-            </p>
-          </div>
+              <span id="month-grid-label" class="tabular"></span>
+            </span>
+            <span class="mg-dot">·</span><span id="month-grid-summary" class="tabular mg-sum"></span>
+            <span class="mg-legend" aria-hidden="true"><span data-i18n="少">少</span><span class="mg-sw" data-lv="1"></span><span class="mg-sw" data-lv="2"></span><span class="mg-sw" data-lv="3"></span><span class="mg-sw" data-lv="4"></span><span data-i18n="多">多</span></span>
+          </p>
           <div class="toolbar">
             <div class="seg-control">
               <button id="mg-mode-count" onclick="setMonthGridMode('count')" class="seg-btn active" data-i18n="笔数">笔数</button>

@@ -1063,6 +1063,58 @@ test.describe('消费月份图（日历）', () => {
     expect(gap.left, '宽屏下它不是撑满的：撑满时居中与否看不出区别，这条会把两边都变成 0').toBeGreaterThan(20);
   });
 
+  test('图例贴着月历右缘：宽屏与月份信息各占一头，窄屏并进「笔数｜金额」那一行', async ({ appPage: page }) => {
+    const read = () => page.evaluate(() => {
+      const card = document.getElementById('month-grid-card');
+      const box = (s) => card.querySelector(s).getBoundingClientRect();
+      const grid = box('#month-grid'), legend = box('.mg-legend');
+      const summary = box('#month-grid-summary'), nav = box('.mg-nav'), label = box('#month-grid-label');
+      const title = box('h3');
+      const center = (r) => r.top + r.height / 2;
+      const sameRow = (a, b) => Math.min(a.bottom, b.bottom) > Math.max(a.top, b.top);
+      const bands = (rects) => {
+        const ys = rects.map(center).sort((a, b) => a - b);
+        let count = 0, last = -Infinity;
+        for (const y of ys) if (y - last > 6) { count++; last = y; }
+        return count;
+      };
+      return {
+        viewport: window.innerWidth,
+        docScroll: document.documentElement.scrollWidth,
+        cardScroll: card.scrollWidth,
+        cardWidth: card.clientWidth,
+        legendVsGrid: Math.abs(grid.right - legend.right),
+        legendAfterSummary: legend.left >= summary.right - 1,
+        legendOnSummaryRow: sameRow(summary, legend),
+        summaryOnMonthRow: sameRow(summary, nav),
+        summaryBelowMonth: summary.top >= nav.bottom - 1,
+        navBeforeLabel: nav.right <= label.left + 1 && sameRow(nav, label),
+        infoBands: bands([title, nav, summary]),
+      };
+    });
+
+    const wide = await read();
+    expect(wide.legendVsGrid, '图例右缘要压在月历右缘上（不是卡片右缘，也不是紧跟在金额后面）').toBeLessThanOrEqual(1);
+    expect(wide.legendAfterSummary, '图例在汇总右侧，不夹在金额里').toBe(true);
+    expect(wide.summaryOnMonthRow, '宽屏：箭头、月份、汇总、图例同一行').toBe(true);
+    expect(wide.navBeforeLabel, '左右箭头仍紧贴它们翻的那个月份').toBe(true);
+    expect(wide.infoBands, '宽屏卡片头是「标题 / 月份+汇总+图例」两段').toBe(2);
+    expect(wide.docScroll, '宽屏不得横向溢出').toBeLessThanOrEqual(wide.viewport);
+
+    for (const width of [390, 360, 320]) {
+      await page.setViewportSize({ width, height: 900 });
+      const narrow = await read();
+      const label = `${width}px`;
+      expect(narrow.legendVsGrid, `${label}：图例仍贴月历右缘`).toBeLessThanOrEqual(1);
+      expect(narrow.summaryBelowMonth, `${label}：月份信息换到下一段`).toBe(true);
+      expect(narrow.legendOnSummaryRow, `${label}：图例并进「笔数｜金额」那一行，不另占一段`).toBe(true);
+      expect(narrow.navBeforeLabel, `${label}：左右箭头仍在月份左边`).toBe(true);
+      expect(narrow.infoBands, `${label}：卡片头回到「标题 / 月份 / 汇总+图例」三段`).toBe(3);
+      expect(narrow.docScroll, `${label}：页面不得横向溢出（scrollWidth ${narrow.docScroll}）`).toBeLessThanOrEqual(narrow.viewport);
+      expect(narrow.cardScroll, `${label}：月份卡不得横向溢出（scrollWidth ${narrow.cardScroll}）`).toBeLessThanOrEqual(narrow.cardWidth + 1);
+    }
+  });
+
   test('筛选跟着明细：不在页头，明细收起时一起收起', async ({ appPage: page }) => {
     for (const id of ['expense-search', 'expense-month-filter', 'expense-tag-filter']) {
       const inDetail = await page.evaluate((x) => !!document.getElementById(x).closest('#expense-table'), id);
