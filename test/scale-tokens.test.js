@@ -27,6 +27,9 @@ const ROOT_SELECTOR = /^:root(\.dark)?(,\s*:root\.dark)?$/;
 
 const GROUPS = {
   spacing: /^(margin|padding|inset)(-(top|right|bottom|left|block|inline|block-start|block-end|inline-start|inline-end))?$/,
+  // 定位/描边偏移也是尺度：`left: 137px` 与 `outline-offset: 137px` 与 `padding: 137px`
+  // 是同一类“手调像素”（实测漏掉这两个会后巡检全绿）。
+  offset: /^(top|right|bottom|left|outline-offset)$/,
   gap: /^(gap|row-gap|column-gap)$/,
   radius: /^(border-radius|border-top-left-radius|border-top-right-radius|border-bottom-left-radius|border-bottom-right-radius)$/,
   elevation: /^box-shadow$/,
@@ -118,8 +121,10 @@ for (const d of declarations()) {
  * 所以这三枚只能写在 .card 自己的规则块里，搬不进 :root。它们就是材质本身，字面量只能在
  * 定义处；使用点（box-shadow: var(--glass-shadow), var(--glass-depth)）不得再展开。
  * 新增同类例外必须同时改这里与那条契约，不得只改一边。
+ * `--legend-max`（构成清单列的宽度上限，`min(38%, 320px)`）是**尺寸**不是节奏：320px 是
+ * 「图例最多占多宽」这个几何上限，进不了间距档，但它也不该被当成散布的 padding 对待。
  */
-const COMPONENT_TOKENS = new Set(['--glass-shadow', '--glass-depth', '--glass-depth-lift']);
+const COMPONENT_TOKENS = new Set(['--glass-shadow', '--glass-depth', '--glass-depth-lift', '--legend-max']);
 const TOKEN_LIKE = (name) => ROOT_TOKENS.has(name) || COMPONENT_TOKENS.has(name);
 function customProps() {
   const map = new Map();
@@ -158,6 +163,14 @@ function literalsOf() {
     const left = stripTokenVars(d.value, props).match(new RegExp(LITERAL.source, 'g'));
     if (left && left.length) out.push({ ...d, left });
   }
+  // 组件级自定义属性**逐处**查：customProps() 只留同名首处，媒体查询里的第二处
+  // （实测 --mg-pad 在 <=640 改成 9px）会整处漏掉。每个声明点自己没掉字面量才算过。
+  for (const d of declarations()) {
+    if (!d.prop.startsWith('--') || (d.root && !d.media)) continue;
+    if (ROOT_TOKENS.has(d.prop) || COMPONENT_TOKENS.has(d.prop)) continue;
+    const left = stripTokenVars(d.value, props).match(new RegExp(LITERAL.source, 'g'));
+    if (left && left.length) out.push({ ...d, left, via: d.prop });
+  }
   return out;
 }
 
@@ -194,10 +207,17 @@ describe('尺度系统：字面量只许出现在 :root 定义里', () => {
     }
   });
 
-  test('自定义属性不得当借口：不认识的 --x 由 E2E 兜底（沙盒自检见上）', () => {
-    // 这条只留一个信号：扫到的「变量来源」数量必须 > 0，否则判据可能根本不工作。
-    assert.ok(customProps().size > 50, `只读到 ${customProps().size} 个自定义属性，解析器可能失效`);
-    assert.ok(ROOT_TOKENS.size > 50, `:root 只认出 ${ROOT_TOKENS.size} 个 token`);
+  test('组件级自定义属性逐处都查（同名第二处不得溜掉）', () => {
+    // 实测漏网：--mg-pad 在 <=640 的媒体查询里被改成 9px，而 customProps() 只留首处，
+    // 整处从未展开，巡检 9/9 全绿。现在每个声明点自己没掉字面量才算过。
+    const local = declarations().filter((d) => d.prop.startsWith('--') && !(d.root && !d.media)
+      && !ROOT_TOKENS.has(d.prop) && !COMPONENT_TOKENS.has(d.prop));
+    assert.ok(local.length > 0, '组件级自定义属性应至少有一处（判据否则空跑）');
+    const bad = local
+      .map((d) => ({ d, left: stripTokenVars(d.value, customProps()) }))
+      .filter(({ left }) => new RegExp(LITERAL.source).test(left))
+      .map(({ d, left }) => `${d.file}:${d.line} [${d.selector.slice(0, 50)}] ${d.prop}: ${d.value}  ← 剩 ${left}`);
+    assert.deepStrictEqual(bad, [], `组件级自定义属性也必须从 token 派生（每一处都要）：\n  ${bad.join('\n  ')}`);
   });
 
   test('巡检有效：三份 CSS 都扫到目标声明（不是空跑）', () => {
@@ -211,6 +231,9 @@ describe('尺度系统：字面量只许出现在 :root 定义里', () => {
     }
     const total = Object.values(counts).reduce((a, b) => a + b, 0);
     assert.ok(total >= 350, `三份合计只扫到 ${total} 条，判据可能漏了大半`);
+    // 定位/描边偏移这类“邻居属性”必须被纳入（曾整类漏检，见 GROUPS.offset 注释）
+    const proxy = declarations().filter((d) => /^(top|right|bottom|left|outline-offset)$/.test(d.prop));
+    assert.ok(proxy.length >= 5, `定位/描边偏移只扫到 ${proxy.length} 条，判据漏了一整类`);
     // 解析器本身：一段带注释、嵌套 @media 的样本必须解析成预期条数
     assert.ok(all.every((d) => d.prop && d.prop === d.prop.toLowerCase()), '属性名应已统一小写');
     assert.ok(all.some((d) => d.media), '@media 里的声明必须被扫到（否则断点内的规则全在漏检）');

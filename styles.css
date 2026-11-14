@@ -499,7 +499,7 @@
   /* 焦点环只画环，**不改元素自身的形状**：曾在这里写 border-radius: 4px，于是控件一聚焦
      圆角就从 6px 跳成 4px、失焦再跳回来——焦点本不该改变控件的外观，只该在它外面加一圈。
      环的形状由浏览器跟随元素自己的 border-radius，无需在此声明。 */
-  :focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+  :focus-visible { outline: 2px solid var(--focus-ring); outline-offset: var(--sp-1); }
   /* 视觉隐藏但仍留在 Tab 序 / 可被脚本点击。
      为什么不能用 display:none：它会把元素从 Tab 序里摘掉——文件选择框正是这样
      让键盘用户整块够不到「导入数据」的（label 不可聚焦 + input display:none = 无路可走）。 */
@@ -509,12 +509,12 @@
   }
   /* 包住隐藏 input 的 label：焦点在里面的 input 上，环要画在能看见的 label 上。
      用 :focus-within 而不是给 label 加 tabindex——那会多出一个空的 Tab 停靠点。 */
-  .file-label:focus-within { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+  .file-label:focus-within { outline: 2px solid var(--focus-ring); outline-offset: var(--sp-1); }
   /* 超长列表的滚动上限：用 dvh，vh 在移动端地址栏收缩时会把底部按钮顶出屏幕 */
   .scroll-cap { max-height: 44dvh; overflow-y: auto; }
   /* 文本选中：青蓝底 + 卡片字色（见 --select） */
   ::selection { background: var(--select); color: var(--card); }
-  button:focus-visible, .btn-gold:focus-visible, .btn-ghost:focus-visible, .btn-danger:focus-visible { outline-offset: 2px; }
+  button:focus-visible, .btn-gold:focus-visible, .btn-ghost:focus-visible, .btn-danger:focus-visible { outline-offset: var(--sp-1); }
   @media (prefers-reduced-motion: reduce) {
     /* 延迟也要归零：只关时长的话，带 delay 的入场会先停在「还没出来」的状态（延迟仍生效） */
     *, *::before, *::after { animation-duration: 0.001ms !important; animation-delay: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; transition-delay: 0.001ms !important; scroll-behavior: auto !important; }
@@ -787,11 +787,11 @@
     box-shadow: inset 0 0 0 var(--ring-w-2) var(--secondary) !important;
   }
   .search-wrap { position: relative; display: inline-block; }
-  .search-wrap svg { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); width: 13px; height: 13px; color: var(--muted); pointer-events: none; }
+  .search-wrap svg { position: absolute; left: var(--sp-5); top: 50%; transform: translateY(-50%); width: 13px; height: 13px; color: var(--muted); pointer-events: none; }
   .search-wrap input { padding-left: var(--sp-10); min-width: 180px; }
   .search-wrap input.has-clear { padding-right: var(--sp-10); }
   .search-clear {
-    position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
+    position: absolute; right: var(--sp-2); top: 50%; transform: translateY(-50%);
     width: 22px; height: 22px; border: none; background: transparent; border-radius: var(--rad-2);
     color: var(--muted); font-size: var(--fs-body); line-height: var(--lh-flat); cursor: pointer; padding: 0;
     display: flex; align-items: center; justify-content: center;
@@ -1119,7 +1119,7 @@
   .amount-cell:focus-within { border-bottom-color: transparent; cursor: text; }
   /* 铅笔批注: 绝对定位于左侧留白（padding-left 让金额统一右移 16px, 铅笔不占布局空间、不推挤文本, 窄列不溢出）;
      hover/键盘聚焦时淡入; 呼应 chips「虚线=待选→实心=已选」 */
-  .edit-pencil { position: absolute; left: 2px; top: 50%; width: 11px; height: 11px; transform: translateY(-50%) translateX(-3px); color: var(--secondary); opacity: 0; transition: opacity var(--mo-fast), transform var(--mo-fast); }
+  .edit-pencil { position: absolute; left: var(--sp-1); top: 50%; width: 11px; height: 11px; transform: translateY(-50%) translateX(-3px); color: var(--secondary); opacity: 0; transition: opacity var(--mo-fast), transform var(--mo-fast); }
   .amount-cell:hover .edit-pencil, .amount-cell:focus-visible .edit-pencil { opacity: 1; transform: translateY(-50%) translateX(0); }
   .inline-edit-input { width: 100%; padding: var(--sp-1) var(--sp-3); font-size: var(--fs-body); user-select: text; -webkit-user-select: text; }
   .asset-row:hover { background: var(--card-2); }
@@ -1134,7 +1134,7 @@
   }
   /* 统一提示便条: 全站唯一出口在右下角。#toast-area 竖排堆叠（新便条贴角、旧便条上移，
      容器以 bottom 锚定向上生长）；容器 pointer-events:none 穿透不挡角落点击，便条自身恢复 */
-  #toast-area { position: fixed; right: 24px; bottom: 24px; z-index: 200; display: flex; flex-direction: column; align-items: flex-end; gap: var(--sp-4); pointer-events: none; }
+  #toast-area { position: fixed; right: var(--sp-9); bottom: var(--sp-9); z-index: 200; display: flex; flex-direction: column; align-items: flex-end; gap: var(--sp-4); pointer-events: none; }
   .toast {
     position: static; max-width: min(360px, calc(100vw - 48px));
     padding: var(--sp-6) var(--sp-9); border-radius: var(--rad-4); font-size: var(--fs-body);
@@ -1171,7 +1171,7 @@
   .tab-bar { position: relative; display: flex; border-bottom: 1px solid var(--border); overflow-x: auto; scrollbar-width: none; }
   .tab-bar::-webkit-scrollbar { display: none; }
   /* 滚动容器会裁掉向外的焦点环（Tab 键走查时会看不到自己在哪）：环改画在按钮内侧 */
-  .tab-btn:focus-visible { outline-offset: -3px; }
+  .tab-btn:focus-visible { outline-offset: calc(var(--sp-1) * -1.5); }
   .tab-btn.active { color: var(--fg); }
   .tab-btn:hover { color: var(--fg); }
   /* 当前 Tab 的黄条是**唯一的**一个元素（不再是每个按钮自己的 border-bottom）：

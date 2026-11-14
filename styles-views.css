@@ -122,7 +122,7 @@
      （样式在、路不在，正是「以为做了键盘可达、其实没做」留下的化石）。
      焦点环用负 offset：行是整幅宽，正的会顶出卡片边缘。 */
   .row-hit { cursor: pointer; }
-  .row-hit:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
+  .row-hit:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: calc(var(--sp-1) * -1); }
   .chart-legend-row[data-top] .chart-legend-name { font-weight: var(--fw-strong); }
   /* 分布图总数（资产/消费旭日图共用）：旭日图只给各部分占比，卡片上方补一个合计。
      与扇区同源、随右上角筛选联动；字号沿用主读数档，颜色走 fg（不抢报头的主角）。 */
@@ -170,7 +170,7 @@
   .cov-track { position: relative; height: 9px; margin: 0 var(--sp-2); }
   .cov-track::before { content: ''; position: absolute; left: 0; right: 0; top: 50%; border-top: 1px dashed var(--border); }
   .cov-fill { position: absolute; left: 0; top: 50%; transform: translateY(-50%); width: 0; height: 3px; background: var(--verdigris); border-radius: var(--rad-1); transition: width var(--mo-mid) var(--mo-ease); }
-  .cov-tick { position: absolute; top: -2px; bottom: -2px; width: 1px; background: var(--tick); pointer-events: none; }
+  .cov-tick { position: absolute; top: calc(var(--sp-1) * -1); bottom: calc(var(--sp-1) * -1); width: 1px; background: var(--tick); pointer-events: none; }
   .cov-tick-end { left: 100%; transform: translateX(-1px); }
   .cov-marker {
     position: absolute; left: 0; top: 50%; width: 9px; height: 9px; border-radius: var(--rad-1);
@@ -284,7 +284,7 @@
   .mg-val { grid-column: 2; font-size: var(--fs-body); font-weight: var(--fw-strong); font-variant-numeric: tabular-nums; line-height: var(--lh-flat); }
   /* 悬停只加一根金线，不改底色：底色是这天的热力读数，不该被指针抹掉 */
   .mg-cell:not([disabled]):not(.is-selected):hover { box-shadow: inset 0 0 0 var(--ring-w-1) var(--accent-strong); }
-  .mg-cell:focus-visible { outline-offset: -2px; }
+  .mg-cell:focus-visible { outline-offset: calc(var(--sp-1) * -1); }
   /* 今天：一枚刻章 —— 金环套住墨色数字，不填整块。负外边距把环借给格子的留白，行高不因它变高。 */
   .mg-cell.is-today .mg-day {
     display: inline-grid; place-items: center;
@@ -297,7 +297,7 @@
   .mg-cell::before { content: ''; position: absolute; inset: 0; background: var(--mg-selected); opacity: 0; pointer-events: none; }
   .mg-cell.is-selected { box-shadow: inset 0 0 0 var(--ring-w-2) var(--accent-strong); }
   .mg-cell.is-selected::before { opacity: 1; }
-  .mg-cell.pressing { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .mg-cell.pressing { outline: 2px solid var(--accent); outline-offset: calc(var(--sp-1) * -1); }
   /* 窄屏 7 列每格只有 ~45px：日期与读数分两行（读数放同一行会撞左墙），读数改小一档 */
   @media (max-width: 640px) {
     .mg-weekdays, .mg-grid { --mg-pad: var(--sp-3); }
