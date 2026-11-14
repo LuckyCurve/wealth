@@ -283,6 +283,18 @@ describe('尺度系统：档位有上限，token 有定义', () => {
     assert.deepStrictEqual([...missing], [], `这些 token 被引用却没在 :root 定义：${[...missing].join(', ')}`);
   });
 
+  test('行高必须走 token（无单位数字就是漏网的口子）', () => {
+    // `line-height: 1.9` 没有 px/em/rem，天然绕过「字面量」判据；而它恰恰就是行高。
+    // 故行高单独一条：`:root` 之外一律必须是 var(--…)，不接裸数字。
+    const bad = declarations()
+      .filter((d) => d.prop === 'line-height' && !isRootDef(d))
+      .filter((d) => !/^var\(--[\w-]+\)(\s*!important)?$/.test(d.value))
+      .map((d) => `${d.file}:${d.line} [${d.selector.slice(0, 50)}] line-height: ${d.value}`);
+    assert.deepStrictEqual(bad, [], `行高必须引用 token（--lh-* / --cal-*）：\n  ${bad.join('\n  ')}`);
+    const uses = declarations().filter((d) => d.prop === 'line-height' && /^var\(--/.test(d.value)).length;
+    assert.ok(uses > 10, `只扫到 ${uses} 处行高（判据可能空跑）`);
+  });
+
   test('宽度断点不超过 3 种', () => {
     const widths = new Set();
     for (const file of CSS_FILES) {
