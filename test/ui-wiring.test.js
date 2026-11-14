@@ -3002,6 +3002,15 @@ describe('UI 接线契约：页面脚本必须能通过解析', () => {
   test('顶层声明去重检查本身有效（对重名样本报错）', () => {
     assert.throws(() => new Function('let a = 1;\nconst a = 2;'), SyntaxError);
   });
+
+  test('tailwind-config 必须先确认 CDN 在场（CDN 拉不到时不得抛 ReferenceError）', () => {
+    // 实测：网络慢/被墙时 `cdn.tailwindcss.com` 没到，`tailwind.config = {...}` 当场抛
+    // `ReferenceError: tailwind is not defined`。它不影响布局（自有 CSS 兼底），但会在控制台
+    // 报错，并让「页面脚本全程不抛错」那条 E2E 变成网络播报器（实测同一份代码时红时绿）。
+    const src = fs.readFileSync(path.join(__dirname, '..', 'tailwind-config.js'), 'utf8');
+    assert.match(src, /if\s*\(\s*(?:window\.)?tailwind\s*\)/, '必须先判 window.tailwind 存在再赋 config');
+    assert.match(src, /tailwind\.config\s*=/, '存在时仍要赋 config（不是把整段删掉）');
+  });
 });
 
 /*
