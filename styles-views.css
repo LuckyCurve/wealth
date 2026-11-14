@@ -29,7 +29,7 @@
   }
   /* 心跳点：全站唯一的常驻循环动画。它是「呼吸」，不是过渡，故用自己的周期
      （--mo-pulse），不进 fast/mid/slow 三档——循环动画与一次性过渡没有可比性。 */
-  .masthead-eyebrow .live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--verdigris); box-shadow: var(--ring-out); --ring-w: var(--ring-gap-3); --ring-c: var(--verdigris-glow); animation: livePulse var(--mo-pulse) ease-out infinite; }
+  .masthead-eyebrow .live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--verdigris); box-shadow: 0 0 0 var(--ring-w-3) var(--verdigris-glow); animation: livePulse var(--mo-pulse) ease-out infinite; }
   @keyframes livePulse { 0% { box-shadow: var(--sh-pulse-0); } 70% { box-shadow: var(--sh-pulse-70); } 100% { box-shadow: var(--sh-pulse-100); } }
   .masthead-amount {
     font-family: var(--font-numeric); font-weight: var(--fw-medium);
@@ -249,7 +249,7 @@
   .mg-hint { max-width: 820px; margin-inline: auto; text-align: center; }
   /* 图例：顺序色阶没有图例就不成立 —— 四枚墨点 + 「少 / 多」两个字，跟在 summary 后面 */
   .mg-legend { display: inline-flex; align-items: center; gap: var(--sp-1); margin-left: var(--sp-5); white-space: nowrap; }
-  .mg-sw { width: 11px; height: 11px; border-radius: var(--rad-1); box-shadow: var(--ring-in); --ring-w: var(--ring-gap-1); --ring-c: var(--mg-line); }
+  .mg-sw { width: 11px; height: 11px; border-radius: var(--rad-1); box-shadow: inset 0 0 0 var(--ring-w-1) var(--mg-line); }
   /* 上/下月是本卡的主操作：两根箭头紧挨着，贴在它们翻的那个月份旁边 */
   .mg-sub { display: flex; align-items: center; flex-wrap: wrap; gap: var(--sp-1) var(--sp-4); }
   .mg-nav { display: flex; gap: var(--sp-1); }
@@ -283,7 +283,7 @@
   .mg-cell[data-lv="4"]:not([data-lv="0"]) .mg-day { color: var(--mg-ink-4); }
   .mg-val { grid-column: 2; font-size: var(--fs-body); font-weight: var(--fw-strong); font-variant-numeric: tabular-nums; line-height: var(--lh-flat); }
   /* 悬停只加一根金线，不改底色：底色是这天的热力读数，不该被指针抹掉 */
-  .mg-cell:not([disabled]):not(.is-selected):hover { box-shadow: var(--ring-in); --ring-w: var(--ring-gap-1); }
+  .mg-cell:not([disabled]):not(.is-selected):hover { box-shadow: inset 0 0 0 var(--ring-w-1) var(--accent-strong); }
   .mg-cell:focus-visible { outline-offset: -2px; }
   /* 今天：一枚刻章 —— 金环套住墨色数字，不填整块。负外边距把环借给格子的留白，行高不因它变高。 */
   .mg-cell.is-today .mg-day {
@@ -295,7 +295,7 @@
      环走 --accent-strong（token 里的描边/盖印档）；不用 --accent：它对纸面只有 2.63:1。 */
   .mg-cell > span { position: relative; }
   .mg-cell::before { content: ''; position: absolute; inset: 0; background: var(--mg-selected); opacity: 0; pointer-events: none; }
-  .mg-cell.is-selected { box-shadow: var(--ring-in); }
+  .mg-cell.is-selected { box-shadow: inset 0 0 0 var(--ring-w-2) var(--accent-strong); }
   .mg-cell.is-selected::before { opacity: 1; }
   .mg-cell.pressing { outline: 2px solid var(--accent); outline-offset: -2px; }
   /* 窄屏 7 列每格只有 ~45px：日期与读数分两行（读数放同一行会撞左墙），读数改小一档 */

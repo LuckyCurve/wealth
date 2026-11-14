@@ -1656,3 +1656,110 @@ test.describe('节奏：时长出自同一套 token，图表动画也进系统',
     expect(info.sent.animationDuration, '不得沿用库默认 1000ms').not.toBe(1000);
   });
 });
+
+/*
+ * 环：宽度与颜色必须各自跟着角色走。
+ * --------------------------------------------------------------------------
+ * 回归（真实发生）：把环宽/环色做成一枚预组合的自定义属性
+ * （`--ring-in: inset 0 0 0 var(--ring-w, 2px) var(--ring-c, gold)`）之后，在子元素上设
+ * `--ring-w: 1px` **完全无效**——自定义属性里的 var() 在声明所在元素（:root）就已经
+ * 求值完毕，后代继承到的是替换后的值流。结果是：月份图的悬停环从 1px 涨到 2px、
+ * 图例墨点的发丝环变成 2px 金环、日期选择器的选中环从青蓝变金、已选 chip 的盖印边
+ * 从 1.5px 变 2px、输入框焦点环从淡金 3px 变实金 2px。而 875 条单测 + 309 条 E2E 全绿
+ * —— 没有任何一条量过这些环（单测只量 box-shadow 的字面量，E2E 只量了月份图选中环
+ * 「是金色 inset」，2px 金恰好通过）。
+ *
+ * 判据一律从页面自身求值：期望宽度读 `--ring-w-*`，期望颜色读对应角色的颜色变量，
+ * 不写死 px 与色值。这样换 token 不会假红，换实现会真红。
+ */
+test.describe('版式：环的宽度与颜色各归其位（预组合自定义属性会静默失效）', () => {
+  const ringOf = (page, pick, pseudo) =>
+    page.evaluate(([src, ps]) => {
+      const el = eval(src);
+      if (!el) return { missing: src };
+      const cs = getComputedStyle(el, ps || null);
+      const root = getComputedStyle(document.documentElement);
+      const v = (n) => root.getPropertyValue(n).trim();
+      const probe = (c) => { // 变量 → 计算色（hex/rgba 都可能）
+        const d = document.createElement('span');
+        d.style.color = c;
+        document.body.appendChild(d);
+        const out = getComputedStyle(d).color;
+        d.remove();
+        return out;
+      };
+      return {
+        shadow: cs.boxShadow,
+        // 期望宽度：页面自己声明的 token
+        widths: ['--ring-w-1', '--ring-w-2', '--ring-w-3', '--ring-w-chip'].map((n) => ({ n, v: v(n) })),
+      };
+    }, [pick, pseudo]);
+
+  test('五处环的宽度与颜色都等于各自角色的 token（不是同一枚 2px 金环）', async ({ appPage: page }) => {
+    await visitAllTabs(page);
+    await openExpenseTable(page);
+
+    const out = await page.evaluate(() => {
+      const root = getComputedStyle(document.documentElement);
+      const v = (n) => root.getPropertyValue(n).trim();
+      const color = (c) => {
+        const d = document.createElement('span');
+        d.style.color = c;
+        document.body.appendChild(d);
+        const r = getComputedStyle(d).color;
+        d.remove();
+        return r;
+      };
+      // 把需要的元素都造出来/找出来（不改存档，只加类名或临时节点，测完即弃）
+      const cells = [...document.querySelectorAll('.mg-cell')].filter((c) => !c.classList.contains('is-blank'));
+      if (cells[0]) cells[0].classList.add('is-selected');
+      const picker = document.createElement('div');
+      picker.className = 'flatpickr-day selected';
+      document.body.appendChild(picker);
+      const range = document.createElement('input');
+      range.type = 'range';
+      range.className = 'scale-input';
+      document.body.appendChild(range);
+      range.focus();
+
+      const read = (el, pseudo) => (el ? getComputedStyle(el, pseudo || null).boxShadow : '（缺失）');
+      const out = {
+        mgSw: read(document.querySelector('.mg-sw')),
+        mgSelected: read(cells[0]),
+        flatpickr: read(picker),
+        liveDot: read(document.querySelector('.masthead-eyebrow .live-dot')),
+        slider: read(range, '::-webkit-slider-thumb'),
+        want: {
+          w1: v('--ring-w-1'), w2: v('--ring-w-2'), w3: v('--ring-w-3'),
+          mgLine: color(v('--mg-line')),
+          accentStrong: color(v('--accent-strong')),
+          secondary: color(v('--secondary')),
+          verdigrisGlow: color(v('--verdigris-glow')),
+        },
+      };
+      picker.remove();
+      range.remove();
+      return out;
+    });
+
+    expect(Object.values(out.want).every(Boolean), '期望值读不到（token 缺了）').toBe(true);
+    const has = (shadow, w, c) => shadow.includes(w) && shadow.includes(c);
+    expect(has(out.mgSw, out.want.w1, out.want.mgLine),
+      `图例墨点的发丝环应是 ${out.want.w1} ${out.want.mgLine}，实际 ${out.mgSw}`).toBe(true);
+    expect(has(out.mgSelected, out.want.w2, out.want.accentStrong),
+      `选中环应是 ${out.want.w2} ${out.want.accentStrong}，实际 ${out.mgSelected}`).toBe(true);
+    expect(has(out.flatpickr, out.want.w2, out.want.secondary),
+      `日期选择器选中环应是青蓝 ${out.want.w2} ${out.want.secondary}，实际 ${out.flatpickr}`).toBe(true);
+    expect(has(out.liveDot, out.want.w3, out.want.verdigrisGlow),
+      `心跳点应是 ${out.want.w3} ${out.want.verdigrisGlow}，实际 ${out.liveDot}`).toBe(true);
+
+    // 悬停环：必须真的是 1px（这个是当初被压成 2px 的那一处）。
+    // 用真实指针悬停后读计算值——读源码文本只能证明写了 var()，证明不了它生效。
+    const w1 = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--ring-w-1').trim());
+    const target = page.locator('.mg-cell:not(.is-blank):not(.is-selected)').first();
+    await target.hover();
+    const hovered = await target.evaluate((el) => getComputedStyle(el).boxShadow);
+    expect(hovered, `月份图悬停环应是 ${w1}（实得 ${hovered}）`).toContain(w1);
+    expect(hovered, `悬停环被压成了选中那一档（实得 ${hovered} vs ${out.mgSelected}）`).not.toBe(out.mgSelected);
+  });
+});
