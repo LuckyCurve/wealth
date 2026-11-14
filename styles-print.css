@@ -62,7 +62,7 @@
        收起态那一行保留为合计读数，剥掉控件外观（虚线框、指针、箭头）。
        注意是 #expense-table 自身的内联 display:none，必须 !important 才压得住。 */
     #expense-table { display: block !important; }
-    .table-toggle { border: 0 !important; padding: 0 0 10px !important; margin-bottom: 10px !important; }
+    .table-toggle { border: 0 !important; padding: 0 0 var(--sp-5) !important; margin-bottom: var(--sp-5) !important; }
     /* 操作列不印了，列模板同步收掉那一列——否则标签落在给按钮空出来的列前，
        右侧整条留白（与页头堆叠同类：屏幕的列模板直接套到纸上）。
        资产宽表去掉拖拽列与操作列；消费表去掉操作列，把宽度让给备注与标签。 */
@@ -71,7 +71,7 @@
        撑出纸外、右侧被裁掉。所有弹性列一律 minmax(0, …)，让它们真能收窄。 */
     .asset-row.grid-wide {
       grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.05fr) 48px minmax(0, 1.05fr) minmax(0, 1.25fr) minmax(0, 2.2fr);
-      column-gap: 12px !important;
+      column-gap: var(--sp-6) !important;
     }
     /* 表头里给拖拽把手/操作列占位的空 div 也要撤——它们不显示，却仍占一格，
        会把「标签」挤到第二行、后面所有列错位。 */
