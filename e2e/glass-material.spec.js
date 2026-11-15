@@ -65,6 +65,12 @@ const setDark = async (page) => {
   await page.locator('#theme-seg-dark').click();
   await page.keyboard.press('Escape');
   await expect(page.locator('html')).toHaveClass(/dark/);
+  // 弹窗的退场是过渡（顶层元素靠 overlay/display 的 allow-discrete 把遮罩留到动画结束）：
+  // 遮罩还在的那几帧里采样，会量到一层均匀压暗（卡片自己的受光就变平）——等到 display 真变 none 再量。
+  await expect
+    .poll(async () => page.evaluate(() =>
+      [...document.querySelectorAll('dialog.modal-overlay')].some((d) => getComputedStyle(d).display !== 'none')))
+    .toBe(false);
 };
 
 test.describe('卡片材质：液态玻璃的可测特征', () => {
@@ -211,19 +217,21 @@ test.describe('卡片材质：液态玻璃的可测特征', () => {
     // 遮罩是弹窗与整个账本材质语言的衔接处：原先写死 rgba(13,11,8,0.5)
     //（主题巡检清理清单里长期挂着一行），现走变量、亮暗各自成套；
     // 磨砂半径 4px 时背后标题与数字仍隐约可辨，会抢弹窗正文的注意力。
+    // 遮罩是 dialog 的 ::backdrop（磨砂留在 dialog 自己身上会连正文一起糊掉）。
     // 正文底必须不透明：半透明会把表单文字压在糊开的深色上，可读性先垮。
     await open(page);
+    await page.evaluate(() => openModal('expense-modal'));
     const m = await page.evaluate(() => {
-      const cs = getComputedStyle(document.querySelector('.modal-overlay'));
-      const content = getComputedStyle(document.querySelector('.modal-content'));
-      const blur = ((cs.backdropFilter || cs.webkitBackdropFilter || '').match(/blur\(([\d.]+)px\)/) || [])[1];
+      const d = document.querySelector('dialog.modal-overlay[open]');
+      const bd = getComputedStyle(d, '::backdrop');
+      const blur = ((bd.backdropFilter || bd.webkitBackdropFilter || '').match(/blur\(([\d.]+)px\)/) || [])[1];
       const probe = document.createElement('span');
       document.body.appendChild(probe);
       probe.style.color = getComputedStyle(document.documentElement).getPropertyValue('--scrim').trim();
       const scrimVar = getComputedStyle(probe).color;
       probe.remove();
-      const parts = (content.backgroundColor.match(/[\d.]+/g) || []).map(Number);
-      return { blur: blur ? parseFloat(blur) : 0, scrim: cs.backgroundColor, scrimVar, contentAlpha: parts[3] ?? 1 };
+      const parts = (getComputedStyle(d).backgroundColor.match(/[\d.]+/g) || []).map(Number);
+      return { blur: blur ? parseFloat(blur) : 0, scrim: bd.backgroundColor, scrimVar, contentAlpha: parts[3] ?? 1 };
     });
     expect(m.blur, `遮罩磨砂只有 ${m.blur}px：背后的纸面会直接透出来`).toBeGreaterThanOrEqual(8);
     expect(m.scrimVar, '--scrim 必须在 :root 定义（遮罩颜色单一来源）').toBeTruthy();
@@ -254,7 +262,7 @@ test.describe('弹窗：纸的纤维与深度', () => {
     await openModal(page);
 
     const probe = await page.evaluate(() => {
-      const cs = getComputedStyle(document.querySelector('.modal-content'));
+      const cs = getComputedStyle(document.querySelector('.modal-overlay[open]'));
       const probeEl = document.createElement('span');
       document.body.appendChild(probeEl);
       const out = {};
@@ -270,7 +278,7 @@ test.describe('弹窗：纸的纤维与深度', () => {
     const shadows = {};
     for (const dark of [false, true]) {
       await page.evaluate((d) => setTheme(d), dark);
-      shadows[dark ? 'dark' : 'light'] = await page.evaluate(() => getComputedStyle(document.querySelector('.modal-content')).boxShadow);
+      shadows[dark ? 'dark' : 'light'] = await page.evaluate(() => getComputedStyle(document.querySelector('.modal-overlay[open]')).boxShadow);
     }
     expect(shadows.light, '亮色弹窗阴影取不到').toBeTruthy();
     expect(shadows.dark, '暗色弹窗阴影取不到').toBeTruthy();
@@ -285,8 +293,8 @@ test.describe('弹窗：纸的纤维与深度', () => {
     await openModal(page);
 
     const info = await page.evaluate(() => {
-      const cs = getComputedStyle(document.querySelector('.modal-content'), '::before');
-      const padding = parseFloat(getComputedStyle(document.querySelector('.modal-content')).paddingLeft) || 0;
+      const cs = getComputedStyle(document.querySelector('.modal-overlay[open]'), '::before');
+      const padding = parseFloat(getComputedStyle(document.querySelector('.modal-overlay[open]')).paddingLeft) || 0;
       return {
         beforeContent: cs.content,
         maskImage: cs.maskImage || cs.webkitMaskImage,

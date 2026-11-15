@@ -200,6 +200,8 @@ function yieldAttachPickers() {
       disableMobile: true,
       animate: true,
       weekNumbers: false,
+      // 日历要挂进这层弹窗（见 app-assets.js 的 pickerInDialog）
+      ...pickerInDialog('yield-modal'),
       onChange: function (selectedDates, dateStr) {
         el.value = dateStr;
         yieldUpdate(Number(el.dataset.row), 'date', dateStr);

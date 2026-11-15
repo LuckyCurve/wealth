@@ -356,13 +356,9 @@
   /* ===== 系统层：浏览器/系统画的那一圈 =====
      画布之外才是「像 App 还是像网页」的分界线：点击高亮的灰块、默认黑插入符、系统灰的
      placeholder、纯黑的原生控件强调色——它们不跟主题，在暖色纸面上格外显眼。 */
-  /* 滚动条槽位**永远**预留：锁定背景滚动时经典滚动条会消失，内容整块右移几像素
-     （最容易被当成「弹窗一开页面跳一下」）。用 gutter 而不是「锁定时加 padding」——
-     后者要量滚动条宽度、还要在解锁时原样撤回，两处对不上就又跳一次。 */
+  /* 滚动条槽位**永远**预留：弹窗开关不得给页面带来横向位移（原生弹窗不锁背景滚动，
+     但页面自身内容长到出现滚动条时，宽度也不该因为一次开关而跳）。 */
   html { scrollbar-gutter: stable; }
-  /* 弹窗开着时背景不可滚（真正的锁在 JS：按「还有几层开着」派生，见 syncScrollLock）。
-     这里只声明锁住时的形态，条件类名由那一处写。 */
-  html.modal-open, html.modal-open body { overflow: hidden; }
   body { background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: var(--fs-body); font-weight: var(--fw-medium); font-feature-settings: 'tnum' 1; padding-bottom: env(safe-area-inset-bottom, 0); text-autospace: normal; }
   [hidden] { display: none !important; }
   /* ===== 纸纹与桌光：这个产品的隐喻是「一张摊在桌面上、被灯照着的账页」=====
@@ -800,42 +796,76 @@
   .search-clear:hover { color: var(--secondary); background: var(--card-2); }
   /* 搜索命中: 金笔划线, 如账本上以金笔勾过的字样, 不覆盖字形 */
   mark.search-hit { background: linear-gradient(transparent 58%, var(--accent-soft) 58%); color: inherit; padding: 0; }
-  /* 弹窗遮罩 = 压暗 + 磨砂：背后的账页退到「隔着磨砂玻璃」的深处，弹窗才浮得起来。
-     颜色走 --scrim（原先写死：主题巡检的清理清单里长期挂着一行，亮暗同步全靠手动）。
-     磨砂半径从 4px 提到 8px——4px 时背后的标题与数字仍隐约可辨，会抢弹窗正文的注意力。 */
+  /* 弹窗 = 一张原生 <dialog>：纸就是这层 dialog，压暗磨砂的遮罩是它的 ::backdrop。
+     顶层叠放、背景 inert、Tab 关在里面、Esc 与返回手势、关闭后焦点还给打开它的控件
+     都由平台给（见 app-assets.js 的 openModal）——这里只管「一张什么样的纸」。
+     UA 给 dialog 的盒（absolute + fit-content + margin:auto + 1em 内边距 + canvas 底 + 边框）
+     要整组改写成「居中、按内容收缩、自己可滚」。 */
   .modal-overlay {
-    position: fixed; inset: 0; background: var(--scrim);
-    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); z-index: 100; display: flex;
-    align-items: center; justify-content: center;
-    /* 遮罩自己不是滚动容器：滚轮/触摸到这里不得链到背后的账页。
-       配合 html.modal-open 的 overflow:hidden 双保险——纯 overflow:hidden 在
-       部分浏览器的触屏拖拽下仍会让 body 跟着动（滚到头的链式滚动）。 */
-    overscroll-behavior: contain;
-    animation: fadeIn var(--mo-mid) var(--mo-ease);
-  }
-  .modal-content {
-    background: var(--card); border-radius: var(--rad-4); padding: var(--sp-10);
-    max-width: 560px; width: 90%; max-height: 85dvh; overflow-y: auto;
+    position: fixed; inset: 0; margin: auto;
+    width: 90%; max-width: 560px; max-height: 85dvh;
+    padding: var(--sp-10); border: 1px solid var(--border); border-radius: var(--rad-4);
+    background: var(--card); color: var(--fg); box-shadow: var(--elev-3);
     /* 弹窗正文是**自己的**滚动上下文，滚到头的滚轮/触摸不得冒泡给页面（否则在弹窗里
        滚到底，背后的账页会接着滚——这正是「背景冻住」最容易被漏掉的一条路径） */
-    overscroll-behavior: contain;
-    box-shadow: var(--elev-3); animation: slideUp var(--mo-mid) var(--mo-ease);
-    border: 1px solid var(--border);
-    /* 弹窗是这页上最大的一块纸，却一直是不透明平涂（纸纹只铺在桌面与页头）。
-       这里把同一张纤维髹回**内边距带**，让它重新「是一张纸」。
-       为什么必须用 mask 收到内边距带：纤维会改变局部底色，而 AA 巡检按平底色算
-       文字对比度——纤维爬到正文底下，那块字会被巡检静默跳过（页头曾这么漏检）。 */
-    position: relative;
+    overflow-y: auto; overscroll-behavior: contain;
+    /* 出场（base 状态）：淡掉。入场由 [open] 的 @starting-style 反着来。 */
+    opacity: 0;
+    transition-property: opacity, transform, display, overlay;
+    transition-duration: var(--mo-mid);
+    transition-timing-function: var(--mo-ease);
+    /* 必须**单独一行**：塞进 transition 简写会让不认识它的浏览器丢掉整条声明 */
+    transition-behavior: allow-discrete;
   }
-  .modal-content::before {
+  .modal-overlay[open] {
+    opacity: 1;
+    /* 指南：@starting-style 只用于入场，出场是 base 状态那条过渡 */
+    @starting-style { opacity: 0; }
+  }
+  /* 位移只给没要求减动效的人：reduce 下只剩一次短淡出（不推、不缩放） */
+  @media (prefers-reduced-motion: no-preference) {
+    .modal-overlay { transform: translateY(20px); }
+    .modal-overlay[open] { transform: none; @starting-style { transform: translateY(20px); } }
+  }
+  /* 遮罩 = 压暗 + 磨砂：背后的账页退到「隔着磨砂玻璃」的深处，弹窗才浮得起来。
+     颜色走 --scrim（写死色值会被主题巡检抓住：亮暗两套同步全靠人看，必漏）。
+     blur 必须搬到 ::backdrop：留在 dialog 上会连弹窗自己一起糊掉。 */
+  .modal-overlay::backdrop {
+    background: var(--scrim);
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    opacity: 0;
+    transition-property: opacity, display, overlay;
+    transition-duration: var(--mo-mid);
+    transition-timing-function: var(--mo-ease);
+    transition-behavior: allow-discrete;
+  }
+  .modal-overlay[open]::backdrop {
+    opacity: 1;
+    @starting-style { opacity: 0; }
+  }
+  /* 指南的两条强制项：弹窗与遮罩都不把滚动链给背后的账页。
+     ::backdrop 默认不是滚动容器，所以它那一条 overflow 不能省（否则 overscroll 白写）。 */
+  dialog:modal { overscroll-behavior: contain; }
+  dialog::backdrop { overflow: hidden; overscroll-behavior: contain; }
+  /* 弹窗是这页上最大的一块纸，却一直是不透明平涂（纸纹只铺在桌面与页头）。
+     这里把同一张纤维髹回**内边距带**，让它重新「是一张纸」。
+     为什么必须用 mask 收到内边距带：纤维会改变局部底色，而 AA 巡检按平底色算
+     文字对比度——纤维爬到正文底下，那块字会被巡检静默跳过（页头曾这么漏检）。 */
+  .modal-overlay::before {
     content: ''; position: absolute; inset: 0; z-index: 0; pointer-events: none;
     border-radius: inherit; background-image: var(--grain); opacity: 0.5;
     -webkit-mask-image: radial-gradient(120% 120% at 50% 50%, transparent 0 62%, #000 88%);
     mask-image: radial-gradient(120% 120% at 50% 50%, transparent 0 62%, #000 88%);
   }
-  .modal-content > * { position: relative; z-index: 1; }
+  /* 弹窗正文的每一层都要压在纸纹之上；两个「浮层」是例外——气泡与日历自带定位，
+     被这条改成 relative 会退回文档流（实测：气泡挂进弹窗后把弹窗撑出滚动条、弹窗当场跳位）。 */
+  .modal-overlay > *:not(.tip-bubble):not(.flatpickr-calendar) { position: relative; z-index: 1; }
+  /* 日历是库自己挂进来的绝对定位层（见 app-assets.js 的 pickerInDialog）：改成 fixed 有两个理由——
+     ① 弹窗是 fixed，绝对定位会以它为基准、把文档坐标算错；
+     ② 弹窗自己 overflow-y:auto，绝对定位的日历会被弹窗裁掉。 */
+  .modal-overlay > .flatpickr-calendar { position: fixed; }
   /* 弹窗宽度四档（默认 560px）: 尺寸语汇收在这里, 弹窗结构里不再逐个内联 max-width。
-     **必须定义在 .modal-content 之后**：两边的特异性都是单类，同特异性下后写者胜——
+     **必须定义在 .modal-overlay 之后**：两边的特异性都是单类，同特异性下后写者胜——
      写在前面的时候四档全部阵亡、所有弹窗恒为 560px（实测 17 个弹窗无一例外）。
      consistency.spec 里有一条量实际宽度的巡检把守「档位真的生效」。 */
   .modal-sm { max-width: 400px; }
@@ -863,7 +893,6 @@
     padding: var(--sp-7) var(--sp-7); margin: 0 0 var(--sp-8); line-height: var(--lh-body); letter-spacing: var(--ls-normal); text-align: center;
   }
   .gate-error { font-size: var(--fs-body); color: var(--down); margin: var(--sp-4) 0 0; }
-  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
   @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
   /* ===== 开屏：落纸 =====
      不做遮挡数据的 splash——这个应用的全部价值就是首屏那几个数字，遮住它等于扣分。
@@ -904,9 +933,9 @@
      fixed 一次解决这两类；坐标由 JS 调 logic.js ui.tipBubblePos 写入（--tip-x/--tip-y），
      故这里不写 left/top（写了会与内联变量打架）。 */
   .tip-bubble {
-    /* z-index 必须高于弹窗（.modal-overlay 是 100）与遮罩：气泡要能从弹窗正文里
-       探到弹窗之外（它现在是 fixed 挂在 body 下），层级不够就会被遮罩压住。
-       仍低于便条（200）——便条是全局知会，应当永远压在最上层。 */
+    /* top layer 不再吃 z-index：弹窗开着时气泡必须自己也在那层里才看得见，
+       所以 placeTipBubble 把它挂进 dialog（见 app-ui.js 的 tipBubbleHost）；
+       这里的 z-index 只负责在**弹窗内部**压住其余内容。仍低于便条（200）。 */
     position: fixed; inset: var(--tip-y, 0) auto auto var(--tip-x, 0); z-index: 150; width: max-content; max-width: 250px;
     padding: var(--sp-4) var(--sp-5); border-radius: var(--rad-3); background: var(--card-2); border: 1px solid var(--border);
     box-shadow: var(--elev-2); color: var(--fg); font-size: var(--fs-body); font-weight: var(--fw-medium);
@@ -914,11 +943,11 @@
     opacity: 0; visibility: hidden; pointer-events: none; transition: opacity var(--mo-fast) var(--mo-ease), visibility var(--mo-fast);
   }
   /* 显示条件：**已定位**（.placed 由 placeTipBubble 在 hover/focus 时加上）。
-     为什么不再用 `.tip:hover .tip-bubble`：气泡展示时要搬到 body 下（见 placeTipBubble 注释），
+     为什么不再用 `.tip:hover .tip-bubble`：气泡展示时要搬出家（见 placeTipBubble 注释），
      那时它已不是 .tip 的子孙，这条选择器自然失效。收起时 unplaceTipBubble 会摘掉 .placed
      并把它搬回原处，所以两条状态不会同时成立。 */
   .tip-bubble.placed { opacity: 0.96; visibility: visible; }
-  @media (prefers-reduced-motion: reduce) { .tip-mark, .tip-bubble { transition: none; } .tab-indicator { transition: none; } [id^="tab-"].enter { animation: none; } .modal-overlay, .modal-content { animation: none; } .toast { animation: none; transition: none; } }
+  @media (prefers-reduced-motion: reduce) { .tip-mark, .tip-bubble { transition: none; } .tab-indicator { transition: none; } [id^="tab-"].enter { animation: none; } .toast { animation: none; transition: none; } .modal-overlay, .modal-overlay::backdrop { transition-duration: var(--mo-fast); } }
   .tag-pill {
     display: inline-flex; align-items: center; gap: var(--sp-1);
     padding: var(--sp-2) var(--sp-4) var(--sp-2) var(--sp-3); border-radius: var(--rad-2); font-size: var(--fs-micro);
@@ -1224,7 +1253,7 @@
      与上下两行的右对齐控件对不上，整页就显得「潦草」）。
      flex: 0 0 auto 不让控件被压窄：一压窄，段控件的文字就折行，按钮变成两个字的竖柱。 */
   .setting-row > .seg-control, .setting-row > .setting-actions { margin-left: auto; flex: 0 1 auto; max-width: 100%; }
-  .modal-content hr { margin: var(--sp-8) 0; }
+  .modal-overlay hr { margin: var(--sp-8) 0; }
   /* min-width: 0 是「控件优先」的另一半：不给 0 时信息列的 flex-basis 会把控件挤到下一行，
      而 description 本来就该 wrap，它没有「最小可读宽度」这回事 */
   .setting-info { flex: 1 1 260px; min-width: 0; }

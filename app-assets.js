@@ -772,11 +772,11 @@ function cmpMiniBar(d, maxAbs, colorFn) {
   return `<span class="cmp-mini-track"><span class="cmp-mini cmp-mini-${m.side}" style="width:${m.width}%;background:${colorFn(d)};"></span><span class="cmp-bar-axis"></span></span>`;
 }
 
-// 弹窗打开的统一入口（与 closeModal 成对）
-// ========== 弹窗焦点管理 ==========
-// ARIA 只兑现一半：焦点进弹窗、Tab 不出去、关闭还给触发元素。判据在 logic.js ui.trapFocus。
-
-// 弹窗内可聚焦元素：打开时取第一个、Tab 陷阱取全集，两处共用一份（不许各写一遍选择器）。
+// ========== 弹窗：原生 <dialog> 的开关与收尾 ==========
+// 平台给：顶层叠放、背景 inert、Tab 关在弹窗里、Esc 与返回手势、关闭后把焦点还给打开它的控件。
+// 页面给：打开时焦点落在哪个框（data-autofocus / 跳过日期框，见 openModal）、
+// 关闭后的收尾（台灯重判、便条容器回家）、以及「撤销式关闭」要跑的取消语义（见 onModalDismiss）。
+// 弹窗内可聚焦元素：只为了「打开时把焦点放到第一个该填的框」。
 // 为什么过滤 offsetParent：被 CSS 隐藏/折叠的控件仍在 DOM 里，focus() 上去等于把焦点丢出弹窗。
 function modalFocusables(modal) {
   if (!modal) return [];
@@ -784,57 +784,30 @@ function modalFocusables(modal) {
   return [...modal.querySelectorAll(sel)].filter(el => el.offsetParent !== null || el === document.activeElement);
 }
 
-// 记住「谁打开的弹窗」，关闭时把焦点还回去。用栈而非单值：确认框会叠在别的弹窗之上
-// （如删除资产 → 确认框），单值会被后者覆盖，关掉确认框后焦点就回不到原处了。
-let __modalReturnFocus = [];
-
-// 「最上层弹窗」的唯一判据。15 个遮罩的 z-index 全一样，谁在上面本来只由 DOM 次序决定——
-// 而确认框在 DOM 里排在好几个弹窗**之前**，于是它叠到它们上面时会被整个盖住（点击穿透到下层、
-// ESC 关掉的是下层）。故打开时把该弹窗挪到 body 末尾，DOM 次序与打开次序一致；
-// ESC / Tab 陷阱 / 命中测试都读这一处，不再各自 sort。
+// 「最上层弹窗」的唯一判据：顶层（top layer）的叠放次序就是 showModal() 的次序，
+// 与 DOM 次序无关——故打开次序自己记，它就是「还有几层开着」的唯一真相。
+const OPEN_MODALS = [];
 function openModalStack() {
-  return [...document.querySelectorAll('.modal-overlay')].filter(m => m.style.display !== 'none');
+  return OPEN_MODALS.filter((m) => m.open);
 }
 function topModal() {
   const open = openModalStack();
   return open[open.length - 1] || null;
 }
 
-// 「这一层属于当前界面」的判据是它在文档流里的位置，不是元素清单：开着的弹窗 + 挂在 body 下自己定位的临时层
-// （便条、日历、? 气泡）保持可交互，其余一律 inert——按清单写会漏掉日历那类库自己挂上去的东西。
-function isActiveLayer(el) {
-  if (el.classList && el.classList.contains('modal-overlay')) return el.style.display !== 'none';
-  const pos = getComputedStyle(el).position;
-  return pos === 'fixed' || pos === 'absolute';
-}
-
-// 背景冻结（滚动 + 交互）：**从「还有几层开着」派生**，不是开的时候 set、关的时候再 set 回去。
-// 为什么不能成对 set/unset：弹窗会叠（确认框压在分类弹窗上），关掉上层时下层还开着——
-// 成对的写法在这一步就把锁解了，背后的账页在「一个弹窗还开着」的状态下重新可滚。
-// 同步点只有两个（openModal / closeModal），判断只有一处。
-function syncScrollLock() {
-  const open = openModalStack();
-  document.documentElement.classList.toggle('modal-open', open.length > 0);
-  // 背景整块 inert：`aria-modal="true"` 是对读屏器的承诺（背后的内容不可达），
-  // 而遮罩只挡指针、焦点陷阱只挡 Tab——读屏器的虚拟光标与焦点仍然进得去，承诺就成了半句。
-  // inert 是声明式的：一条规则覆盖指针/焦点/无障碍树三个入口，不必给每个背景元素各写一遍。
-  // 每次全量重算（不增量维护），因为「哪些还在开着」本身就是唯一真相。
-  [...document.body.children].forEach(el => {
-    el.inert = open.length > 0 && !isActiveLayer(el);
-  });
-  syncLamp();
-}
-
 function openModal(id) {
   const modal = document.getElementById(id);
-  // 打开前先记下当前焦点（就是那个触发按钮），关闭时还回去。
-  // 已经开着就别再入栈：入了就成了「两层」，而关的时候只出一次——栈越积越深，
-  // 之后关别的弹窗弹出的都成了过期的那一格，返回焦点整个错位。
-  if (modal.style.display === 'none') __modalReturnFocus.push(document.activeElement);
-  document.body.appendChild(modal);
-  modal.style.display = '';
-  syncScrollLock();
-  // 焦点必须搬进弹窗：留在背后的话读屏器还在读背景内容，aria-modal 就是句空话。
+  // 已经开着就只再放一次焦点，不入第二次次序表：重复入表会让「最上层」指错。
+  if (!modal.open) {
+    OPEN_MODALS.push(modal);
+    // showModal() 自带一次初始聚焦：它落在「树序最前的可聚焦元素」上。每个弹窗的标题都带了
+    // tabindex="-1"，于是那一次落在标题（顶部）——不滚动、也不碰日期框的「聚焦即展开」。
+    // 真正的落点由下面那段决定。
+    modal.showModal();
+    __modalOpenedAt = performance.now();
+  }
+  syncModalLayer();
+  // 焦点必须搬进弹窗：留在背后的话读屏器还在读背景内容。
   // 优先落在第一个表单控件上——弹窗多半是「填个表」（焦点直接放到可输入处最省一步）；
   // 没有表单控件时退到第一个可聚焦元素（如设置弹窗的分段按钮）。
   const list = modalFocusables(modal);
@@ -852,10 +825,92 @@ function openModal(id) {
   const preferred = modal.querySelector('[data-autofocus]');
   const firstField = list.find(el => el.matches('input, select, textarea') && isAutoFocusable(el));
   const target = preferred || firstField || list.find(isAutoFocusable) || list[0];
-  // preventScroll 是必需的：正文自带 overflow-y:auto，焦点落到最底部的「关闭」会把长表滚到最后一行。
+  // preventScroll 是必需的：弹窗正文自带 overflow-y:auto，焦点落到最底部的「关闭」会把长表滚到最后一行。
   if (target) target.focus({ preventScroll: true });
 }
 
+// 日期选择器的日历是库自己挂到 body 下的绝对定位层。原生弹窗把 body 的其余部分挡在模态之外
+// （实测：连顶层里的 popover 也点不到、渲染在遮罩之下），所以日历必须挂进当前这层 dialog。
+// 代价是它的定位基准从文档原点变成了视口原点（dialog 是 fixed）：库写的是文档坐标，
+// 要减掉当前滚动量（弹窗开着时页面不会滚，减一次就够）。库每次重定位前都发
+// onPreCalendarPosition，在那里排一帧修正——打开与窗口缩放两条路都盖到。
+function pickerInDialog(modalId) {
+  const fix = (inst) => {
+    const c = inst && inst.calendarContainer;
+    if (!c || !c.style.top) return;
+    c.style.top = parseFloat(c.style.top) - window.pageYOffset + 'px';
+    if (c.style.left) c.style.left = parseFloat(c.style.left) - window.pageXOffset + 'px';
+  };
+  return {
+    appendTo: document.getElementById(modalId),
+    onPreCalendarPosition: (dates, str, inst) => requestAnimationFrame(() => fix(inst)),
+  };
+}
+
+function closeModal(id) {
+  const modal = document.getElementById(id);
+  // 关一个本来就关着的：不重复跑收尾（close 事件不会发，清了叠层次序表就错位）
+  if (!modal || !modal.open) return;
+  modal.close();
+}
+
+// 每一层关闭后都走这里（包括平台自己关的 Esc / 点遮罩空白），故只有一个同步点。
+// 便条容器必须跟着顶层走：留在 body 下会被遮罩压住——弹窗里校验失败的提示会变成
+// 「隔着磨砂的一行字」（实测：原生弹窗把其余一切挡在它下面，连顶层里的 popover 也点不到）。
+function syncModalLayer() {
+  if (!openModalStack().length) OPEN_MODALS.length = 0; // 全关了就不留过期引用
+  const area = document.getElementById('toast-area');
+  const host = topModal() || document.body;
+  if (area && area.parentElement !== host) host.appendChild(area);
+  syncLamp();
+}
+
+// 「这次按下的手势是不是打开弹窗的那一次」：用按下时刻比弹窗打开时刻，不用时间窗口。
+// 指针抬起前的收尾（click / 点遮罩）于是不会被当成「用户要关它」——不管按了多久。
+// 平台的顺序是 pointerdown → cancel → pointerup，故 cancel 到达时这次按下还在（没被清掉）。
+let __modalOpenedAt = 0;
+let __pressAt = null;
+document.addEventListener('pointerdown', () => { __pressAt = performance.now(); }, true);
+document.addEventListener('pointerup', () => { __pressAt = null; }, true);
+document.addEventListener('pointercancel', () => { __pressAt = null; }, true);
+
+// 撤销式关闭的唯一出口。cancel = 平台在关之前先问一句（Esc / 点遮罩空白 / 手机返回手势都走这条），
+// 我们在这里接上本项目的「取消」语义；preventDefault 后再显式关闭，让「关」只有一条路。
+function onModalDismiss(e) {
+  e.preventDefault();
+  // 自动弹窗守卫窗内的关窗是长按抬手的余波（pointerup 变成 click 打在遮罩上），不算用户要关
+  if (__autoOpenedAt !== null && !ui.autoOpenGuard(performance.now() - __autoOpenedAt)) return;
+  // 弹窗是在**这次按下期间**冒出来的：抬手指的那一下不是「点了遮罩」（用户可能还在按着）
+  if (__pressAt !== null && __pressAt <= __modalOpenedAt) return;
+  const id = e.target.id;
+  if (id === 'confirm-modal') confirmCancel(); // 统一走 confirmCancel：关闭 + 清空 _confirmCallback
+  else if (id === 'asset-gate-modal') cancelAssetGate(); // 点遮罩 = 放弃本次（与 Esc 同一条出口）
+  else if (id === 'pass-modal') cancelPassImport();
+  else closeModal(id);
+}
+
+// closedby 在 Safari 缺失（属渐进增强，不 polyfill）：那里只丢「点遮罩空白」这一条。
+// 指南给的兜底：按下与抬起都必须在盒子外——从弹窗里按下、拖到外面松手不算点了遮罩。
+// 判据看坐标而不是 event.target：dialog 自己的内边距与子元素间隙也是它自己的 target。
+if (!('closedBy' in HTMLDialogElement.prototype)) {
+  const outside = (e, d) => {
+    const r = d.getBoundingClientRect();
+    return e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom;
+  };
+  document.querySelectorAll('dialog[closedby="any"]').forEach((d) => {
+    let pressedOutside = false;
+    d.addEventListener('pointerdown', (e) => { pressedOutside = outside(e, d); });
+    d.addEventListener('pointerup', (e) => {
+      if (pressedOutside && outside(e, d)) onModalDismiss({ target: d, preventDefault() {} });
+    });
+  });
+}
+
+// cancel / close 都不冒泡：加载期给每个弹窗各挂一次（弹窗是静态骨架，不会后加）。
+document.querySelectorAll('dialog.modal-overlay').forEach((d) => {
+  d.addEventListener('cancel', onModalDismiss);
+  d.addEventListener('close', syncModalLayer);
+});
 
 // ========== SHARED HELPERS ==========
 // 旭日图 tooltip 内容单一来源（三图共用）：名称与标签路径来自用户输入，必须 text.esc（renderMode 是 html）。

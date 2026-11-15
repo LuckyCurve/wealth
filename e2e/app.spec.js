@@ -282,8 +282,9 @@ test.describe('模式与 Tab 导航', () => {
     await toggle.hover();
     const bubble = page.locator('#asset-gate-lang-tip');
     await expect(bubble).toBeVisible();
-    // 展开中气泡挂在 body 下（不在 .tip 里）：这是「重挂」这条路径的前提
-    expect(await page.evaluate(() => document.getElementById('asset-gate-lang-tip').parentElement.tagName)).toBe('BODY');
+    // 展开中气泡已搬家（不在 .tip 里）：这是「重挂」这条路径的前提。
+    // 落点是**当前那层 dialog**——原生弹窗把其余一切挡在它下面（挂 body 下会整块看不见）。
+    expect(await page.evaluate(() => document.getElementById('asset-gate-lang-tip').parentElement.id)).toBe('asset-gate-modal');
     const measure = () => bubble.evaluate(el => ({
       w: el.getBoundingClientRect().width,
       x: parseFloat(getComputedStyle(el).getPropertyValue('--tip-x')),
@@ -2187,11 +2188,12 @@ test.describe('行级可点元素：指针与键盘两条路都要给', () => {
   });
 });
 
-test.describe('弹窗焦点管理（aria-modal 的兑现）', () => {
-  // 15 个弹窗都写了 role="dialog" aria-modal="true"——那是对读屏器的承诺：弹窗背后的
-  // 内容不可达。实测却完全没接管焦点：打开后焦点还在背后的触发按钮上、第一下 Tab 就走出
-  // 弹窗、关闭后掉到 body。写对了 ARIA 不等于做了行为，这里按真实按键验一遍。
-  test('打开后焦点搬进弹窗，Tab 被困在里面，关闭后还回触发按钮', async ({ appPage: page }) => {
+test.describe('弹窗焦点管理（原生 <dialog> 接管）', () => {
+  // 弹窗背后的内容不可达——这件事现在由平台的模态（顶层 + 背景 inert）兑现。
+  // 这里按真实按键验一遍：焦点进弹窗、Tab 走不到背后的表格/按钮、关闭后还给触发按钮。
+  // 注意：平台的 Tab 循环允许在“最后一个控件之后”把焦点交回浏览器 UI（activeElement 变 body），
+  // 再按一下就绕回第一个——所以判据是「不得落到背后的页面里」，而不是「必须始终在弹窗内」。
+  test('打开后焦点搬进弹窗，Tab 走不到背景，关闭后还回触发按钮', async ({ appPage: page }) => {
     const opener = page.locator('#tab-expenses button:has-text("记录消费")').first();
     await opener.focus();
     await opener.click();
@@ -2202,22 +2204,24 @@ test.describe('弹窗焦点管理（aria-modal 的兑现）', () => {
       const ae = document.activeElement;
       return { inside: document.getElementById('expense-modal').contains(ae), id: ae.id, tag: ae.tagName };
     });
-    expect(onOpen.inside, '打开后焦点必须在弹窗内（留在背后 = aria-modal 是空话）').toBe(true);
+    expect(onOpen.inside, '打开后焦点必须在弹窗内（留在背后 = 模态是空话）').toBe(true);
     expect(onOpen.tag, '焦点应落在第一个表单控件上（弹窗多半是「填个表」）').toBe('INPUT');
 
-    // 2) Tab 若干次不得跑出弹窗
+    // 2) Tab 若干次不得走进背后的页面（表格 / 页签 / 页头按钮）
+    const escaped = (i, dir) => page.evaluate(([i, dir]) => {
+      const ae = document.activeElement;
+      const inDialog = document.getElementById('expense-modal').contains(ae);
+      const inBackground = !!ae.closest('#tabs-expenses, #tabs-assets, main, .app-header');
+      return inDialog || !inBackground ? null : `第 ${i + 1} 次 ${dir} 之后焦点落到了背景里：${ae.id || ae.className || ae.tagName}`;
+    }, [i, dir]);
     for (let i = 0; i < 14; i++) {
       await page.keyboard.press('Tab');
-      const inside = await page.evaluate(() =>
-        document.getElementById('expense-modal').contains(document.activeElement));
-      expect(inside, `第 ${i + 1} 次 Tab 之后焦点逃出了弹窗`).toBe(true);
+      expect(await escaped(i, 'Tab')).toBeNull();
     }
     // 3) Shift+Tab 往回也不能逃
     for (let i = 0; i < 6; i++) {
       await page.keyboard.press('Shift+Tab');
-      const inside = await page.evaluate(() =>
-        document.getElementById('expense-modal').contains(document.activeElement));
-      expect(inside, `第 ${i + 1} 次 Shift+Tab 之后焦点逃出了弹窗`).toBe(true);
+      expect(await escaped(i, 'Shift+Tab')).toBeNull();
     }
 
     await page.keyboard.press('Escape');
@@ -2266,15 +2270,18 @@ test.describe('弹窗焦点管理（aria-modal 的兑现）', () => {
     expect(backInside.inCategoryModal, '焦点应回到被叠住的那层弹窗内（栈式回还）').toBe(true);
   });
 
-  test('遮罩点击关弹窗也要还焦点（不能只改 display，绕过焦点管理）', async ({ appPage: page }) => {
+  test('点遮罩空白关弹窗也要还焦点（不能只改 display，绕过平台收尾）', async ({ appPage: page }) => {
     const opener = page.locator('#tab-expenses button:has-text("记录消费")').first();
     await opener.focus();
     await opener.click();
     await expect(page.locator('#expense-modal')).toBeVisible();
-    await page.locator('#expense-modal').click({ position: { x: 5, y: 5 } });
+    // 点弹窗盒子**之外**（视口左上角）才算「点了遮罩空白」
+    await page.mouse.click(4, 4);
     await expect(page.locator('#expense-modal')).toBeHidden();
     const isBody = await page.evaluate(() => document.activeElement === document.body);
     expect(isBody, '遮罩点击关弹窗同样要把焦点还回去').toBe(false);
+    const text = await page.evaluate(() => (document.activeElement.textContent || '').trim());
+    expect(text, '焦点应回到打开弹窗的那个按钮').toContain('记录消费');
   });
 
   test('关掉一层再关上层：栈不被多弹一次（无脑 pop 会吃掉别人的返回焦点）', async ({ appPage: page }) => {
@@ -2321,7 +2328,7 @@ test.describe('弹窗焦点管理（aria-modal 的兑现）', () => {
     await expect(page.locator('#snapshot-modal')).toBeVisible();
 
     const g = await page.evaluate(() => {
-      const c = document.querySelector('#snapshot-modal .modal-content');
+      const c = document.getElementById('snapshot-modal');
       const title = document.getElementById('snapshot-modal-title');
       return {
         overflowed: c.scrollHeight > c.clientHeight + 8,

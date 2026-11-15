@@ -89,7 +89,8 @@ function tickModePress() {
 }
 
 // 自动弹出后一小段时间内的指针事件全部忽略（抬起的手指紧跟一次 pointerup/click，
-// 不忽略的话会把刚出现的确认框当场点掉）。窗口判据在 logic.js ui.autoOpenGuard。
+// 不忽略的话会把刚出现的弹窗当场点掉——模态菜单的长按与月份图格子的长按都走这条）。
+// 窗口判据在 logic.js ui.autoOpenGuard。
 let __autoOpenedAt = null;
 
 // 松手收尾：短按只教一句（按满的情形已在 tick 里弹掉，不会走到这里）。

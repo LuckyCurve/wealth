@@ -450,7 +450,11 @@ const UA_DEFAULT_COLORS = new Set([
  * 坐标以视口为参照（getBoundingClientRect 即视口坐标），调用方不要中途滚动页面。
  */
 async function samplePixels(page, points) {
-  const dpr = await page.evaluate(() => window.devicePixelRatio || 1);
+  // 截图前先空两帧：调用方刚刚可能做过 scrollIntoView / 改过主题，而合成器上的帧还没跟上——
+  // 否则截到的是**改动前**那一帧（实测：弹窗退场刚结束就采样，量到的是遮罩还在时的像素）。
+  const dpr = await page.evaluate(
+    () => new Promise((res) => requestAnimationFrame(() => requestAnimationFrame(() => res(window.devicePixelRatio || 1))))
+  );
   const png = (await page.screenshot()).toString('base64');
   return page.evaluate(
     async ([b64, pts, scale]) => {

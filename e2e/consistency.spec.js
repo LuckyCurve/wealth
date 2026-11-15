@@ -475,7 +475,7 @@ test.describe('版式一致性', () => {
       await page.evaluate((fn) => window[fn](), openFn);
       await expect(page.locator('#' + id)).toBeVisible();
       const bad = await page.evaluate((mid) => {
-        const content = document.querySelector(`#${mid} .modal-content`);
+        const content = document.getElementById(mid);
         const cs = getComputedStyle(content);
         const cr = content.getBoundingClientRect();
         const innerRight = cr.right - parseFloat(cs.paddingRight);
@@ -483,6 +483,9 @@ test.describe('版式一致性', () => {
         for (const el of content.querySelectorAll('*')) {
           const r = el.getBoundingClientRect();
           if (r.width === 0) continue;
+          // 便条容器与 ? 气泡是「弹窗的延伸」：它们 fixed 挂在视口上（原生弹窗里必须留在弹窗
+          // 内部才看得见），右缘当然不在弹窗的纸里。这里问的是「在流里内容会不会撑破纸」。
+          if (el.closest('#toast-area, .tip-bubble')) continue;
           if (r.right > innerRight + 2) {
             out.push({ el: el.tagName.toLowerCase() + '.' + String(el.className).split(' ')[0], over: Math.round(r.right - innerRight) });
           }
@@ -828,27 +831,29 @@ test.describe('可访问性：表单字段必须有真正的名字（不是 plac
   });
 });
 
-test.describe('可访问性：每个弹窗都要有名字（role=dialog 的另一半承诺）', () => {
+test.describe('可访问性：每个弹窗都要有名字（原生 dialog 的语义）', () => {
   test('全站 dialog 的可访问名来自可见标题（aria-labelledby → 真标题元素）', async ({ appPage: page }) => {
     await gotoAssets(page, 'assets');
     const dialogs = await page.evaluate(() =>
-      [...document.querySelectorAll('.modal-overlay[role="dialog"]')].map((d) => ({
+      [...document.querySelectorAll('dialog.modal-overlay')].map((d) => ({
         id: d.id,
         labelledby: d.getAttribute('aria-labelledby') || '',
         label: d.getAttribute('aria-label') || '',
+        closedby: d.getAttribute('closedby') || '',
       })));
     expect(dialogs.length).toBeGreaterThan(10);
     const bad = [];
     for (const d of dialogs) {
+      if (d.closedby !== 'any') bad.push('#' + d.id + ': closedby=' + JSON.stringify(d.closedby) + '（本项目是「点遮罩空白可关」）');
       if (d.labelledby) {
         const ok = await page.evaluate((id) => {
           const dlg = document.getElementById(id);
           const t = document.getElementById(dlg.getAttribute('aria-labelledby'));
-          return !!t && t.closest('.modal-overlay') === dlg && (t.textContent || '').trim().length > 0;
+          return !!t && t.closest('dialog.modal-overlay') === dlg && (t.textContent || '').trim().length > 0;
         }, d.id);
-        if (!ok) bad.push(`#${d.id}: aria-labelledby 指向的元素不存在、不在本弹窗内或没有文字`);
+        if (!ok) bad.push('#' + d.id + ': aria-labelledby 指向的元素不存在、不在本弹窗内或没有文字');
       } else if (!d.label) {
-        bad.push(`#${d.id}: 既无 aria-labelledby 也无 aria-label`);
+        bad.push('#' + d.id + ': 既无 aria-labelledby 也无 aria-label');
       }
     }
     expect(bad, '弹窗必须有可访问名（否则读屏器只说「对话框」）：' + bad.join(' / ')).toEqual([]);
@@ -1090,7 +1095,7 @@ test.describe('可读性：平铺 chip 未选中态跨分类一致', () => {
     await expect(page.locator('#expense-modal')).toBeVisible();
 
     const styles = await page.evaluate(() => {
-      const card = getComputedStyle(document.querySelector('#expense-modal .modal-content')).backgroundColor;
+      const card = getComputedStyle(document.getElementById('expense-modal')).backgroundColor;
       const read = (el) => {
         const cs = getComputedStyle(el);
         return `${cs.color}|${cs.backgroundColor}|${cs.borderTopColor}|${cs.borderTopStyle}`;
@@ -1171,7 +1176,7 @@ test.describe('可读性：平铺 chip 未选中态跨分类一致', () => {
       const L = (c) => { const f = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }; return 0.2126 * f(c.r) + 0.7152 * f(c.g) + 0.0722 * f(c.b); };
       const parse = (c) => { const m = (c || '').match(/rgba?\(([^)]+)\)/); if (!m) return null; const p = m[1].split(',').map(Number); return { r: p[0], g: p[1], b: p[2] }; };
       const ratio = (a, b) => { const x = L(a), y = L(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
-      const card = parse(getComputedStyle(document.querySelector('#expense-modal .modal-content')).backgroundColor);
+      const card = parse(getComputedStyle(document.getElementById('expense-modal')).backgroundColor);
       return [...document.querySelectorAll('#expense-tags-section .tag-choice')].map((el) => {
         const cs = getComputedStyle(el);
         return {
@@ -1409,28 +1414,27 @@ test.describe('版式一致性：真实数据下的读数层级', () => {
 
 test.describe('版式：弹窗宽度的四档真的生效', () => {
   test('每个弹窗的实际宽度等于它挂的档位', async ({ appPage: page }) => {
-    // `.modal-sm/.modal-md/.modal-lg/.modal-xl` 与 `.modal-content { max-width }` 的特异性都是
-    // 单类，**同特异性下后写者胜**：四档曾写在 .modal-content 之前，于是 17 个弹窗无一例外
+    // `.modal-sm/.modal-md/.modal-lg/.modal-xl` 与 `.modal-overlay { max-width }` 的特异性都是
+    // 单类，**同特异性下后写者胜**：四档曾写在基准规则之前，于是 17 个弹窗无一例外
     // 全都卡在 560px，改档位毫无效果（设置弹窗因此只有 480 却被压在 560，仍显挤）。
-    // 判据从页面自身求值，不写死弹窗清单。
+    // 判据从页面自身求值，不写死弹窗清单；档位现在挂在 dialog 自己身上（纸就是那层 dialog）。
     const EXPECT = { '': 560, 'modal-sm': 400, 'modal-md': 480, 'modal-lg': 720, 'modal-xl': 960 };
     const rows = await page.evaluate(() => {
-      return [...document.querySelectorAll('.modal-overlay')].map((ov) => {
-        const c = ov.querySelector('.modal-content');
-        if (!c) return null;
-        const tier = ['modal-sm', 'modal-md', 'modal-lg', 'modal-xl'].find((t) => c.classList.contains(t)) || '';
-        const prev = ov.style.display;
-        ov.style.display = 'flex'; // 量完还原：不改变用例原有的页面状态
-        const w = c.getBoundingClientRect().width;
-        ov.style.display = prev;
-        return { id: ov.id, tier, w: Math.round(w) };
-      }).filter(Boolean);
+      return [...document.querySelectorAll('dialog.modal-overlay')].map((d) => {
+        const tier = ['modal-sm', 'modal-md', 'modal-lg', 'modal-xl'].find((t) => d.classList.contains(t)) || '';
+        // 关着的 dialog 是 display:none，量不到宽；开一下再原样关回去
+        const wasOpen = d.open;
+        if (!wasOpen) d.showModal();
+        const w = d.getBoundingClientRect().width;
+        if (!wasOpen) d.close();
+        return { id: d.id, tier, w: Math.round(w) };
+      });
     });
     expect(rows.length).toBeGreaterThan(10);
     const bad = rows
       .filter((r) => Math.abs(r.w - EXPECT[r.tier]) > 1)
       .map((r) => `#${r.id} 挂 ${r.tier || 'default'} = ${r.w}px（应为 ${EXPECT[r.tier]}px）`);
-    expect(bad, '档位必须定义在 .modal-content 之后，否则四档全部失效：' + bad.join(' / ')).toEqual([]);
+    expect(bad, '档位必须定义在基准规则之后，否则四档全部失效：' + bad.join(' / ')).toEqual([]);
     for (const tier of ['modal-sm', 'modal-md', 'modal-lg', 'modal-xl']) {
       expect(rows.some((r) => r.tier === tier), `档位 ${tier} 没有任何弹窗在用`).toBe(true);
     }
@@ -1445,7 +1449,7 @@ test.describe('版式：设置行的标签列 / 控件列', () => {
       await expect(page.locator('#settings-modal')).toBeVisible();
       // 开场不得跳到底：参数类输入框抢首焦点会把整层滚到最下面
       const top = await page.evaluate(() => {
-        const m = document.getElementById('settings-modal').querySelector('.modal-content');
+        const m = document.getElementById('settings-modal');
         return { scrollTop: m.scrollTop, active: document.activeElement && document.activeElement.id };
       });
       expect(top.scrollTop, '打开设置不得自己滚到底（参数类控件不得抢首焦点）').toBe(0);

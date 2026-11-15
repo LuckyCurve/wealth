@@ -328,17 +328,26 @@ describe('UI 接线契约：Tab 滑动指示条', () => {
   });
 });
 
-describe('UI 接线契约：弹窗焦点管理（aria-modal 的兑现）', () => {
+describe('UI 接线契约：弹窗开关（原生 <dialog> 接管焦点）', () => {
   const openSrc = fnSource('openModal');
   const closeSrc = fnSource('closeModal');
+  const dismissSrc = fnSource('onModalDismiss');
 
-  test('打开弹窗必须把焦点搬进去（否则焦点还在背后的触发按钮上，首下 Tab 就走出弹窗）', () => {
-    assert.match(openSrc, /\.focus\(/, 'openModal 必须真的 focus 第一个可聚焦元素');
+  test('打开只走 showModal()（show() / open 属性都不是模态，顶层与背景 inert 都不会发生）', () => {
+    assert.match(openSrc, /\.showModal\(\)/, 'openModal 必须调 showModal()');
+    assert.strictEqual(count(/\.showModal\(\)/g), 1, '打开入口只有一个（openModal）');
+    assert.doesNotMatch(stripComments(openSrc), /modal\.show\(\)/, '不得用 show()（非模态）');
+    assert.doesNotMatch(stripComments(html), /setAttribute\('open'/, '不得用 open 属性打开');
+    assert.match(closeSrc, /\.close\(\)/, '关闭用 close()');
+  });
+
+  test('打开弹窗必须把焦点搬进去（平台只放到第一个可聚焦元素，不认 data-autofocus）', () => {
+    assert.match(openSrc, /\.focus\(/, 'openModal 必须真的 focus 第一个该填的框');
     // 搬焦点会顺带滚动：正文自带 overflow-y:auto，焦点落在页脚那个「关闭」按钮上时
     // 长表一开就滚到底（标题被推出视野）。故必须带 preventScroll，且不能改成「先 focus 再滚回顶」。
     assert.match(openSrc, /\.focus\(\{ preventScroll: true \}\)/, 'openModal 聚焦时必须 preventScroll（否则长表弹窗一开就停在最底部）');
     assert.doesNotMatch(stripComments(openSrc), /scrollTop\s*=\s*0/, '不要用「聚焦后再滚回顶」代替 preventScroll：焦点仍在底部，一按 Tab 又被拽回去');
-    assert.match(html, /function modalFocusables\(/, '「弹窗内可聚焦元素」须有单一实现（打开与陷阱共用一份）');
+    assert.match(html, /function modalFocusables\(/, '「弹窗内可聚焦元素」须有单一实现');
   });
 
   test('设置弹窗打开时焦点落在标题，不落进「导出密钥」输入框', () => {
@@ -360,25 +369,17 @@ describe('UI 接线契约：弹窗焦点管理（aria-modal 的兑现）', () =>
       '导出密钥输入框不得再被自动聚焦（防御：其它入口也不该一开就进密码框）');
   });
 
-  test('关闭弹窗要把焦点还回打开它的元素（不是掉到 body 从头 Tab）', () => {
-    assert.match(closeSrc, /__modalReturnFocus/, 'closeModal 必须消费记住的返回焦点');
-    assert.match(openSrc, /__modalReturnFocus\.push\(document\.activeElement\)/, '打开时要先记住当前焦点（入栈，确认框会叠在别的弹窗上）');
-    // 栈与「开着的弹窗」一一对应：对已开着的弹窗再 openModal 会多入一层、对已关着的
-    // closeModal 会多弹一层，两者都会让返回焦点错位（实测：先关下层再关上层，焦点掉到 body）。
-    assert.match(openSrc, /display === 'none'\) __modalReturnFocus\.push/, '重复打开不得重复入栈');
-    assert.match(closeSrc, /if \(!wasOpen\) return;/, '关一个本来就关着的弹窗不得出栈');
+  test('关闭不手写焦点归还：浏览器把焦点还给打开它的控件', () => {
+    assert.doesNotMatch(stripComments(closeSrc), /\.focus\(/, 'closeModal 不得自己 focus（平台已经还了，再还一次会打架）');
+    assert.doesNotMatch(stripComments(html), /__modalReturnFocus/, '手写返回焦点栈不得回潮');
   });
 
-  test('「最上层弹窗」只有一个判据：打开时挪到 body 末尾，ESC / Tab 陷阱 / 命中都读它', () => {
-    // 遮罩的 z-index 完全相同，谁在上面只由 DOM 次序决定。确认框在 DOM 里排在好几个弹窗之前，
-    // 叠上去时会被整个盖住（点击穿透、ESC 关错层）。故打开时挪到末尾，且「最上层」不各算一遍。
-    assert.match(openSrc, /document\.body\.appendChild\(modal\)/, 'openModal 必须把弹窗挪到 body 末尾（DOM 次序 = 叠放次序）');
-    assert.match(html, /function topModal\(/, '「最上层弹窗」须有单一实现');
-    assert.match(html, /function openModalStack\(/, '「哪些弹窗开着」须与 topModal 同源');
-    const escBlock = blockFrom(html, "if (e.key !== 'Escape') return;", '});');
-    const tabBlock = blockFrom(html, "if (e.key !== 'Tab') return;", '});');
-    assert.match(escBlock, /topModal\(\)/, 'ESC 必须按 topModal 判定（不能自己再数一遍 DOM 次序）');
-    assert.match(tabBlock, /topModal\(\)/, 'Tab 陷阱必须按 topModal 判定');
+  test('「最上层弹窗」只有一个判据：打开次序（不是 DOM 次序，也不是 z-index）', () => {
+    assert.match(fnSource('openModalStack'), /OPEN_MODALS/, '开着的弹窗集合只有一个来源');
+    assert.match(openSrc, /OPEN_MODALS\.push\(modal\)/, '打开时记一次次序');
+    assert.strictEqual(count(/OPEN_MODALS\.push\(/g), 1, '次序表只有一个写入点');
+    assert.match(stripComments(openSrc), /if \(!modal\.open\)/, '「已经开着」读 dialog 自己的 open 状态（不得另养布尔）');
+    assert.doesNotMatch(stripComments(openSrc), /appendChild/, '叠放靠顶层次序，不再靠把弹窗挪到 body 末尾');
     const withoutTopHelpers = html
       .replace(/function openModalStack[\s\S]*?\n}/, '')
       .replace(/function topModal[\s\S]*?\n}/, '');
@@ -386,22 +387,23 @@ describe('UI 接线契约：弹窗焦点管理（aria-modal 的兑现）', () =>
       '「最后一个开着的弹窗」不得在别处重算（各写一份必然漂移）');
   });
 
-  test('Tab 陷阱接线存在，且判据走 logic.js trapFocus（不在页面里重写一份）', () => {
-    assert.match(html, /(?:[A-Za-z_$][A-Za-z0-9_$]*\.)?trapFocus\(/, 'Tab 陷阱必须复用 logic.js 的纯函数');
-    assert.match(html, /e\.key !== 'Tab'/, '必须拦截 Tab 键');
-    assert.match(stripComments(html), /e\.shiftKey/, 'Shift+Tab 反方向要一并接管（只做正向 = 往回一按就逃出去）');
+  test('键盘不再接管：Tab 循环与 Esc 都由平台做，页面不得再写一份', () => {
+    assert.doesNotMatch(stripComments(html), /trapFocus\(/, '手写焦点陷阱不得回潮');
+    assert.doesNotMatch(stripComments(html), /e\.key !== 'Tab'/, '不得再拦 Tab');
+    assert.doesNotMatch(stripComments(html), /e\.key !== 'Escape'/, '不得再拦 Esc（撤销式关闭走平台发来的 cancel）');
+    // cancel 同时覆盖 Esc、点遮罩空白与手机返回手势——三条路只有一条收尾代码
+    assert.match(html, /addEventListener\('cancel', onModalDismiss\)/, '每个弹窗都要接平台的 cancel');
   });
 
-  test('所有隐藏弹窗的路径都走 closeModal：否则焦点管理被绕过（只改 display 而不还焦点）', () => {
-    const escBlock = blockFrom(html, "if (e.key !== 'Escape') return;", '});');
-    assert.doesNotMatch(escBlock, /top\.style\.display = 'none'/, 'ESC 关弹窗必须走 closeModal（否则焦点不还）');
-    assert.match(escBlock, /closeModal\(top\.id\)|confirmCancel\(\)/, 'ESC 应统一走 closeModal / confirmCancel');
-
-    const overlayBlock = blockFrom(html, '__modalMouseDownTarget = e.target', '__modalMouseDownTarget = null');
-    assert.doesNotMatch(overlayBlock, /e\.target\.style\.display = 'none'/, '遮罩点击关弹窗必须走 closeModal');
+  test('隐藏弹窗只有一条路：都经过 closeModal / 取消语义（不得直接改 display）', () => {
+    assert.match(dismissSrc, /closeModal\(/, '遮罩 / Esc 关闭要走 closeModal');
+    assert.match(dismissSrc, /confirmCancel\(\)/, '确认框的遮罩 / Esc = 取消（要清回调）');
+    assert.match(dismissSrc, /cancelAssetGate\(\)/, '门槛弹窗的遮罩 / Esc = 放弃本次');
+    assert.match(dismissSrc, /cancelPassImport\(\)/, '导出密码弹窗的遮罩 / Esc = 复位');
+    const displayWrites = stripComments(html).match(/(?:getElementById\('[a-z-]+-modal'\)|modal)\.style\.display/g) || [];
+    assert.deepStrictEqual(displayWrites, [], '弹窗的显示/隐藏只能走 showModal / close（改 display 会绕过平台的收尾）');
   });
 });
-
 describe('UI 接线契约：logic.js 导出清单与筛选同步时序', () => {
   const logic = logicSrc;
 
@@ -2012,9 +2014,8 @@ describe('UI 接线契约：资产页只能靠长按送达（提高日常查看�
   test('抄写闸：三道出口都作废本次（Esc / 点遮罩 / 「不看」）', () => {
     assert.match(html, /id="asset-gate-modal"[^>]*aria-labelledby="asset-gate-title"/, '弹窗要有名字');
     assert.match(html, /onclick="cancelAssetGate\(\)"[^>]*data-i18n="不看"/, '「不看」退出建成一条按钮');
-    // Esc 与遮罩 click 都得走同一条出口，否则「放弃」有两种不一致的结局
-    assert.match(html, /top\.id === 'asset-gate-modal'\) cancelAssetGate\(\)/, 'Esc 走 cancelAssetGate');
-    assert.match(html, /e\.target\.id === 'asset-gate-modal'\) \{\s*cancelAssetGate\(\)/, '点遮罩也走同一条出口');
+    // Esc、点遮罩空白与「不看」都得走同一条出口，否则「放弃」有两种不一致的结局
+    assert.match(fnSource('onModalDismiss'), /id === 'asset-gate-modal'\) cancelAssetGate\(\)/, 'Esc / 点遮罩都走 cancelAssetGate');
   });
 
   test('门槛箴言池不在 index.html（下沉 logic.js 才能单测长度/标点/句数）', () => {
@@ -2084,11 +2085,11 @@ describe('UI 接线契约：菜单图标（内联 Lucide symbol，一个来源�
 });
 
 describe('UI 接线契约：弹窗可访问性', () => {
-  test('每个 modal-overlay 都要有名字（aria-labelledby 指向本弹窗内的可见标题）', () => {
-    const overlays = html.match(/<div id="[^"]+" class="modal-overlay"[^>]*>/g) || [];
-    assert.ok(overlays.length >= 10, '弹窗数量应被扫到');
-    for (const tag of overlays) {
-      const id = (tag.match(/<div id="([^"]+)"/) || [])[1];
+  test('每个弹窗都要有名字（aria-labelledby 指向本弹窗内的可见标题）', () => {
+    const dialogs = html.match(/<dialog id="[^"]+" class="modal-overlay[^"]*"[^>]*>/g) || [];
+    assert.strictEqual(dialogs.length, 20, '弹窗数量应被扫到（实得 ' + dialogs.length + '）');
+    for (const tag of dialogs) {
+      const id = (tag.match(/<dialog id="([^"]+)"/) || [])[1];
       const ref = (tag.match(/aria-labelledby="([^"]+)"/) || [])[1];
       assert.ok(ref || /aria-label="/.test(tag), `#${id} 没有可访问名（aria-labelledby / aria-label）`);
       if (ref) {
@@ -2097,15 +2098,14 @@ describe('UI 接线契约：弹窗可访问性', () => {
     }
   });
 
-  test('每个 modal-overlay 都声明 role="dialog" 与 aria-modal', () => {
-    const overlays = count(/class="modal-overlay"/g);
-    assert.ok(overlays > 0, '存在弹窗容器');
-    assert.strictEqual(
-      count(/class="modal-overlay" role="dialog" aria-modal="true"/g), overlays,
-      '全部弹窗都要有对话框语义（读屏器可识别）');
+  test('语义由 <dialog> 自己给：不得再写 role="dialog" / aria-modal，且每个都要 closedby', () => {
+    const src = stripComments(html);
+    assert.strictEqual((src.match(/role="dialog"/g) || []).length, 0, 'role="dialog" 由原生 <dialog> 提供，写了就是重复声明');
+    assert.strictEqual((src.match(/aria-modal/g) || []).length, 0, 'aria-modal 同理（原生模态已经承诺了 inert 与焦点隔离）');
+    assert.strictEqual((src.match(/<dialog id="[^"]+" class="modal-overlay[^"]*" closedby="any"/g) || []).length, 20,
+      '每个弹窗都要显式选 closedby（本项目一直是「点遮罩空白可关」）');
   });
 });
-
 describe('UI 接线契约：所选标签的钱 ÷ 预期月消费（消费趋势的读数卡）', () => {
   const logic = logicSrc;
 
@@ -2315,7 +2315,7 @@ describe('UI 接线契约：读数卡的自定月消费（只对本卡生效）'
     assert.match(modal(), /<label[^>]*for="runway-expectation"/, '标签关联输入框（点标签可聚焦）');
     assert.match(modal(), /onkeydown="if\(event\.key==='Enter' && !event\.isComposing\)saveRunwayTags\(\)"/,
       '回车即保存（与预期消费/目标净资产弹窗同惯例），带 IME 守卫防组字中误提交');
-    assert.match(html, /<h3 class="font-display modal-title" id="runway-modal-title"><span data-i18n="标签与月消费">标签与月消费<\/span>/, '标题已改名');
+    assert.match(html, /<h3 class="font-display modal-title" id="runway-modal-title"[^>]*><span data-i18n="标签与月消费">标签与月消费<\/span>/, '标题已改名');
     assert.doesNotMatch(html, />选择标签</, '标题/按钮不得仍叫「选择标签」（现在也编辑月消费）');
   });
 
@@ -3205,29 +3205,45 @@ describe('UI 接线契约：卡片的液态玻璃材质', () => {
   });
 });
 
-describe('UI 接线契约：弹窗遮罩（磨砂与颜色变量）', () => {
-  const overlayRule = () => (html.match(/\n  \.modal-overlay \{[\s\S]*?\n  \}/) || [''])[0];
+describe('UI 接线契约：弹窗遮罩与入场（顶层元素）', () => {
+  const dialogRule = () => (html.match(/\n  \.modal-overlay \{[\s\S]*?\n  \}/) || [''])[0];
+  const backdropRule = () => (html.match(/\n  \.modal-overlay::backdrop \{[\s\S]*?\n  \}/) || [''])[0];
 
-  test('遮罩色走 --scrim（亮/暗各一次），磨砂带 Safari 前缀', () => {
-    const rule = overlayRule();
+  test('遮罩色走 --scrim（亮/暗各一次），磨砂带 Safari 前缀，且磨砂必须挂在 ::backdrop 上', () => {
+    const rule = backdropRule();
+    assert.ok(rule, '遮罩样式要写在 ::backdrop 上（写在 dialog 自己身上会连弹窗正文一起糊掉）');
     assert.match(rule, /background: var\(--scrim\)/, '写死色值会在主题巡检的清理清单里长挂一行');
-    assert.match(rule, /backdrop-filter: blur\(/, '磨砂是「背后账页退开」的质感来源');
-    assert.match(rule, /-webkit-backdrop-filter: blur\(/, 'Safari 前缀');
+    assert.match(rule, /backdrop-filter: blur\(8px\)/, '磨砂是「背后账页退开」的质感来源');
+    assert.match(rule, /-webkit-backdrop-filter: blur\(8px\)/, 'Safari 前缀');
+    assert.doesNotMatch(dialogRule(), /backdrop-filter/, '磨砂不得留在 dialog 自己身上');
     assert.strictEqual((html.match(/--scrim:/g) || []).length, 2, '--scrim 亮/暗各定义一次（漏一个会在另一套主题下回落）');
   });
 
-  test('遮罩与便条的入场动画尊重减动效（与指示条/入场同一块 media）', () => {
+  test('入场/出场走 transition + @starting-style，减动效下只缩短时长', () => {
+    const rule = dialogRule();
+    assert.match(rule, /transition-property:[^;]*overlay/, '顶层元素的 transition 列表必须含 overlay（否则出场会被提前裁掉）');
+    assert.match(rule, /^\s*transition-behavior: allow-discrete;/m, 'allow-discrete 必须**单独一行**（塞进 transition 简写会让老浏览器丢掉整条声明）');
+    assert.match(html, /@starting-style \{ opacity: 0; \}/, '入场起步态用 @starting-style（不用于出场）');
     assert.match(
       html,
-      /prefers-reduced-motion[^\n]*\.modal-overlay, \.modal-content \{ animation: none; \}/,
-      '弹窗两层的入场动画要进 reduced-motion 块');
+      /prefers-reduced-motion: no-preference\) \{\s*\.modal-overlay \{ transform: translateY\(20px\); \}/,
+      '位移只在 no-preference 里给（减动效的人不该被推一下）');
     assert.match(
       html,
-      /prefers-reduced-motion[^\n]*\.toast \{ animation: none; transition: none; \}/,
-      '便条的入场/退场同样归零');
+      /prefers-reduced-motion: reduce\)[^\n]*\.modal-overlay, \.modal-overlay::backdrop \{ transition-duration: var\(--mo-fast\); \}/,
+      '减动效：只缩短时长（指南要求「短淡出」，不是零）');
+    assert.doesNotMatch(html, /\.modal-overlay, \.modal-content \{ animation: none; \}/, '旧写法（animation: none）不得回潮');
+  });
+
+  test('指南的两条强制项：dialog:modal 与 dialog::backdrop 都收住滚动链', () => {
+    assert.match(html, /dialog:modal \{ overscroll-behavior: contain; \}/, '缺它：在弹窗里滚到头会接着滚背景');
+    assert.match(html, /dialog::backdrop \{ overflow: hidden; overscroll-behavior: contain; \}/,
+      '::backdrop 默认不是滚动容器，overflow 那半句不能省');
+    const src = stripComments(html);
+    assert.doesNotMatch(src, /html\.modal-open/, 'html.modal-open 那套滚动锁不得回潮（会吃掉根滚动条、造成横向位移）');
+    assert.doesNotMatch(src, /document\.(body|documentElement)\.style\.overflow/, '不得在页面里直接改 overflow');
   });
 });
-
 /*
  * 开屏（落纸）与动效约定
  * --------------------------------------------------------------------------
@@ -3517,8 +3533,7 @@ describe('UI 接线契约：长按满时长自动弹窗', () => {
     assert.match(html, /(?:[A-Za-z_$][A-Za-z0-9_$]*\.)?autoOpenGuard\(/, '守卫判定走 logic.js 纯函数（不重写一份）');
     const end = stripComments(fnSource('endModePress'));
     assert.match(end, /(?:[A-Za-z_$][A-Za-z0-9_$]*\.)?autoOpenGuard\(/, 'pointerup 收尾必须查守卫（否则抬手即关）');
-    const overlayBlock = blockFrom(html, '__modalMouseDownTarget = e.target', '__modalMouseDownTarget = null');
-    assert.match(overlayBlock, /(?:[A-Za-z_$][A-Za-z0-9_$]*\.)?autoOpenGuard\(/, '遮罩 click 关闭也必须查守卫');
+    assert.match(fnSource('onModalDismiss'), /(?:[A-Za-z_$][A-Za-z0-9_$]*\.)?autoOpenGuard\(/, '遮罩 / Esc 关闭也必须查守卫');
     const okBtn = blockFrom(stripComments(html), "getElementById('confirm-ok-btn').addEventListener");
     assert.match(okBtn, /(?:[A-Za-z_$][A-Za-z0-9_$]*\.)?autoOpenGuard\(/, '确认按钮的 click 也必须查守卫');
   });
@@ -3839,53 +3854,39 @@ describe('UI 接线契约：多语言（默认英文，设置里切中文）', (
 });
 
 /*
- * 背景冻结（弹窗打开时）：三条通道都得断，且只有一处说了算。
- * --------------------------------------------------------------------------
+ * 弹窗打开时背景冻结（原生 <dialog> 版）：
  * 用户原话：「我把鼠标放在背景下依然可以滚动外面已经模糊的背景，这个不应该」。
- * 遮罩的 blur 已经在视觉上说「停下来了」，交互上却还活着——这是**承诺与实现不一致**，
- * 单测看不出滚动，但能守住「锁只有一处派生」「叠层不会提前解锁」「冻结不误伤延伸层」。
+ * 现在这条承诺由平台兑现——showModal() 让背景 inert、顶层挡在前面、overscroll 收住滚动链。
+ * 这里守的是**页面别再把那套手写回来**：滚动锁、inert 切换、叠层次序表，各只有一个来源。
  */
-describe('UI 接线契约：弹窗打开时背景冻结', () => {
-  test('滚动锁从「还有几层开着」派生，唯一同步点是 openModal / closeModal', () => {
-    const sync = fnSource('syncScrollLock');
-    assert.match(sync, /openModalStack\(\)/, '锁的状态只能从开着的弹窗集合算（不得另养计数器）');
-    assert.match(sync, /classList\.toggle\('modal-open'/, '锁的形态走条件类（CSS 一处声明）');
-    assert.strictEqual(count(/syncScrollLock\(\)/g), 3, '定义 1 处 + openModal / closeModal 各一处');
-    assert.match(fnSource('openModal'), /syncScrollLock\(\)/, '打开即同步');
-    assert.match(fnSource('closeModal'), /syncScrollLock\(\)/, '关闭即同步');
-    // 成对 set/unset 在这里是错的：叠层时关上层不能解锁（E2E 有专测）
-    assert.doesNotMatch(stripComments(html), /document\.(body|documentElement)\.style\.overflow/, '不得在页面里直接改 overflow（那样成对维护必漏）');
-  });
-
-  test('CSS：锁住的形态与滚动条槽位都在样式表里（不靠 JS 量宽度补 padding）', () => {
-    assert.match(html, /html\.modal-open, html\.modal-open body \{ overflow: hidden; \}/, '锁住时 html/body 都不可滚');
-    assert.match(html, /html \{ scrollbar-gutter: stable; \}/, '槽位常驻：锁定时滚动条消失不会让内容横移');
-    const overlay = html.match(/\n  \.modal-overlay \{[\s\S]*?\n  \}/)[0];
-    assert.match(overlay, /overscroll-behavior: contain/, '滚到遮罩不再链到背景');
-    const content = html.match(/\n  \.modal-content \{[\s\S]*?\n  \}/)[0];
-    assert.match(content, /overscroll-behavior: contain/, '弹窗正文滚到头不把滚轮传给背景');
-    assert.match(content, /overflow-y: auto/, '弹窗正文仍是自己可滚的（锁的是背景）');
-  });
-
-  test('背景 inert：从文档流位置判定延伸层，不维护元素清单', () => {
-    const sync = fnSource('syncScrollLock');
-    assert.match(sync, /\.\.\.document\.body\.children/, '按 body 子元素全量重算（增量维护必漏）');
-    assert.match(sync, /el\.inert = open\.length > 0 && !isActiveLayer\(el\)/, '开与关走同一句表达式');
-    const layer = fnSource('isActiveLayer');
-    assert.match(layer, /modal-overlay/, '开着的弹窗本身是当前界面');
-    assert.match(layer, /getComputedStyle\(el\)\.position/, '延伸层按定位判定（fixed/absolute 挂在 body 下）');
-    // 反面：把便条/日历写进白名单就会漏下一个（实测 flatpickr 日历被一起冻住，日期选不了）
-    assert.doesNotMatch(layer, /toast-area|flatpickr|tip-bubble/, '不要用元素清单当判据（漏一个就是「弹窗里点不动」）');
+describe('UI 接线契约：弹窗打开时背景冻结（平台接管）', () => {
+  test('收尾从「还有几层开着」派生，同步点只有 openModal 与 close 事件', () => {
+    assert.match(fnSource('syncModalLayer'), /openModalStack\(\)/, '「还有几层」只能从开着的弹窗集合算（不得另养计数器）');
+    assert.match(fnSource('openModal'), /syncModalLayer\(\)/, '打开即同步');
+    assert.strictEqual(count(/addEventListener\('close', syncModalLayer\)/g), 1, '关闭的收尾挂在平台的 close 上（只有一处）');
+    assert.doesNotMatch(stripComments(html), /syncScrollLock/, '滚动锁那套不得回潮');
+    assert.doesNotMatch(stripComments(html), /\.inert\s*=/, '背景 inert 由平台给，页面不得再逐元素切');
   });
 
   test('台灯在弹窗打开时收起（判定在 logic.js，页面只传当前层数）', () => {
-    const logic = logicSrc;
-    assert.match(logic, /function lampEnabled\([\s\S]*?!o\.modalOpen/, 'lampEnabled 认 modalOpen');
+    assert.match(logicSrc, /function lampEnabled\([\s\S]*?!o\.modalOpen/, 'lampEnabled 认 modalOpen');
     assert.match(fnSource('syncLamp'), /modalOpen: openModalStack\(\)\.length > 0/, '页面把「还有几层」传进判定');
-    assert.match(fnSource('syncScrollLock'), /syncLamp\(\)/, '冻结/解冻时灯跟着重判');
+    assert.match(fnSource('syncModalLayer'), /syncLamp\(\)/, '开/关时灯跟着重判');
+  });
+
+  test('便条容器跟着顶层走：原生弹窗把其余一切挡在它下面', () => {
+    const sync = fnSource('syncModalLayer');
+    assert.match(sync, /getElementById\('toast-area'\)/, '便条容器是跟着走的那一个');
+    assert.match(sync, /topModal\(\) \|\| document\.body/, '落点 = 最上层弹窗，没有弹窗就回 body');
+    assert.match(sync, /appendChild/, '要真的搬（留在 body 下会被遮罩压住）');
+  });
+
+  test('撤销式关闭只有一个出口，且自动弹窗守卫也接在那里', () => {
+    const dismiss = fnSource('onModalDismiss');
+    assert.match(dismiss, /preventDefault\(\)/, '先拦下平台自己的关闭，让「关」只有一条路');
+    assert.match(dismiss, /autoOpenGuard\(/, '自动弹窗守卫窗内的关窗是长按抬手的余波');
   });
 });
-
 describe('UI 接线契约：假可点（悬停/按压反馈只给真能点的东西）', () => {
   const css = stripComments(html);
   // 取某选择器所在规则块（`{` 到 `}`；本文件的规则都是平铺单层，不含嵌套块）

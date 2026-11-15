@@ -2376,22 +2376,6 @@
     return elapsedSinceOpen >= g;
   }
 
-  // ========== 弹窗焦点陷阱 ==========
-  // 15 个弹窗都写了 aria-modal，但写对 ARIA 不等于接管了焦点：判据在这里（可单测），DOM 侧执行 focus()。
-  // wrap=false 交还浏览器默认；index=-1（焦点不在弹窗内）一律拉回来，否则 aria-modal 的承诺立刻是假的。
-  function trapFocus(currentIdx, count, shift) {
-    if (!(count > 0)) return { wrap: false, index: -1 }; // 没有可聚焦元素：连「关闭」都按不到，别接管
-    if (currentIdx < 0 || currentIdx >= count) {
-      // 不在弹窗内：向前拉回第一个，向后拉回最后一个
-      return { wrap: true, index: shift ? count - 1 : 0 };
-    }
-    const next = shift ? currentIdx - 1 : currentIdx + 1;
-    if (next < 0 || next >= count) {
-      return { wrap: true, index: shift ? count - 1 : 0 };
-    }
-    return { wrap: false, index: next };
-  }
-
   // ========== 金额合计（按显式汇率表折算为 CNY）==========
   // 汇率表由调用方传（资产按当前汇率、消费恒为 CNY）；脏数据不污染总数——界面上的总数必须始终能显示。
   function sumAmountCNY(items, rates) {
@@ -2619,7 +2603,6 @@
       activateKeyAction,
       sortAriaSort,
       sortAriaLabel,
-      trapFocus,
       toastLiveMode,
       moveAssetIndex,
       AUTO_OPEN_GUARD_MS,

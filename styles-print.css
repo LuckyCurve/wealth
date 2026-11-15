@@ -33,13 +33,13 @@
     }
     /* 纸色要真的印出来：浏览器默认会丢背景色（Chrome 的「背景图形」默认关），
        exact 让纸面与卡片底色跟随主题，而不是被打印机洗成白纸。 */
-    html, body, .card, .modal-content {
+    html, body, .card, .modal-overlay {
       print-color-adjust: exact; -webkit-print-color-adjust: exact;
     }
     html, body { background: var(--bg) !important; color: var(--fg); }
     /* 桌光与台灯是屏幕上的环境光，进纸只会变成一片脏灰；纸纤维保留，纸面才不是一块平色 */
     body::after, .lamp-layer { display: none !important; }
-    .card, .modal-content {
+    .card, .modal-overlay {
       background: var(--card) !important;
       backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
       box-shadow: none !important; border: 1px solid var(--border) !important;

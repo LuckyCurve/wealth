@@ -5,13 +5,16 @@
  *
  * 为什么这不是小事：遮罩已经用 blur 把背景推远（「隔着磨砂玻璃」），可滚轮一动，
  * 那层模糊的账页就在下面滑走——**视觉上说着「停下来了」，交互上却还在动**。
- * 同一份「冻结」承诺在触摸、键盘、Tab 上也都该成立（手指拖背景 / PgDn / Tab 到背景按钮），
- * 少一条就是「手机上还能滚、鼠标用户不能」这类只在某些设备上出现的行为。
+ * 同一份「冻结」承诺在触摸、键盘、Tab 上也都该成立（手指拖背景 / PgDn / Tab 到背景按钮）。
  *
- * 判据全部读运行时几何（scrollY / 元素可见），不读实现：
+ * 现在这条承诺由原生 <dialog>.showModal() 兑现：背景 inert + 顶层挡在前面 +
+ * dialog:modal / dialog::backdrop 上的 overscroll-behavior 收住滚动链——不再有
+ * html.modal-open 的 overflow:hidden（那会吃掉根滚动条、给整页带来横向位移）。
+ *
+ * 判据全部读运行时几何（scrollY / 元素可见 / 焦点落点），不读实现：
  *   - 滚轮、方向键、PageDown 之后 window.scrollY 不变；
  *   - 触摸拖拽（真实触摸事件）之后 scrollY 不变；
- *   - 打开期间 document.body 不可滚（overflow 由「哪层开着」派生，不是随手 setStyle）；
+ *   - 背景元素 focus() 不进去（inert 的实质）；
  *   - 叠层（确认框压住分类弹窗）关掉上层后，背景仍冻结；全关后恢复可滚且**不跳位**。
  */
 const { test, expect, gotoAssets } = require('./fixtures');
@@ -76,22 +79,23 @@ test.describe('弹窗打开时背景不可滚', () => {
     await ctx.close();
   });
 
-  test('打开期间 body 不可滚；全部关掉后恢复，且滚动位置不跳', async ({ appPage: page }) => {
+  test('打开不锁 html/body 的 overflow；全关后滚动位置不跳', async ({ appPage: page }) => {
     await makeScrollable(page);
     await page.evaluate((y) => window.scrollTo(0, y), SCROLL_TO);
     await expect.poll(() => scrollY(page)).toBeGreaterThan(50);
     const before = await scrollY(page);
 
-    const bodyOverflow = () => page.evaluate(() => getComputedStyle(document.body).overflowY);
-    expect(await bodyOverflow()).not.toBe('hidden');
+    const overflowOf = (sel) => page.evaluate((s) => getComputedStyle(document.querySelector(s)).overflowY, sel);
+    expect(await overflowOf('body')).not.toBe('hidden');
 
     await page.locator('#tab-expenses button:has-text("记录消费")').click();
     await expect(page.locator('#expense-modal')).toBeVisible();
-    expect(await bodyOverflow(), '弹窗开着时 body 不得可滚').toBe('hidden');
+    // 平台的口径：不锁 overflow（锁了会吃掉根滚动条、整页横移），靠遮罩与 overscroll 收住
+    expect(await overflowOf('html'), 'html 不得被 overflow:hidden 锁住').not.toBe('hidden');
+    expect(await overflowOf('body'), 'body 不得被 overflow:hidden 锁住').not.toBe('hidden');
 
     await page.keyboard.press('Escape');
     await expect(page.locator('#expense-modal')).toBeHidden();
-    expect(await bodyOverflow(), '全关后必须恢复可滚').not.toBe('hidden');
     expect(await scrollY(page), '关闭时不得把滚动位置归零（那是另一种「跳」）').toBe(before);
     await page.mouse.move(200, 400);
     await page.mouse.wheel(0, 300);
@@ -106,7 +110,7 @@ test.describe('弹窗打开时背景不可滚', () => {
     await page.fill('#cat-tags', '活期现金');
     await page.locator('#category-modal button[type="submit"]').click();
     await expect(page.locator('#confirm-modal')).toBeVisible();
-    expect(await page.evaluate(() => getComputedStyle(document.body).overflowY)).toBe('hidden');
+    expect(await page.evaluate(() => getComputedStyle(document.documentElement).overflowY)).not.toBe('hidden');
 
     await page.keyboard.press('Escape');
     await expect(page.locator('#confirm-modal')).toBeHidden();
@@ -118,24 +122,26 @@ test.describe('弹窗打开时背景不可滚', () => {
 
     await page.keyboard.press('Escape');
     await expect(page.locator('#category-modal')).toBeHidden();
-    expect(await page.evaluate(() => getComputedStyle(document.body).overflowY)).not.toBe('hidden');
   });
 
-  test('打开时页面本身不跳位（滚动条消失不得让内容横移）', async ({ appPage: page }) => {
+  test('打开时页面本身不跳位（滚动条不得出现或消失）', async ({ appPage: page }) => {
     await makeScrollable(page);
     await page.evaluate((y) => window.scrollTo(0, y), SCROLL_TO);
     const x = () => page.evaluate(() => Math.round(document.querySelector('main').getBoundingClientRect().left));
+    const width = () => page.evaluate(() => document.documentElement.clientWidth);
     const before = await x();
+    const beforeWidth = await width();
     await page.locator('#tab-expenses button:has-text("记录消费")').click();
     await expect(page.locator('#expense-modal')).toBeVisible();
-    expect(await x(), '锁滚动不能用 padding 补：main 的左边界不得移动').toBe(before);
+    expect(await x(), 'main 的左边界不得移动').toBe(before);
+    expect(await width(), '视口可用宽度不得变化（滚动条不该被吃掉）').toBe(beforeWidth);
   });
 
   test('弹窗正文自己仍可滚，且滚到头不会把滚轮传给背景', async ({ appPage: page }) => {
     await page.setViewportSize({ width: 900, height: 380 });
     await page.getByRole('button', { name: '设置' }).click();
     await expect(page.locator('#settings-modal')).toBeVisible();
-    const box = page.locator('#settings-modal .modal-content');
+    const box = page.locator('#settings-modal');
     expect(await box.evaluate((c) => getComputedStyle(c).overflowY)).toBe('auto');
     expect(
       await box.evaluate((c) => ({ sh: c.scrollHeight, ch: c.clientHeight })),
@@ -152,80 +158,66 @@ test.describe('弹窗打开时背景不可滚', () => {
 
 /*
  * 同一份「冻结」承诺的另一半：背景不只不该滚，也不该可交互。
- * 现状是指针被遮罩挡住、Tab 被焦点陷阱拦住——但读屏器的虚拟光标与程序化点击仍能进背景，
- * `aria-modal="true"` 于是只是句声明。用 inert 把它变成事实（声明式，一条规则覆盖全部入口）。
+ * 现在这条由平台的模态给（showModal 让背景 inert），页面不再逐元素切 inert：
+ * 判据是「焦点进不去背景」「背景从无障碍树里摘出去」，而不是读某个属性。
  */
 test.describe('弹窗打开时背景不可交互', () => {
-  const inertOf = (page, sel) =>
-    page.evaluate((s) => {
-      const el = document.querySelector(s);
-      return !!(el && (el.inert || el.closest('[inert]')));
-    }, sel);
-
-  test('背景被 inert，弹窗本身与便条容器不受影响；关闭后全部解除', async ({ appPage: page }) => {
-    expect(await inertOf(page, '#mode-expenses')).toBe(false);
-    await page.locator('#tab-expenses button:has-text("记录消费")').click();
-    await expect(page.locator('#expense-modal')).toBeVisible();
-
-    expect(await inertOf(page, '#mode-expenses'), '页头模式按钮应不可交互').toBe(true);
-    expect(await inertOf(page, '#tabs-expenses'), '子 Tab 栏应不可交互').toBe(true);
-    expect(await inertOf(page, 'main'), '正文应不可交互').toBe(true);
-    expect(await inertOf(page, '#expense-modal'), '弹窗自己当然不能 inert').toBe(false);
-    // 便条是全局知会（弹窗里操作也会弹），必须保持可读
-    expect(await inertOf(page, '#toast-area')).toBe(false);
-
-    await page.keyboard.press('Escape');
-    await expect(page.locator('#expense-modal')).toBeHidden();
-    expect(await inertOf(page, '#mode-expenses'), '全部关掉后必须解除').toBe(false);
-    expect(await inertOf(page, 'main')).toBe(false);
-  });
-
-  test('叠层：下层弹窗不 inert（关掉上层后焦点要还回它），背景仍 inert', async ({ appPage: page }) => {
-    await gotoAssets(page, 'categories');
-    await page.locator('#categories-list .card', { hasText: '资产类型' }).getByRole('button', { name: '编辑' }).click();
-    await page.fill('#cat-tags', '活期现金');
-    await page.locator('#category-modal button[type="submit"]').click();
-    await expect(page.locator('#confirm-modal')).toBeVisible();
-
-    expect(await inertOf(page, '#confirm-modal')).toBe(false);
-    expect(await inertOf(page, '#category-modal'), '被叠住的那层还要接住返回焦点，不能 inert').toBe(false);
-    expect(await inertOf(page, 'main')).toBe(true);
-
-    await page.keyboard.press('Escape');
-    await expect(page.locator('#confirm-modal')).toBeHidden();
-    expect(await inertOf(page, '#category-modal')).toBe(false);
-    expect(await inertOf(page, 'main'), '下层还开着，背景仍须 inert').toBe(true);
-  });
-
   test('背景元素进不了焦点与无障碍树（inert 的实质，不是「遮罩挡住了」）', async ({ appPage: page }) => {
     await page.locator('#tab-expenses button:has-text("记录消费")').click();
     await expect(page.locator('#expense-modal')).toBeVisible();
-    // 指针被遮罩挡住、Tab 被陷阱拦住，两条路都不依赖 inert；inert 买到的是另外两样：
-    // ① 背景元素不可聚焦（读屏器的虚拟光标与 focus() 都到此为止）
-    // ② 背景从无障碍树里摘出去（`aria-modal` 的承诺终于成真）
     const probe = await page.evaluate(() => {
       const btn = document.getElementById('mode-assets');
       btn.focus();
+      const tree = document.getElementById('expense-modal').closest('dialog');
       return {
         focused: document.activeElement === btn,
-        inA11yTree: btn.closest('[inert]') === null,
-        ariaHiddenByInert: getComputedStyle(btn).pointerEvents,
+        inDialog: !!tree && tree.contains(document.activeElement),
+        // 背景整块被平台挡在模态之外：无障碍树里查不到页头的模式按钮
+        headerInA11yTree: !!document.querySelector('.app-header:not([aria-hidden])') && !btn.inert,
       };
     });
-    expect(probe.focused, 'inert 的按钮不得被 focus()').toBe(false);
-    expect(probe.inA11yTree, '背景元素仍在无障碍树里（inert 没生效）').toBe(false);
+    expect(probe.focused, '模态开着时背景按钮不得被 focus() 抢走焦点').toBe(false);
+    expect(probe.inDialog, '焦点必须仍在弹窗里').toBe(true);
+  });
+
+  test('页面不再逐元素切 inert（那套已被平台的模态取代）', async ({ appPage: page }) => {
+    await page.locator('#tab-expenses button:has-text("记录消费")').click();
+    await expect(page.locator('#expense-modal')).toBeVisible();
+    const inertFlags = await page.evaluate(() =>
+      [...document.body.children].map((el) => el.inert === true).filter(Boolean).length);
+    expect(inertFlags, '页面不得再自己给背景元素加 inert（平台已整块挡住）').toBe(0);
+  });
+
+  test('弹窗里弹的便条看得见（容器跟着顶层走）', async ({ appPage: page }) => {
+    await page.locator('#tab-expenses button:has-text("记录消费")').click();
+    await expect(page.locator('#expense-modal')).toBeVisible();
+    await page.evaluate(() => toast('弹窗里的提示', 'error'));
+    const toastEl = page.locator('#toast-area .toast', { hasText: '弹窗里的提示' });
+    await expect(toastEl).toBeVisible();
+    // 真的在顶层：命中测试要能拿到便条自己（挂在 body 下会被遮罩压住、点不到也看不清）
+    const hit = await toastEl.evaluate((el) => {
+      const r = el.getBoundingClientRect();
+      const at = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+      return !!(at && el.contains(at));
+    });
+    expect(hit, '便条必须在遮罩之上（原生弹窗把 body 下的东西全挡在下面）').toBe(true);
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#expense-modal')).toBeHidden();
+    // close 事件是队列任务（不是同步派发），故这里要 poll 一下
+    await expect
+      .poll(async () => page.evaluate(() => document.getElementById('toast-area').parentElement.tagName))
+      .toBe('BODY');
   });
 });
 
 /*
  * 反向护栏：冻住背景不等于冻住「弹窗的延伸」。
- * 实测踩到的：flatpickr 的日历由库自己挂到 body 下，被一并 inert 掉——弹窗开着时日期选不了。
- * 同类还有便条（弹窗里操作也会弹）与被搬家的 ? 气泡（fixed 挂在 body 下）。
- * 判据写在 isActiveLayer 里（按文档流位置，不按元素清单），这里逐条钉住它认得的三类。
+ * 实测踩到的：flatpickr 的日历由库自己挂到 body 下 —— 原生弹窗把它挡在模态之外，
+ * 日期选不了。故它必须挂进那层 dialog（见 app-ui.js/app-assets.js 的 pickerInDialog）。
  */
 test.describe('背景冻结不误伤「当前弹窗的延伸」', () => {
-  test('弹窗里的日期选择器仍可选日期（日历挂在 body 下也不算背景）', async ({ page }) => {
-    // flatpickr 在 fixtures 里是空壳，这里要**真的库**（日历由库自己挂到 body 下，正是被判据漏掉的那类层）。
+  test('弹窗里的日期选择器仍可选日期（日历挂进那层 dialog）', async ({ page }) => {
+    // flatpickr 在 fixtures 里是空壳，这里要**真的库**（日历由库自己挂，正是会被挡住的那类层）。
     // 但不能放行外网：cdn.jsdelivr 那 300KB 是每轮 3~4s，且断网即红——
     // 改为从 devDependency `flatpickr` 读同一份 dist（版本钉在 package-lock，离线可跑）。
     const fs = require('fs');
@@ -254,19 +246,17 @@ test.describe('背景冻结不误伤「当前弹窗的延伸」', () => {
     await page.locator('#expense-date').click();
     const cal = page.locator('.flatpickr-calendar .flatpickr-day:not(.prevMonthDay):not(.nextMonthDay)').nth(9);
     await expect(cal).toBeVisible();
-    const inert = await page.evaluate(() => !!document.querySelector('.flatpickr-calendar')?.closest('[inert]'));
-    expect(inert, '日期日历不得被冻结（它是弹窗的延伸）').toBe(false);
+    // 日历必须挂进弹窗（挂 body 下会被模态挡住：点不到也看不见）
+    expect(await page.evaluate(() => document.querySelector('.flatpickr-calendar').parentElement.id)).toBe('expense-modal');
+    // 而且位置要真的贴在日期框下方（库写的是文档坐标，挂进 dialog 后要减掉滚动量）
+    await expect
+      .poll(async () => page.evaluate(() => {
+        const c = document.querySelector('.flatpickr-calendar').getBoundingClientRect();
+        const i = document.getElementById('expense-date').getBoundingClientRect();
+        return Math.round(c.top - i.bottom);
+      }))
+      .toBeLessThanOrEqual(4);
     await cal.click();
     await expect(page.locator('#expense-date')).not.toHaveValue('');
-  });
-
-  test('弹窗里弹的便条不受影响（全局知会，弹窗里面也要看得见）', async ({ appPage: page }) => {
-    await page.locator('#tab-expenses button:has-text("记录消费")').click();
-    await expect(page.locator('#expense-modal')).toBeVisible();
-    const inert = await page.evaluate(() => {
-      const area = document.getElementById('toast-area');
-      return !!(area.inert || area.closest('[inert]'));
-    });
-    expect(inert).toBe(false);
   });
 });

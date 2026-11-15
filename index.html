@@ -550,528 +550,488 @@
 </main>
 
 <!-- Snapshot Detail Modal -->
-<div id="snapshot-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="snapshot-modal-title" style="display:none;">
-  <div class="modal-content modal-xl">
-    <h3 class="font-display modal-title" id="snapshot-modal-title" data-i18n="快照详情">快照详情</h3>
-    <div id="snapshot-detail-content"></div>
-    <div class="modal-footer">
-      <button type="button" onclick="closeModal('snapshot-modal')" class="btn-ghost" data-i18n="关闭">关闭</button>
-    </div>
+<dialog id="snapshot-modal" class="modal-overlay modal-xl" closedby="any" aria-labelledby="snapshot-modal-title">
+  <h3 class="font-display modal-title" id="snapshot-modal-title" data-i18n="快照详情" tabindex="-1">快照详情</h3>
+  <div id="snapshot-detail-content"></div>
+  <div class="modal-footer">
+    <button type="button" onclick="closeModal('snapshot-modal')" class="btn-ghost" data-i18n="关闭">关闭</button>
   </div>
-</div>
+</dialog>
 
 <!-- Snapshot Compare Modal -->
-<div id="compare-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="compare-modal-title" style="display:none;">
-  <div class="modal-content modal-xl">
-    <h3 class="font-display modal-title" id="compare-modal-title" data-i18n="快照对比">快照对比</h3>
-    <div class="compare-controls">
-      <label class="meta-label muted"><span data-i18n="起始月">起始月</span>
-        <select id="compare-base-select" onchange="renderCompareTable()" class="select-field ml-2"></select>
-      </label>
-      <span class="t-body muted">→</span>
-      <label class="meta-label muted"><span data-i18n="结束月">结束月</span>
-        <select id="compare-target-select" onchange="renderCompareTable()" class="select-field ml-2"></select>
-      </label>
-    </div>
-    <div class="compare-hero-row">
-      <div>
-        <span class="masthead-eyebrow" data-i18n="总净值变动">总净值变动</span>
-        <p id="compare-hero" class="font-masthead tabular hero-figure">—</p>
-      </div>
-      <p id="compare-context" class="t-micro text-right muted" style="padding-bottom:6px;"></p>
-    </div>
-    <p class="t-micro mb-2 muted" data-i18n="金额按各快照当时汇率折算为 CNY">金额按各快照当时汇率折算为 CNY</p>
-    <div id="compare-detail-content" style="overflow-x:auto;"></div>
-    <div class="modal-footer">
-      <button type="button" onclick="closeModal('compare-modal')" class="btn-ghost" data-i18n="关闭">关闭</button>
-    </div>
+<dialog id="compare-modal" class="modal-overlay modal-xl" closedby="any" aria-labelledby="compare-modal-title">
+  <h3 class="font-display modal-title" id="compare-modal-title" data-i18n="快照对比" tabindex="-1">快照对比</h3>
+  <div class="compare-controls">
+    <label class="meta-label muted"><span data-i18n="起始月">起始月</span>
+      <select id="compare-base-select" onchange="renderCompareTable()" class="select-field ml-2"></select>
+    </label>
+    <span class="t-body muted">→</span>
+    <label class="meta-label muted"><span data-i18n="结束月">结束月</span>
+      <select id="compare-target-select" onchange="renderCompareTable()" class="select-field ml-2"></select>
+    </label>
   </div>
-</div>
+  <div class="compare-hero-row">
+    <div>
+      <span class="masthead-eyebrow" data-i18n="总净值变动">总净值变动</span>
+      <p id="compare-hero" class="font-masthead tabular hero-figure">—</p>
+    </div>
+    <p id="compare-context" class="t-micro text-right muted" style="padding-bottom:6px;"></p>
+  </div>
+  <p class="t-micro mb-2 muted" data-i18n="金额按各快照当时汇率折算为 CNY">金额按各快照当时汇率折算为 CNY</p>
+  <div id="compare-detail-content" style="overflow-x:auto;"></div>
+  <div class="modal-footer">
+    <button type="button" onclick="closeModal('compare-modal')" class="btn-ghost" data-i18n="关闭">关闭</button>
+  </div>
+</dialog>
 
 <!-- Expense Two-Month Compare Modal -->
-<div id="expense-compare-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="expense-compare-modal-title" style="display:none;">
-  <div class="modal-content modal-xl">
-    <h3 class="font-display modal-title" id="expense-compare-modal-title" data-i18n="消费对比">消费对比</h3>
-    <div class="compare-controls">
-      <label class="meta-label muted"><span data-i18n="基准">基准</span>
-        <select id="exp-compare-base-mode" onchange="syncExpenseCompareBaseMode()" class="select-field ml-2">
-          <option value="month" data-i18n="起始月">起始月</option>
-          <option value="normal" data-i18n="近 12 个月平常">近 12 个月平常</option>
-        </select>
-      </label>
-      <label id="exp-compare-base-month-label" class="meta-label muted"><span data-i18n="起始月">起始月</span>
-        <select id="exp-compare-base-select" onchange="renderExpenseCompareTable()" class="select-field ml-2"></select>
-      </label>
-      <span id="exp-compare-arrow" class="t-body muted">→</span>
-      <label class="meta-label muted"><span data-i18n="结束月">结束月</span>
-        <select id="exp-compare-target-select" onchange="renderExpenseCompareTable()" class="select-field ml-2"></select>
-      </label>
-      <label class="meta-label muted"><span data-i18n="维度">维度</span>
-        <select id="exp-compare-cat-select" onchange="renderExpenseCompareTable()" class="select-field ml-2"></select>
-      </label>
-    </div>
-    <div class="compare-hero-row">
-      <div>
-        <span class="masthead-eyebrow" data-i18n="总消费变动">总消费变动</span>
-        <p id="exp-compare-hero" class="font-masthead tabular hero-figure">—</p>
-      </div>
-      <p id="exp-compare-context" class="t-micro text-right muted" style="padding-bottom:6px;"></p>
-    </div>
-    <p class="t-micro mb-2 muted" data-i18n="按所选维度逐标签拆分，金额单位为 CNY">按所选维度逐标签拆分，金额单位为 CNY</p>
-    <div id="exp-compare-detail-content" style="overflow-x:auto;"></div>
-    <div class="modal-footer">
-      <button type="button" onclick="closeModal('expense-compare-modal')" class="btn-ghost" data-i18n="关闭">关闭</button>
-    </div>
+<dialog id="expense-compare-modal" class="modal-overlay modal-xl" closedby="any" aria-labelledby="expense-compare-modal-title">
+  <h3 class="font-display modal-title" id="expense-compare-modal-title" data-i18n="消费对比" tabindex="-1">消费对比</h3>
+  <div class="compare-controls">
+    <label class="meta-label muted"><span data-i18n="基准">基准</span>
+      <select id="exp-compare-base-mode" onchange="syncExpenseCompareBaseMode()" class="select-field ml-2">
+        <option value="month" data-i18n="起始月">起始月</option>
+        <option value="normal" data-i18n="近 12 个月平常">近 12 个月平常</option>
+      </select>
+    </label>
+    <label id="exp-compare-base-month-label" class="meta-label muted"><span data-i18n="起始月">起始月</span>
+      <select id="exp-compare-base-select" onchange="renderExpenseCompareTable()" class="select-field ml-2"></select>
+    </label>
+    <span id="exp-compare-arrow" class="t-body muted">→</span>
+    <label class="meta-label muted"><span data-i18n="结束月">结束月</span>
+      <select id="exp-compare-target-select" onchange="renderExpenseCompareTable()" class="select-field ml-2"></select>
+    </label>
+    <label class="meta-label muted"><span data-i18n="维度">维度</span>
+      <select id="exp-compare-cat-select" onchange="renderExpenseCompareTable()" class="select-field ml-2"></select>
+    </label>
   </div>
-</div>
+  <div class="compare-hero-row">
+    <div>
+      <span class="masthead-eyebrow" data-i18n="总消费变动">总消费变动</span>
+      <p id="exp-compare-hero" class="font-masthead tabular hero-figure">—</p>
+    </div>
+    <p id="exp-compare-context" class="t-micro text-right muted" style="padding-bottom:6px;"></p>
+  </div>
+  <p class="t-micro mb-2 muted" data-i18n="按所选维度逐标签拆分，金额单位为 CNY">按所选维度逐标签拆分，金额单位为 CNY</p>
+  <div id="exp-compare-detail-content" style="overflow-x:auto;"></div>
+  <div class="modal-footer">
+    <button type="button" onclick="closeModal('expense-compare-modal')" class="btn-ghost" data-i18n="关闭">关闭</button>
+  </div>
+</dialog>
 
 <!-- Yield Modal -->
-<div id="yield-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="yield-modal-title" style="display:none;">
-  <div class="modal-content">
-    <h3 class="font-display modal-title" id="yield-modal-title" data-i18n="年化换算">年化换算</h3>
-    <div id="yield-body"></div>
-  </div>
-</div>
+<dialog id="yield-modal" class="modal-overlay" closedby="any" aria-labelledby="yield-modal-title">
+  <h3 class="font-display modal-title" id="yield-modal-title" data-i18n="年化换算" tabindex="-1">年化换算</h3>
+  <div id="yield-body"></div>
+</dialog>
 
 <!-- Snapshot Note Modal -->
-<div id="snapshot-note-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="snapshot-note-modal-title" style="display:none;">
-  <div class="modal-content modal-sm">
-    <h3 class="font-display modal-title" id="snapshot-note-modal-title" data-i18n="记录快照">记录快照</h3>
-    <p class="t-body mb-4 muted" data-i18n="将保存当前所有资产数据">将保存当前所有资产数据</p>
-    <input type="text" id="snapshot-note-input" class="field-full" placeholder="备注（可选）" data-i18n-placeholder="备注（可选）" autofocus onkeydown="if(event.key==='Enter')confirmSnapshot()">
-    <div class="modal-footer">
-      <button type="button" onclick="closeModal('snapshot-note-modal')" class="btn-ghost" data-i18n="取消">取消</button>
-      <button type="button" onclick="confirmSnapshot()" class="btn-gold" data-i18n="确认快照">确认快照</button>
-    </div>
+<dialog id="snapshot-note-modal" class="modal-overlay modal-sm" closedby="any" aria-labelledby="snapshot-note-modal-title">
+  <h3 class="font-display modal-title" id="snapshot-note-modal-title" data-i18n="记录快照" tabindex="-1">记录快照</h3>
+  <p class="t-body mb-4 muted" data-i18n="将保存当前所有资产数据">将保存当前所有资产数据</p>
+  <input type="text" id="snapshot-note-input" class="field-full" placeholder="备注（可选）" data-i18n-placeholder="备注（可选）" autofocus onkeydown="if(event.key==='Enter')confirmSnapshot()">
+  <div class="modal-footer">
+    <button type="button" onclick="closeModal('snapshot-note-modal')" class="btn-ghost" data-i18n="取消">取消</button>
+    <button type="button" onclick="confirmSnapshot()" class="btn-gold" data-i18n="确认快照">确认快照</button>
   </div>
-</div>
+</dialog>
 
 <!-- Asset Modal -->
-<div id="asset-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="asset-modal-title" style="display:none;">
-  <div class="modal-content">
-    <h3 class="font-display modal-title" id="asset-modal-title" data-i18n="登记资产">登记资产</h3>
-    <form id="asset-form" onsubmit="saveAsset(event)">
-      <input type="hidden" id="asset-edit-id">
-      <div class="space-y-4">
-        <div>
-          <label class="field-label" for="asset-name" data-i18n="资产名称">资产名称</label>
-          <input type="text" id="asset-name" required class="field-full" placeholder="如：招商银行活期" data-i18n-placeholder="如：招商银行活期">
-        </div>
-        <div class="form-grid-2">
-          <div>
-            <label class="field-label" for="asset-amount" data-i18n="金额">金额</label>
-            <input type="text" id="asset-amount" required inputmode="decimal" class="field-full" placeholder="0.00" oninput="formatMoneyInput(this)" autocomplete="off">
-          </div>
-          <div>
-            <label class="field-label" for="asset-currency" data-i18n="货币">货币</label>
-            <select id="asset-currency" class="field-full">
-              <option value="CNY">CNY ¥</option>
-              <option value="HKD">HKD $</option>
-              <option value="USD">USD $</option>
-            </select>
-          </div>
-        </div>
-        <div>
-          <label class="field-label" for="asset-rate-min" data-i18n="预期年化收益率 (%)">预期年化收益率 (%)</label>
-          <div class="rate-pair">
-            <!-- step="any"：step="0.1" 会让 0.25% 这类两位小数利率命中原生 stepMismatch，
-                 浏览器静默拦截 submit —— 用户点保存毫无反应也没有任何提示（演示数据的
-                 0.25%/0.35% 即会触发）。步长在这里没有语义，交给 saveAsset 校验。 -->
-            <input type="number" id="asset-rate-min" min="0" step="any" class="field-full" placeholder="最低" data-i18n-placeholder="最低" value="0" aria-label="预期年化收益率下限 (%)" data-i18n-aria-label="预期年化收益率下限 (%)">
-            <span class="muted">—</span>
-            <input type="number" id="asset-rate-max" min="0" step="any" class="field-full" placeholder="最高" data-i18n-placeholder="最高" value="0" aria-label="预期年化收益率上限 (%)" data-i18n-aria-label="预期年化收益率上限 (%)">
-          </div>
-        </div>
-        <div>
-          <div class="field-head">
-            <label class="field-label tight" for="asset-cash-ratio" data-i18n="现金比例 (%)">现金比例 (%)</label>
-            <span class="scale-reading" id="asset-cash-ratio-readout">100%</span>
-          </div>
-          <div class="scale-row">
-            <input type="range" id="asset-cash-ratio" class="scale-input" min="0" max="100" step="1" value="100" aria-label="现金比例（百分比）" data-i18n-aria-label="现金比例（百分比）" oninput="onCashRatioInput()">
-            <button type="button" onclick="setCashRatioPreset(100)" class="btn-ghost btn-sm" data-i18n="全额现金">全额现金</button>
-            <button type="button" onclick="setCashRatioPreset(0)" class="btn-ghost btn-sm" data-i18n="纯增值">纯增值</button>
-          </div>
-          <p class="t-micro mt-1.5 muted" data-i18n="预期收益中来自股息 / 利息 / 租金等现金流的比例。存款、债券拉满；股票按分红占比估。">预期收益中来自股息 / 利息 / 租金等现金流的比例。存款、债券拉满；股票按分红占比估。</p>
-        </div>
-        <div id="asset-tags-section" class="space-y-3"></div>
+<dialog id="asset-modal" class="modal-overlay" closedby="any" aria-labelledby="asset-modal-title">
+  <h3 class="font-display modal-title" id="asset-modal-title" data-i18n="登记资产" tabindex="-1">登记资产</h3>
+  <form id="asset-form" onsubmit="saveAsset(event)">
+    <input type="hidden" id="asset-edit-id">
+    <div class="space-y-4">
+      <div>
+        <label class="field-label" for="asset-name" data-i18n="资产名称">资产名称</label>
+        <input type="text" id="asset-name" required class="field-full" placeholder="如：招商银行活期" data-i18n-placeholder="如：招商银行活期">
       </div>
-      <div class="modal-footer">
-        <button type="button" onclick="closeModal('asset-modal')" class="btn-ghost" data-i18n="取消">取消</button>
-        <button type="submit" class="btn-gold" data-i18n="保存">保存</button>
+      <div class="form-grid-2">
+        <div>
+          <label class="field-label" for="asset-amount" data-i18n="金额">金额</label>
+          <input type="text" id="asset-amount" required inputmode="decimal" class="field-full" placeholder="0.00" oninput="formatMoneyInput(this)" autocomplete="off">
+        </div>
+        <div>
+          <label class="field-label" for="asset-currency" data-i18n="货币">货币</label>
+          <select id="asset-currency" class="field-full">
+            <option value="CNY">CNY ¥</option>
+            <option value="HKD">HKD $</option>
+            <option value="USD">USD $</option>
+          </select>
+        </div>
       </div>
-    </form>
-  </div>
-</div>
+      <div>
+        <label class="field-label" for="asset-rate-min" data-i18n="预期年化收益率 (%)">预期年化收益率 (%)</label>
+        <div class="rate-pair">
+          <!-- step="any"：step="0.1" 会让 0.25% 这类两位小数利率命中原生 stepMismatch，
+               浏览器静默拦截 submit —— 用户点保存毫无反应也没有任何提示（演示数据的
+               0.25%/0.35% 即会触发）。步长在这里没有语义，交给 saveAsset 校验。 -->
+          <input type="number" id="asset-rate-min" min="0" step="any" class="field-full" placeholder="最低" data-i18n-placeholder="最低" value="0" aria-label="预期年化收益率下限 (%)" data-i18n-aria-label="预期年化收益率下限 (%)">
+          <span class="muted">—</span>
+          <input type="number" id="asset-rate-max" min="0" step="any" class="field-full" placeholder="最高" data-i18n-placeholder="最高" value="0" aria-label="预期年化收益率上限 (%)" data-i18n-aria-label="预期年化收益率上限 (%)">
+        </div>
+      </div>
+      <div>
+        <div class="field-head">
+          <label class="field-label tight" for="asset-cash-ratio" data-i18n="现金比例 (%)">现金比例 (%)</label>
+          <span class="scale-reading" id="asset-cash-ratio-readout">100%</span>
+        </div>
+        <div class="scale-row">
+          <input type="range" id="asset-cash-ratio" class="scale-input" min="0" max="100" step="1" value="100" aria-label="现金比例（百分比）" data-i18n-aria-label="现金比例（百分比）" oninput="onCashRatioInput()">
+          <button type="button" onclick="setCashRatioPreset(100)" class="btn-ghost btn-sm" data-i18n="全额现金">全额现金</button>
+          <button type="button" onclick="setCashRatioPreset(0)" class="btn-ghost btn-sm" data-i18n="纯增值">纯增值</button>
+        </div>
+        <p class="t-micro mt-1.5 muted" data-i18n="预期收益中来自股息 / 利息 / 租金等现金流的比例。存款、债券拉满；股票按分红占比估。">预期收益中来自股息 / 利息 / 租金等现金流的比例。存款、债券拉满；股票按分红占比估。</p>
+      </div>
+      <div id="asset-tags-section" class="space-y-3"></div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" onclick="closeModal('asset-modal')" class="btn-ghost" data-i18n="取消">取消</button>
+      <button type="submit" class="btn-gold" data-i18n="保存">保存</button>
+    </div>
+  </form>
+</dialog>
 
 <!-- Category Modal -->
-<div id="category-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="category-modal-title" style="display:none;">
-  <div class="modal-content">
-    <h3 class="font-display modal-title" id="category-modal-title" data-i18n="新增分类">新增分类</h3>
-    <form id="category-form" data-side="asset" onsubmit="saveCategory(this.dataset.side, event)">
-      <input type="hidden" id="cat-edit-id">
-      <div class="space-y-4">
-        <div>
-          <label class="field-label" for="cat-name" data-i18n="分类名称">分类名称</label>
-          <input type="text" id="cat-name" required class="field-full" placeholder="如：资产类型" data-i18n-placeholder="如：资产类型">
-        </div>
-        <div>
-          <label class="field-label" for="cat-tags" data-i18n="标签（逗号分隔）">标签（逗号分隔）</label>
-          <input type="text" id="cat-tags" required class="field-full" placeholder="如：固定资产, 股票, 债券" data-i18n-placeholder="如：固定资产, 股票, 债券">
-        </div>
+<dialog id="category-modal" class="modal-overlay" closedby="any" aria-labelledby="category-modal-title">
+  <h3 class="font-display modal-title" id="category-modal-title" data-i18n="新增分类" tabindex="-1">新增分类</h3>
+  <form id="category-form" data-side="asset" onsubmit="saveCategory(this.dataset.side, event)">
+    <input type="hidden" id="cat-edit-id">
+    <div class="space-y-4">
+      <div>
+        <label class="field-label" for="cat-name" data-i18n="分类名称">分类名称</label>
+        <input type="text" id="cat-name" required class="field-full" placeholder="如：资产类型" data-i18n-placeholder="如：资产类型">
       </div>
-      <div class="modal-footer">
-        <button type="button" onclick="closeModal('category-modal')" class="btn-ghost" data-i18n="取消">取消</button>
-        <button type="submit" class="btn-gold" data-i18n="保存">保存</button>
+      <div>
+        <label class="field-label" for="cat-tags" data-i18n="标签（逗号分隔）">标签（逗号分隔）</label>
+        <input type="text" id="cat-tags" required class="field-full" placeholder="如：固定资产, 股票, 债券" data-i18n-placeholder="如：固定资产, 股票, 债券">
       </div>
-    </form>
-  </div>
-</div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" onclick="closeModal('category-modal')" class="btn-ghost" data-i18n="取消">取消</button>
+      <button type="submit" class="btn-gold" data-i18n="保存">保存</button>
+    </div>
+  </form>
+</dialog>
 
 <!-- Import/Export Modal -->
-<div id="io-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="io-modal-title" style="display:none;">
-  <div class="modal-content">
-    <h3 class="font-display modal-title" id="io-modal-title" data-i18n="备份与导入">备份与导入</h3>
-    <div class="space-y-5">
-      <div>
-        <p class="t-body mb-3 muted" data-i18n="导出当前所有数据为 JSON 文件">导出当前所有数据为 JSON 文件</p>
-        <button onclick="exportData()" class="btn-gold" data-i18n="导出数据">导出数据</button>
-        <span id="backup-last-text" class="t-micro ml-3 muted"></span>
-      </div>
-      <hr>
-      <div>
-        <p class="t-body mb-3 muted" data-i18n="从 JSON 文件导入数据（将覆盖当前数据）">从 JSON 文件导入数据（将覆盖当前数据）</p>
-        <!-- label 必须**包住** file input：label[for] 的 tabIndex 是 -1、input 又是 display:none，
-             两头都进不了 Tab 序（实测 Shift+Tab 直接跳过）。包住后只有 input 一个停靠点，
-             Enter/Space 由浏览器负责，焦点环画在 label 上（:focus-within）。 -->
-        <label class="btn-gold file-label">
-          <span data-i18n="选择文件">选择文件</span>
-          <input type="file" id="import-file" class="sr-only" accept=".json" onchange="importData(event)">
-        </label>
-        <span id="import-file-name" class="t-micro ml-3 muted"></span>
-      </div>
+<dialog id="io-modal" class="modal-overlay" closedby="any" aria-labelledby="io-modal-title">
+  <h3 class="font-display modal-title" id="io-modal-title" data-i18n="备份与导入" tabindex="-1">备份与导入</h3>
+  <div class="space-y-5">
+    <div>
+      <p class="t-body mb-3 muted" data-i18n="导出当前所有数据为 JSON 文件">导出当前所有数据为 JSON 文件</p>
+      <button onclick="exportData()" class="btn-gold" data-i18n="导出数据">导出数据</button>
+      <span id="backup-last-text" class="t-micro ml-3 muted"></span>
     </div>
-    <div class="modal-footer">
-      <button type="button" onclick="closeModal('io-modal')" class="btn-ghost" data-i18n="关闭">关闭</button>
+    <hr>
+    <div>
+      <p class="t-body mb-3 muted" data-i18n="从 JSON 文件导入数据（将覆盖当前数据）">从 JSON 文件导入数据（将覆盖当前数据）</p>
+      <!-- label 必须**包住** file input：label[for] 的 tabIndex 是 -1、input 又是 display:none，
+           两头都进不了 Tab 序（实测 Shift+Tab 直接跳过）。包住后只有 input 一个停靠点，
+           Enter/Space 由浏览器负责，焦点环画在 label 上（:focus-within）。 -->
+      <label class="btn-gold file-label">
+        <span data-i18n="选择文件">选择文件</span>
+        <input type="file" id="import-file" class="sr-only" accept=".json" onchange="importData(event)">
+      </label>
+      <span id="import-file-name" class="t-micro ml-3 muted"></span>
     </div>
   </div>
-</div>
+  <div class="modal-footer">
+    <button type="button" onclick="closeModal('io-modal')" class="btn-ghost" data-i18n="关闭">关闭</button>
+  </div>
+</dialog>
 
-<div id="pass-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="pass-modal-title" style="display:none;">
-  <div class="modal-content modal-sm">
-    <h3 class="font-display modal-title" id="pass-modal-title" data-i18n="输入密钥">输入密钥</h3>
-    <p class="t-body muted" style="margin-bottom:20px;" data-i18n="这个备份是加密的，输入导出时用的那串密钥才能打开。">这个备份是加密的，输入导出时用的那串密钥才能打开。</p>
-    <label class="field-label" for="pass-modal-input" data-i18n="密钥">密钥</label>
-    <input type="password" id="pass-modal-input" class="field-full" autocomplete="off" onkeydown="passModalKey(event)">
-    <div class="modal-footer">
-      <button type="button" onclick="cancelPassImport()" class="btn-ghost" data-i18n="取消">取消</button>
-      <button type="button" id="pass-modal-ok" onclick="submitPassImport()" class="btn-gold" data-i18n="解密">解密</button>
-    </div>
+<dialog id="pass-modal" class="modal-overlay modal-sm" closedby="any" aria-labelledby="pass-modal-title">
+  <h3 class="font-display modal-title" id="pass-modal-title" data-i18n="输入密钥" tabindex="-1">输入密钥</h3>
+  <p class="t-body muted" style="margin-bottom:20px;" data-i18n="这个备份是加密的，输入导出时用的那串密钥才能打开。">这个备份是加密的，输入导出时用的那串密钥才能打开。</p>
+  <label class="field-label" for="pass-modal-input" data-i18n="密钥">密钥</label>
+  <input type="password" id="pass-modal-input" class="field-full" autocomplete="off" onkeydown="passModalKey(event)">
+  <div class="modal-footer">
+    <button type="button" onclick="cancelPassImport()" class="btn-ghost" data-i18n="取消">取消</button>
+    <button type="button" id="pass-modal-ok" onclick="submitPassImport()" class="btn-gold" data-i18n="解密">解密</button>
   </div>
-</div>
+</dialog>
 
 <!-- Asset Gate Modal：进资产页的第二道闸（抄一句箴言才放行）——不是权限，是给「顺手看一眼」定价。
      第一段闸（长按）在顶部按钮上；这一道对指针/键盘/读屏器同价。 -->
-<div id="asset-gate-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="asset-gate-title" style="display:none;">
-  <div class="modal-content modal-sm">
-    <!-- 换句入口：标题旁一枚图标，悬停/聚焦才展开「换成哪一池」的文案（气泡走 .tip 那一套）。
-         不把它常驻在箴言下面：贴在那句话底下的按钮看起来像它的一部分，也让这道门显得可绕过。
-         没有 aria-describedby：气泡文案与按钮的 aria-label 是同一句，再绑一次只是让读屏器说两遍。 -->
-    <h3 class="font-display modal-title" id="asset-gate-title"><span data-i18n="进入资产页">进入资产页</span><span class="tip gate-lang">
-      <button type="button" id="asset-gate-lang" class="tip-mark gate-lang-mark" aria-label="换英文" data-i18n-aria-label="换英文" onclick="toggleAssetGatePhraseLang()"><svg class="ico" aria-hidden="true"><use href="#ic-languages"/></svg></button>
-      <span class="tip-bubble" id="asset-gate-lang-tip" role="tooltip" data-i18n="换英文">换英文</span>
-    </span></h3>
-    <p class="t-body muted" style="margin-bottom:20px;" data-i18n="资产波动大，反复看容易被涨跌牵着走。抄下这一句再进去。">资产波动大，反复看容易被涨跌牵着走。抄下这一句再进去。</p>
-    <p id="asset-gate-phrase" class="gate-phrase"></p>
-    <label class="field-label" for="asset-gate-input" data-i18n="抄写这句话">抄写这句话</label>
-    <!-- 禁止粘贴：允许粘贴就把这道闸变成一次性的（抄过一次就永远 Ctrl+V） -->
-    <input type="text" id="asset-gate-input" class="field-full" autocomplete="off" spellcheck="false" onpaste="event.preventDefault()" onkeydown="assetGateKey(event)">
-    <p id="asset-gate-error" class="gate-error" style="display:none;" role="alert" data-i18n="与原句不一致，请重抄一遍">与原句不一致，请重抄一遍</p>
-    <div class="modal-footer">
-      <button type="button" onclick="cancelAssetGate()" class="btn-ghost" data-i18n="不看">不看</button>
-      <button type="button" id="asset-gate-ok" onclick="submitAssetGate()" class="btn-gold" data-i18n="进入">进入</button>
-    </div>
+<dialog id="asset-gate-modal" class="modal-overlay modal-sm" closedby="any" aria-labelledby="asset-gate-title">
+  <!-- 换句入口：标题旁一枚图标，悬停/聚焦才展开「换成哪一池」的文案（气泡走 .tip 那一套）。
+       不把它常驻在箴言下面：贴在那句话底下的按钮看起来像它的一部分，也让这道门显得可绕过。
+       没有 aria-describedby：气泡文案与按钮的 aria-label 是同一句，再绑一次只是让读屏器说两遍。 -->
+  <h3 class="font-display modal-title" id="asset-gate-title" tabindex="-1"><span data-i18n="进入资产页">进入资产页</span><span class="tip gate-lang">
+    <button type="button" id="asset-gate-lang" class="tip-mark gate-lang-mark" aria-label="换英文" data-i18n-aria-label="换英文" onclick="toggleAssetGatePhraseLang()"><svg class="ico" aria-hidden="true"><use href="#ic-languages"/></svg></button>
+    <span class="tip-bubble" id="asset-gate-lang-tip" role="tooltip" data-i18n="换英文">换英文</span>
+  </span></h3>
+  <p class="t-body muted" style="margin-bottom:20px;" data-i18n="资产波动大，反复看容易被涨跌牵着走。抄下这一句再进去。">资产波动大，反复看容易被涨跌牵着走。抄下这一句再进去。</p>
+  <p id="asset-gate-phrase" class="gate-phrase"></p>
+  <label class="field-label" for="asset-gate-input" data-i18n="抄写这句话">抄写这句话</label>
+  <!-- 禁止粘贴：允许粘贴就把这道闸变成一次性的（抄过一次就永远 Ctrl+V） -->
+  <input type="text" id="asset-gate-input" class="field-full" autocomplete="off" spellcheck="false" onpaste="event.preventDefault()" onkeydown="assetGateKey(event)">
+  <p id="asset-gate-error" class="gate-error" style="display:none;" role="alert" data-i18n="与原句不一致，请重抄一遍">与原句不一致，请重抄一遍</p>
+  <div class="modal-footer">
+    <button type="button" onclick="cancelAssetGate()" class="btn-ghost" data-i18n="不看">不看</button>
+    <button type="button" id="asset-gate-ok" onclick="submitAssetGate()" class="btn-gold" data-i18n="进入">进入</button>
   </div>
-</div>
+</dialog>
 
 <!-- Confirm Modal -->
-<div id="confirm-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="confirm-title" style="display:none;">
-  <div class="modal-content modal-sm">
-    <h3 class="font-display modal-title" id="confirm-title" data-i18n="确认操作">确认操作</h3>
-    <p id="confirm-msg" class="t-body muted"></p>
-    <div class="modal-footer">
-      <button type="button" onclick="confirmCancel()" class="btn-ghost" data-i18n="取消">取消</button>
-      <button type="button" id="confirm-ok-btn" class="btn-danger" data-i18n="确认">确认</button>
-    </div>
+<dialog id="confirm-modal" class="modal-overlay modal-sm" closedby="any" aria-labelledby="confirm-title">
+  <h3 class="font-display modal-title" id="confirm-title" data-i18n="确认操作" tabindex="-1">确认操作</h3>
+  <p id="confirm-msg" class="t-body muted"></p>
+  <div class="modal-footer">
+    <button type="button" onclick="confirmCancel()" class="btn-ghost" data-i18n="取消">取消</button>
+    <button type="button" id="confirm-ok-btn" class="btn-danger" data-i18n="确认">确认</button>
   </div>
-</div>
+</dialog>
 
 <!-- Snapshot Reminder Modal（月度快照提醒：只有一个「知道了」，不跳转、不带入口） -->
-<div id="snapshot-reminder-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="snapshot-reminder-title" style="display:none;">
-  <div class="modal-content modal-sm">
-    <h3 class="font-display modal-title" id="snapshot-reminder-title" data-i18n="快照提醒">快照提醒</h3>
-    <p id="snapshot-reminder-msg" class="t-body muted"></p>
-    <div class="modal-footer">
-      <button type="button" onclick="closeSnapshotReminder()" class="btn-gold" data-i18n="知道了">知道了</button>
-    </div>
+<dialog id="snapshot-reminder-modal" class="modal-overlay modal-sm" closedby="any" aria-labelledby="snapshot-reminder-title">
+  <h3 class="font-display modal-title" id="snapshot-reminder-title" data-i18n="快照提醒" tabindex="-1">快照提醒</h3>
+  <p id="snapshot-reminder-msg" class="t-body muted"></p>
+  <div class="modal-footer">
+    <button type="button" onclick="closeSnapshotReminder()" class="btn-gold" data-i18n="知道了">知道了</button>
   </div>
-</div>
+</dialog>
 
 <!-- Expense Modal -->
-<div id="expense-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="expense-modal-title" style="display:none;">
-  <div class="modal-content">
-    <h3 class="font-display modal-title" id="expense-modal-title" data-i18n="记录消费">记录消费</h3>
-    <form id="expense-form" onsubmit="saveExpense(event)">
-      <input type="hidden" id="expense-edit-id">
-      <div class="space-y-4">
-        <div>
-          <label class="field-label" for="expense-date" data-i18n="日期">日期</label>
-          <input type="date" id="expense-date" required class="field-full">
-        </div>
-        <div>
-          <label class="field-label" for="expense-amount" data-i18n="金额 (CNY)">金额 (CNY)</label>
-          <input type="text" id="expense-amount" required inputmode="decimal" class="field-full" placeholder="0.00" oninput="formatMoneyInput(this)" autocomplete="off">
-        </div>
-        <div>
-          <label class="field-label" for="expense-note" data-i18n="备注">备注</label>
-          <input type="text" id="expense-note" class="field-full" placeholder="可选备注" data-i18n-placeholder="可选备注">
-        </div>
-        <div id="expense-tags-section" class="space-y-3"></div>
+<dialog id="expense-modal" class="modal-overlay" closedby="any" aria-labelledby="expense-modal-title">
+  <h3 class="font-display modal-title" id="expense-modal-title" data-i18n="记录消费" tabindex="-1">记录消费</h3>
+  <form id="expense-form" onsubmit="saveExpense(event)">
+    <input type="hidden" id="expense-edit-id">
+    <div class="space-y-4">
+      <div>
+        <label class="field-label" for="expense-date" data-i18n="日期">日期</label>
+        <input type="date" id="expense-date" required class="field-full">
       </div>
-      <div class="modal-footer">
-        <button type="button" onclick="closeModal('expense-modal')" class="btn-ghost" data-i18n="取消">取消</button>
-        <button type="submit" class="btn-gold" data-i18n="保存">保存</button>
+      <div>
+        <label class="field-label" for="expense-amount" data-i18n="金额 (CNY)">金额 (CNY)</label>
+        <input type="text" id="expense-amount" required inputmode="decimal" class="field-full" placeholder="0.00" oninput="formatMoneyInput(this)" autocomplete="off">
       </div>
-    </form>
-  </div>
-</div>
+      <div>
+        <label class="field-label" for="expense-note" data-i18n="备注">备注</label>
+        <input type="text" id="expense-note" class="field-full" placeholder="可选备注" data-i18n-placeholder="可选备注">
+      </div>
+      <div id="expense-tags-section" class="space-y-3"></div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" onclick="closeModal('expense-modal')" class="btn-ghost" data-i18n="取消">取消</button>
+      <button type="submit" class="btn-gold" data-i18n="保存">保存</button>
+    </div>
+  </form>
+</dialog>
 
 <!-- Expense Category Modal -->
-<div id="expense-category-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="expense-category-modal-title" style="display:none;">
-  <div class="modal-content">
-    <h3 class="font-display modal-title" id="expense-category-modal-title" data-i18n="新增消费分类">新增消费分类</h3>
-    <form id="expense-category-form" data-side="expense" onsubmit="saveCategory(this.dataset.side, event)">
-      <input type="hidden" id="expense-cat-edit-id">
-      <div class="space-y-4">
-        <div>
-          <label class="field-label" for="expense-cat-name" data-i18n="分类名称">分类名称</label>
-          <input type="text" id="expense-cat-name" required class="field-full" placeholder="如：支付方式" data-i18n-placeholder="如：支付方式">
-        </div>
-        <div>
-          <label class="field-label" for="expense-cat-tags" data-i18n="标签（逗号分隔）">标签（逗号分隔）</label>
-          <input type="text" id="expense-cat-tags" required class="field-full" placeholder="如：微信, 支付宝, 现金" data-i18n-placeholder="如：微信, 支付宝, 现金">
-        </div>
+<dialog id="expense-category-modal" class="modal-overlay" closedby="any" aria-labelledby="expense-category-modal-title">
+  <h3 class="font-display modal-title" id="expense-category-modal-title" data-i18n="新增消费分类" tabindex="-1">新增消费分类</h3>
+  <form id="expense-category-form" data-side="expense" onsubmit="saveCategory(this.dataset.side, event)">
+    <input type="hidden" id="expense-cat-edit-id">
+    <div class="space-y-4">
+      <div>
+        <label class="field-label" for="expense-cat-name" data-i18n="分类名称">分类名称</label>
+        <input type="text" id="expense-cat-name" required class="field-full" placeholder="如：支付方式" data-i18n-placeholder="如：支付方式">
       </div>
-      <div class="modal-footer">
-        <button type="button" onclick="closeModal('expense-category-modal')" class="btn-ghost" data-i18n="取消">取消</button>
-        <button type="submit" class="btn-gold" data-i18n="保存">保存</button>
+      <div>
+        <label class="field-label" for="expense-cat-tags" data-i18n="标签（逗号分隔）">标签（逗号分隔）</label>
+        <input type="text" id="expense-cat-tags" required class="field-full" placeholder="如：微信, 支付宝, 现金" data-i18n-placeholder="如：微信, 支付宝, 现金">
       </div>
-    </form>
-  </div>
-</div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" onclick="closeModal('expense-category-modal')" class="btn-ghost" data-i18n="取消">取消</button>
+      <button type="submit" class="btn-gold" data-i18n="保存">保存</button>
+    </div>
+  </form>
+</dialog>
 
 <!-- 数据校验 Modal：一键批量 / 逐条点选补齐缺的标签（资产/消费共用一套，按侧别取集合） -->
-<div id="tagcheck-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="tagcheck-modal-title" style="display:none;">
-  <div class="modal-content modal-lg">
-    <h3 class="font-display modal-title" id="tagcheck-modal-title" data-i18n="数据校验">数据校验</h3>
-    <p id="tagcheck-hint" class="t-body mb-5 muted" data-i18n="下面这些记录在某个分类下还没有标签。组内顶部可一键补齐，也可以在每条记录上逐个点选，点一下即保存。">下面这些记录在某个分类下还没有标签。组内顶部可一键补齐，也可以在每条记录上逐个点选，点一下即保存。</p>
-    <div id="tagcheck-groups" class="space-y-5" onclick="onTagCheckPick(event)"></div>
-    <p id="tagcheck-empty" class="t-body muted" style="display:none;" data-i18n="全部记录都已归类。">全部记录都已归类。</p>
-    <div class="modal-footer">
-      <button type="button" onclick="closeModal('tagcheck-modal')" class="btn-gold" data-i18n="完成">完成</button>
-    </div>
+<dialog id="tagcheck-modal" class="modal-overlay modal-lg" closedby="any" aria-labelledby="tagcheck-modal-title">
+  <h3 class="font-display modal-title" id="tagcheck-modal-title" data-i18n="数据校验" tabindex="-1">数据校验</h3>
+  <p id="tagcheck-hint" class="t-body mb-5 muted" data-i18n="下面这些记录在某个分类下还没有标签。组内顶部可一键补齐，也可以在每条记录上逐个点选，点一下即保存。">下面这些记录在某个分类下还没有标签。组内顶部可一键补齐，也可以在每条记录上逐个点选，点一下即保存。</p>
+  <div id="tagcheck-groups" class="space-y-5" onclick="onTagCheckPick(event)"></div>
+  <p id="tagcheck-empty" class="t-body muted" style="display:none;" data-i18n="全部记录都已归类。">全部记录都已归类。</p>
+  <div class="modal-footer">
+    <button type="button" onclick="closeModal('tagcheck-modal')" class="btn-gold" data-i18n="完成">完成</button>
   </div>
-</div>
+</dialog>
 
 <!-- Expectation (预期消费参考线) Modal -->
-<div id="expectation-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="expectation-modal-title" style="display:none;">
-  <div class="modal-content modal-sm">
-    <h3 class="font-display modal-title" id="expectation-modal-title" data-i18n="预期消费">预期消费</h3>
-    <p class="t-body mb-4 muted" data-i18n="在消费趋势图中显示为水平参考线，收起部分类别后可对比每月合计">在消费趋势图中显示为水平参考线，收起部分类别后可对比每月合计</p>
-    <input type="text" id="expectation-input" inputmode="decimal" class="field-full" placeholder="预期月消费 (CNY)" data-i18n-placeholder="预期月消费 (CNY)" oninput="formatMoneyInput(this)" autocomplete="off" onkeydown="if(event.key==='Enter')saveExpectation()">
-    <div class="modal-footer">
-      <button type="button" onclick="clearExpectation()" class="btn-danger btn-sm" data-i18n="清除">清除</button>
-      <button type="button" onclick="closeModal('expectation-modal')" class="btn-ghost" data-i18n="取消">取消</button>
-      <button type="button" onclick="saveExpectation()" class="btn-gold" data-i18n="保存">保存</button>
-    </div>
+<dialog id="expectation-modal" class="modal-overlay modal-sm" closedby="any" aria-labelledby="expectation-modal-title">
+  <h3 class="font-display modal-title" id="expectation-modal-title" data-i18n="预期消费" tabindex="-1">预期消费</h3>
+  <p class="t-body mb-4 muted" data-i18n="在消费趋势图中显示为水平参考线，收起部分类别后可对比每月合计">在消费趋势图中显示为水平参考线，收起部分类别后可对比每月合计</p>
+  <input type="text" id="expectation-input" inputmode="decimal" class="field-full" placeholder="预期月消费 (CNY)" data-i18n-placeholder="预期月消费 (CNY)" oninput="formatMoneyInput(this)" autocomplete="off" onkeydown="if(event.key==='Enter')saveExpectation()">
+  <div class="modal-footer">
+    <button type="button" onclick="clearExpectation()" class="btn-danger btn-sm" data-i18n="清除">清除</button>
+    <button type="button" onclick="closeModal('expectation-modal')" class="btn-ghost" data-i18n="取消">取消</button>
+    <button type="button" onclick="saveExpectation()" class="btn-gold" data-i18n="保存">保存</button>
   </div>
-</div>
+</dialog>
 
 <!-- Stress Modal（压测情景：维度 + 逐标签跌幅；取消不落库） -->
-<div id="stress-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="stress-modal-title" style="display:none;">
-  <div class="modal-content modal-md">
-    <h3 class="font-display modal-title" id="stress-modal-title"><span data-i18n="压测情景">压测情景</span><span class="tip">
-      <button type="button" class="tip-mark" aria-describedby="stress-tip" aria-label="压测如何计算" data-i18n-aria-label="压测如何计算">?</button>
-      <span class="tip-bubble" id="stress-tip" role="tooltip" data-i18n="压测只是一组假设：只改页面上的读数，账本金额、快照与导出都不动，刷新即回到真实值。只按选中的这一个维度打折（一笔钱不会被打两次），未调的分类不参与。">压测只是一组假设：只改页面上的读数，账本金额、快照与导出都不动，刷新即回到真实值。只按选中的这一个维度打折（一笔钱不会被打两次），未调的分类不参与。</span>
-    </span></h3>
-    <label class="field-label" for="stress-dimension" data-i18n="压测维度">压测维度</label>
-    <select id="stress-dimension" class="select-field field-full" onchange="onStressDimensionChange()" aria-label="压测维度" data-i18n-aria-label="压测维度"></select>
-    <div id="stress-keeps" class="space-y-3 scroll-cap" style="margin-top:16px;"></div>
-    <p id="stress-unclassified" class="t-micro muted" style="margin-top:10px;"></p>
-    <div class="modal-footer">
-      <button type="button" onclick="clearStress()" class="btn-danger btn-sm" data-i18n="清除">清除</button>
-      <button type="button" onclick="closeModal('stress-modal')" class="btn-ghost" data-i18n="取消">取消</button>
-      <button type="button" onclick="saveStress()" class="btn-gold" data-i18n="保存">保存</button>
-    </div>
+<dialog id="stress-modal" class="modal-overlay modal-md" closedby="any" aria-labelledby="stress-modal-title">
+  <h3 class="font-display modal-title" id="stress-modal-title" tabindex="-1"><span data-i18n="压测情景">压测情景</span><span class="tip">
+    <button type="button" class="tip-mark" aria-describedby="stress-tip" aria-label="压测如何计算" data-i18n-aria-label="压测如何计算">?</button>
+    <span class="tip-bubble" id="stress-tip" role="tooltip" data-i18n="压测只是一组假设：只改页面上的读数，账本金额、快照与导出都不动，刷新即回到真实值。只按选中的这一个维度打折（一笔钱不会被打两次），未调的分类不参与。">压测只是一组假设：只改页面上的读数，账本金额、快照与导出都不动，刷新即回到真实值。只按选中的这一个维度打折（一笔钱不会被打两次），未调的分类不参与。</span>
+  </span></h3>
+  <label class="field-label" for="stress-dimension" data-i18n="压测维度">压测维度</label>
+  <select id="stress-dimension" class="select-field field-full" onchange="onStressDimensionChange()" aria-label="压测维度" data-i18n-aria-label="压测维度"></select>
+  <div id="stress-keeps" class="space-y-3 scroll-cap" style="margin-top:16px;"></div>
+  <p id="stress-unclassified" class="t-micro muted" style="margin-top:10px;"></p>
+  <div class="modal-footer">
+    <button type="button" onclick="clearStress()" class="btn-danger btn-sm" data-i18n="清除">清除</button>
+    <button type="button" onclick="closeModal('stress-modal')" class="btn-ghost" data-i18n="取消">取消</button>
+    <button type="button" onclick="saveStress()" class="btn-gold" data-i18n="保存">保存</button>
   </div>
-</div>
+</dialog>
 
 <!-- Runway Modal（读数卡编辑：标签多选 + 月消费自定，取消不落库） -->
-<div id="runway-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="runway-modal-title" style="display:none;">
-  <div class="modal-content modal-md">
-    <h3 class="font-display modal-title" id="runway-modal-title"><span data-i18n="标签与月消费">标签与月消费</span><span class="tip">
-      <button type="button" class="tip-mark" aria-describedby="runway-tip" aria-label="标签如何参与计算" data-i18n-aria-label="标签如何参与计算">?</button>
-      <span class="tip-bubble" id="runway-tip" role="tooltip" data-i18n="同一分类内多选为「或」，不同分类之间为「且」；某个分类不选则不参与过滤。">同一分类内多选为「或」，不同分类之间为「且」；某个分类不选则不参与过滤。</span>
-    </span></h3>
-    <div id="runway-tag-groups" class="space-y-3 scroll-cap"></div>
-    <!-- 月消费: 默认带出全局「预期月消费」, 改成自定值只影响这张读数卡（不回填全局）; 清空即回默认 -->
-    <label class="field-label mt-4" for="runway-expectation" data-i18n="月消费 (CNY)">月消费 (CNY)</label>
-    <div class="inline-row">
-      <input type="text" id="runway-expectation" inputmode="decimal" class="field-full" placeholder="月消费 (CNY)" data-i18n-placeholder="月消费 (CNY)" oninput="formatMoneyInput(this); renderRunwayPreview();" onkeydown="if(event.key==='Enter' && !event.isComposing)saveRunwayTags()" autocomplete="off">
-      <button type="button" onclick="useDefaultRunwayExpectation()" class="btn-ghost btn-sm" data-i18n="默认">默认</button>
-    </div>
-    <p id="runway-preview" class="t-body text-center mt-4 muted" style="border-top:1px dashed var(--rule);padding-top:12px;"></p>
-    <div class="modal-footer">
-      <button type="button" onclick="closeModal('runway-modal')" class="btn-ghost" data-i18n="取消">取消</button>
-      <button type="button" onclick="saveRunwayTags()" class="btn-gold" data-i18n="保存">保存</button>
-    </div>
+<dialog id="runway-modal" class="modal-overlay modal-md" closedby="any" aria-labelledby="runway-modal-title">
+  <h3 class="font-display modal-title" id="runway-modal-title" tabindex="-1"><span data-i18n="标签与月消费">标签与月消费</span><span class="tip">
+    <button type="button" class="tip-mark" aria-describedby="runway-tip" aria-label="标签如何参与计算" data-i18n-aria-label="标签如何参与计算">?</button>
+    <span class="tip-bubble" id="runway-tip" role="tooltip" data-i18n="同一分类内多选为「或」，不同分类之间为「且」；某个分类不选则不参与过滤。">同一分类内多选为「或」，不同分类之间为「且」；某个分类不选则不参与过滤。</span>
+  </span></h3>
+  <div id="runway-tag-groups" class="space-y-3 scroll-cap"></div>
+  <!-- 月消费: 默认带出全局「预期月消费」, 改成自定值只影响这张读数卡（不回填全局）; 清空即回默认 -->
+  <label class="field-label mt-4" for="runway-expectation" data-i18n="月消费 (CNY)">月消费 (CNY)</label>
+  <div class="inline-row">
+    <input type="text" id="runway-expectation" inputmode="decimal" class="field-full" placeholder="月消费 (CNY)" data-i18n-placeholder="月消费 (CNY)" oninput="formatMoneyInput(this); renderRunwayPreview();" onkeydown="if(event.key==='Enter' && !event.isComposing)saveRunwayTags()" autocomplete="off">
+    <button type="button" onclick="useDefaultRunwayExpectation()" class="btn-ghost btn-sm" data-i18n="默认">默认</button>
   </div>
-</div>
+  <p id="runway-preview" class="t-body text-center mt-4 muted" style="border-top:1px dashed var(--rule);padding-top:12px;"></p>
+  <div class="modal-footer">
+    <button type="button" onclick="closeModal('runway-modal')" class="btn-ghost" data-i18n="取消">取消</button>
+    <button type="button" onclick="saveRunwayTags()" class="btn-gold" data-i18n="保存">保存</button>
+  </div>
+</dialog>
 
 <!-- Net Worth Target Modal -->
-<div id="target-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="target-modal-title" style="display:none;">
-  <div class="modal-content modal-sm">
-    <h3 class="font-display modal-title" id="target-modal-title" data-i18n="目标净资产">目标净资产</h3>
-    <p class="t-body mb-4 muted" data-i18n="设置后资产页显示达成进度">设置后资产页显示达成进度</p>
-    <input type="text" id="target-input" inputmode="decimal" class="field-full" placeholder="目标净资产 (CNY)" data-i18n-placeholder="目标净资产 (CNY)" oninput="formatMoneyInput(this)" autocomplete="off" onkeydown="if(event.key==='Enter')saveTarget()">
-    <div class="modal-footer">
-      <button type="button" onclick="clearTarget()" class="btn-danger btn-sm" data-i18n="清除">清除</button>
-      <button type="button" onclick="closeModal('target-modal')" class="btn-ghost" data-i18n="取消">取消</button>
-      <button type="button" onclick="saveTarget()" class="btn-gold" data-i18n="保存">保存</button>
-    </div>
+<dialog id="target-modal" class="modal-overlay modal-sm" closedby="any" aria-labelledby="target-modal-title">
+  <h3 class="font-display modal-title" id="target-modal-title" data-i18n="目标净资产" tabindex="-1">目标净资产</h3>
+  <p class="t-body mb-4 muted" data-i18n="设置后资产页显示达成进度">设置后资产页显示达成进度</p>
+  <input type="text" id="target-input" inputmode="decimal" class="field-full" placeholder="目标净资产 (CNY)" data-i18n-placeholder="目标净资产 (CNY)" oninput="formatMoneyInput(this)" autocomplete="off" onkeydown="if(event.key==='Enter')saveTarget()">
+  <div class="modal-footer">
+    <button type="button" onclick="clearTarget()" class="btn-danger btn-sm" data-i18n="清除">清除</button>
+    <button type="button" onclick="closeModal('target-modal')" class="btn-ghost" data-i18n="取消">取消</button>
+    <button type="button" onclick="saveTarget()" class="btn-gold" data-i18n="保存">保存</button>
   </div>
-</div>
+</dialog>
 
 <!-- Settings Modal (设置 · 账本凡例: 外观 + 自动备份) -->
-<div id="settings-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="settings-modal-title" style="display:none;">
-  <div class="modal-content modal-lg">
-    <h3 class="font-display modal-title" id="settings-modal-title" data-autofocus tabindex="-1" data-i18n="设置">设置</h3>
-    <div>
-      <div class="setting-row">
-        <div class="setting-info">
-          <p class="setting-label" data-i18n="语言">语言</p>
-          <p class="setting-desc" data-i18n="界面文字与图表的语言。分类、标签与备注是你自己的账本内容，不会被改名。">界面文字与图表的语言。分类、标签与备注是你自己的账本内容，不会被改名。</p>
-        </div>
-        <div class="seg-control" role="group" aria-label="界面语言" data-i18n-aria-label="界面语言">
-          <button id="lang-seg-en" onclick="setLang('en')" class="seg-btn" aria-pressed="false" data-i18n="English">English</button>
-          <button id="lang-seg-zh" onclick="setLang('zh')" class="seg-btn" aria-pressed="false" data-i18n="中文">中文</button>
-        </div>
+<dialog id="settings-modal" class="modal-overlay modal-lg" closedby="any" aria-labelledby="settings-modal-title">
+  <h3 class="font-display modal-title" id="settings-modal-title" data-autofocus tabindex="-1" data-i18n="设置">设置</h3>
+  <div>
+    <div class="setting-row">
+      <div class="setting-info">
+        <p class="setting-label" data-i18n="语言">语言</p>
+        <p class="setting-desc" data-i18n="界面文字与图表的语言。分类、标签与备注是你自己的账本内容，不会被改名。">界面文字与图表的语言。分类、标签与备注是你自己的账本内容，不会被改名。</p>
       </div>
-      <hr>
-      <div class="setting-row">
-        <div class="setting-info">
-          <p class="setting-label" data-i18n="外观">外观</p>
-          <p class="setting-desc" data-i18n="切换日间纸页与夜间墨底，立即生效并记住选择">切换日间纸页与夜间墨底，立即生效并记住选择</p>
-        </div>
-        <div class="seg-control" role="group" aria-label="外观主题" data-i18n-aria-label="外观主题">
-          <button id="theme-seg-light" onclick="setTheme(false)" class="seg-btn" aria-pressed="false"><svg class="ico" aria-hidden="true"><use href="#ic-sun"/></svg><span data-i18n="日间">日间</span></button>
-          <button id="theme-seg-dark" onclick="setTheme(true)" class="seg-btn" aria-pressed="false"><svg class="ico" aria-hidden="true"><use href="#ic-moon"/></svg><span data-i18n="夜间">夜间</span></button>
-        </div>
-      </div>
-      <hr>
-      <div class="setting-row">
-        <div class="setting-info">
-          <p class="setting-label" data-i18n="解锁冷却">解锁冷却</p>
-          <p class="setting-desc" data-i18n="抄对一次后的这段时间里，再进资产页不用再抄一遍；刷新页面仍有效，关掉浏览器即失效。只省掉这一步，数据保护不变。">抄对一次后的这段时间里，再进资产页不用再抄一遍；刷新页面仍有效，关掉浏览器即失效。只省掉这一步，数据保护不变。</p>
-        </div>
-        <div class="setting-actions">
-          <div class="seg-control seg-compact" role="group" aria-label="解锁冷却时长" data-i18n-aria-label="解锁冷却时长">
-            <button id="gate-cool-off" onclick="setGateCooldown(0)" class="seg-btn" aria-pressed="false" data-i18n="关闭">关闭</button>
-            <button id="gate-cool-1" onclick="setGateCooldown(1)" class="seg-btn" aria-pressed="false" data-i18n="1 分">1 分</button>
-            <button id="gate-cool-5" onclick="setGateCooldown(5)" class="seg-btn" aria-pressed="false" data-i18n="5 分">5 分</button>
-            <button id="gate-cool-15" onclick="setGateCooldown(15)" class="seg-btn" aria-pressed="false" data-i18n="15 分">15 分</button>
-            <button id="gate-cool-30" onclick="setGateCooldown(30)" class="seg-btn" aria-pressed="false" data-i18n="30 分">30 分</button>
-          </div>
-          <button type="button" id="gate-lock-now" onclick="lockAssetsNow()" class="btn-ghost btn-sm" data-i18n="立即锁定">立即锁定</button>
-        </div>
-      </div>
-      <hr>
-      <div class="setting-row">
-        <div class="setting-info">
-          <p class="setting-label" data-i18n="自动备份">自动备份</p>
-          <p class="setting-desc" data-i18n="打开页面几秒后会弹一次确认，确认后弹出文件窗口保存一份带日期的备份，日积月累即是版本历史。建议把保存位置设为网盘同步文件夹（OneDrive / iCloud 等），电脑损坏后也能找回。">打开页面几秒后会弹一次确认，确认后弹出文件窗口保存一份带日期的备份，日积月累即是版本历史。建议把保存位置设为网盘同步文件夹（OneDrive / iCloud 等），电脑损坏后也能找回。</p>
-          <p id="settings-backup-note" class="setting-note"></p>
-        </div>
-        <div class="seg-control" role="group" aria-label="自动备份频率" data-i18n-aria-label="自动备份频率">
-          <button id="backup-freq-daily" onclick="setBackupFreq('daily')" class="seg-btn" aria-pressed="false" data-i18n="每天">每天</button>
-          <button id="backup-freq-weekly" onclick="setBackupFreq('weekly')" class="seg-btn" aria-pressed="false" data-i18n="每周">每周</button>
-          <button id="backup-freq-off" onclick="setBackupFreq('off')" class="seg-btn" aria-pressed="false" data-i18n="关闭">关闭</button>
-        </div>
-      </div>
-      <hr>
-      <div class="setting-row">
-        <div class="setting-info">
-          <p class="setting-label" data-i18n="备份文件夹">备份文件夹</p>
-          <p class="setting-desc" data-i18n="选择后，备份时弹出的文件窗口默认就打开这个目录（自动与手动一致）；未选择时窗口打开上次用过的目录。仅 Chrome / Edge 支持指定目录。">选择后，备份时弹出的文件窗口默认就打开这个目录（自动与手动一致）；未选择时窗口打开上次用过的目录。仅 Chrome / Edge 支持指定目录。</p>
-          <p id="settings-backup-dir-note" class="setting-note"></p>
-        </div>
-        <div class="setting-actions">
-          <button type="button" id="backup-dir-choose" onclick="chooseBackupDir()" class="btn-ghost btn-sm" data-i18n="选择文件夹">选择文件夹</button>
-          <button type="button" id="backup-dir-clear" onclick="clearBackupDir()" class="btn-danger btn-sm" hidden data-i18n="清除">清除</button>
-        </div>
-      </div>
-      <hr>
-      <div class="setting-row">
-        <div class="setting-info">
-          <p class="setting-label" data-i18n="导出密钥">导出密钥</p>
-          <p class="setting-desc" data-i18n="导出与自动备份存成密文；导入时要输入这串密钥。密钥只在本机，忘了就打不开。">导出与自动备份存成密文；导入时要输入这串密钥。密钥只在本机，忘了就打不开。</p>
-        </div>
-        <div class="setting-actions">
-          <input type="password" id="pass-input" data-no-autofocus autocomplete="new-password" aria-label="导出密钥" data-i18n-aria-label="导出密钥" onkeydown="if(event.key==='Enter'&&!event.isComposing){event.preventDefault();saveExportPassphrase();}">
-          <button type="button" id="pass-save" onclick="saveExportPassphrase()" class="btn-ghost btn-sm" data-i18n="保存密钥">保存密钥</button>
-          <button type="button" id="pass-change" onclick="startPassEdit()" class="btn-ghost btn-sm" hidden data-i18n="更换密钥">更换密钥</button>
-          <button type="button" id="pass-clear" onclick="clearExportPassphrase()" class="btn-danger btn-sm" hidden data-i18n="清除">清除</button>
-        </div>
-      </div>
-      <hr>
-      <!-- 快照提醒：只提醒当月（快照是某个月的资产事实, 补记历史月份等于拿今天的数贴上一个月的标签） -->
-      <div class="setting-row">
-        <div class="setting-info">
-          <p class="setting-label" data-i18n="快照提醒">快照提醒</p>
-          <p class="setting-desc" data-i18n="本月还没记录快照时，打开页面提醒一次；同一天最多提醒一次，记完本月就不再出现。">本月还没记录快照时，打开页面提醒一次；同一天最多提醒一次，记完本月就不再出现。</p>
-        </div>
-        <div class="setting-actions">
-          <div class="seg-control" role="group" aria-label="快照提醒时机" data-i18n-aria-label="快照提醒时机">
-            <button id="snap-remind-off" onclick="setSnapshotReminderWindow('off')" class="seg-btn" aria-pressed="false" data-i18n="关闭">关闭</button>
-            <button id="snap-remind-start" onclick="setSnapshotReminderWindow('start')" class="seg-btn" aria-pressed="false" data-i18n="月初后">月初后</button>
-            <button id="snap-remind-end" onclick="setSnapshotReminderWindow('end')" class="seg-btn" aria-pressed="false" data-i18n="月末前">月末前</button>
-          </div>
-          <span class="snap-days">
-            <input type="number" id="snapshot-reminder-days" data-no-autofocus min="1" max="28" step="1" onchange="setSnapshotReminderDays(this.value)" aria-label="快照提醒天数" data-i18n-aria-label="快照提醒天数">
-            <span class="t-micro muted" data-i18n="天">天</span>
-          </span>
-        </div>
-      </div>
-      <hr>
-      <div class="setting-row">
-        <div class="setting-info">
-          <p class="setting-label" data-i18n="记账中断提醒">记账中断提醒</p>
-          <p class="setting-desc" data-i18n="连续这么多天一笔都没记时，在消费页的月份图上提一句；填 0 关掉。">连续这么多天一笔都没记时，在消费页的月份图上提一句；填 0 关掉。</p>
-        </div>
-        <div class="setting-actions">
-          <span class="snap-days">
-            <input type="number" id="expense-gap-days" data-no-autofocus min="0" max="60" step="1" onchange="setExpenseGapDays(this.value)" aria-label="连续没记账天数" data-i18n-aria-label="连续没记账天数">
-            <span class="t-micro muted" data-i18n="天">天</span>
-          </span>
-        </div>
+      <div class="seg-control" role="group" aria-label="界面语言" data-i18n-aria-label="界面语言">
+        <button id="lang-seg-en" onclick="setLang('en')" class="seg-btn" aria-pressed="false" data-i18n="English">English</button>
+        <button id="lang-seg-zh" onclick="setLang('zh')" class="seg-btn" aria-pressed="false" data-i18n="中文">中文</button>
       </div>
     </div>
-    <div class="modal-footer between">
-      <button type="button" onclick="closeModal('settings-modal');showImportExport();" class="btn-ghost"><svg class="ico" aria-hidden="true"><use href="#ic-database-backup"/></svg><span data-i18n="备份与导入…">备份与导入…</span></button>
-      <button type="button" onclick="closeModal('settings-modal')" class="btn-ghost" data-i18n="关闭">关闭</button>
+    <hr>
+    <div class="setting-row">
+      <div class="setting-info">
+        <p class="setting-label" data-i18n="外观">外观</p>
+        <p class="setting-desc" data-i18n="切换日间纸页与夜间墨底，立即生效并记住选择">切换日间纸页与夜间墨底，立即生效并记住选择</p>
+      </div>
+      <div class="seg-control" role="group" aria-label="外观主题" data-i18n-aria-label="外观主题">
+        <button id="theme-seg-light" onclick="setTheme(false)" class="seg-btn" aria-pressed="false"><svg class="ico" aria-hidden="true"><use href="#ic-sun"/></svg><span data-i18n="日间">日间</span></button>
+        <button id="theme-seg-dark" onclick="setTheme(true)" class="seg-btn" aria-pressed="false"><svg class="ico" aria-hidden="true"><use href="#ic-moon"/></svg><span data-i18n="夜间">夜间</span></button>
+      </div>
+    </div>
+    <hr>
+    <div class="setting-row">
+      <div class="setting-info">
+        <p class="setting-label" data-i18n="解锁冷却">解锁冷却</p>
+        <p class="setting-desc" data-i18n="抄对一次后的这段时间里，再进资产页不用再抄一遍；刷新页面仍有效，关掉浏览器即失效。只省掉这一步，数据保护不变。">抄对一次后的这段时间里，再进资产页不用再抄一遍；刷新页面仍有效，关掉浏览器即失效。只省掉这一步，数据保护不变。</p>
+      </div>
+      <div class="setting-actions">
+        <div class="seg-control seg-compact" role="group" aria-label="解锁冷却时长" data-i18n-aria-label="解锁冷却时长">
+          <button id="gate-cool-off" onclick="setGateCooldown(0)" class="seg-btn" aria-pressed="false" data-i18n="关闭">关闭</button>
+          <button id="gate-cool-1" onclick="setGateCooldown(1)" class="seg-btn" aria-pressed="false" data-i18n="1 分">1 分</button>
+          <button id="gate-cool-5" onclick="setGateCooldown(5)" class="seg-btn" aria-pressed="false" data-i18n="5 分">5 分</button>
+          <button id="gate-cool-15" onclick="setGateCooldown(15)" class="seg-btn" aria-pressed="false" data-i18n="15 分">15 分</button>
+          <button id="gate-cool-30" onclick="setGateCooldown(30)" class="seg-btn" aria-pressed="false" data-i18n="30 分">30 分</button>
+        </div>
+        <button type="button" id="gate-lock-now" onclick="lockAssetsNow()" class="btn-ghost btn-sm" data-i18n="立即锁定">立即锁定</button>
+      </div>
+    </div>
+    <hr>
+    <div class="setting-row">
+      <div class="setting-info">
+        <p class="setting-label" data-i18n="自动备份">自动备份</p>
+        <p class="setting-desc" data-i18n="打开页面几秒后会弹一次确认，确认后弹出文件窗口保存一份带日期的备份，日积月累即是版本历史。建议把保存位置设为网盘同步文件夹（OneDrive / iCloud 等），电脑损坏后也能找回。">打开页面几秒后会弹一次确认，确认后弹出文件窗口保存一份带日期的备份，日积月累即是版本历史。建议把保存位置设为网盘同步文件夹（OneDrive / iCloud 等），电脑损坏后也能找回。</p>
+        <p id="settings-backup-note" class="setting-note"></p>
+      </div>
+      <div class="seg-control" role="group" aria-label="自动备份频率" data-i18n-aria-label="自动备份频率">
+        <button id="backup-freq-daily" onclick="setBackupFreq('daily')" class="seg-btn" aria-pressed="false" data-i18n="每天">每天</button>
+        <button id="backup-freq-weekly" onclick="setBackupFreq('weekly')" class="seg-btn" aria-pressed="false" data-i18n="每周">每周</button>
+        <button id="backup-freq-off" onclick="setBackupFreq('off')" class="seg-btn" aria-pressed="false" data-i18n="关闭">关闭</button>
+      </div>
+    </div>
+    <hr>
+    <div class="setting-row">
+      <div class="setting-info">
+        <p class="setting-label" data-i18n="备份文件夹">备份文件夹</p>
+        <p class="setting-desc" data-i18n="选择后，备份时弹出的文件窗口默认就打开这个目录（自动与手动一致）；未选择时窗口打开上次用过的目录。仅 Chrome / Edge 支持指定目录。">选择后，备份时弹出的文件窗口默认就打开这个目录（自动与手动一致）；未选择时窗口打开上次用过的目录。仅 Chrome / Edge 支持指定目录。</p>
+        <p id="settings-backup-dir-note" class="setting-note"></p>
+      </div>
+      <div class="setting-actions">
+        <button type="button" id="backup-dir-choose" onclick="chooseBackupDir()" class="btn-ghost btn-sm" data-i18n="选择文件夹">选择文件夹</button>
+        <button type="button" id="backup-dir-clear" onclick="clearBackupDir()" class="btn-danger btn-sm" hidden data-i18n="清除">清除</button>
+      </div>
+    </div>
+    <hr>
+    <div class="setting-row">
+      <div class="setting-info">
+        <p class="setting-label" data-i18n="导出密钥">导出密钥</p>
+        <p class="setting-desc" data-i18n="导出与自动备份存成密文；导入时要输入这串密钥。密钥只在本机，忘了就打不开。">导出与自动备份存成密文；导入时要输入这串密钥。密钥只在本机，忘了就打不开。</p>
+      </div>
+      <div class="setting-actions">
+        <input type="password" id="pass-input" data-no-autofocus autocomplete="new-password" aria-label="导出密钥" data-i18n-aria-label="导出密钥" onkeydown="if(event.key==='Enter'&&!event.isComposing){event.preventDefault();saveExportPassphrase();}">
+        <button type="button" id="pass-save" onclick="saveExportPassphrase()" class="btn-ghost btn-sm" data-i18n="保存密钥">保存密钥</button>
+        <button type="button" id="pass-change" onclick="startPassEdit()" class="btn-ghost btn-sm" hidden data-i18n="更换密钥">更换密钥</button>
+        <button type="button" id="pass-clear" onclick="clearExportPassphrase()" class="btn-danger btn-sm" hidden data-i18n="清除">清除</button>
+      </div>
+    </div>
+    <hr>
+    <!-- 快照提醒：只提醒当月（快照是某个月的资产事实, 补记历史月份等于拿今天的数贴上一个月的标签） -->
+    <div class="setting-row">
+      <div class="setting-info">
+        <p class="setting-label" data-i18n="快照提醒">快照提醒</p>
+        <p class="setting-desc" data-i18n="本月还没记录快照时，打开页面提醒一次；同一天最多提醒一次，记完本月就不再出现。">本月还没记录快照时，打开页面提醒一次；同一天最多提醒一次，记完本月就不再出现。</p>
+      </div>
+      <div class="setting-actions">
+        <div class="seg-control" role="group" aria-label="快照提醒时机" data-i18n-aria-label="快照提醒时机">
+          <button id="snap-remind-off" onclick="setSnapshotReminderWindow('off')" class="seg-btn" aria-pressed="false" data-i18n="关闭">关闭</button>
+          <button id="snap-remind-start" onclick="setSnapshotReminderWindow('start')" class="seg-btn" aria-pressed="false" data-i18n="月初后">月初后</button>
+          <button id="snap-remind-end" onclick="setSnapshotReminderWindow('end')" class="seg-btn" aria-pressed="false" data-i18n="月末前">月末前</button>
+        </div>
+        <span class="snap-days">
+          <input type="number" id="snapshot-reminder-days" data-no-autofocus min="1" max="28" step="1" onchange="setSnapshotReminderDays(this.value)" aria-label="快照提醒天数" data-i18n-aria-label="快照提醒天数">
+          <span class="t-micro muted" data-i18n="天">天</span>
+        </span>
+      </div>
+    </div>
+    <hr>
+    <div class="setting-row">
+      <div class="setting-info">
+        <p class="setting-label" data-i18n="记账中断提醒">记账中断提醒</p>
+        <p class="setting-desc" data-i18n="连续这么多天一笔都没记时，在消费页的月份图上提一句；填 0 关掉。">连续这么多天一笔都没记时，在消费页的月份图上提一句；填 0 关掉。</p>
+      </div>
+      <div class="setting-actions">
+        <span class="snap-days">
+          <input type="number" id="expense-gap-days" data-no-autofocus min="0" max="60" step="1" onchange="setExpenseGapDays(this.value)" aria-label="连续没记账天数" data-i18n-aria-label="连续没记账天数">
+          <span class="t-micro muted" data-i18n="天">天</span>
+        </span>
+      </div>
     </div>
   </div>
-</div>
+  <div class="modal-footer between">
+    <button type="button" onclick="closeModal('settings-modal');showImportExport();" class="btn-ghost"><svg class="ico" aria-hidden="true"><use href="#ic-database-backup"/></svg><span data-i18n="备份与导入…">备份与导入…</span></button>
+    <button type="button" onclick="closeModal('settings-modal')" class="btn-ghost" data-i18n="关闭">关闭</button>
+  </div>
+</dialog>
 
 <!-- 统一提示便条容器: 右下角堆叠（aria-live 让读屏器也能听到系统知会） -->
 <!-- 统一提示便条容器：播报档位由 toast() 按类型动态写入 aria-live

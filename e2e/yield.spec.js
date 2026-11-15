@@ -48,7 +48,7 @@ test.describe('年化换算 · 卡片配色（亮/暗两套主题）', () => {
   const surfaces = async (page) => page.evaluate(() => {
     const card = document.querySelector('#yield-body .yield-card');
     const cs = getComputedStyle(card);
-    const paper = getComputedStyle(document.querySelector('#yield-modal .modal-content'));
+    const paper = getComputedStyle(document.getElementById('yield-modal'));
     // 变量是 hex，计算色是 rgb()：在页面内借一个探针让浏览器自己归一，别手写换算
     const probe = document.createElement('span');
     document.body.appendChild(probe);

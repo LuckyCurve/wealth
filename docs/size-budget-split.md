@@ -21,7 +21,7 @@
 | `styles.css` | `styles-views.css` | 报头、图表、覆盖标尺与读数卡、对比条、章节/卡片头、工具栏、月份图 | 「Masthead」注释起到「打印」注释前，整段连续 |
 | `styles.css` | `styles-print.css` | 打印形态：纸面回亮色、玻璃退场、操作件与装饰层不进纸 | 「打印」注释起到文件尾（整段是唯一的 `@media print`） |
 | `app-assets.js` | `app-categories.js` | 分类与标签管理（资产/消费共用）：分类卡片、分类弹窗 CRUD、长按胶囊改名 | 「分类管理」注释起至文件尾；顺带把漂在上面的 `CATEGORY CRUD` 节标题挪进来 |
-| `app-settings.js` | `app-ui.js` | 全站 UI 基元：提示气泡、弹窗开关、确认框、焦点陷阱、便条、颜色取值、金额输入、id | 「UTILS」注释起至文件尾 |
+| `app-settings.js` | `app-ui.js` | 全站 UI 基元：提示气泡、确认框、便条、颜色取值、金额输入、id | 「UTILS」注释起至文件尾（弹窗开关后来搬去 `app-assets.js`，与 `openModal` 同源） |
 | `app-expenses.js` | `app-tag-check.js` | 数据校验（缺标签补齐）：按分类捕获缺口、批量/逐条打标签，两侧共用 | 「消费数据校验」注释起至「EXPENSE CHART」注释前 |
 | `app-core.js` | `app-gate.js` | 进资产页的门槛：长按抬闸、箴言抄写与校验、解锁冷却、门槛弹窗 | 「进入资产页的门槛」注释起至「台灯掠光」注释前 |
 | `app-charts.js` | `app-stress.js` | 压测：情景草稿、条与印徽同步、弹窗 | 「压测」注释起至「所选标签的钱」注释前 |

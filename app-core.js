@@ -88,6 +88,8 @@ function observeChartSize(chart) {
         animate: true,
         weekNumbers: false,
         showMonths: 1,
+        // 日历要挂进这层弹窗（见 app-assets.js 的 pickerInDialog）
+        ...pickerInDialog('expense-modal'),
         onChange: function(selectedDates, dateStr) {
           document.getElementById('expense-date').value = dateStr;
         }
