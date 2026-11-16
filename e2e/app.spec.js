@@ -1244,6 +1244,55 @@ test.describe('消费月份图（日历）', () => {
     await page.evaluate(() => closeModal('settings-modal'));
     await expect(summary).not.toContainText('连续');
   });
+
+  test('六行月与空月份：非本月只做到「没有数字」，格线照画、不缺角', async ({ page }) => {
+    await openWith(page, { ...sampleState(), expenses: [] });
+
+    const readGrid = () => page.evaluate(() => {
+      const cells = [...document.querySelectorAll('#month-grid .mg-cell')];
+      const blank = cells.filter((c) => c.classList.contains('is-blank'));
+      const alphaOf = (color) => {
+        const m = String(color).match(/rgba?\(([^)]+)\)/);
+        if (!m) return 1;
+        const parts = m[1].split(',').map((x) => Number(x.trim()));
+        return parts.length > 3 ? parts[3] : 1;
+      };
+      return {
+        rows: cells.length / 7,
+        days: cells.filter((c) => !c.classList.contains('is-blank')).length,
+        blanks: blank.length,
+        blankText: blank.map((c) => c.textContent.trim()).join(''),
+        blankBorders: blank.map((c) => {
+          const s = getComputedStyle(c);
+          return { right: alphaOf(s.borderRightColor), bottom: alphaOf(s.borderBottomColor) };
+        }),
+        unrecordedDays: cells.filter((c) => c.getAttribute('data-lv') === '0').length,
+        dayTexts: cells.filter((c) => !c.classList.contains('is-blank')).map((c) => c.querySelector('.mg-day').textContent.trim()),
+      };
+    });
+
+    await page.evaluate(() => setExpenseFilter({ gridMonth: '2026-08' }));
+    await expect(page.locator('#month-grid-label')).toContainText('2026年8月');
+    const aug = await readGrid();
+    expect(aug.rows, '2026-08 是六行月（1 号周六）').toBe(6);
+    expect(aug.days, '31 天一天不少').toBe(31);
+    expect(aug.blanks, '5 个前置 + 6 个补尾').toBe(11);
+    expect(aug.blankText, '非本月不写数字').toBe('');
+    expect(
+      Math.min(...aug.blankBorders.flatMap((b) => [b.right, b.bottom])),
+      '非本月格子的 border-color 不能是透明的（旧实现把格线一起抽掉，月初月末缺角）'
+    ).toBeGreaterThan(0);
+    expect(aug.dayTexts[0], '本月没记账仍写日期').toBe('1');
+    expect(aug.dayTexts.at(-1), '本月最后一天仍写日期').toBe('31');
+
+    await page.evaluate(() => setExpenseFilter({ gridMonth: '2020-03' }));
+    await expect(page.locator('#month-grid-label')).toContainText('2020年3月');
+    const empty = await readGrid();
+    expect(empty.rows, '2020-03 也是六行月').toBe(6);
+    expect(empty.days, '空月份仍排满 31 天').toBe(31);
+    expect(empty.unrecordedDays, '31 天全是「没记账」而不是「非本月」').toBe(31);
+    expect(Math.min(...empty.blankBorders.flatMap((b) => [b.right, b.bottom])), '空月份同样不许缺格线').toBeGreaterThan(0);
+  });
 });
 
 test.describe('图表初始化与空态', () => {
