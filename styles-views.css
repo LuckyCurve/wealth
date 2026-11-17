@@ -235,7 +235,7 @@
      窄屏上 390px 实测会挤成「按钮变 56×123 的字柱」——那正是工具类在这儿帮不上忙的证明。
      对齐用 center，控件高度差 1–2px 时两端不会各自错位。 */
   .toolbar { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: var(--sp-6); }
-  /* 月份图：纸上的月历。格子不上色（玻璃与纸纹透上来），有记录才叠暖墨；
+  /* 月份图：纸上的月历。格子不上色（纸纹透上来），有记录才叠暖墨；
      格线走发丝，靠 border 画——实色底会把纸挖穿。 */
   .mg-weekdays, .mg-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); max-width: var(--mg-max); margin-inline: auto; --mg-pad: var(--sp-5); }
   /* 周首行与七列共用同一条轴：标签左缘对齐下面那一列日期数字的左缘（格子内边距 + 1px 外框） */
