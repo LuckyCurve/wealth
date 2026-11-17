@@ -46,7 +46,7 @@ const GROUPS = {
  */
 const WHITELIST_CAP = 4;
 const KNOWN_LITERALS = [
-  { file: 'styles.css', prop: 'padding', value: '24px', why: '.card 内边距；ui-wiring 按数值解析它作为柔光涉足上限' },
+  { file: 'styles.css', prop: 'padding', value: '24px', why: '.card 内边距；ui-wiring 按数值解析它作为受光边涉足上限' },
   { file: 'styles.css', prop: 'padding', value: 'var(--sp-3) var(--sp-5) var(--sp-3) 28px', why: 'body select option 给 UA 勾选标记留的 28px；ui-wiring 按字面钉住' },
   { file: 'styles.css', prop: 'column-gap', value: '16px', why: '所有列宽模板共用的一处列间距；ui-wiring 数「恰好一处 \d+px」' },
   { file: 'styles.css', prop: 'letter-spacing', value: '0.06em', why: '.meta-label 字距；ui-wiring 按字面钉住' },
@@ -117,14 +117,14 @@ for (const d of declarations()) {
   if (d.prop.startsWith('--') && d.root && !d.media) ROOT_TOKENS.add(d.prop);
 }
 /*
- * 组件级 token：既有 ui-wiring 契约钉住「玻璃材质只在 .card 一处定义」（六层内阴影 + 外深度），
- * 所以这三枚只能写在 .card 自己的规则块里，搬不进 :root。它们就是材质本身，字面量只能在
- * 定义处；使用点（box-shadow: var(--glass-shadow), var(--glass-depth)）不得再展开。
+ * 组件级 token：既有 ui-wiring 契约钉住「纸卡材质只在 .card 一处定义」（一条受光边 + 两层外阴影），
+ * 所以这两枚只能写在 .card 自己的规则块里，搬不进 :root。它们就是材质本身，字面量只能在
+ * 定义处；使用点（box-shadow: var(--paper-shadow) / var(--paper-shadow-lift)）不得再展开。
  * 新增同类例外必须同时改这里与那条契约，不得只改一边。
  * `--legend-max`（构成清单列的宽度上限，`min(38%, 320px)`）是**尺寸**不是节奏：320px 是
  * 「图例最多占多宽」这个几何上限，进不了间距档，但它也不该被当成散布的 padding 对待。
  */
-const COMPONENT_TOKENS = new Set(['--glass-shadow', '--glass-depth', '--glass-depth-lift', '--legend-max']);
+const COMPONENT_TOKENS = new Set(['--paper-shadow', '--paper-shadow-lift', '--legend-max']);
 const TOKEN_LIKE = (name) => ROOT_TOKENS.has(name) || COMPONENT_TOKENS.has(name);
 function customProps() {
   const map = new Map();
@@ -138,7 +138,7 @@ function customProps() {
 /**
  * 把 var() 按「来源」区别对待，剩下的 px/em 才是「散落字面量」：
  *   - 参数在 :root 里定义过（--sp-7 / --shadow / --rad-3 …）→ 整段抹掉（它来自 token 层）；
- *   - 参数是组件级 token（玻璃材质，见 COMPONENT_TOKENS）→ 整段抹掉（由另一条契约把守）；
+ *   - 参数是组件级 token（纸卡材质，见 COMPONENT_TOKENS）→ 整段抹掉（由另一条契约把守）；
  *   - 否则（组件自己声明的 --mg-pad / --pad …）→ 展开成它的值继续看（绕道也会被抓住）；
  *   - 未定义且没有 fallback → 整段抹掉（那是 JS 运行时写的，E2E 管）。
  * 多层嵌套展开，6 层封顶防循环。

@@ -164,17 +164,17 @@ test.describe('打印形态：暗色主题也要印得出、印得清', () => {
     }
   });
 
-  test('暗色主题打印：玻璃材质退场（不印成一块半透明色块）', async ({ appPage: page }) => {
+  test('暗色主题打印：半透纸材质退场（不印成一块半透明色块）', async ({ appPage: page }) => {
     await switchToDark(page);
     await page.emulateMedia({ media: 'print' });
-    const glass = await page.evaluate(() => {
+    const printCard = await page.evaluate(() => {
       const card = document.querySelector('.card');
       const cs = getComputedStyle(card);
       return { backdrop: cs.backdropFilter || cs.webkitBackdropFilter, bg: cs.backgroundColor };
     });
-    expect(glass.backdrop, '打印时 backdrop-filter 必须关掉（纸张印不出模糊）').toMatch(/none/);
+    expect(printCard.backdrop, '打印时 backdrop-filter 必须关掉（纸张印不出模糊）').toMatch(/none/);
     // 打印时卡片底色必须不透明：半透明压在纸上就是一片脏灰
-    expect(rgb(glass.bg).a, '打印时卡片底色必须不透明').toBe(1);
+    expect(rgb(printCard.bg).a, '打印时卡片底色必须不透明').toBe(1);
   });
 
   test('打印：装饰层与操作面不进纸（灯层 / 便条 / 页签栏 / 筛选 / 行内按钮 / 拖拽把手）', async ({ appPage: page }) => {
