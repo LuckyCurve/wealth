@@ -235,13 +235,13 @@
      窄屏上 390px 实测会挤成「按钮变 56×123 的字柱」——那正是工具类在这儿帮不上忙的证明。
      对齐用 center，控件高度差 1–2px 时两端不会各自错位。 */
   .toolbar { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: var(--sp-6); }
-  /* 月份图：纸上的月历。格子不上色（纸纹透上来），有记录才叠暖墨；
+  /* 月份图：纸上的月历。格子不上色（纸纹透上来），有记录才叠暖陶土；
      格线走发丝，靠 border 画——实色底会把纸挖穿。 */
   .mg-weekdays, .mg-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); max-width: var(--mg-max); margin-inline: auto; --mg-pad: var(--sp-5); }
   /* 周首行与七列共用同一条轴：标签左缘对齐下面那一列日期数字的左缘（格子内边距 + 1px 外框） */
   .mg-weekdays { padding-inline: var(--hair); border-bottom: 1px solid var(--mg-line); }
   .mg-weekdays span { padding: 0 0 var(--sp-4) var(--mg-pad); font-size: var(--fs-micro); color: var(--muted); }
-  /* 外框画整圈、内线只由格子画右/下：每条格线都是 1px 的暖墨发丝（--mg-line），
+  /* 外框画整圈、内线只由格子画右/下：每条格线都是 1px 的暖陶土发丝（--mg-line），
      不会在相邻处叠成 2px；容器不上底色，纸从缝里透上来 */
   .mg-grid { margin-top: var(--sp-5); border: 1px solid var(--mg-line); border-radius: var(--rad-4); overflow: hidden; }
   .mg-hint { max-width: var(--mg-max); margin-inline: auto; text-align: center; }
@@ -266,7 +266,7 @@
     background: transparent; color: var(--fg);
     font-family: var(--font-body); text-align: left; cursor: pointer;
     user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; touch-action: manipulation; }
-  /* 四档染墨：只变明度、不变色相 */
+  /* 四档暖陶土：只变明度、不变色相 */
   .mg-cell:nth-child(7n) { border-right: 0; }
   .mg-grid > :nth-last-child(-n + 7) { border-bottom: 0; }
   .mg-cell[data-lv="1"], .mg-sw[data-lv="1"] { background: var(--mg-1); }
@@ -281,7 +281,7 @@
      （实测 #6b5c3a@.45 对纸面只有 2.01:1）。灰字本身已经够退后。 */
   .mg-cell[disabled] { color: var(--muted); cursor: default; }
   .mg-day { grid-column: 1; font-size: var(--fs-micro); color: var(--muted); line-height: var(--lh-flat); }
-  /* 染了墨的格子，日期也走墨色：灰字压在深墨上只剩 1.9:1 */
+  /* 染了陶土的格子，日期也走同档字色：灰字压在深色染层上不够 AA */
   .mg-cell[data-lv]:not([data-lv="0"]) .mg-day { color: var(--fg); }
   /* 最深一档自己决定字的色（深色纸上那格已经亮到该用深墨）：写在 day 规则之后才同特异性胜出 */
   .mg-cell[data-lv="4"]:not([data-lv="0"]) { color: var(--mg-ink-4); }
