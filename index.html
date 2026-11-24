@@ -207,9 +207,11 @@
     </div>
     <div class="card">
       <p class="chart-total" id="chart-total"></p>
-      <div class="chart-split">
-        <div class="chart-canvas"><div id="sunburst-chart"></div></div>
-        <div><p class="chart-legend-head" id="chart-legend-head"><span class="meta-label muted" data-i18n="构成">构成</span></p><div class="chart-legend" id="chart-legend"></div></div>
+      <div class="chart-stage">
+        <div class="chart-split">
+          <div class="chart-canvas"><div id="sunburst-chart"></div></div>
+          <div><p class="chart-legend-head" id="chart-legend-head"><span class="meta-label muted" data-i18n="构成">构成</span></p><div class="chart-legend" id="chart-legend"></div></div>
+        </div>
       </div>
       <div id="chart-empty" class="empty-state" style="display:none;">
         <div class="empty-rule"></div>
@@ -230,22 +232,24 @@
       </div>
       <div class="toolbar">
         <select id="history-category-select" onchange="renderHistoryChart()" class="select-field" aria-label="历史净值分类维度" data-i18n-aria-label="历史净值分类维度"></select>
-        <div class="seg-control">
+        <div id="history-mode-toggle" class="seg-control">
           <button id="hist-mode-value" onclick="setHistoryChartMode('value')" class="seg-btn active" data-i18n="金额">金额</button>
           <button id="hist-mode-percent" onclick="setHistoryChartMode('percent')" class="seg-btn" data-i18n="占比">占比</button>
         </div>
-        <button onclick="openCompareModal()" class="btn-ghost" data-i18n="对比快照">对比快照</button>
+        <button id="history-compare-btn" onclick="openCompareModal()" class="btn-ghost" data-i18n="对比快照">对比快照</button>
         <div id="history-record-area"></div>
       </div>
     </div>
     <div class="card mb-6">
-      <div id="history-chart" style="width:100%; height:420px;"></div>
-      <p class="t-micro mt-2 muted" data-i18n="点击柱中色块，可展开该月该标签的构成明细">点击柱中色块，可展开该月该标签的构成明细</p>
+      <div class="chart-stage">
+        <div id="history-chart" style="width:100%; height:420px;"></div>
+        <p class="t-micro mt-2 muted" data-i18n="点击柱中色块，可展开该月该标签的构成明细">点击柱中色块，可展开该月该标签的构成明细</p>
+      </div>
       <div id="history-empty" class="empty-state" style="display:none;">
         <div class="empty-rule"></div>
         <p class="empty-title" data-i18n="还没有月度快照">还没有月度快照</p>
         <p class="empty-sub" data-i18n="每月点击「记录快照」留存一次净值；至少两个月才能显示趋势">每月点击「记录快照」留存一次净值；至少两个月才能显示趋势</p>
-        <div class="empty-action"><button onclick="takeSnapshot()" class="btn-ghost" data-i18n="记录快照">记录快照</button></div>
+        <div class="empty-action"><button onclick="takeSnapshot()" class="btn-gold" data-i18n="记录快照">记录快照</button></div>
       </div>
     </div>
     <div id="snapshots-list"></div>
@@ -454,16 +458,18 @@
           <h2 class="font-display" data-i18n="消费分布">消费分布</h2>
           <p class="sub" data-i18n="按分类维度和月份查看消费分布">按分类维度和月份查看消费分布</p>
         </div>
-        <div class="toolbar">
+        <div id="expense-chart-toolbar" class="toolbar">
           <select id="expense-chart-month-select" onchange="renderExpenseChart()" class="select-field" aria-label="消费分布月份" data-i18n-aria-label="消费分布月份"></select>
           <select id="expense-chart-category-select" onchange="renderExpenseChart()" class="select-field" aria-label="消费分布分类维度" data-i18n-aria-label="消费分布分类维度"></select>
         </div>
       </div>
       <div class="card">
         <p class="chart-total" id="expense-chart-total"></p>
-        <div class="chart-split">
-          <div class="chart-canvas"><div id="expense-sunburst-chart"></div></div>
-          <div><p class="chart-legend-head" id="expense-chart-legend-head"><span class="meta-label muted" data-i18n="构成">构成</span></p><div class="chart-legend" id="expense-chart-legend"></div></div>
+        <div class="chart-stage">
+          <div class="chart-split">
+            <div class="chart-canvas"><div id="expense-sunburst-chart"></div></div>
+            <div><p class="chart-legend-head" id="expense-chart-legend-head"><span class="meta-label muted" data-i18n="构成">构成</span></p><div class="chart-legend" id="expense-chart-legend"></div></div>
+          </div>
         </div>
         <div id="expense-chart-empty" class="empty-state" style="display:none;">
           <div class="empty-rule"></div>
@@ -484,17 +490,19 @@
         </div>
         <div class="toolbar">
           <select id="expense-trend-category-select" onchange="renderExpenseTrendChart()" class="select-field" aria-label="消费趋势分类维度" data-i18n-aria-label="消费趋势分类维度"></select>
-          <div class="seg-control">
+          <div id="expense-trend-mode-toggle" class="seg-control">
             <button id="expense-trend-mode-value" onclick="setExpenseTrendMode('value')" class="seg-btn active" data-i18n="金额">金额</button>
             <button id="expense-trend-mode-percent" onclick="setExpenseTrendMode('percent')" class="seg-btn" data-i18n="占比">占比</button>
           </div>
-          <button onclick="openExpenseCompareModal()" class="btn-ghost btn-sm" data-i18n="对比两月">对比两月</button>
+          <button id="expense-trend-compare-btn" onclick="openExpenseCompareModal()" class="btn-ghost btn-sm" data-i18n="对比两月">对比两月</button>
           <button id="expense-expectation-btn" onclick="openExpectationModal()" class="btn-ghost btn-sm" data-i18n="预期消费">预期消费</button>
         </div>
       </div>
       <div class="card mb-6">
-        <div id="expense-trend-chart" style="width:100%; height:420px;"></div>
-        <p class="t-micro mt-2 muted" data-i18n="点击柱中色块，可展开该月该标签的构成明细">点击柱中色块，可展开该月该标签的构成明细</p>
+        <div class="chart-stage">
+          <div id="expense-trend-chart" style="width:100%; height:420px;"></div>
+          <p class="t-micro mt-2 muted" data-i18n="点击柱中色块，可展开该月该标签的构成明细">点击柱中色块，可展开该月该标签的构成明细</p>
+        </div>
         <div id="expense-trend-empty" class="empty-state" style="display:none;">
           <div class="empty-rule"></div>
           <p class="empty-title" data-i18n="还没有消费记录">还没有消费记录</p>

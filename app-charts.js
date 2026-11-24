@@ -11,6 +11,9 @@ function fillCategorySelect(selId, cats) {
 }
 
 async function renderChart() {
+  const catSel = document.getElementById('chart-category-select');
+  const hasAssets = state.assets.length > 0;
+  if (catSel) catSel.style.display = hasAssets ? '' : 'none';
   const catId = document.getElementById('chart-category-select').value;
   if (!catId) return;
 
@@ -18,7 +21,7 @@ async function renderChart() {
   const emptyEl = document.getElementById('chart-empty');
   const totalEl = document.getElementById('chart-total');
 
-  if (state.assets.length === 0) {
+  if (!hasAssets) {
     showChartOrEmpty(chartEl, emptyEl, false);
     hideChartTotal(totalEl);
     renderSunburstLegend('chart-legend', [], 0, null);
@@ -352,8 +355,15 @@ async function renderHistoryChart() {
   const catId = document.getElementById('history-category-select').value;
   const chartEl = document.getElementById('history-chart');
   const emptyEl = document.getElementById('history-empty');
+  const sparse = state.snapshots.length < 2;
+  ['history-category-select', 'history-mode-toggle', 'history-compare-btn'].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = sparse ? 'none' : '';
+  });
+  const recordArea = document.getElementById('history-record-area');
+  if (recordArea) recordArea.style.display = state.snapshots.length ? '' : 'none';
 
-  if (state.snapshots.length < 2) { histDrillMeta = null; showChartOrEmpty(chartEl, emptyEl, false); return; }
+  if (sparse) { histDrillMeta = null; showChartOrEmpty(chartEl, emptyEl, false); return; }
   showChartOrEmpty(chartEl, emptyEl, true);
 
   const cat = state.categories.find(c => c.id === catId);
@@ -396,11 +406,14 @@ async function renderHistoryChart() {
       label: isLast && historyChartMode === 'value' ? {
         show: true,
         position: 'top',
-        formatter: function(p) { return money.formatCNY(totals[p.dataIndex]); },
+        formatter: function(p) {
+          return chartMoneyLabel(totals[p.dataIndex], chartEl);
+        },
         fontFamily: CHART_FONT,
-        fontSize: 11,
+        fontSize: chartEl.clientWidth < 560 ? 10 : 11,
         color: th.muted,
       } : undefined,
+      labelLayout: isLast && historyChartMode === 'value' ? { hideOverlap: true } : undefined,
     };
   });
 
@@ -450,7 +463,7 @@ function momCompareHtml(curr, prev, goodWhenUp) {
   // 小条按「本月差额 / 本月总额」相对归一（与前月同量级才可比），精确金额仍在文字里。
   // 条挂在文字前：先看到方向，再读到数；零差额不画条。
   const bar = cmpMiniBar(m.diff, Math.max(Math.abs(curr), Math.abs(prev)) || 1, () => diffColor);
-  const diffLine = '<span style="color:' + diffColor + ';">' + bar + i18n.t('较上月 ') + sign + money.formatCNY(m.diff) + '</span>';
+  const diffLine = '<span class="diff-inline" style="color:' + diffColor + ';">' + bar + i18n.t('较上月 ') + sign + money.formatCNY(m.diff) + '</span>';
   return { badge: badge, diffLine: diffLine };
 }
 

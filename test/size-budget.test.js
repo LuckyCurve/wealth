@@ -38,7 +38,8 @@ const BUDGETS = {
   // 页内版块（报头/图表/读数条/月份图）与打印形态：从 styles.css 原样切出的连续两段，
   // 只做版块归类、不改规则。新文件的初版上限按「现有内容 + 约 15%」给，留出下一次改动的位；
   // 之后再抬就回到老规矩：先问能不能再拆一层。
-  'styles-views.css': 30_000,
+  // 月份图图例改为连续色阶、窄屏目标读数分行，同一 commit 抬 500B 收下。
+  'styles-views.css': 30_500,
   'styles-print.css': 8_500,
   // 资产页解锁冷却：sessionStorage 时间戳的读写与「冷却内直接进门」接在门槛入口，
   // 纯判定已下沉 logic.js（gateCooldownActive），这里只剩接线。同 commit 抬 2KB。

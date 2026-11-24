@@ -1963,16 +1963,16 @@
   // 图表色板：base 内环基色、label 内环字色（浅底必须用墨字，固定白字实测 7/10 不达 AA）、shades 外环三阶。
   const CHART_INK = '#211B10';
   const CATEGORY_PALETTE = [
-    { base: '#BB5647', label: '#FFFFFF', shades: ['#AF776F', '#BF938C', '#D0AFAA'] },
-    { base: '#428069', label: '#FFFFFF', shades: ['#60907E', '#79A595', '#94B7AA'] },
-    { base: '#AE7D29', label: '#211B10', shades: ['#A18047', '#B8975E', '#C6AB7E'] },
-    { base: '#4977AB', label: '#FFFFFF', shades: ['#6D88A7', '#899FB8', '#A6B6C9'] },
-    { base: '#A1664C', label: '#FFFFFF', shades: ['#A37E6E', '#B5978A', '#C7B0A6'] },
-    { base: '#7F6BA1', label: '#FFFFFF', shades: ['#8D80A3', '#A59AB6', '#BDB5C9'] },
-    { base: '#B6783A', label: '#211B10', shades: ['#A77E56', '#B79573', '#C7AC91'] },
-    { base: '#3E7E7C', label: '#FFFFFF', shades: ['#5D8E8C', '#74A4A3', '#90B7B5'] },
-    { base: '#B6593D', label: '#FFFFFF', shades: ['#AF7867', '#BF9385', '#CFADA3'] },
-    { base: '#A3626F', label: '#FFFFFF', shades: ['#A17D84', '#B4979D', '#C7B2B6'] },
+    { base: '#9F553B', label: '#FFFFFF', shades: ['#D2866A', '#DEA691', '#EAC6B8'] },
+    { base: '#3F7564', label: '#FFFFFF', shades: ['#79C3AC', '#9CD3C2', '#C0E3D7'] },
+    { base: '#946C24', label: '#FFFFFF', shades: ['#D2AE6A', '#DEC391', '#EAD9B8'] },
+    { base: '#48698F', label: '#FFFFFF', shades: ['#769BC6', '#9AB6D5', '#BED0E4'] },
+    { base: '#6A5B92', label: '#FFFFFF', shades: ['#8D79C3', '#AB9CD3', '#C9C0E3'] },
+    { base: '#7D5B3E', label: '#FFFFFF', shades: ['#C79B75', '#D6B69A', '#E4D0BE'] },
+    { base: '#9D5060', label: '#FFFFFF', shades: ['#C57787', '#D49BA6', '#E3BFC6'] },
+    { base: '#3E7778', label: '#FFFFFF', shades: ['#77C4C5', '#9BD3D4', '#BFE3E3'] },
+    { base: '#696A3E', label: '#FFFFFF', shades: ['#C2C379', '#D2D39C', '#E2E3C0'] },
+    { base: '#596A7C', label: '#FFFFFF', shades: ['#799DC3', '#9CB7D3', '#C0D1E3'] },
   ];
 
   // 同分类下「第几个条目」→ 外环色阶（buildSunburstData 与堆叠柱共用一套轮转规则，
@@ -1981,13 +1981,19 @@
     return pal.shades[i % pal.shades.length];
   }
 
+  function categoryPalette(cat, tag) {
+    const tags = cat && Array.isArray(cat.tags) ? cat.tags : [];
+    const i = tags.indexOf(tag);
+    return CATEGORY_PALETTE[(i < 0 ? 0 : i) % CATEGORY_PALETTE.length];
+  }
+
   // 旭日图数据构造（三图共用）：childValue 决定扇区数值，child 的 extra 透传到节点。
   // 字色写在节点上（label.color）——实测 ECharts 5 对 levels 里的函数型 color 不保证逐节点求值。
   function buildSunburstData(cat, groups, childValue) {
     return cat.tags
       .filter(t => (groups[t] || []).length > 0)
-      .map((tag, ti) => {
-        const pal = CATEGORY_PALETTE[ti % CATEGORY_PALETTE.length];
+      .map((tag) => {
+        const pal = categoryPalette(cat, tag);
         const children = (groups[tag] || []).map((child, ai) => {
           const node = {
             name: child.name,
@@ -2441,6 +2447,7 @@
       CATEGORY_PALETTE,
       CHART_INK,
       shadeAt,
+      categoryPalette,
     },
     chartData: {
       buildSunburstData,

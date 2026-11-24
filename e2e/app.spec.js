@@ -634,6 +634,32 @@ test.describe('净资产目标', () => {
     const box = await panel.boundingBox();
     expect(box.height, '空态应当是一行（不是被撑起来的空框）').toBeLessThan(64);
   });
+
+  test('窄屏：目标名称与数值分两行，标题不被数值挤成多行', async ({ appPage: page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await gotoAssets(page);
+    await page.evaluate(() => {
+      state.netWorthTarget = 500000;
+      saveState();
+      renderAssets();
+    });
+    const geo = await page.evaluate(() => {
+      const head = document.querySelector('#net-worth-target .target-head');
+      const label = head.querySelector(':scope > span:first-child');
+      const values = head.querySelector('.row-start');
+      const labelBox = label.getBoundingClientRect();
+      const valuesBox = values.getBoundingClientRect();
+      const lineTops = new Set([...label.getClientRects()].map((r) => Math.round(r.top)));
+      return {
+        stacked: valuesBox.top >= labelBox.bottom - 1,
+        labelLines: lineTops.size,
+        overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      };
+    });
+    expect(geo.stacked, '目标名称与数值必须分行，不能在同一行互相挤').toBe(true);
+    expect(geo.labelLines, '「目标净资产 · 百分比」应保持一行').toBe(1);
+    expect(geo.overflow, '窄屏不得横向溢出').toBeLessThanOrEqual(0);
+  });
 });
 
 test.describe('消费记录', () => {
@@ -983,6 +1009,7 @@ test.describe('消费月份图（日历）', () => {
         const r = ratio(washes[i], washes[i - 1]);
         expect(r, theme + `：墨阶 ${i + 1} 应比 ${i} 深（相邻对比 ${r.toFixed(2)}）`).toBeGreaterThanOrEqual(1.25);
       }
+      expect(ratio(washes[0], look.cardBg), theme + '：最浅一档也要与空白日分开（≥1.25:1）').toBeGreaterThanOrEqual(1.25);
       // 深色纸能给的台阶比浅色小（再深就进中间调死区）；两根都必须≥3.0，否则最深一档在纸上读不出来
       expect(ratio(washes[3], look.cardBg), theme + '：最深一档对纸面要够响（≥3.0:1）').toBeGreaterThanOrEqual(3.0);
 
@@ -1112,6 +1139,34 @@ test.describe('消费月份图（日历）', () => {
       expect(narrow.infoBands, `${label}：卡片头回到「标题 / 月份 / 汇总+图例」三段`).toBe(3);
       expect(narrow.docScroll, `${label}：页面不得横向溢出（scrollWidth ${narrow.docScroll}）`).toBeLessThanOrEqual(narrow.viewport);
       expect(narrow.cardScroll, `${label}：月份卡不得横向溢出（scrollWidth ${narrow.cardScroll}）`).toBeLessThanOrEqual(narrow.cardWidth + 1);
+    }
+  });
+
+  test('图例是连续四档色阶，不是四个互不相连的小方块', async ({ appPage: page }) => {
+    const look = await page.evaluate(() => {
+      const swatches = [...document.querySelectorAll('.mg-legend .mg-sw')];
+      const boxes = swatches.map((el) => el.getBoundingClientRect());
+      const alphas = swatches.map((el) => {
+        const m = getComputedStyle(el).backgroundColor.match(/rgba?\(([^)]+)\)/);
+        const parts = m ? m[1].split(',').map(Number) : [];
+        return parts.length > 3 ? parts[3] : 1;
+      });
+      return {
+        count: swatches.length,
+        minWidth: Math.min(...boxes.map((b) => b.width)),
+        gaps: boxes.slice(1).map((b, i) => b.left - boxes[i].right),
+        alphas,
+        firstLeft: parseFloat(getComputedStyle(swatches[0]).borderTopLeftRadius),
+        lastRight: parseFloat(getComputedStyle(swatches.at(-1)).borderTopRightRadius),
+      };
+    });
+    expect(look.count, '四档都应出现在图例里').toBe(4);
+    expect(look.minWidth, '色阶块要够宽，能看出是一段刻度').toBeGreaterThanOrEqual(16);
+    expect(Math.max(...look.gaps), '四档应无缝相接成一条色阶').toBeLessThanOrEqual(1);
+    expect(look.firstLeft, '色阶左端应做圆角').toBeGreaterThan(0);
+    expect(look.lastRight, '色阶右端应做圆角').toBeGreaterThan(0);
+    for (let i = 1; i < look.alphas.length; i++) {
+      expect(look.alphas[i], `第 ${i + 1} 档应比第 ${i} 档更浓`).toBeGreaterThan(look.alphas[i - 1]);
     }
   });
 
@@ -1390,6 +1445,61 @@ test.describe('图表初始化与空态', () => {
     await page.selectOption('#chart-category-select', 'cat-empty');
     await expect(page.locator('#chart-empty')).toBeVisible();
     await expect(page.locator('#sunburst-chart')).toBeHidden();
+    await expect(page.locator('#tab-chart .chart-stage')).toHaveCount(1);
+    await expect(page.locator('#tab-chart .chart-stage')).toBeHidden();
+    await expect(page.locator('#chart-legend-head')).toBeHidden();
+  });
+
+  test('历史净值空态：图表与操作提示一起收起', async ({ blankPage: page }) => {
+    await gotoAssetsTab(page, 'history');
+    await expect(page.locator('#history-empty')).toBeVisible();
+    await expect(page.locator('#history-chart')).toBeHidden();
+    await expect(page.locator('#tab-history .chart-stage')).toHaveCount(1);
+    await expect(page.locator('#tab-history .chart-stage')).toBeHidden();
+    await expect(page.locator('#tab-history .chart-stage > p')).toBeHidden();
+    await expect(page.locator('#history-category-select')).toBeHidden();
+    await expect(page.locator('#history-mode-toggle')).toBeHidden();
+    await expect(page.locator('#history-compare-btn')).toBeHidden();
+    await expect(page.locator('#history-record-area')).toBeHidden();
+  });
+
+  test('历史净值只有一条快照时，仍保留覆盖更新入口', async ({ blankPage: page }) => {
+    await gotoAssetsTab(page, 'history');
+    await page.locator('#history-empty .btn-gold').click();
+    await expect(page.locator('#snapshot-note-modal')).toBeVisible();
+    await page.locator('#snapshot-note-modal .btn-gold').first().click();
+    await expect(page.locator('#snapshots-list .row-hit')).toHaveCount(1);
+    await expect(page.locator('#history-record-area')).toBeVisible();
+    await expect(page.locator('#history-record-area')).toContainText('覆盖更新');
+  });
+
+  test('资产分布空态：没有资产时不留下空筛选器', async ({ blankPage: page }) => {
+    await gotoAssetsTab(page, 'chart');
+    await expect(page.locator('#chart-empty')).toBeVisible();
+    await expect(page.locator('#chart-category-select')).toBeHidden();
+  });
+
+  test('窄屏历史净值：迷你差额条收起，精确金额仍保留', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    const s = sampleState();
+    const snap = (month, totalCNY) => ({
+      month, note: '', totalCNY,
+      currencyRates: { ...s.rates },
+      assets: s.assets.map((a) => ({ ...a, tags: { ...a.tags } })),
+      updatedAt: month + '-01T00:00:00.000Z',
+    });
+    await openWith(page, { ...s, snapshots: [snap('2026-01', 180000), snap('2026-02', 190000)] });
+    await gotoAssets(page, 'history');
+    const track = page.locator('#snapshots-list .cmp-mini-track').first();
+    await expect(track).toBeHidden();
+    await expect(page.locator('#snapshots-list .snapshot-row').first()).toContainText('较上月');
+    await expect(page.locator('#snapshots-list .diff-inline').first()).toHaveCSS('white-space', 'nowrap');
+  });
+
+  test('消费分布空态：没有数据时不留下空白筛选器', async ({ blankPage: page }) => {
+    await page.locator('#tabs-expenses .tab-btn[data-tab="expense-chart"]').click();
+    await expect(page.locator('#expense-chart-empty')).toBeVisible();
+    await expect(page.locator('#expense-chart-toolbar')).toBeHidden();
   });
 
   test('消费趋势：已设预期月消费时读数卡出现并显示参考线数值', async ({ appPage: page }) => {
@@ -1402,6 +1512,12 @@ test.describe('图表初始化与空态', () => {
   test('消费趋势：未设预期月消费时读数卡全部隐藏', async ({ blankPage: page }) => {
     await page.locator('#tabs-expenses .tab-btn[data-tab="expense-trend"]').click();
     await expect(page.locator('#expense-trend-empty')).toBeVisible();
+    await expect(page.locator('#tab-expense-trend .chart-stage')).toHaveCount(1);
+    await expect(page.locator('#tab-expense-trend .chart-stage')).toBeHidden();
+    await expect(page.locator('#tab-expense-trend .chart-stage > p')).toBeHidden();
+    await expect(page.locator('#expense-trend-category-select')).toBeHidden();
+    await expect(page.locator('#expense-trend-mode-toggle')).toBeHidden();
+    await expect(page.locator('#expense-trend-compare-btn')).toBeHidden();
     await expect(page.locator('#month-pace-card')).toBeHidden();
     await expect(page.locator('#runway-card')).toBeHidden();
   });
@@ -1636,13 +1752,30 @@ test.describe('弹窗与提示', () => {
   test('打开设置不自动进输入框：焦点落在标题，按 Tab 才进控件', async ({ appPage: page }) => {
     await openSettings(page);
     expect(await page.evaluate(() => document.activeElement && document.activeElement.id)).toBe('settings-modal-title');
+    const titleRing = await page.evaluate(() => {
+      const el = document.activeElement;
+      const cs = getComputedStyle(el);
+      return {
+        focusVisible: el.matches(':focus-visible'),
+        outlineStyle: cs.outlineStyle,
+        outlineWidth: cs.outlineWidth,
+      };
+    });
+    expect(
+      titleRing.outlineStyle === 'none' || parseFloat(titleRing.outlineWidth) === 0,
+      '标题不是输入框，不应出现整块金色焦点矩形'
+    ).toBe(true);
     await page.keyboard.press('Tab');
     const next = await page.evaluate(() => ({
       id: document.activeElement && document.activeElement.id,
       tag: document.activeElement && document.activeElement.tagName,
+      outlineStyle: getComputedStyle(document.activeElement).outlineStyle,
+      outlineWidth: getComputedStyle(document.activeElement).outlineWidth,
     }));
     expect(next.id, '第一个 Tab 位不该是导出密钥').not.toBe('pass-input');
     expect(['BUTTON', 'INPUT'], 'Tab 要能进控件').toContain(next.tag);
+    expect(next.outlineStyle, '真实控件的键盘焦点环不能一起被去掉').toBe('solid');
+    expect(parseFloat(next.outlineWidth), '真实控件的键盘焦点环不能一起被去掉').toBeGreaterThanOrEqual(2);
   });
 
   test('删除分类同步清理资产上的标签引用（不留孤儿 key）', async ({ appPage: page }) => {

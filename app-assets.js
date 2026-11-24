@@ -543,7 +543,9 @@ async function chartApply(spec) {
 
 
 function showChartOrEmpty(chartEl, emptyEl, show) {
+  const stage = chartEl.closest ? chartEl.closest('.chart-stage') : null;
   chartEl.style.display = show ? '' : 'none';
+  if (stage) stage.style.display = show ? '' : 'none';
   emptyEl.style.display = show ? 'none' : '';
 }
 
@@ -659,6 +661,11 @@ function hideChartTotal(el) {
   if (el) el.style.display = 'none';
 }
 
+function chartMoneyLabel(value, el) {
+  if (!el || el.clientWidth >= 560) return money.formatCNY(Number(value) || 0);
+  return (monthGrid.shortCNY(value) || '¥0').replace('¥', '');
+}
+
 function chartTheme() {
   const cs = getComputedStyle(document.documentElement);
   const v = n => (cs.getPropertyValue(n) || '').trim();
@@ -690,7 +697,14 @@ function barChartBase(th, dates, mode, legendData, legendSelected) {
   return {
     backgroundColor: 'transparent',
     legend: Object.assign(
-      { show: true, type: 'scroll', bottom: 0, textStyle: { color: th.fg } },
+      {
+        show: true, type: 'scroll', bottom: 0,
+        textStyle: { color: th.fg },
+        pageTextStyle: { color: th.muted, fontFamily: CHART_FONT, fontSize: 11 },
+        pageIconColor: th.fg,
+        pageIconInactiveColor: th.line,
+        pageIconSize: 11,
+      },
       legendData ? { data: legendData } : {},
       legendSelected && Object.keys(legendSelected).length ? { selected: legendSelected } : {}),
     grid: { left: '3%', right: '4%', bottom: '22%', top: '10%', containLabel: true },
@@ -704,7 +718,7 @@ function barChartBase(th, dates, mode, legendData, legendSelected) {
 // 堆叠柱系列样式（历史净值 / 消费趋势共用，原先两处逐字重复）：
 // 颜色按标签在分类中的原始下标取色，保持稳定不随排序变化；focus/blur 也同一套。
 function barSeriesStyle(cat, tag) {
-  const pal = color.CATEGORY_PALETTE[cat.tags.indexOf(tag) % color.CATEGORY_PALETTE.length];
+  const pal = color.categoryPalette(cat, tag);
   return {
     name: tag, type: 'bar', stack: 'total',
     itemStyle: { color: pal.base },

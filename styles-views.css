@@ -202,13 +202,17 @@
   .cmp-bar-down { right: 50%; }
   .cmp-bar-axis { position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: var(--tick); transform: translateX(-0.5px); }
   /* 趋势/历史净值行内的小条：与对比表同一零轴语言，缩到 3px 高、不占额外行。 */
-  .cmp-mini-track { display: inline-block; position: relative; vertical-align: middle; width: 34px; height: 3px; border-radius: var(--rad-1); background: var(--bg-2); margin-right: var(--sp-3); overflow: hidden; }
-  .cmp-mini { position: absolute; top: 0; height: 100%; border-radius: var(--rad-1); }
+  .cmp-mini-track { display: inline-block; position: relative; vertical-align: middle; width: 42px; height: 4px; border-radius: var(--rad-1); background: var(--border); margin-right: var(--sp-3); overflow: hidden; }
+  .cmp-mini { position: absolute; top: 0; height: 100%; min-width: 3px; border-radius: var(--rad-1); }
   .cmp-mini-up { left: 50%; }
   .cmp-mini-down { right: 50%; }
+  .cmp-mini-track .cmp-bar-axis { background: var(--muted); opacity: 0.55; }
   @media (max-width: 640px) {
     .masthead { padding: var(--sp-9) var(--sp-8) var(--sp-9); }
     .masthead-amount { font-size: var(--fs-display-sm); }
+    .target-panel .target-head { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--sp-4); align-items: start; }
+    .target-panel .target-head .row-start { flex-wrap: wrap; }
+    .cmp-mini-track { display: none; }
     /* 窄屏收紧 Tab 内边距：四个（资产侧五个）标签通常就装得下，不必动用横滚 */
     .tab-btn { padding: var(--sp-5) var(--sp-6); }
   }
@@ -246,8 +250,11 @@
   .mg-grid { margin-top: var(--sp-5); border: 1px solid var(--mg-line); border-radius: var(--rad-4); overflow: hidden; }
   .mg-hint { max-width: var(--mg-max); margin-inline: auto; text-align: center; }
   /* 图例右缘落在月历右缘 */
-  .mg-legend { display: inline-flex; align-items: center; gap: var(--sp-1); margin-left: auto; white-space: nowrap; }
-  .mg-sw { width: 11px; height: 11px; border-radius: var(--rad-1); box-shadow: inset 0 0 0 var(--ring-w-1) var(--mg-line); }
+  .mg-legend { display: inline-flex; align-items: center; gap: 0; margin-left: auto; white-space: nowrap; }
+  .mg-legend > span:not(.mg-sw) { margin-inline: var(--sp-3); }
+  .mg-sw { width: 18px; height: 11px; border-radius: 0; box-shadow: inset 0 var(--ring-w-1) 0 var(--mg-line), inset 0 calc(var(--ring-w-1) * -1) 0 var(--mg-line); }
+  .mg-legend > .mg-sw:nth-child(2) { border-radius: var(--rad-1) 0 0 var(--rad-1); }
+  .mg-legend > .mg-sw:nth-last-child(2) { border-radius: 0 var(--rad-1) var(--rad-1) 0; }
   /* 上/下月是本卡的主操作：两根箭头紧挨着，贴在它们翻的那个月份旁边 */
   .mg-sub {
     display: flex; align-items: center; flex-wrap: wrap; gap: var(--sp-1) var(--sp-4); min-width: 0;

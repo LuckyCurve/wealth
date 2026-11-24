@@ -325,6 +325,8 @@ function populateExpenseChartSelects() {
 async function renderExpenseChart() {
   const catId = document.getElementById('expense-chart-category-select').value;
   const monthFilter = document.getElementById('expense-chart-month-select').value;
+  const toolbarEl = document.getElementById('expense-chart-toolbar');
+  if (toolbarEl) toolbarEl.style.display = state.expenses.length ? '' : 'none';
 
   const chartEl = document.getElementById('expense-sunburst-chart');
   const emptyEl = document.getElementById('expense-chart-empty');
@@ -442,6 +444,12 @@ async function renderExpenseTrendChart() {
   const catId = document.getElementById('expense-trend-category-select').value;
   const chartEl = document.getElementById('expense-trend-chart');
   const emptyEl = document.getElementById('expense-trend-empty');
+  const catSel = document.getElementById('expense-trend-category-select');
+  if (catSel) catSel.style.display = catSel.options.length ? '' : 'none';
+  ['expense-trend-mode-toggle', 'expense-trend-compare-btn'].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = state.expenses.length ? '' : 'none';
+  });
 
   const cat = state.expenseCategories.find(c => c.id === catId);
 
@@ -505,18 +513,20 @@ async function renderExpenseTrendChart() {
         const m = sorted[p.dataIndex];
         const visTotal = cat.tags.reduce((s, tag) =>
           selected[tag] === false ? s : s + (monthMap[m][tag] || 0), 0);
+        const label = chartMoneyLabel(visTotal, chartEl);
         if (expectation > 0 && visTotal > expectation) {
-          return '{red|▲ ' + money.formatCNY(visTotal) + '}';
+          return '{red|▲ ' + label + '}';
         }
-        return money.formatCNY(visTotal);
+        return label;
       },
       rich: {
         red: { color: th.down, fontFamily: CHART_FONT, fontSize: 11, fontWeight: 600 },
       },
       fontFamily: CHART_FONT,
-      fontSize: 11,
+      fontSize: chartEl.clientWidth < 560 ? 10 : 11,
       color: th.muted,
     },
+    labelLayout: { hideOverlap: true },
     // 预期消费参考线（仅金额模式；占比模式 y 轴为百分比, 不显示）
     markLine: expectation > 0 ? {
       silent: true,
@@ -603,7 +613,7 @@ function renderExpenseTrendList() {
       const shown = d === 0 ? '±' + money.formatCNY(0) : (d > 0 ? '+' : '-') + money.formatCNY(Math.abs(d));
       // 与环比同一零轴小条；精确 ±¥ 仍在文字里（条不替代读数）。
       const c = compareColor(d, false);
-      normalLine = ` · <span style="color:${c};">${cmpMiniBar(d, Math.max(total, normal.normal) || 1, () => c)}${i18n.t('较平常 {p1}', { p1: shown })}</span>`;
+      normalLine = ` · <span class="diff-inline" style="color:${c};">${cmpMiniBar(d, Math.max(total, normal.normal) || 1, () => c)}${i18n.t('较平常 {p1}', { p1: shown })}</span>`;
     }
     return `<div class="card card-interactive snapshot-row">
       <div class="row-main row-hit" role="button" tabindex="0" onclick="viewExpenseMonth('${text.jsAttr(month)}')"

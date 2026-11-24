@@ -96,14 +96,14 @@
     --focus-ring: #7f5c0e;
     /* 月份图四档「染墨」：暖陶土表示数据浓度，金只留给今天，青蓝只留给交互。
        格底色保持半透明，纸纹与桌光从墨下面透上来；四档只靠明度分开。 */
-    --mg-1: rgba(155, 74, 28, 0.12);
-    --mg-2: rgba(155, 74, 28, 0.30);
-    --mg-3: rgba(155, 74, 28, 0.50);
-    --mg-4: rgba(155, 74, 28, 0.71);
+    --mg-1: rgba(160, 69, 24, 0.20);
+    --mg-2: rgba(160, 69, 24, 0.40);
+    --mg-3: rgba(160, 69, 24, 0.58);
+    --mg-4: rgba(160, 69, 24, 0.73);
     /* 最深一档格子里写什么色的字：亮色纸上是墨，暗色纸上翻成深墨才达 AA。 */
     --mg-ink-4: var(--fg);
     /* 发丝格线：压在纸上的一根线，不是一道实色隔断 */
-    --mg-line: rgba(155, 74, 28, 0.20);
+    --mg-line: rgba(160, 69, 24, 0.28);
     /* 月份图 / 当天记录共用的内容列宽；图例的右缘要落到这一列的右缘上 */
     --mg-max: 820px;
     /* 选中的极淡暖底（半透明）。AA 巡检读不到这一层（它只读 background-color），
@@ -173,12 +173,12 @@
     --focus-ring: #d9b25e;
     --select: #9ab6d6;
     /* 暗色下换更亮的陶土，四档仍只变明度；最深一档足够亮，字必须翻成深墨。 */
-    --mg-1: rgba(224, 166, 106, 0.10);
-    --mg-2: rgba(224, 166, 106, 0.28);
-    --mg-3: rgba(224, 166, 106, 0.46);
-    --mg-4: rgba(224, 166, 106, 0.70);
+    --mg-1: rgba(232, 164, 94, 0.16);
+    --mg-2: rgba(232, 164, 94, 0.30);
+    --mg-3: rgba(232, 164, 94, 0.45);
+    --mg-4: rgba(232, 164, 94, 0.78);
     --mg-ink-4: #211b10;
-    --mg-line: rgba(224, 166, 106, 0.18);
+    --mg-line: rgba(232, 164, 94, 0.24);
     /* 宽度不随主题变；两套变量一一对应，暗色块也不能缺 */
     --mg-max: 820px;
     --mg-selected: rgba(217, 178, 94, 0.10);
@@ -422,6 +422,7 @@
   .tag-row-lg { display: flex; flex-wrap: wrap; gap: var(--sp-4); }
   .row-main { flex: 1 1 auto; min-width: 0; }
   .snapshot-row { display: flex; align-items: center; justify-content: space-between; }
+  .diff-inline { white-space: nowrap; }
   .tagcheck-group-head { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-6); flex-wrap: wrap; }
   .tagcheck-batch { display: flex; align-items: center; gap: var(--sp-4); flex-wrap: wrap; }
   /* 页头导航的布局写在这里，不靠 Tailwind：CDN 拉不到时工具类不生效，
@@ -838,6 +839,7 @@
   /* 弹窗标题下间距与页脚布局收在这里: 原先标题有 mb-2/3/4/6 四种、页脚 mt-6/mt-8 混用、
      有的页脚忘写 gap-3 两按钮贴在一起, 同类弹窗高矮不一 */
   .modal-title { font-size: var(--fs-modal); font-weight: var(--fw-bold); margin-bottom: var(--sp-9); text-wrap: balance; }
+  .modal-title[tabindex="-1"]:focus { outline: none; }
   .modal-footer { display: flex; align-items: center; justify-content: flex-end; gap: var(--sp-6); margin-top: var(--sp-10); }
   .modal-footer.between { justify-content: space-between; }
   .modal-title::before {
@@ -1303,7 +1305,7 @@
     background: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%20fill='none'%20stroke='currentColor'%20stroke-width='1.4'%20stroke-linecap='round'%20stroke-linejoin='round'%3E%3Cpath%20d='M4%205.5A2.5%202.5%200%200%201%206.5%203H20v15H6.5A2.5%202.5%200%200%200%204%2020.5z'/%3E%3Cpath%20d='M4%205.5v15'/%3E%3Cpath%20d='M8.5%207.5h7M8.5%2011h7M8.5%2014.5h4.5'/%3E%3C/svg%3E") center/contain no-repeat;
   }
   .empty-state .empty-rule { width: 36px; height: 2px; background: var(--accent-soft); border-radius: var(--rad-1); margin: 0 auto var(--sp-8); }
-  .empty-state .empty-title { color: var(--muted); font-size: var(--fs-card); font-weight: var(--fw-strong); }
+  .empty-state .empty-title { color: var(--fg); font-family: var(--font-display); font-size: var(--fs-card); font-weight: var(--fw-strong); letter-spacing: var(--ls-tight); }
   .empty-state .empty-sub { color: var(--muted); font-size: var(--fs-body); margin-top: var(--sp-3); }
   .empty-state .empty-action { margin-top: var(--sp-9); }
   @media (max-width: 900px) {

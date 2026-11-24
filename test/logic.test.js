@@ -852,7 +852,7 @@ describe('分类 pill 配色对比度（AA 4.5:1，亮/暗 × 每个插值点）
 describe('图表数据构造 buildSunburstData / pctStr / percentSeriesData', () => {
   const cat = { id: 'c1', name: '分类', tags: ['T1', 'T2', 'T3'] };
 
-  test('buildSunburstData 按标签套用 CATEGORY_PALETTE 配色, 跳过空分组', () => {
+  test('buildSunburstData 按标签原始下标套用 CATEGORY_PALETTE 配色, 跳过空分组', () => {
     const groups = {
       T1: [{ name: 'A', value: 100 }, { name: 'B', value: 50 }],
       T2: [],
@@ -863,11 +863,19 @@ describe('图表数据构造 buildSunburstData / pctStr / percentSeriesData', ()
     assert.strictEqual(data[0].name, 'T1');
     assert.strictEqual(data[0].itemStyle.color, L.color.CATEGORY_PALETTE[0].base);
     assert.strictEqual(data[1].name, 'T3');
-    assert.strictEqual(data[1].itemStyle.color, L.color.CATEGORY_PALETTE[1].base); // 过滤后 ti=1
+    assert.strictEqual(data[1].itemStyle.color, L.color.CATEGORY_PALETTE[2].base);
     assert.strictEqual(data[0].children.length, 2);
     assert.strictEqual(data[0].children[0].value, 100);
     assert.strictEqual(data[0].children[0].itemStyle.color, L.color.CATEGORY_PALETTE[0].shades[0]);
     assert.strictEqual(data[0].children[1].itemStyle.color, L.color.CATEGORY_PALETTE[0].shades[1]);
+  });
+
+  test('categoryPalette 用标签在分类中的原始下标取色（空分组不改变其他标签颜色）', () => {
+    const cat = { id: 'c1', name: '分类', tags: ['T1', 'T2', 'T3'] };
+    assert.strictEqual(L.color.categoryPalette(cat, 'T1'), L.color.CATEGORY_PALETTE[0]);
+    assert.strictEqual(L.color.categoryPalette(cat, 'T2'), L.color.CATEGORY_PALETTE[1]);
+    assert.strictEqual(L.color.categoryPalette(cat, 'T3'), L.color.CATEGORY_PALETTE[2]);
+    assert.strictEqual(L.color.categoryPalette(cat, '不存在'), L.color.CATEGORY_PALETTE[0]);
   });
 
   test('buildSunburstData childValue 决定数值, extra 透传, 四舍五入两位', () => {
