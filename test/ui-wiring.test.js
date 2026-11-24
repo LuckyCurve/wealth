@@ -2520,11 +2520,13 @@ describe('UI 接线契约：排版档位单一来源（字号/字重/字体族�
     assert.match(html, /\n  \.hint-xs \{ font-size: var\(--fs-micro\); \}/, '.hint-xs 归到 12px 档');
   });
 
-  test('正文基准提到 14px/字重 500（原 13px/400，观感就是小且浅）', () => {
-    assert.match(html, /\n  body \{[^}]*font-size: var\(--fs-body\)/, 'body 字号 14px');
-    assert.match(html, /\n  body \{[^}]*font-weight: var\(--fw-medium\)/, 'body 字重 500');
-    assert.match(html, /--fs-micro: 12px/, '微操作档 12px');
-    assert.match(html, /--fs-body: 14px/, '正文档 14px');
+  test('正文基准 15px/字重 400：界面文字与账本数字各有字体角色', () => {
+    assert.match(html, /\n  body \{[^}]*font-size: var\(--fs-body\)/, 'body 字号走正文档');
+    assert.match(html, /\n  body \{[^}]*font-weight: var\(--fw-regular\)/, 'body 字重走正文档');
+    assert.match(html, /--fs-micro: 0\.75rem/, '微操作档 12px');
+    assert.match(html, /--fs-body: 0\.9375rem/, '正文档 15px');
+    assert.match(html, /--font-body: 'IBM Plex Sans'/, '界面文字用无衬线体');
+    assert.match(html, /--font-numeric: 'IBM Plex Sans'/, '账本数字用可读的无衬线等宽数字');
   });
 
   test('暗色 muted 在卡面上达 AA（曾只有 4.47:1）', () => {
@@ -2747,7 +2749,7 @@ describe('UI 接线契约：卡片内读数与标题的层级（同一角色同�
     const rule = html.match(/\n  \.hero-figure \{[^}]*\}/);
     assert.ok(rule, '.hero-figure 规则存在');
     assert.match(rule[0], /font-size:/, '字号只此一处');
-    assert.match(rule[0], /font-weight: var\(--fw-medium\)/, '主读数字重走 token 档位');
+    assert.match(rule[0], /font-weight: var\(--fw-strong\)/, '主读数字重走强调档位');
   });
 
   test('卡片标题统一 .card-title / .card-title-sm（不再内联 font-size:17px/15px）', () => {
@@ -3124,7 +3126,7 @@ describe('UI 接线契约：顶端模式按钮的次序（消费在左 / 资产�
  * 卡片材质：半透厚纸（半透明纸面 + 一条顶边受光 + 两层外阴影）。
  * --------------------------------------------------------------------------
  * 为什么值得契约守：
- *   ① **底必须半透明但仍读得出是纸**（α .78）：纸纹与桌光要透一点上来，
+ *   ① **底必须半透明但仍读得出是纸**（α .82）：纸纹与桌光要透一点上来，
  *      但不像玻璃那样靠 blur/saturate；材质本身是纸色。
  *   ② **不得给 .card 写 background-image**：渐变底会让 AA 巡检对卡片内**每一行字**
  *      静默跳过（上一轮页头就是这么漏检的）。所有光泽只能靠 box-shadow。

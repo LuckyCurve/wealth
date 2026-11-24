@@ -24,7 +24,7 @@
   }
   .masthead > * { position: relative; z-index: 1; }
   .masthead-eyebrow {
-    font-family: var(--font-body); font-size: var(--fs-micro); letter-spacing: var(--ls-wide);
+    font-family: var(--font-label); font-size: var(--fs-micro); font-weight: var(--fw-medium); letter-spacing: var(--ls-wide);
     text-transform: uppercase; color: var(--muted); margin-bottom: var(--sp-3); display: flex; align-items: center; gap: var(--sp-4);
   }
   /* 心跳点：全站唯一的常驻循环动画。它是「呼吸」，不是过渡，故用自己的周期
@@ -32,9 +32,9 @@
   .masthead-eyebrow .live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--verdigris); box-shadow: 0 0 0 var(--ring-w-3) var(--verdigris-glow); animation: livePulse var(--mo-pulse) ease-out infinite; }
   @keyframes livePulse { 0% { box-shadow: var(--sh-pulse-0); } 70% { box-shadow: var(--sh-pulse-70); } 100% { box-shadow: var(--sh-pulse-100); } }
   .masthead-amount {
-    font-family: var(--font-numeric); font-weight: var(--fw-medium);
+    font-family: var(--font-numeric); font-weight: var(--fw-strong);
     font-size: var(--fs-display); line-height: var(--lh-flat); letter-spacing: var(--ls-tight);
-    color: var(--fg); font-variant-numeric: tabular-nums; display: flex; align-items: baseline; gap: var(--sp-4);
+    color: var(--fg); font-variant-numeric: lining-nums tabular-nums; display: flex; align-items: baseline; gap: var(--sp-4);
     /* 大数字压印感: 纸面受光凸起的错觉（暗色模式反转为下压阴影） */
     text-shadow: var(--sh-text-light);
   }
@@ -129,8 +129,8 @@
   .chart-total {
     margin: 0 0 var(--sp-7); text-align: center;
     font-family: var(--font-numeric); font-size: var(--fs-hero);
-    line-height: var(--lh-flat); font-weight: var(--fw-medium);
-    font-variant-numeric: tabular-nums; color: var(--fg);
+    line-height: var(--lh-flat); font-weight: var(--fw-strong);
+    font-variant-numeric: lining-nums tabular-nums; color: var(--fg);
   }
   .composition-rule { margin-top: var(--sp-8); display: flex; height: 5px; border-radius: var(--rad-2); overflow: hidden; gap: var(--sp-1); position: relative; }
   .composition-rule::before {
@@ -187,7 +187,7 @@
      hero 借报头同一支 display 字, 把「本月已花」抬成这张卡的读数主角（分母降级为小号）,
      百分比落在尺子右端作刻度读数——同一行里读数与尺子互为表里 */
   .pace-hero { display: flex; justify-content: center; align-items: baseline; gap: var(--sp-4); margin: 0 0 var(--sp-7); }
-  .pace-hero #pace-num { font-family: var(--font-numeric); font-weight: var(--fw-medium); font-size: var(--fs-pace); line-height: var(--lh-flat); color: var(--fg); }
+  .pace-hero #pace-num { font-family: var(--font-numeric); font-weight: var(--fw-strong); font-size: var(--fs-pace); line-height: var(--lh-flat); font-variant-numeric: lining-nums tabular-nums; color: var(--fg); }
   .pace-hero-div { font-size: var(--fs-body); color: var(--muted); }
   .pace-hero #pace-expense { font-size: var(--fs-body); color: var(--muted); }
   .pace-meter { display: flex; align-items: center; gap: var(--sp-6); }
@@ -215,7 +215,7 @@
 
   .card-title { font-family: var(--font-display); font-size: var(--fs-card); font-weight: var(--fw-bold); letter-spacing: var(--ls-tight); }
   .card-title-sm { font-family: var(--font-display); font-size: var(--fs-card-sm); font-weight: var(--fw-bold); }
-  .hero-figure { font-size: var(--fs-hero); line-height: var(--lh-flat); font-weight: var(--fw-medium); }
+  .hero-figure { font-family: var(--font-numeric); font-size: var(--fs-hero); line-height: var(--lh-flat); font-weight: var(--fw-strong); font-variant-numeric: lining-nums tabular-nums; }
 
   /* ===== Section headers (eyebrow + title) =====
      布局（左标题组 / 右操作区、窄屏换行）归 CSS: 原先每处复制一遍类串, 还漏过一处 */
@@ -224,12 +224,12 @@
   .section-head { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-7); flex-wrap: wrap; margin-bottom: var(--sp-9); }
   .section-head h2 { font-size: var(--fs-section); font-weight: var(--fw-bold); letter-spacing: var(--ls-tight); text-wrap: balance; }
   .eyebrow, .section-head .eyebrow {
-    font-family: var(--font-body); font-size: var(--fs-micro); letter-spacing: var(--ls-wide);
+    font-family: var(--font-label); font-size: var(--fs-micro); font-weight: var(--fw-medium); letter-spacing: var(--ls-wide);
     text-transform: uppercase; color: var(--muted); display: block;
   }
   .section-head .eyebrow { margin-bottom: var(--sp-2); }
   .brand-title { font-family: var(--font-display); font-size: var(--fs-section); font-weight: var(--fw-bold); letter-spacing: var(--ls-tight); line-height: var(--lh-flat); }
-  .section-head .sub { font-size: var(--fs-body); color: var(--muted); margin-top: var(--sp-1); }
+  .section-head .sub { font-size: var(--fs-body); color: var(--muted); margin-top: var(--sp-1); text-wrap: pretty; }
   /* 章节头右侧的操作行（筛选下拉 / 搜索 / 主操作按钮）：放不下时整组换行。
      为什么不用 Tailwind 的 flex gap-3：CDN 空壳下它在 E2E 里根本不生效（等于没写这个版式），
      窄屏上 390px 实测会挤成「按钮变 56×123 的字柱」——那正是工具类在这儿帮不上忙的证明。

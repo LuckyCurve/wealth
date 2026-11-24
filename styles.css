@@ -11,10 +11,10 @@
        按**页面自己的主题**声明，而不是写 light dark 跟随系统：主题是应用内自己切的，
        两者不一致时（例如系统暗、页面亮）原生弹层会反色成一张白/黑面板。 */
     color-scheme: light;
-    --bg: #ebe3d0;
-    --bg-2: #e4dbc3;
-    --fg: #211b10;
-    --muted: #6b5c3a;
+    --bg: #ece8e1;
+    --bg-2: #e3ded4;
+    --fg: #201c16;
+    --muted: #665f53;
     /* 主强调：今天、主按钮、品牌（--accent-strong 是描边/盖印档） */
     --accent: #b4841a;
     --accent-ink: #7f5c0e;
@@ -39,20 +39,20 @@
     --verdigris-glow: rgba(47, 107, 79, 0.18);
     --verdigris-pulse: rgba(47, 107, 79, 0.4);
     --usd: #86733f;
-    --card: #fffcf3;
-    --card-2: #f7f0dd;
+    --card: #fffdf8;
+    --card-2: #f4efe5;
     /* 记录卡：比弹窗纸面略暖的一层染色，不是另一块暗色板（原来借 --bg-2 压深了纸）。
        压在 --card 上算 AA 用的就是这一枚不透明色；它同时是描边的来源色。 */
-    --record-tint: #f7efda;
-    --record-edge: #e4d6b3;
-    --border: #ded2b4;
-    --rule: #d3c5a3;
-    --shadow: rgba(33, 27, 16, 0.10);
-    --shadow-soft: rgba(33, 27, 16, 0.10);
-    --shadow-lift: rgba(33, 27, 16, 0.15);
+    --record-tint: #f8f2e6;
+    --record-edge: #e2d8c5;
+    --border: #d5ccbd;
+    --rule: #c8bda9;
+    --shadow: rgba(32, 28, 22, 0.09);
+    --shadow-soft: rgba(32, 28, 22, 0.09);
+    --shadow-lift: rgba(32, 28, 22, 0.14);
     --card-edge: rgba(255, 255, 255, 0.55);
     --tick: rgba(33, 27, 16, 0.22);
-    --scrim: rgba(13, 11, 8, 0.5);
+    --scrim: rgba(18, 16, 13, 0.5);
     /* 台灯（纸面掠光）: 一盏斜射的灯——两条平行光带随指针位置横扫纸面，
        正落在指针处的一小枚圆芯是灯的中心。不用大圆霍：半径一大就变成「一圈发光背景」，
        那是模板式光晕；斜光带有方向，才像一束真打在纸上的光。 */
@@ -60,17 +60,17 @@
     --lamp-glow: rgba(176, 124, 16, 0.13);
     /* 报头底纹（阴阳纹/机器雕版）: 线色与线宽。亮色下细金线在纸面上会向灰偏移，
        故明度压深、线略粗（实测 0.7px 会脏成灰色，1.1px 才读得出是金色的） */
-    --engrave: rgba(163, 115, 10, 0.62);
+    --engrave: rgba(143, 103, 19, 0.48);
     --engrave-w: 1.1px;
-    /* ===== 常驻卡片材质：半透厚纸（α .78，不做背光模糊）=====
+    /* ===== 常驻卡片材质：半透厚纸（α .82，不做背光模糊）=====
        为什么不是玻璃：页面背后只有纸纹与静止桌光，没有可折射的高频结构；14px blur
        实测只把纸纤维抹平（卡心与 4px 的 ΔE 0.35 / 0.00），继续调参数救不回来。
        厚纸仍透一点桌面光，但材质靠自己的底色 + 一条顶边受光 + 两层外阴影，
        不靠 blur/saturate。上一版五层 inset 的「塑料倒角」也一并撤掉。
        注意：**不得给 .card 写 background-image**——渐变底会让 AA 巡检对卡片内每一行字
        静默跳过（上一轮页头就是这么漏检的）。所有光泽都只能走 box-shadow。 */
-    --paper-fill: rgba(255, 253, 246, 0.78);
-    --paper-edge: rgba(172, 151, 110, 0.52);
+    --paper-fill: rgba(255, 253, 248, 0.82);
+    --paper-edge: rgba(160, 148, 126, 0.48);
     --paper-rim: rgba(255, 255, 255, 0.45);
     --paper-drop: 0 14px 30px -26px var(--shadow);
     --paper-drop-lift: 0 22px 42px -26px var(--shadow);
@@ -78,15 +78,15 @@
     为什么必须存在：常驻卡片是半透厚纸，**透光材质得背后有东西可透**——原先背后只有
     一层 3.5% 的纸纹，半透纸只会落到与桌面同色，卡片就退化成一块白板。
        为什么它是静的：跟指针走的光只允许出在 .lamp-layer 一处（见「只允许一盏灯」）。
-       为什么量级压到 0.35：近白的桌光叠在亮底上会把桌面顶到与卡面同色（见上面那段），
+       为什么量级压到 0.42：近白的桌光叠在亮底上会把桌面顶到与卡面同色（见上面那段），
        桌光只该是纸面上的一层明暗，不该是第二个白底。 */
-    --desk-lit: rgba(255, 252, 240, 0.35);
-    --desk-fall: rgba(72, 56, 24, 0.20);
+    --desk-lit: rgba(255, 252, 245, 0.42);
+    --desk-fall: rgba(78, 66, 46, 0.14);
     /* 下拉框箭头（自绘）。为什么必须自绘：原生箭头由浏览器画在控件右侧，页面拿不到它的
        位置——实测文字距左 18.5px、箭头距右 4px，左右永远对不齐（用户原话「左右都不对齐」）。
        关掉 appearance 之后箭头就是我们自己的一张图，位置、颜色、留白全由页面决定。
        色值走变量：写死则暗色下箭头仍是亮色的墨，且会被 theme 巡检判为越界。 */
-    --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 4.5 6 8l3.5-3.5' fill='none' stroke='%236b5c3a' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 4.5 6 8l3.5-3.5' fill='none' stroke='%23665f53' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
     /* 文本选中：青蓝底 + 卡片字色（深底配浅字，暗色自动反相） */
     --select: #3d5a7a;
     /* 焦点环单独一枚色：原先直接借 --accent（#b4841a），压在纸底上实测 2.63:1，
@@ -119,10 +119,10 @@
   }
   :root.dark {
     color-scheme: dark;
-    --bg: #15110a;
-    --bg-2: #1c1710;
-    --fg: #ece4d0;
-    --muted: #b0a078;
+    --bg: #16130e;
+    --bg-2: #201b14;
+    --fg: #f0eadf;
+    --muted: #b8ad9a;
     --accent: #d9b25e;
     --accent-ink: #d9b25e;
     --accent-soft: #e6c982;
@@ -141,12 +141,12 @@
     --verdigris-glow: rgba(127, 196, 160, 0.18);
     --verdigris-pulse: rgba(127, 196, 160, 0.4);
     --usd: #9a8758;
-    --card: #211b10;
-    --card-2: #2a2214;
-    --record-tint: #2c2416;
-    --record-edge: #4a3c22;
-    --border: #3a301d;
-    --rule: #473b28;
+    --card: #282218;
+    --card-2: #312a1f;
+    --record-tint: #2e271b;
+    --record-edge: #4d4230;
+    --border: #41392a;
+    --rule: #514736;
     --shadow: rgba(0, 0, 0, 0.4);
     /* 暗色浮层阴影：不能是纯黑（黑压深棕等于没有），也不能沿用亮色那套浅墨。
        用更实的黑 + 略高的不透明度，浮层才「浮」得起来。 */
@@ -162,24 +162,24 @@
     --engrave: rgba(217, 178, 94, 0.5);
     --engrave-w: 1px;
     /* 暗色厚纸：深棕半透明（不是黑——黑会把暖色纸面压死）；受光只留顶部一条细线，
-       否则在暗背景上会是一圈刺眼的白描边。底色取 50,40,22 @ .78：与审计 B 截图的
-       卡心 45,36,21 对齐；66,54,35 在同样的 α 下会把 --muted 压到 5.07:1，低于 5.87 的验收线。 */
-    --paper-fill: rgba(50, 40, 22, 0.78);
-    --paper-edge: rgba(150, 128, 86, 0.44);
+       否则在暗背景上会是一圈刺眼的白描边。底色取 54,46,34 @ .82：卡面与桌面
+       拉开一层，同时给 --muted 留下足够的 AA 余量。 */
+    --paper-fill: rgba(54, 46, 34, 0.82);
+    --paper-edge: rgba(170, 150, 112, 0.42);
     --paper-rim: rgba(255, 246, 214, 0.16);
     --paper-drop: 0 16px 34px -26px var(--shadow-lift);
     --paper-drop-lift: 0 24px 46px -26px var(--shadow-lift);
     /* 暗色桌面：纸已经很暗，桌光只能是一点点暖调（压太狠会让四角发黑发脏）。
        与亮色同一套深度语言（受光更聚、退光更沉）；半透纸仍要透出这层明暗。
        不要再把桌光提亮——那会把桌面洗到与卡面同色。 */
-    --desk-lit: rgba(255, 240, 200, 0.045);
-    --desk-fall: rgba(0, 0, 0, 0.44);
-    /* 暗色下箭头改用 muted 的亮版（#b0a078）：沿用亮色的深墨会在深棕底上看不见 */
-    --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 4.5 6 8l3.5-3.5' fill='none' stroke='%23b0a078' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-    /* 暗色下金环本身就够亮（#d9b25e 对 #15110a 是 9.39:1），不必换色 */
+    --desk-lit: rgba(255, 240, 200, 0.04);
+    --desk-fall: rgba(0, 0, 0, 0.38);
+    /* 暗色下箭头改用 muted 的亮版（#b8ad9a）：沿用亮色的深墨会在深棕底上看不见 */
+    --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 4.5 6 8l3.5-3.5' fill='none' stroke='%23b8ad9a' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    /* 暗色下金环本身就够亮（#d9b25e 对 #16130e 已远超 3:1），不必换色 */
     --focus-ring: #d9b25e;
     --select: #9ab6d6;
-    /* 深色下墨就是浅墨（--fg #ece4d0）叠在深棕纸上：同一件事——浓度。
+    /* 深色下墨就是浅墨（--fg #f0eadf）叠在深棕纸上：同一件事——浓度。
        上限只到 .34 而不是 .50：再往上格子就进了「中间调死区」，浅字与深字同时够不到
        4.5:1（.50 时浅字 3.01、深字 4.23）。.34 实测浅字 4.73、对纸 2.70 —— 深色纸能给的
        台阶就这么高，再想深只能翻字色，那会把同一个刻度拆成两套。 */
@@ -198,29 +198,30 @@
   /* ===== 排版 token（字号 / 字重 / 字体族）=====
      放在 :root, :root.dark 合并选择器上：它们与明暗无关，写进两套主题块就等于同一个值
      声明两遍，改一处忘一处。主题变量（颜色）仍各自成块，theme.spec.js 的「两套变量一一
-     对应」巡检只扫 :root / :root.dark，不会把这三个 token 算进去。
-     字体族为何必须显式写 CJK 回落：body 是等宽字体（拉丁/数字），而 IBM Plex Mono 没有
-     中文字形——不写这一层，中文会落到 monospace 的宋体兜底，12px 下笔画极细、发灰，
-     正是「字很浅、字重不够」的根因；显式落到 PingFang/雅黑/Noto Sans 才有屏显黑体。 */
+     对应」巡检只扫 :root / :root.dark，不会把这一组 token 算进去。
+     字体族为何必须显式写 CJK 回落：辅助标签是等宽字体（拉丁/数字），而 IBM Plex Mono
+     没有中文字形——不写这一层，中文会落到 monospace 的宋体兜底，12px 下笔画极细、
+     发灰，正是「字很浅、字重不够」的根因；显式落到 PingFang/雅黑/Noto Sans 才有屏显黑体。 */
   :root, :root.dark {
     /* 纸纤维（非周期的 feTurbulence 噪点）。只此一份：纸面与页头各用一次。
        alpha 由噪声自己的 alpha 通道反相得来，故是稀疏墨点而不是一层灰膜。 */
     --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='f'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.32' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 -1.4 0.95'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23f)'/%3E%3C/svg%3E");
-    --font-body: 'IBM Plex Mono', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', monospace;
+    --font-body: 'IBM Plex Sans', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', sans-serif;
     --font-display: 'Noto Serif SC', 'Songti SC', serif;
-    --font-numeric: 'Cormorant Garamond', 'Noto Serif SC', serif;
-    --fs-micro: 12px;
-    --fs-body: 14px;
+    --font-numeric: 'IBM Plex Sans', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', sans-serif;
+    --font-label: 'IBM Plex Mono', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', monospace;
+    --fs-micro: 0.75rem;
+    --fs-body: 0.9375rem;
     /* 展示档：卡片内小标题 / 卡片标题 / 区块标题 / 弹窗标题 / 卡片主读数——
        层级靠字号与颜色，不靠 1px 差。主读数（hero-figure）与弹窗标题必须分开：
        曾把两者并成同一个 token，结果卡片主读数被压到 22px（原 32px），
        E2E 的「同字号」断言只看 .hero-figure 彼此一致，抓不到这种跨角色坍缩。 */
-    --fs-card-sm: 15px;
-    --fs-card: 17px;
-    --fs-section: 20px;
-    --fs-modal: 22px;
-    --fs-hero: 32px;
-    /* 字重三档：正文基准提到 500（原 400，观感发虚）；层级靠颜色与字重，不靠 1px 字号差 */
+    --fs-card-sm: 0.9375rem;
+    --fs-card: 1.0625rem;
+    --fs-section: 1.375rem;
+    --fs-modal: 1.5rem;
+    --fs-hero: 2.125rem;
+    --fw-regular: 400;
     --fw-medium: 500;
     --fw-strong: 600;
     --fw-bold: 700;
@@ -272,23 +273,23 @@
     --ring-w-3: 3px;
     --ring-w-chip: 1.5px;
     /* 复合材质：金钮压印 / 弹窗纸签 / 段控件按下 / 心跳脉冲。全部原值搬进来，不新增色值。 */
-    --sh-gold: inset 0 1px 0 rgba(255,255,255,0.4), inset 0 -1px 0 rgba(33,27,16,0.22), 0 1px 2px var(--shadow);
-    --sh-gold-hover: inset 0 1px 0 rgba(255,255,255,0.45), inset 0 -1px 0 rgba(33,27,16,0.22), 0 2px 10px var(--accent-glow);
-    --sh-gold-active: inset 0 2px 5px rgba(33,27,16,0.3);
+    --sh-gold: inset 0 1px 0 rgba(255,255,255,0.30), 0 1px 2px var(--shadow), 0 8px 18px -14px var(--accent-glow);
+    --sh-gold-hover: inset 0 1px 0 rgba(255,255,255,0.36), 0 2px 4px var(--shadow), 0 10px 22px -12px var(--accent-glow);
+    --sh-gold-active: inset 0 2px 4px rgba(33,27,16,0.22);
     --sh-slip: inset 0 1px 0 var(--card-edge), inset 3px 0 0 var(--accent-soft);
     --sh-slip-hover: inset 0 1px 0 var(--card-edge), inset 3px 0 0 var(--accent), 0 4px 12px -6px var(--shadow-lift);
     --sh-press: inset 0 1px 0 rgba(255,255,255,0.25), 0 1px 2px var(--shadow);
     --sh-pulse-0: 0 0 0 0 var(--verdigris-pulse);
     --sh-pulse-70: 0 0 0 7px transparent;
     --sh-pulse-100: 0 0 0 0 transparent;
-    --sh-text-light: 0 1px 0 rgba(255, 255, 255, 0.45);
+    --sh-text-light: 0 1px 0 rgba(255, 255, 255, 0.22);
     --sh-text-dark: 0 1px 0 rgba(0, 0, 0, 0.6);
     /* 排版：行高三档、字距三档；流式展示字号各自一枚（不在几何档里）。 */
-    --lh-flat: 1; --lh-body: 1.5; --lh-read: 1.7;
-    --ls-tight: -0.005em; --ls-normal: 0.02em; --ls-wide: 0.22em;
-    --fs-display: clamp(38px, 7vw, 64px);
-    --fs-display-sm: clamp(34px, 12vw, 48px);
-    --fs-pace: clamp(26px, 4.4vw, 34px);
+    --lh-flat: 1; --lh-body: 1.55; --lh-read: 1.7;
+    --ls-tight: -0.01em; --ls-normal: 0.02em; --ls-wide: 0.22em;
+    --fs-display: clamp(2.5rem, 7vw, 4rem);
+    --fs-display-sm: clamp(2.125rem, 12vw, 3rem);
+    --fs-pace: clamp(1.625rem, 4.4vw, 2.125rem);
     --fs-currency: 0.42em;
     --fs-cents: 0.4em;
     /* flatpickr 的固定格高（尺寸 token，不是排版行高档）：由两枚间距 token 相加得来。 */
@@ -342,7 +343,7 @@
   /* 滚动条槽位**永远**预留：弹窗开关不得给页面带来横向位移（原生弹窗不锁背景滚动，
      但页面自身内容长到出现滚动条时，宽度也不该因为一次开关而跳）。 */
   html { scrollbar-gutter: stable; }
-  body { background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: var(--fs-body); font-weight: var(--fw-medium); font-feature-settings: 'tnum' 1; padding-bottom: env(safe-area-inset-bottom, 0); text-autospace: normal; }
+  body { background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: var(--fs-body); font-weight: var(--fw-regular); padding-bottom: env(safe-area-inset-bottom, 0); text-autospace: normal; }
   [hidden] { display: none !important; }
   /* ===== 纸纹与桌光：这个产品的隐喻是「一张摊在桌面上、被灯照着的账页」=====
      三层各司其职：
@@ -371,12 +372,12 @@
   /* 纸纹 = 非周期纤维（定义在 --grain）。为何不用周期十字纹：同一根笔画每隔 60px 精确复现一次，
      最亮眼的就是那个周期（读起来是坐标纸）。为何平铺而不是全屏 filter：后者每帧重新求值。 */
   body::before {
-    content: ''; position: fixed; inset: 0; z-index: -1; opacity: 0.07; pointer-events: none;
+    content: ''; position: fixed; inset: 0; z-index: -1; opacity: 0.045; pointer-events: none;
     background-image: var(--grain);
   }
   /* 暗色纸是深棕，黑墨点叠上去等于没叠（旧版的纸纹在暗色下完全不可见）。
      反相把墨点翻成亮点：纤维在暗纸上本就是更亮的一点反光。 */
-  .dark body::before, .dark .app-header::after { filter: invert(1); opacity: 0.09; }
+  .dark body::before, .dark .app-header::after { filter: invert(1); opacity: 0.05; }
   /* 台灯掠光: 两条斜光带（同一角度、错开位置） + 指针处的小圆芯。
      带子用 calc(var(--lamp-x) ± …) 定位——光带跟着指针的横向位置扫，纵向只由圆芯微调，
      所以鼠标横移时纸面像被灯拂过，而不是一个球在跳。
@@ -551,7 +552,7 @@
      于是那里是一块平色、下沿横着一条台阶（实测 4.5/255）。故把同一张纹再髹一遍。 */
   .app-header::after {
     content: ''; position: absolute; inset: 0; pointer-events: none;
-    background-image: var(--grain); opacity: 0.07;
+    background-image: var(--grain); opacity: 0.045;
   }
   /* 卡片悬停：**只给真能点的卡片**（.card-interactive）。
      裸 .card:hover 曾经也会抬阴影，于是纯展示的卡片（图表、汇总、明细）同样摆出「可点」
@@ -1132,7 +1133,7 @@
      一大片，整张表看起来像「从半截开始」。表头比数据行紧一档，行与行仍靠数据行留白分组。 */
   .list-head {
     border-bottom: 2px solid var(--rule); letter-spacing: var(--ls-normal);
-    font-size: var(--fs-micro); font-weight: var(--fw-medium); color: var(--muted);
+    font-family: var(--font-label); font-size: var(--fs-micro); font-weight: var(--fw-medium); color: var(--muted);
     padding-block: var(--sp-4);
   }
   /* 统一提示便条: 全站唯一出口在右下角。#toast-area 竖排堆叠（新便条贴角、旧便条上移，
@@ -1175,7 +1176,7 @@
   .tab-bar::-webkit-scrollbar { display: none; }
   /* 滚动容器会裁掉向外的焦点环（Tab 键走查时会看不到自己在哪）：环改画在按钮内侧 */
   .tab-btn:focus-visible { outline-offset: calc(var(--sp-1) * -1.5); }
-  .tab-btn.active { color: var(--fg); }
+  .tab-btn.active { color: var(--secondary); font-weight: var(--fw-strong); }
   .tab-btn:hover { color: var(--fg); }
   /* 当前 Tab 的黄条是**唯一的**一个元素（不再是每个按钮自己的 border-bottom）：
      切换时 transform 从旧位置滑到新位置——按钮各自的 border 只能跳变，
@@ -1200,7 +1201,7 @@
   .seg-control { display: inline-flex; padding: var(--sp-2); border-radius: var(--rad-4); background: var(--bg-2); border: 1px solid var(--border); gap: var(--sp-1); }
   .seg-btn { border: none; background: transparent; color: var(--muted); font-size: var(--fs-micro); font-family: var(--font-body); padding: var(--sp-3) var(--sp-8); border-radius: var(--rad-3); cursor: pointer; transition: background var(--mo-fast), color var(--mo-fast); white-space: nowrap; }
   .seg-btn:hover { color: var(--fg); }
-  .seg-btn.active { background: var(--secondary); color: var(--card); font-weight: var(--fw-strong); box-shadow: var(--sh-press); }
+  .seg-btn.active { background: var(--secondary); color: var(--card); font-weight: var(--fw-strong); box-shadow: none; }
   /* 解锁冷却五档：常规内边距在窄屏弹窗里会横向溢出，这一组收紧横向留白 */
   .seg-compact .seg-btn { padding: var(--sp-3) var(--sp-5); }
   /* ===== 进入资产页的长按门槛：按住时金色墨线沿底边自左向右浸满按钮 =====

@@ -107,7 +107,7 @@ test.describe('年化换算 · 卡片配色（亮/暗两套主题）', () => {
       expect(contrast(s.name, s.fill)).toBeGreaterThanOrEqual(4.5);
       expect(contrast(s.meta, s.fill)).toBeGreaterThanOrEqual(4.5);
       expect(parseFloat(s.pctSize)).toBeGreaterThan(14);
-      expect(s.pctFont).toContain('Cormorant');
+      expect(s.pctFont).toContain('IBM Plex Sans');
     });
   }
 });
