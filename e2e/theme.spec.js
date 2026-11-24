@@ -164,6 +164,47 @@ test.describe('打印形态：暗色主题也要印得出、印得清', () => {
     }
   });
 
+  test('打印：月份图四档仍是暖陶土，且文字与纸面对比达标', async ({ appPage: page }) => {
+    await switchToDark(page);
+    await page.emulateMedia({ media: 'print' });
+    const look = await page.evaluate(() => {
+      const cs = getComputedStyle(document.documentElement);
+      const probe = document.createElement('span');
+      document.body.appendChild(probe);
+      const resolve = (v) => {
+        probe.style.color = '';
+        probe.style.color = v;
+        return getComputedStyle(probe).color;
+      };
+      const out = {
+        paper: getComputedStyle(document.getElementById('month-grid-card')).backgroundColor,
+        washes: [1, 2, 3, 4].map((i) => resolve(cs.getPropertyValue(`--mg-${i}`))),
+        ink: resolve(cs.getPropertyValue('--mg-ink-4')),
+      };
+      probe.remove();
+      return out;
+    });
+    const over = (f, b) => ({
+      r: f.r * f.a + b.r * (1 - f.a),
+      g: f.g * f.a + b.g * (1 - f.a),
+      b: f.b * f.a + b.b * (1 - f.a),
+      a: 1,
+    });
+    const paper = rgb(look.paper);
+    look.washes.map(rgb).forEach((c, i) => {
+      expect(c.r > c.g && c.g > c.b && c.r - c.b >= 40, `打印第 ${i + 1} 档的墨本身仍是暖陶土，不得回落到中性灰`).toBe(true);
+    });
+    const washes = look.washes.map((w) => over(rgb(w), paper));
+    washes.forEach((c, i) => {
+      expect(c.r > c.g && c.g > c.b, `打印第 ${i + 1} 档仍是暖色，不得回落到中性灰`).toBe(true);
+    });
+    for (let i = 1; i < washes.length; i++) {
+      expect(ratio(washes[i], washes[i - 1]), `打印墨阶 ${i + 1} 应比 ${i} 深`).toBeGreaterThanOrEqual(1.25);
+    }
+    expect(ratio(washes[3], paper), '打印最深一档对纸面 ≥3:1').toBeGreaterThanOrEqual(3);
+    expect(ratio(rgb(look.ink), washes[3]), '打印最深一档的字 ≥4.5:1').toBeGreaterThanOrEqual(4.5);
+  });
+
   test('暗色主题打印：半透纸材质退场（不印成一块半透明色块）', async ({ appPage: page }) => {
     await switchToDark(page);
     await page.emulateMedia({ media: 'print' });
