@@ -20,10 +20,16 @@ function renderMonthGrid() {
   if (summary) {
     const parts = [i18n.t('{n} 笔', { n: view.count })];
     if (view.amount > 0) parts.push(money.formatCNY(view.amount));
+    summary.textContent = parts.join(' · ');
+  }
+  // 漏记提醒单独一枚：它是警示，不与「几笔 · 多少钱」挤成同一串读数
+  const gapEl = document.getElementById('month-grid-gap');
+  if (gapEl) {
     const gap = month === date.getCurrentMonth() ? expense.gapDays(state.expenses, date.getLocalDateStr()) : null;
     const limit = expense.normalizeGapDays(state.expenseGapDays);
-    if (gap != null && limit > 0 && gap >= limit) parts.push(i18n.t('已连续 {n} 天没有记录', { n: gap }));
-    summary.textContent = parts.join(' · ');
+    const show = gap != null && limit > 0 && gap >= limit;
+    gapEl.style.display = show ? '' : 'none';
+    gapEl.textContent = show ? i18n.t('已连续 {n} 天没有记录', { n: gap }) : '';
   }
   if (selectedDay && selectedDay.slice(0, 7) !== month) selectedDay = '';
   const today = date.getLocalDateStr();
@@ -33,7 +39,7 @@ function renderMonthGrid() {
     const value = monthGrid.cellValue(cell, monthGridMode);
     const at = (cell.date === today ? ' is-today' : '') + (cell.date === selectedDay ? ' is-selected' : '');
     const click = cell.future ? ' disabled' : ` data-date="${cell.date}" onclick="selectDay('${cell.date}')"`;
-    return `<button type="button" class="mg-cell${at}" data-lv="${cell.level}"${click} title="${text.esc(label)}" aria-label="${text.esc(label)}"><span class="mg-day">${cell.day}</span><span class="mg-val">${text.esc(value)}</span></button>`;
+    return `<button type="button" class="mg-cell${at}" data-lv="${cell.level}"${click} title="${text.esc(label)}" aria-label="${text.esc(label)}"><span class="mg-in"><span class="mg-day">${cell.day}</span><span class="mg-val">${text.esc(value)}</span></span></button>`;
   }).join('')).join('');
   renderDayPanel();
 }

@@ -54,6 +54,8 @@
     .filter-bar, .row-actions, .drag-handle, .edit-pencil,
     .stress-bar, .stress-badge, .tip-mark, .sort-indicator,
     .table-toggle-chev, .day-panel-actions, .empty-action,
+    /* 月份图上「点一格 / 长按」的提示与翻月箭头：纸面上没有指针，也翻不了页 */
+    .mg-hint, .mg-arrow,
     .btn-gold, .btn-ghost, .btn-danger, .seg-control,
     /* 未设目标时这块只剩「设定目标」按钮，按钮撤了就是一条空框 */
     .target-panel-empty { display: none !important; }

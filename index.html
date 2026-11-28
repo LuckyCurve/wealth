@@ -365,18 +365,11 @@
 
       <div id="month-grid-card" class="card mb-6">
         <div class="card-head mg-head">
-          <h3 class="font-display t-body t-bold" data-i18n="月份图">月份图</h3>
-          <p class="t-micro muted mg-sub">
-            <span class="mg-month">
-              <span class="mg-nav">
-                <button type="button" class="btn-ghost btn-xs" onclick="shiftMonthGrid(-1)" aria-label="上个月" data-i18n-aria-label="上个月">←</button>
-                <button type="button" class="btn-ghost btn-xs" onclick="shiftMonthGrid(1)" aria-label="下个月" data-i18n-aria-label="下个月">→</button>
-              </span>
-              <span id="month-grid-label" class="tabular"></span>
-            </span>
-            <span class="mg-dot">·</span><span id="month-grid-summary" class="tabular mg-sum"></span>
-            <span class="mg-legend" aria-hidden="true"><span data-i18n="少">少</span><span class="mg-sw" data-lv="1"></span><span class="mg-sw" data-lv="2"></span><span class="mg-sw" data-lv="3"></span><span class="mg-sw" data-lv="4"></span><span data-i18n="多">多</span></span>
-          </p>
+          <div class="mg-titlebar">
+            <button type="button" class="mg-arrow" onclick="shiftMonthGrid(-1)" aria-label="上个月" data-i18n-aria-label="上个月"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M9.5 3.5 5 8l4.5 4.5"/></svg></button>
+            <h3 class="font-display mg-title"><span class="sr-only" data-i18n="月份图">月份图</span><span id="month-grid-label" class="tabular"></span></h3>
+            <button type="button" class="mg-arrow" onclick="shiftMonthGrid(1)" aria-label="下个月" data-i18n-aria-label="下个月"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6.5 3.5 11 8l-4.5 4.5"/></svg></button>
+          </div>
           <div class="toolbar">
             <div class="seg-control">
               <button id="mg-mode-count" onclick="setMonthGridMode('count')" class="seg-btn active" data-i18n="笔数">笔数</button>
@@ -384,6 +377,10 @@
             </div>
             <button type="button" class="btn-ghost btn-xs" onclick="exportMonthReceipt()" data-i18n="小票">小票</button>
           </div>
+          <p class="mg-meta">
+            <span class="mg-summary"><span id="month-grid-summary" class="tabular"></span><span id="month-grid-gap" class="mg-gap" style="display:none;"></span></span>
+            <span class="mg-legend" aria-hidden="true"><span data-i18n="少">少</span><span class="mg-sw" data-lv="1"></span><span class="mg-sw" data-lv="2"></span><span class="mg-sw" data-lv="3"></span><span class="mg-sw" data-lv="4"></span><span data-i18n="多">多</span></span>
+          </p>
         </div>
         <div class="mg-weekdays" aria-hidden="true">
           <span data-i18n="一">一</span><span data-i18n="二">二</span><span data-i18n="三">三</span><span data-i18n="四">四</span><span data-i18n="五">五</span><span data-i18n="六">六</span><span data-i18n="日">日</span>

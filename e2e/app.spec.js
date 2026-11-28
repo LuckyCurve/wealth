@@ -968,6 +968,8 @@ test.describe('消费月份图（日历）', () => {
           bg: rgba(getComputedStyle(rec).backgroundColor),
           real: bgOf(rec),
           fg: rgba(getComputedStyle(rec.querySelector('.mg-day')).color),
+          clip: getComputedStyle(rec).backgroundClip,
+          pad: parseFloat(getComputedStyle(rec).paddingLeft),
         } : null,
         levels,
         selected: sel ? {
@@ -1025,6 +1027,11 @@ test.describe('消费月份图（日历）', () => {
 
       const r = look.record;
       expect(r.bg.a, theme + '：有记录就该染墨').toBeGreaterThan(0);
+      // 洗墨只铺内容区、四周留纸边：相邻两天同档时不连成一整块。
+      // 档位那条用 background-color 写不是因为洁癖：background 简写会把 clip 重置回
+      // border-box，纸边会整块消失而颜色、对比度一切照旧（实测过）。
+      expect(r.clip, theme + '：洗墨必须 content-box 裁剪（background 简写会把 clip 重置掉）').toBe('content-box');
+      expect(r.pad, theme + '：洗墨四周要留出纸边（padding 归零就回到铺满）').toBeGreaterThan(0);
       expect(same(r.bg, look.washes[Number(look.levels[0].lv) - 1]), theme + '：格子底色就是那一档墨').toBe(true);
       expect(same(r.fg, inkOf(look.levels[0].lv)), theme + '：染墨的格子日期走这一档的字色，不走次要灰').toBe(true);
 
@@ -1075,6 +1082,21 @@ test.describe('消费月份图（日历）', () => {
     check(dark, '暗色·选中');
   });
 
+  test('宽屏：读数与日期在同一行（读数落到格子对角，会被读成隔壁那天的数）', async ({ page }) => {
+    // 当月必须真有记录：默认样例记在一二月，当月一笔没有时每个格子都是空的
+    await openWith(page, { ...sampleState(), expenses: [{ id: 'row-1', date: today.slice(0, 8) + '01', amount: 99, note: '', tags: {} }] });
+    const look = await page.evaluate(() => {
+      const cell = document.querySelector('#month-grid .mg-cell[data-lv]:not([data-lv="0"]):not(.is-blank)');
+      const r = (s) => cell.querySelector(s).getBoundingClientRect();
+      const c = cell.getBoundingClientRect();
+      const box = (x) => ({ l: x.left - c.left, b: x.bottom });
+      return { day: box(r('.mg-day')), val: box(r('.mg-val')), w: c.width };
+    });
+    expect(look.w, '宽屏一格应有百来像素：这条断的是「同一行」，窄屏两行式不适用').toBeGreaterThan(90);
+    expect(Math.abs(look.day.b - look.val.b), '日期与读数共用一条基线（不是左上 / 右下两个角）').toBeLessThanOrEqual(2);
+    expect(look.val.l - look.day.l, '读数在日期右侧，而不是隔着一整格').toBeGreaterThan(20);
+  });
+
   test('日历不贴在左边：左右留白相等且没被撑满', async ({ appPage: page }) => {
     const gap = await page.evaluate(() => {
       const card = document.getElementById('month-grid-card');
@@ -1090,13 +1112,13 @@ test.describe('消费月份图（日历）', () => {
     expect(gap.left, '宽屏下它不是撑满的：撑满时居中与否看不出区别，这条会把两边都变成 0').toBeGreaterThan(20);
   });
 
-  test('图例贴着月历右缘：宽屏与月份信息各占一头，窄屏并进「笔数｜金额」那一行', async ({ appPage: page }) => {
+  test('卡头：月份当标题、箭头贴在它两侧，汇总与色阶左右两缘都落在月历那一列上', async ({ appPage: page }) => {
     const read = () => page.evaluate(() => {
       const card = document.getElementById('month-grid-card');
       const box = (s) => card.querySelector(s).getBoundingClientRect();
-      const grid = box('#month-grid'), legend = box('.mg-legend');
-      const summary = box('#month-grid-summary'), nav = box('.mg-nav'), label = box('#month-grid-label');
-      const title = box('h3');
+      const grid = box('#month-grid'), legend = box('.mg-legend'), summary = box('#month-grid-summary');
+      const titlebar = box('.mg-titlebar'), toolbar = box('.mg-head .toolbar'), label = box('#month-grid-label');
+      const arrows = [...card.querySelectorAll('.mg-arrow')].map((b) => b.getBoundingClientRect());
       const center = (r) => r.top + r.height / 2;
       const sameRow = (a, b) => Math.min(a.bottom, b.bottom) > Math.max(a.top, b.top);
       const bands = (rects) => {
@@ -1110,33 +1132,39 @@ test.describe('消费月份图（日历）', () => {
         docScroll: document.documentElement.scrollWidth,
         cardScroll: card.scrollWidth,
         cardWidth: card.clientWidth,
-        legendVsGrid: Math.abs(grid.right - legend.right),
-        legendAfterSummary: legend.left >= summary.right - 1,
+        summaryVsGridLeft: Math.abs(summary.left - grid.left),
+        legendVsGridRight: Math.abs(grid.right - legend.right),
         legendOnSummaryRow: sameRow(summary, legend),
-        summaryOnMonthRow: sameRow(summary, nav),
-        summaryBelowMonth: summary.top >= nav.bottom - 1,
-        navBeforeLabel: nav.right <= label.left + 1 && sameRow(nav, label),
-        infoBands: bands([title, nav, summary]),
+        metaBelowTitle: summary.top >= titlebar.bottom - 1,
+        prevBeforeLabel: arrows[0].right <= label.left + 1 && sameRow(arrows[0], label),
+        nextAfterLabel: arrows[1].left >= label.right - 1 && sameRow(arrows[1], label),
+        toolbarOnTitleRow: sameRow(toolbar, titlebar),
+        toolbarBelowTitle: toolbar.top >= titlebar.bottom - 1,
+        headBands: bands([titlebar, toolbar, summary]),
       };
     });
 
     const wide = await read();
-    expect(wide.legendVsGrid, '图例右缘要压在月历右缘上（不是卡片右缘，也不是紧跟在金额后面）').toBeLessThanOrEqual(1);
-    expect(wide.legendAfterSummary, '图例在汇总右侧，不夹在金额里').toBe(true);
-    expect(wide.summaryOnMonthRow, '宽屏：箭头、月份、汇总、图例同一行').toBe(true);
-    expect(wide.navBeforeLabel, '左右箭头仍紧贴它们翻的那个月份').toBe(true);
-    expect(wide.infoBands, '宽屏卡片头是「标题 / 月份+汇总+图例」两段').toBe(2);
+    expect(wide.summaryVsGridLeft, '汇总左缘压在月历左缘上（不是卡片内边距那条线）').toBeLessThanOrEqual(1);
+    expect(wide.legendVsGridRight, '色阶右缘压在月历右缘上').toBeLessThanOrEqual(1);
+    expect(wide.metaBelowTitle, '宽屏：汇总与色阶自带一段，在月份下面').toBe(true);
+    expect(wide.legendOnSummaryRow, '汇总与色阶同一行，各占一头').toBe(true);
+    expect(wide.prevBeforeLabel, '上月箭头在月份左侧、同一行').toBe(true);
+    expect(wide.nextAfterLabel, '下月箭头在月份右侧、同一行').toBe(true);
+    expect(wide.toolbarOnTitleRow, '宽屏：「笔数｜金额」与导出跟月份同一行').toBe(true);
+    expect(wide.headBands, '宽屏卡头是「月份+工具条 / 汇总+色阶」两段').toBe(2);
     expect(wide.docScroll, '宽屏不得横向溢出').toBeLessThanOrEqual(wide.viewport);
 
     for (const width of [390, 360, 320]) {
       await page.setViewportSize({ width, height: 900 });
       const narrow = await read();
       const label = `${width}px`;
-      expect(narrow.legendVsGrid, `${label}：图例仍贴月历右缘`).toBeLessThanOrEqual(1);
-      expect(narrow.summaryBelowMonth, `${label}：月份信息换到下一段`).toBe(true);
-      expect(narrow.legendOnSummaryRow, `${label}：图例并进「笔数｜金额」那一行，不另占一段`).toBe(true);
-      expect(narrow.navBeforeLabel, `${label}：左右箭头仍在月份左边`).toBe(true);
-      expect(narrow.infoBands, `${label}：卡片头回到「标题 / 月份 / 汇总+图例」三段`).toBe(3);
+      expect(narrow.summaryVsGridLeft, `${label}：汇总左缘仍贴月历左缘`).toBeLessThanOrEqual(1);
+      expect(narrow.legendVsGridRight, `${label}：色阶右缘仍贴月历右缘`).toBeLessThanOrEqual(1);
+      expect(narrow.toolbarBelowTitle, `${label}：工具条换到月份下一段，不挤标题`).toBe(true);
+      expect(narrow.metaBelowTitle, `${label}：汇总仍在最下一段`).toBe(true);
+      expect(narrow.prevBeforeLabel && narrow.nextAfterLabel, `${label}：箭头仍分列月份两侧`).toBe(true);
+      expect(narrow.headBands, `${label}：卡头回到「月份 / 工具条 / 汇总+色阶」三段`).toBe(3);
       expect(narrow.docScroll, `${label}：页面不得横向溢出（scrollWidth ${narrow.docScroll}）`).toBeLessThanOrEqual(narrow.viewport);
       expect(narrow.cardScroll, `${label}：月份卡不得横向溢出（scrollWidth ${narrow.cardScroll}）`).toBeLessThanOrEqual(narrow.cardWidth + 1);
     }
@@ -1336,6 +1364,8 @@ test.describe('消费月份图（日历）', () => {
       expenses: [{ id: 'gap-1', date: daysAgo(3), amount: 10, note: '三天前', tags: { 'ec-pay': '微信', 'ec-type': '餐饮' } }],
     });
     const summary = page.locator('#month-grid-summary');
+    const gapNote = page.locator('#month-grid-gap');
+    await expect(gapNote).toBeHidden();
     await expect(summary).not.toContainText('连续');
 
     await openSettings(page);
@@ -1343,13 +1373,14 @@ test.describe('消费月份图（日历）', () => {
     await page.locator('#expense-gap-days').press('Tab');
     expect(await page.evaluate(() => state.expenseGapDays), '天数要落盘').toBe(2);
     await page.evaluate(() => closeModal('settings-modal'));
-    await expect(summary).toContainText('已连续 2 天没有记录');
+    await expect(gapNote).toBeVisible();
+    await expect(gapNote).toContainText('已连续 2 天没有记录');
 
     await openSettings(page);
     await page.locator('#expense-gap-days').fill('0');
     await page.locator('#expense-gap-days').press('Tab');
     await page.evaluate(() => closeModal('settings-modal'));
-    await expect(summary).not.toContainText('连续');
+    await expect(gapNote).toBeHidden();
   });
 
   test('六行月与空月份：非本月只做到「没有数字」，格线照画、不缺角', async ({ page }) => {
